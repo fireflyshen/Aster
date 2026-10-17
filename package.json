@@ -1,0 +1,124 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "aster",
+  "title": "Aster",
+  "description": "Manage Taskwarrior 3 tasks locally or on a VPS over SSH.",
+  "icon": "extension-icon.png",
+  "type": "module",
+  "author": "YOUR_RAYCAST_USERNAME",
+  "license": "MIT",
+  "platforms": [
+    "macOS",
+    "Windows"
+  ],
+  "categories": [
+    "Productivity"
+  ],
+  "preferences": [
+    {
+      "name": "connectionMode",
+      "type": "dropdown",
+      "required": true,
+      "title": "Connection Mode",
+      "default": "ssh",
+      "data": [
+        {
+          "title": "SSH (Remote)",
+          "value": "ssh"
+        },
+        {
+          "title": "Local",
+          "value": "local"
+        }
+      ],
+      "description": "Choose local Taskwarrior 3 or a remote Linux VPS over SSH."
+    },
+    {
+      "name": "sshTarget",
+      "type": "textfield",
+      "required": false,
+      "title": "SSH Target",
+      "default": "rn",
+      "description": "SSH host alias or user@host. Port and keys come from your system SSH config."
+    },
+    {
+      "name": "remoteTaskCommand",
+      "type": "textfield",
+      "required": false,
+      "title": "Remote Task Command",
+      "default": "/usr/local/bin/task",
+      "description": "SSH only: absolute path to Taskwarrior 3 on the VPS."
+    },
+    {
+      "name": "remoteTaskrc",
+      "type": "textfield",
+      "required": false,
+      "title": "Remote Taskrc",
+      "default": "/etc/taskwarrior/taskrc",
+      "description": "SSH only: absolute taskrc path. Clear to use the remote user’s default configuration."
+    },
+    {
+      "name": "taskCommand",
+      "type": "textfield",
+      "required": false,
+      "title": "Local Task Command",
+      "description": "Local mode only: Taskwarrior 3 executable on macOS or inside WSL.",
+      "default": {
+        "macOS": "/opt/homebrew/bin/task",
+        "Windows": "/usr/bin/task"
+      },
+      "placeholder": "/usr/bin/task"
+    },
+    {
+      "name": "wslDistribution",
+      "type": "textfield",
+      "required": false,
+      "title": "WSL Distribution",
+      "description": "Local Windows mode only: WSL distribution containing Taskwarrior 3.",
+      "default": "Ubuntu",
+      "placeholder": "Ubuntu"
+    }
+  ],
+  "commands": [
+    {
+      "name": "my-tasks",
+      "title": "My Tasks",
+      "subtitle": "Aster",
+      "description": "Manage, search and review Taskwarrior tasks",
+      "mode": "view"
+    },
+    {
+      "name": "quick-add",
+      "title": "Quick Add Task",
+      "subtitle": "Aster",
+      "description": "Add a task to Taskwarrior",
+      "mode": "view"
+    }
+  ],
+  "scripts": {
+    "build": "ray build -e dist",
+    "dev": "ray develop",
+    "lint": "ray lint",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "fix-lint": "ray lint --fix",
+    "format": "prettier --write src tests README.md package.json",
+    "publish": "npx @raycast/api@latest publish",
+    "typecheck": "tsc --noEmit",
+    "dev:mobile": "npm --prefix modules/mobile run dev",
+    "build:mobile": "npm --prefix modules/mobile run build",
+    "check:mobile": "npm --prefix modules/mobile run check",
+    "test:mobile": "npm --prefix modules/mobile run test"
+  },
+  "dependencies": {
+    "@raycast/api": "^1.104.19",
+    "@raycast/utils": "^2.2.3"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.0.4",
+    "@types/node": "^22.20.1",
+    "@types/react": "19.0.10",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  }
+}
