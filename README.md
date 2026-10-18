@@ -1,12 +1,12 @@
 # Aster
 
-## iPhone 手机版
+## Web 客户端（桌面与手机）
 
-手机版是本仓库的独立模块 [`modules/mobile`](modules/mobile/README.md)，界面使用 React + shadcn/ui，继续连接 RN 的同一份 Taskwarrior 数据。
+网页客户端是本仓库的独立模块 [`modules/web`](modules/web/README.md)，界面使用 React + shadcn/ui，继续连接 RN 的同一份 Taskwarrior 数据。
 
 ```sh
-npm ci --prefix modules/mobile
-npm run dev:mobile
+npm ci --prefix modules/web
+npm run dev:web
 ```
 
 本地入口为 **http://localhost:4180/**。当前仅做本地开发与验证，之前的线上部署已撤销。模块拥有独立依赖与构建配置，不挂载在其他应用中。
@@ -62,16 +62,28 @@ Local 模式需要已有的 Taskwarrior 3。macOS 默认 `/opt/homebrew/bin/task
 
 ```text
 src/
-  my-tasks.tsx           主客户端入口
-  quick-add.tsx          创建快捷入口
-  connection/           配置、命令构造、进程执行、错误处理
-  tasks/                任务数据、参数、日期、项目建议与操作
-  ui/                   列表、表单、详情、连接检查
-tests/                 对应的核心行为测试
-docs/remote-setup.md    VPS 安装布局
+  my-tasks.tsx          Raycast / Tinycast 列表入口
+  quick-add.tsx         Raycast / Tinycast 创建入口
+  core/
+    connection/        连接配置、命令执行与错误
+    tasks/             Taskwarrior 数据、查询与操作
+  desktop/             桌面客户端界面与状态
+modules/web/
+  server/              HTTP 接口、认证、校验与持久化
+  shared/              浏览器与服务端共享的数据契约
+  src/
+    app/               应用编排、导航与全局样式
+    features/
+      tasks/           任务列表、表单、快速输入与日期解析
+      organization/    过滤器与标签管理
+    components/        共用图标、shadcn/ui 基础控件
+    lib/               HTTP 请求工具
+  tests/               Web 解析、存储和接口测试
+tests/                 共享核心行为测试
+docs/                  架构说明与远端配置
 ```
 
-依赖方向为 `ui → tasks → connection`。连接与任务模块不依赖 Raycast，界面只处理展示、导航和反馈。保留直接的函数调用，不引入通用仓储、插件系统或同步框架。
+桌面端与 Web 服务端共用 `src/core`；浏览器通过 HTTP 访问服务端，不执行 SSH。详细边界与修改位置见 [架构说明](docs/architecture.md)，Web 的运行方式见 [Web 模块说明](modules/web/README.md)。
 
 ## 开发
 

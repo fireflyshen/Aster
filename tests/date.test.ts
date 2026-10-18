@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatTaskDate } from "../src/tasks/date.ts";
-import { parseTaskwarriorDate } from "../src/tasks/model.ts";
+import { formatTaskDate } from "../src/core/tasks/date.ts";
+import { parseTaskwarriorDate } from "../src/core/tasks/model.ts";
 
 test("editing another field preserves an existing due time on the selected day", () => {
   const existing = new Date(2026, 9, 5, 16, 30);

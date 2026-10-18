@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTaskService } from "../src/tasks/service.ts";
-import { resolveConnection } from "../src/connection/settings.ts";
+import { createTaskService } from "../src/core/tasks/service.ts";
+import { resolveConnection } from "../src/core/connection/settings.ts";
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 const connection = resolveConnection({ connectionMode: "local" }, "darwin");
 

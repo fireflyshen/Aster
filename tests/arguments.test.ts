@@ -6,7 +6,7 @@ import {
   taskActionArguments,
   waitTaskArguments,
   reopenTaskArguments,
-} from "../src/tasks/arguments.ts";
+} from "../src/core/tasks/arguments.ts";
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 
 test("uses permanent UUIDs and refuses bulk selectors", () => {

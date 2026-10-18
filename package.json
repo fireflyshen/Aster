@@ -55,7 +55,7 @@
       "required": false,
       "title": "Remote Taskrc",
       "default": "/etc/taskwarrior/taskrc",
-      "description": "SSH only: absolute taskrc path. Clear to use the remote user’s default configuration."
+      "description": "SSH only: absolute taskrc path. Clear to use the remote user\u2019s default configuration."
     },
     {
       "name": "taskCommand",
@@ -104,10 +104,10 @@
     "format": "prettier --write src tests README.md package.json",
     "publish": "npx @raycast/api@latest publish",
     "typecheck": "tsc --noEmit",
-    "dev:mobile": "npm --prefix modules/mobile run dev",
-    "build:mobile": "npm --prefix modules/mobile run build",
-    "check:mobile": "npm --prefix modules/mobile run check",
-    "test:mobile": "npm --prefix modules/mobile run test"
+    "dev:web": "npm --prefix modules/web run dev",
+    "build:web": "npm --prefix modules/web run build",
+    "check:web": "npm --prefix modules/web run check",
+    "test:web": "npm --prefix modules/web run test"
   },
   "dependencies": {
     "@raycast/api": "^1.104.19",

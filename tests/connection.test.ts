@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
-import { buildCommand, quoteRemoteArgument } from "../src/connection/command.ts";
-import { TaskExecutionError } from "../src/connection/errors.ts";
-import { runTaskwarrior } from "../src/connection/execute.ts";
-import { resolveConnection } from "../src/connection/settings.ts";
+import { buildCommand, quoteRemoteArgument } from "../src/core/connection/command.ts";
+import { TaskExecutionError } from "../src/core/connection/errors.ts";
+import { runTaskwarrior } from "../src/core/connection/execute.ts";
+import { resolveConnection } from "../src/core/connection/settings.ts";
 
 const remote = resolveConnection({ connectionMode: "ssh", sshTarget: "rn" });
 

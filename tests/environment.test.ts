@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { prependExecutableDirectories } from "../src/connection/environment.ts";
+import { prependExecutableDirectories } from "../src/core/connection/environment.ts";
 
 test("prepends the configured Taskwarrior executable directory on macOS", () => {
   assert.equal(

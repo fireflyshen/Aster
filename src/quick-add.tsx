@@ -1,4 +1,4 @@
-import { TaskForm } from "./ui/task-form";
+import { TaskForm } from "./desktop/task-form";
 export default function QuickAddTask() {
   return <TaskForm />;
 }

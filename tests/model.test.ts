@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseTaskwarriorTasks, taskGroup, tasksForView, type TaskwarriorTask } from "../src/tasks/model.ts";
+import { parseTaskwarriorTasks, taskGroup, tasksForView, type TaskwarriorTask } from "../src/core/tasks/model.ts";
 
 test("parses and sorts Taskwarrior export data", () => {
   const tasks = parseTaskwarriorTasks(`warning before JSON
