@@ -9,11 +9,11 @@ npm ci --prefix modules/web
 npm run dev:web
 ```
 
-本地入口为 **http://localhost:4180/**。当前仅做本地开发与验证，之前的线上部署已撤销。模块拥有独立依赖与构建配置，不挂载在其他应用中。
+本地入口为 **http://localhost:4180/**。正式入口为 **https://task.caten.top/**，已独立部署到 RN，使用 Cloudflare Access 登录保护。模块拥有独立依赖与构建配置，不挂载在其他应用中。
 
 ## 桌面客户端
 
-Aster 是运行在本机的 Taskwarrior 3 客户端，通过 Raycast 查看和管理任务。默认连接 VPS `rn`，本机无需安装 Taskwarrior。也支持已有的本地 Taskwarrior 3，以及 Windows 上的 WSL。
+Aster 是运行在本机的 Taskwarrior 3 客户端，通过 TinyCast（兼容 Raycast 扩展）查看和管理任务。默认连接 VPS `rn`，本机无需安装 Taskwarrior。也支持已有的本地 Taskwarrior 3，以及 Windows 上的 WSL。
 
 ## 日常使用
 
@@ -25,9 +25,13 @@ Aster 是运行在本机的 Taskwarrior 3 客户端，通过 Raycast 查看和�
 - 设置等待日期或清除等待；开始、停止只影响选中的任务。
 - 查看备注及任务属性。菜单中可刷新列表或检查连接。
 
-列表中 `⌘N` 新建，`⌘E` 编辑，`⌘R` 刷新；Windows 使用对应的 Ctrl 快捷键。默认回车完成任务，在已完成列表中回车重新打开任务。
+列表中 `⌘N` 快速添加，`⌘E` 编辑，`⌘R` 刷新，`⌘O` 查看详情，`⌘Z` 撤销最近一次完成或重开。`⌘⇧F` 输入 Taskwarrior 过滤表达式；`⌘⇧M` 移动到栏目。Windows 使用对应 Ctrl 快捷键。默认回车完成任务，在已完成列表中回车重新打开。
 
-**Quick Add Task** 是供快捷键使用的创建入口，使用同一个表单。表单保留描述、项目、截止日期、标签和优先级；标签以逗号分隔。项目可以搜索已有值，也可以直接创建。项目建议来自任务库，不保留最近使用缓存。
+**Quick Add Task** 现在是一句话捕捉入口，输入 `Submit report tomorrow at 14 #Work @focus p1`，实时预览任务名、日期时间、项目、标签与优先级，Enter 保存。中文日期同样支持；引用文字用引号保护。`⌘E` 转为完整原生表单，表达式中的字段和具体时间会继承。关闭后保留草稿，`Ctrl+X` 丢弃并退出（Windows 为 Ctrl+Shift+X）。可以在 TinyCast 为这个命令绑定全局快捷键。
+
+列表下拉还支持项目、标签、Inbox、In Progress，以及网页保存的过滤器和看板栏目。栏目视图包含该栏的未完成和已完成任务；移动栏目不改变完成状态。任务详情可显示网页的项目描述。
+
+**共享网页资料**：插件设置的 Web Workspace URL 默认 `http://localhost:4180`，本机网页服务运行时，插件读取同一份过滤器、颜色、收藏、项目描述和栏目，不保存第二份。两边连接必须匹配。网页未运行时，任务查询与修改仍直接连接 RN；清空该设置可禁用共享资料。`⌘⇧O` 打开网页进行完整管理。具体适配取舍见 [TinyCast 产品说明](docs/desktop-product.md)。
 
 删除使用 Taskwarrior 的 `delete`，不执行永久清除。必要时可通过 Taskwarrior CLI 找到已删除任务并修改为 `status:pending`。批量删除和清空数据库不放进日常客户端。
 
@@ -66,7 +70,8 @@ src/
   quick-add.tsx         Raycast / Tinycast 创建入口
   core/
     connection/        连接配置、命令执行与错误
-    tasks/             Taskwarrior 数据、查询与操作
+    tasks/             Taskwarrior 数据、查询、操作与共用表达式解析
+    workspace/         组织资料契约、栏目计算与桌面共享资料客户端
   desktop/             桌面客户端界面与状态
 modules/web/
   server/              HTTP 接口、认证、校验与持久化
@@ -74,8 +79,9 @@ modules/web/
   src/
     app/               应用编排、导航与全局样式
     features/
-      tasks/           任务列表、表单、快速输入与日期解析
+      tasks/           任务列表、表单与快速输入界面
       organization/    过滤器与标签管理
+      projects/        项目描述与资料
     components/        共用图标、shadcn/ui 基础控件
     lib/               HTTP 请求工具
   tests/               Web 解析、存储和接口测试

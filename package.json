@@ -55,7 +55,7 @@
       "required": false,
       "title": "Remote Taskrc",
       "default": "/etc/taskwarrior/taskrc",
-      "description": "SSH only: absolute taskrc path. Clear to use the remote user\u2019s default configuration."
+      "description": "SSH only: absolute taskrc path. Clear to use the remote user’s default configuration."
     },
     {
       "name": "taskCommand",
@@ -77,6 +77,14 @@
       "description": "Local Windows mode only: WSL distribution containing Taskwarrior 3.",
       "default": "Ubuntu",
       "placeholder": "Ubuntu"
+    },
+    {
+      "name": "webWorkspaceUrl",
+      "type": "textfield",
+      "required": false,
+      "title": "Shared Workspace",
+      "default": "auto",
+      "description": "auto shares Focus, projects and board columns through your existing RN SSH connection. A local Aster URL is also supported; clear to disable."
     }
   ],
   "commands": [
@@ -91,8 +99,16 @@
       "name": "quick-add",
       "title": "Quick Add Task",
       "subtitle": "Aster",
-      "description": "Add a task to Taskwarrior",
-      "mode": "view"
+      "description": "Capture a task with dates, #project, @labels and p1–p4",
+      "mode": "view",
+      "arguments": [
+        {
+          "name": "expression",
+          "type": "text",
+          "placeholder": "Task tomorrow #Work @focus p1",
+          "required": false
+        }
+      ]
     }
   ],
   "scripts": {
@@ -120,5 +136,6 @@
     "eslint": "^9.22.0",
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"
-  }
+  },
+  "version": "2.3.0"
 }

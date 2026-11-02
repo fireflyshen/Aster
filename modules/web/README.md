@@ -11,7 +11,7 @@ npm ci --prefix modules/web
 npm run dev:web
 ```
 
-打开 **http://localhost:4180/**。服务仅监听本机，不会安装到 RN。首次连接先确保终端能运行 `ssh rn 'task --version'`。不要用文件浏览方式直接打开 HTML，界面需要本地服务提供模块和任务接口。
+打开 **http://localhost:4180/**。开发服务仅监听本机；正式入口为 **https://task.caten.top/**，独立运行在 RN。首次连接先确保终端能运行 `ssh rn 'task --version'`。不要用文件浏览方式直接打开 HTML，界面需要本地服务提供模块和任务接口。
 
 ```sh
 npm run check:web
@@ -33,7 +33,7 @@ npm run build:web
 
 ## 快速添加
 
-网页获得焦点时按 **Q** 弹出快速添加，输入表达式后按 **Enter** 创建。**Shift + Enter** 换行，**Esc** 关闭并保留草稿，**/** 聚焦列表搜索；正在输入文字或使用中文输入法时不会触发页面快捷键。这是网页快捷键，系统全局快捷键仍需由桌面客户端提供。
+网页获得焦点时按 **Q** 弹出快速添加，输入表达式后按 **Enter** 创建。**Shift + Enter** 换行，**Esc** 关闭并保留草稿，**/** 聚焦列表搜索，**M** 展开或收起桌面侧栏；正在输入文字或使用中文输入法时不会触发页面快捷键。这是网页快捷键，系统全局快捷键仍需由桌面客户端提供。
 
 ```text
 明天 交报告 #工作 @专注 p1
@@ -59,7 +59,7 @@ Meet with Ada tomorrow at 14
 - 联网使用，不缓存私人任务，不自动重试写入。结果无法确认时先刷新检查。
 - 模块独立运行，不引用其他 Flowspace 应用的域名、登录配置或部署文件。
 
-此前的线上部署已撤销，当前没有部署脚本或线上地址。未来需要独立部署时，再配置本模块的入口和认证。已有服务器代码在生产模式下要求显式设置 `CF_ACCESS_TEAM_DOMAIN`、`CF_ACCESS_AUD` 和 `PUBLIC_ORIGIN`，不会读取其他应用的配置。
+正式部署使用独立域名 **https://task.caten.top/** 和 `/opt/aster`，由 `aster.service` 管理，详见 [部署说明](../../deploy/README.md)。已有服务器代码在生产模式下要求显式设置 `CF_ACCESS_TEAM_DOMAIN`、`CF_ACCESS_AUD` 和 `PUBLIC_ORIGIN`，不会读取其他应用的配置。
 
 ## 过滤器与标签
 
@@ -77,4 +77,51 @@ status:completed +Work
 
 普通 `Ready` 与虚拟标签 `READY` 不同；系统虚拟标签不会混入可编辑标签列表。新建标签可以暂不分配任务；改名同步更新 RN 上非删除任务及已保存过滤器中的直接标签条件，删除仅移除标签，保留任务。计数显示未完成任务数量。
 
-Taskwarrior 保存任务及实际标签。过滤器定义、颜色和收藏作为本网页模块的元数据，保存在服务进程工作目录的 `data/organization.json`（用上述命令运行时为 `modules/web/data/organization.json`）；可通过 `ORGANIZATION_FILE` 指定绝对路径，生产运行应将它放在持久化目录。文件采用原子替换和版本号检查；冲突保留草稿，用户显式重新加载后再保存。此功能没有重新部署到 RN。
+Taskwarrior 保存任务及实际标签。过滤器定义、颜色和收藏作为本网页模块的元数据，保存在服务进程工作目录的 `data/organization.json`（用上述命令运行时为 `modules/web/data/organization.json`）；可通过 `ORGANIZATION_FILE` 指定绝对路径，生产运行应将它放在持久化目录。文件采用原子替换和版本号检查；冲突保留草稿，用户显式重新加载后再保存。线上文件为 `/opt/aster/data/organization.json`，与代码发布分开保存。
+
+## 完成反馈与项目描述
+
+勾选后立即显示完成状态，RN 确认并刷新成功后任务平滑收起，通知中的 **Undo** 可以撤销完成或重新打开。明确失败会恢复原状态；结果未知时要求先刷新核对，不会自动重试。系统开启减少动态效果时跳过动画。
+
+打开项目，在标题下点击 **Add description**，或在项目的 **… → Edit project** 中编辑描述。支持换行，最多 2,000 个字符。描述与过滤器、颜色、收藏一起保存在网页模块的 `data/organization.json`，刷新或重启后保留；它是 Aster 的项目资料，不写入 Taskwarrior 任务正文。版本冲突时保留草稿，选择 **Reload and keep draft** 后再保存。
+
+## 看板
+
+右上角 **List / Board** 切换布局，浏览器会记住选择。看板同时显示未完成和已完成任务；保存的过滤器仍按表达式筛选任务。
+
+**Add column** 添加自定义栏目，栏目菜单支持改名、左右移动和删除。没有指定栏目的任务显示在 **Unsectioned**；删除栏目会将任务移回这里，保留任务。已有的 Todo、Doing、Done 栏目作为普通栏目保留，可以任意改名或删除。
+
+栏目与任务状态完全独立。抓住卡片正文或手柄可以跨栏拖动，也能在同栏调整顺序；手机长按后拖动，正常滑动仍用于滚动。卡片的 **Move** 菜单提供相同的移栏操作。键盘聚焦手柄后按空格拿起、左右箭头选栏、空格放下，Esc 取消。拖动到看板之外取消移动。
+
+拖动、排序和 Undo 只保存栏目位置，不修改 Taskwarrior 的完成状态、开始时间、等待日期或任务内容。完成与重新打开仍由任务圆圈控制，任务完成后保留在原栏目；即使栏目名为 Done 或 Todo，也不会触发状态操作。
+
+栏目和位置持久化在网页模块的 `data/organization.json`，使用版本检查和原子保存；失败回到原位置，版本冲突或结果未知时先重新加载核对，编辑草稿保留。过滤或搜索不会丢失隐藏任务的位置。看板交互代码按需加载；布局偏好保存在本浏览器，私人任务不写入浏览器缓存。
+
+## Appearance
+
+顶部月亮 / 太阳图标打开主题菜单：**Light / Dark / System**。默认跟随系统，手动选择会保存在本浏览器；选择 System 时实时响应系统变化。页面首帧即应用已选主题，日历、弹窗、看板和通知共用主题变量。浏览器存储不可用时，当前会话仍可切换。
+
+## Projects, filters, and labels
+
+- In the sidebar, click **Projects** to search and manage projects; the **+** button creates a project without adding a placeholder task. Project menus support editing the name/description and deleting the project.
+- Project rename or move updates the full branch of non-deleted Taskwarrior tasks (including completed history), preserving child suffixes and updating explicit project references in saved filters. Deleting a branch clears its tasks' project field, keeping completion, labels, UUIDs and board placements.
+- **Filters & labels** provides search, creation, editing, favorites and deletion through visible **…** menus. Filters use native Taskwarrior queries. Label rename/removal changes the labels on non-deleted tasks; tasks are retained. Configured CLI tag suggestions are not treated as task-backed labels.
+- Empty projects and labels, descriptions, filter definitions, colors and favorites are stored in the shared organization file. Saves use revision checks; conflicts retain drafts. A release never replaces this data file.
+
+## Focus
+
+Focus is the default home. At most three projects can be Active; new and legacy projects start in Later. A finish line is required for activation. Activating a fourth project requires choosing one to pause in the same revision-checked operation. Overlapping parent/child projects cannot use separate slots; tasks in subprojects belong to their active parent.
+
+Each project can reference one existing unfinished task as its next step. Completing that task leaves the finish line and project status intact; choose the next step explicitly. Pausing or completing a project changes only project metadata. Completing a project with unfinished tasks requires confirmation to keep those tasks; they remain available in Later. Today continues to show genuinely due tasks from paused projects. Inbox contains unassigned captures.
+
+Project details and All projects support finish lines, next-step selection, activation, pause, completion and reopening. The project limit is enforced inside the organization store's serialized revision queue; clients cannot activate a project through ordinary project saves. Existing metadata edits preserve goal fields when older clients omit them.
+
+TinyCast uses the existing RN SSH connection to reach the same server process over `/opt/aster/data/workspace.sock` (0600). Enable `WORKSPACE_SOCKET` in the server environment. The socket has no TCP listener; it checks Taskwarrior source identity, uses the same revision queue as web, and exposes metadata operations only. The public web API still requires Cloudflare Access. `Shared Workspace: auto` uses this connection for SSH, or localhost web for a local Taskwarrior client. Existing localhost defaults migrate to shared SSH when using RN.
+
+### Nested projects
+
+Projects use native Taskwarrior dot paths (`Product.Web.Interface`). The UI exposes a tree, Add subproject, Parent project and parent breadcrumbs. There is no fixed nesting depth; the existing 200-character path bound still applies. Inferred ancestors from CLI-created projects are shown automatically. Parent task views and counts include descendants.
+
+Renaming or moving a project remaps its entire branch, including metadata and explicit project references in saved filters. Native writes target exact paths, deepest first, retaining descendant suffixes, UUIDs and task status. Deleting a branch clears its tasks' project field to Inbox and removes that branch's metadata; board placements stay unchanged. Partial native-write failures are reported as unconfirmed and never retried automatically. Focus references to tasks that leave an ancestor are cleared, and moves cannot create overlapping active goals.
+
+Project colors use the shared filter/label palette. Each project stores its optional color in workspace metadata; missing colors render gray. Colors are independent per subproject and preserved through branch changes and older clients that omit the field. Editing a color never writes Taskwarrior tasks.

@@ -1,0 +1,32 @@
+[Unit]
+Description=Aster Taskwarrior web client
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/aster/current
+EnvironmentFile=/opt/aster/aster.env
+ExecStart=/opt/aster/runtime/node /opt/aster/current/server.mjs
+Restart=on-failure
+RestartSec=3
+UMask=0077
+MemoryMax=192M
+TasksMax=64
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/taskwarrior /opt/aster/data
+
+[Install]
+WantedBy=multi-user.target

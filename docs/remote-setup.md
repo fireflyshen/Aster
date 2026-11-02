@@ -2,12 +2,15 @@
 
 Taskwarrior is installed manually from the official 3.5.0 release, without Homebrew or the Ubuntu Taskwarrior 2 package.
 
-| Purpose                | Path                      |
-| ---------------------- | ------------------------- |
-| Versioned installation | `/opt/taskwarrior/3.5.0`  |
-| Command wrapper        | `/usr/local/bin/task`     |
-| Configuration          | `/etc/taskwarrior/taskrc` |
-| Task database          | `/var/lib/taskwarrior`    |
+| Purpose                | Path                                               |
+| ---------------------- | -------------------------------------------------- |
+| Versioned installation | `/opt/taskwarrior/3.5.0`                           |
+| Command wrapper        | `/usr/local/bin/task`                              |
+| Timewarrior wrapper    | `/usr/local/bin/timew`                             |
+| Configuration          | `/etc/taskwarrior/taskrc`                          |
+| Task database          | `/var/lib/taskwarrior`                             |
+| Timewarrior database   | `/var/lib/taskwarrior/timewarrior`                 |
+| Timewarrior hook       | `/var/lib/taskwarrior/hooks/on-modify.timewarrior` |
 
 Source: [official download](https://taskwarrior.org/download/).
 
@@ -25,4 +28,4 @@ The command wrapper defaults `TASKRC` to `/etc/taskwarrior/taskrc`, so terminal 
 ssh rn 'task list'
 ```
 
-Aster supplies `TASKRC` itself. The remote configuration has no Timewarrior hook. Task data is private to the SSH account. The old local and remote tasks, including migration backups and archived Timewarrior history, were permanently removed on 2026-10-05 at the user’s request. The new database starts empty. Verify paths and version when performing a future upgrade.
+Aster supplies `TASKRC` itself. `/var/lib/taskwarrior/hooks/on-modify.timewarrior` starts and stops Timewarrior intervals tagged with `uuid:<uuid>` when tasks are started, stopped, or completed. Task and Timewarrior data are private to the SSH account. Verify paths and version when performing a future upgrade.
