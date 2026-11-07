@@ -519,13 +519,13 @@ function BoardCard({
       )}
     >
       {children}
-      {interactive && (!compact || canMoveColumn || saving) && (
+      {interactive && (!compact || saving) && (
         <div
           data-no-drag
           className={cn(
             "flex items-center text-muted-foreground transition-opacity",
             compact
-              ? "h-11 shrink-0 gap-0.5 self-start pl-0.5 opacity-75 md:h-8 md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 [&:has([data-state=open])]:opacity-100"
+              ? "h-11 shrink-0 gap-0.5 self-start pl-0.5 md:h-8"
               : "h-9 justify-between pb-0.5 opacity-80 md:h-7 md:opacity-65 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 [&:has([data-state=open])]:opacity-100",
           )}
         >
@@ -539,6 +539,7 @@ function BoardCard({
               variant="ghost"
               size="icon-sm"
               disabled={disabled}
+              title="Drag to reorder"
               aria-label={`Drag task: ${task.description}`}
               className="-ml-1 size-7 cursor-grab touch-none text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:cursor-grabbing max-md:size-9"
             >
@@ -548,6 +549,7 @@ function BoardCard({
           {saving ? (
             <Spinner className="mr-2 size-3.5" aria-label="Saving task" />
           ) : (
+            !compact &&
             canMoveColumn && (
               <Select
                 value={column.id}
@@ -558,12 +560,7 @@ function BoardCard({
               >
                 <SelectTrigger
                   aria-label={`Move task: ${task.description}`}
-                  className={cn(
-                    "w-auto gap-1 rounded-md border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground dark:bg-transparent dark:hover:bg-accent",
-                    compact
-                      ? "data-[size=default]:h-9 md:data-[size=default]:h-7"
-                      : "-mr-1 data-[size=default]:h-9 md:data-[size=default]:h-6",
-                  )}
+                  className="-mr-1 w-auto gap-1 rounded-md border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[size=default]:h-9 md:data-[size=default]:h-6 dark:bg-transparent dark:hover:bg-accent"
                 >
                   <SelectValue>{column.name}</SelectValue>
                 </SelectTrigger>
@@ -1004,16 +1001,30 @@ export function TaskBoard({
           <div
             className={
               layout === "list"
-                ? "space-y-5"
+                ? "space-y-4"
                 : "grid grid-flow-col auto-cols-[18rem] gap-6"
             }
           >
             {columns.map((column, index) => {
               const items = columnTasks(tasks, displayBoard, column.id);
+              const nonEmptyColumns = columns.filter(
+                (col) => columnTasks(tasks, displayBoard, col.id).length > 0,
+              );
+              if (
+                layout === "list" &&
+                items.length === 0 &&
+                !active &&
+                (column.id !== UNSECTIONED || nonEmptyColumns.length > 0)
+              ) {
+                return null;
+              }
               const showColumnHeader =
                 layout === "board" ||
                 (hasCustomColumns &&
-                  (column.id !== UNSECTIONED || items.length > 0 || !!active));
+                  (nonEmptyColumns.length > 1 ||
+                    (nonEmptyColumns.length === 1 &&
+                      column.id !== UNSECTIONED)) &&
+                  (items.length > 0 || !!active));
               return (
                 <BoardColumn
                   key={column.id}
@@ -1067,23 +1078,28 @@ export function TaskBoard({
                       {renderTask(task)}
                     </BoardCard>
                   ))}
-                  {canAddTask &&
-                    (layout === "board" ||
-                      column.id !== UNSECTIONED ||
-                      !hasCustomColumns ||
-                      items.length > 0) && (
-                      <BoardTaskComposer
-                        column={column}
-                        compact={layout === "list"}
-                        disabled={disabled}
-                        onCreateTask={onCreateTask}
-                        onFallbackAdd={onAdd}
-                      />
-                    )}
+                  {canAddTask && layout === "board" && (
+                    <BoardTaskComposer
+                      column={column}
+                      compact={false}
+                      disabled={disabled}
+                      onCreateTask={onCreateTask}
+                      onFallbackAdd={onAdd}
+                    />
+                  )}
                 </BoardColumn>
               );
             })}
-            {canAddTask && (
+            {canAddTask && layout === "list" && (
+              <BoardTaskComposer
+                column={unsectionedColumn}
+                compact={true}
+                disabled={disabled}
+                onCreateTask={onCreateTask}
+                onFallbackAdd={onAdd}
+              />
+            )}
+            {canAddTask && layout === "board" && (
               <InlineColumnCreator
                 layout={layout}
                 revision={revision}

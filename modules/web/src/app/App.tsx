@@ -252,7 +252,7 @@ export default function App() {
   const previousScope = useRef("");
   const scope = nativeFilter
     ? `filter=${encodeURIComponent(nativeFilter)}`
-    : `scope=${view === "completed" ? "completed" : "board"}`;
+    : `scope=${view === "completed" ? "completed" : "pending"}`;
   const loadOrganization = useCallback(async () => {
     const ticket = ++organizationGeneration.current;
     try {
@@ -569,7 +569,7 @@ export default function App() {
     }
   }
   async function toggleTask(task: Task, completed: boolean, offerUndo = true) {
-    if (writeLock.current || needsCheck || loading || organizationSaving)
+    if (writeLock.current || needsCheck || organizationSaving)
       return;
     const started = performance.now();
     const reducedMotion = window.matchMedia(
@@ -596,9 +596,16 @@ export default function App() {
       async (fresh) => {
         if (reducedMotion) return;
         await new Promise((resolve) =>
-          setTimeout(resolve, Math.max(0, 300 - (performance.now() - started))),
+          setTimeout(resolve, Math.max(0, 320 - (performance.now() - started))),
         );
-        if (!fresh.some((item) => item.uuid === task.uuid)) {
+        const staysVisible = fresh.some(
+          (item) =>
+            item.uuid === task.uuid &&
+            (view === "completed"
+              ? item.status === "completed"
+              : item.status !== "completed"),
+        );
+        if (!staysVisible) {
           setCompletion({
             uuid: task.uuid,
             checked: !completed,
@@ -608,6 +615,23 @@ export default function App() {
         }
       },
     );
+    if (saved) {
+      setTasks((prev) =>
+        view === "completed"
+          ? completed
+            ? prev.filter((item) => item.uuid !== task.uuid)
+            : prev.map((item) =>
+                item.uuid === task.uuid
+                  ? { ...item, status: "completed" }
+                  : item,
+              )
+          : !completed
+            ? prev.filter((item) => item.uuid !== task.uuid)
+            : prev.map((item) =>
+                item.uuid === task.uuid ? { ...item, status: "pending" } : item,
+              ),
+      );
+    }
     setCompletion(undefined);
     if (saved && offerUndo) {
       setUndoTask({ task, wasCompleted: completed });
@@ -852,6 +876,22 @@ export default function App() {
     return Boolean(saved);
   }
   const visible = tasks.filter((task) => {
+    const isCompleting = completion?.uuid === task.uuid;
+    if (
+      view !== "completed" &&
+      !activeItem &&
+      task.status === "completed" &&
+      !isCompleting
+    ) {
+      return false;
+    }
+    if (
+      view === "completed" &&
+      task.status !== "completed" &&
+      !isCompleting
+    ) {
+      return false;
+    }
     const group =
       task.status === "completed" && view === "today"
         ? taskGroup({ ...task, status: "pending", wait: undefined })
@@ -934,7 +974,7 @@ export default function App() {
       }
       completed={task.status === "completed"}
       overdue={taskGroup(task) === "overdue"}
-      disabled={busy || organizationSaving || needsCheck || loading}
+      disabled={busy || organizationSaving || needsCheck || (loading && !loaded)}
       transition={completion?.uuid === task.uuid ? completion : undefined}
       trackedSeconds={taskTrackedSeconds(task)}
       timingUnavailable={organization.timing?.available === false}
@@ -966,6 +1006,52 @@ export default function App() {
             }
           : undefined
       }
+      onPriorityChange={
+        task.status !== "completed"
+          ? (nextPriority) => {
+              void mutate("action", {
+                uuid: task.uuid,
+                action: "edit",
+                task: {
+                  description: task.description,
+                  project: task.project || "",
+                  priority: nextPriority,
+                  tags: task.tags,
+                  recur: task.recur,
+                  until: task.until ? taskDate(new Date(task.until)) : undefined,
+                  due: task.due
+                    ? taskDate(
+                        new Date(
+                          task.due.replace(
+                            /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+                            "$1-$2-$3T$4:$5:$6Z",
+                          ),
+                        ),
+                      )
+                    : "",
+                  note: "",
+                },
+              });
+            }
+          : undefined
+      }
+      onDelete={() => {
+        void mutate("action", {
+          uuid: task.uuid,
+          action: "delete",
+        }).then((saved) => {
+          if (saved) {
+            setUndoTask({
+              task,
+              wasCompleted: task.status === "completed",
+              wasDeleted: true,
+              message: "Task deleted",
+            });
+            setToastVersion((value) => value + 1);
+            setToastOpen(true);
+          }
+        });
+      }}
       onEdit={() => openEditor(task)}
       onComplete={() => void toggleTask(task, task.status === "completed")}
     />
@@ -1112,77 +1198,81 @@ export default function App() {
         <PanelLeft className="size-[18px]" strokeWidth={1.5} />
       </Button>
       <div className="workspace-main min-h-dvh" data-sidebar-open={navOpen}>
-        <header className="workspace-frame flex h-12 items-center justify-between">
-          <div className="size-8 shrink-0">
-            <Button
-              id="sidebar-mobile-toggle"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Show sidebar"
-              aria-expanded={navOpen}
-              aria-controls="workspace-navigation"
-              onClick={() => setNavigation(true)}
-              className={cn(
-                "text-muted-foreground md:hidden",
-                navOpen && "invisible",
-              )}
-            >
-              <PanelLeft className="size-[18px]" strokeWidth={1.5} />
-            </Button>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              aria-label="Open command palette"
-              aria-keyshortcuts="Meta+K Control+K"
-              disabled={busy || organizationSaving}
-              onClick={() => setCommandOpen(true)}
-              className="hidden h-7 gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 text-xs font-normal text-muted-foreground hover:bg-muted/80 hover:text-foreground sm:inline-flex"
-            >
-              <span>Command</span>
-              <kbd className="rounded bg-background/80 px-1 py-0.5 font-sans text-[10px] leading-none text-muted-foreground">
-                ⌘K
-              </kbd>
-            </Button>
-            <ThemeSwitcher />
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              id="search-toggle"
-              aria-label={searchOpen || query ? "Close search" : "Open search"}
-              aria-expanded={!!(searchOpen || query)}
-              aria-controls="task-search"
-              aria-keyshortcuts="/"
-              onClick={() => {
-                if (organizationPage) setOrganizationPage(false);
-                if (view === "focus" || view === "later") setView("pending");
-                if (searchOpen || query) {
-                  setSearchOpen(false);
-                  setQuery("");
-                } else setSearchOpen(true);
-              }}
-              className="text-muted-foreground"
-            >
-              <Search className="size-[18px]" strokeWidth={1.5} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Refresh tasks"
-              disabled={loading || busy}
-              onClick={() => {
-                void load();
-                void loadOrganization();
-              }}
-              className="text-muted-foreground"
-            >
-              <RotateCw
-                className={cn("size-[17px]", loading && "animate-spin")}
-                strokeWidth={1.5}
-              />
-            </Button>
+        <header className="sticky top-0 z-20 bg-background/85 backdrop-blur-md">
+          <div className="workspace-frame flex h-12 items-center justify-between">
+            <div className="size-8 shrink-0">
+              <Button
+                id="sidebar-mobile-toggle"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Show sidebar"
+                aria-expanded={navOpen}
+                aria-controls="workspace-navigation"
+                onClick={() => setNavigation(true)}
+                className={cn(
+                  "text-muted-foreground md:hidden",
+                  navOpen && "invisible",
+                )}
+              >
+                <PanelLeft className="size-[18px]" strokeWidth={1.5} />
+              </Button>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                aria-label="Open command palette"
+                aria-keyshortcuts="Meta+K Control+K"
+                disabled={busy || organizationSaving}
+                onClick={() => setCommandOpen(true)}
+                className="hidden h-7 gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 text-xs font-normal text-muted-foreground hover:bg-muted/80 hover:text-foreground sm:inline-flex"
+              >
+                <span>Command</span>
+                <kbd className="rounded bg-background/80 px-1 py-0.5 font-sans text-[10px] leading-none text-muted-foreground">
+                  ⌘K
+                </kbd>
+              </Button>
+              <ThemeSwitcher />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                id="search-toggle"
+                aria-label={
+                  searchOpen || query ? "Close search" : "Open search"
+                }
+                aria-expanded={!!(searchOpen || query)}
+                aria-controls="task-search"
+                aria-keyshortcuts="/"
+                onClick={() => {
+                  if (organizationPage) setOrganizationPage(false);
+                  if (view === "focus" || view === "later") setView("pending");
+                  if (searchOpen || query) {
+                    setSearchOpen(false);
+                    setQuery("");
+                  } else setSearchOpen(true);
+                }}
+                className="text-muted-foreground"
+              >
+                <Search className="size-[18px]" strokeWidth={1.5} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Refresh tasks"
+                disabled={loading || busy}
+                onClick={() => {
+                  void load();
+                  void loadOrganization();
+                }}
+                className="text-muted-foreground"
+              >
+                <RotateCw
+                  className={cn("size-[17px]", loading && "animate-spin")}
+                  strokeWidth={1.5}
+                />
+              </Button>
+            </div>
           </div>
         </header>
         <main className="workspace-frame min-w-0 pt-6 pb-24 md:pb-16">

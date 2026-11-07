@@ -7,18 +7,28 @@ import { DatePicker } from "@/features/tasks/date-picker";
 import { formatDuration } from "@core/workspace/energy";
 import type { Task } from "@shared/tasks";
 import { cn } from "cn";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 import {
   CalendarDays,
   Check,
   Clock3,
   Flag,
-  Play,
-  Square,
-  Repeat2,
   MessageSquare,
+  Play,
+  Repeat2,
+  Square,
+  Sun,
+  Sunrise,
+  Trash2,
 } from "lucide-react";
-import type { KeyboardEvent, ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type WheelEvent,
+} from "react";
 
 const isoDue = (value: string) =>
   value.replace(
@@ -47,6 +57,9 @@ function dueLabel(value: string) {
       : "")
   );
 }
+
+const SWIPE_EVENT = "aster:swipe-row";
+
 export function TaskRow({
   task,
   completed,
@@ -56,6 +69,8 @@ export function TaskRow({
   onComplete,
   onToggleStart,
   onDueChange,
+  onPriorityChange,
+  onDelete,
   extraActions,
   trackedSeconds,
   timingUnavailable = false,
@@ -71,6 +86,8 @@ export function TaskRow({
   onComplete: () => void;
   onToggleStart?: () => void;
   onDueChange?: (due: string) => void;
+  onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
+  onDelete?: () => void;
   extraActions?: ReactNode;
   trackedSeconds?: number;
   timingUnavailable?: boolean;
@@ -80,9 +97,15 @@ export function TaskRow({
 }) {
   const checked = transition?.checked ?? completed;
   const started = !!task.start && !checked;
-  const dueDay = task.due ? format(new Date(isoDue(task.due)), "yyyy-MM-dd") : "";
+  const dueDay = task.due
+    ? format(new Date(isoDue(task.due)), "yyyy-MM-dd")
+    : "";
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const tomorrowStr = format(addDays(new Date(), 1), "yyyy-MM-dd");
+  const isDueToday = dueDay === todayStr;
+
   const hasRightActions = Boolean(
-    (!completed && (onToggleStart || onDueChange)) || extraActions,
+    (!completed && (onToggleStart || onDueChange)) || onDelete || extraActions,
   );
   const hasDetails = !!(
     (showProject && task.project) ||
@@ -95,6 +118,50 @@ export function TaskRow({
     started ||
     (trackedSeconds ?? 0) > 0
   );
+
+  // Trackpad / touch swipe-open state for the right-hand action pill bar (never clips the left title/checkbox)
+  const [drawerPinned, setDrawerPinned] = useState(false);
+  const rowRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!drawerPinned) return;
+    const onOther = (event: Event) => {
+      const custom = event as CustomEvent<string>;
+      if (custom.detail !== task.uuid) setDrawerPinned(false);
+    };
+    const onPointerDownOutside = (event: globalThis.PointerEvent) => {
+      if (
+        rowRef.current &&
+        event.target instanceof Node &&
+        !rowRef.current.contains(event.target)
+      ) {
+        setDrawerPinned(false);
+      }
+    };
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") setDrawerPinned(false);
+    };
+    window.addEventListener(SWIPE_EVENT, onOther);
+    window.addEventListener("pointerdown", onPointerDownOutside, true);
+    window.addEventListener("keydown", onEscape);
+    return () => {
+      window.removeEventListener(SWIPE_EVENT, onOther);
+      window.removeEventListener("pointerdown", onPointerDownOutside, true);
+      window.removeEventListener("keydown", onEscape);
+    };
+  }, [drawerPinned, task.uuid]);
+
+  function handleWheel(event: WheelEvent<HTMLElement>) {
+    if (disabled || variant !== "list") return;
+    if (Math.abs(event.deltaX) <= Math.abs(event.deltaY) * 1.5) return;
+    if (event.deltaX > 18 && !drawerPinned) {
+      window.dispatchEvent(new CustomEvent(SWIPE_EVENT, { detail: task.uuid }));
+      setDrawerPinned(true);
+    } else if (event.deltaX < -18 && drawerPinned) {
+      setDrawerPinned(false);
+    }
+  }
+
   function handleRowKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (
       disabled ||
@@ -108,7 +175,12 @@ export function TaskRow({
     )
       return;
     const key = event.key.toLowerCase();
-    if (key === "j" || event.key === "ArrowDown" || key === "k" || event.key === "ArrowUp") {
+    if (
+      key === "j" ||
+      event.key === "ArrowDown" ||
+      key === "k" ||
+      event.key === "ArrowUp"
+    ) {
       const rows = Array.from(
         document.querySelectorAll<HTMLElement>(
           "[data-task-row] [data-task-drag-surface]:not(:disabled)",
@@ -137,14 +209,45 @@ export function TaskRow({
     if (key === "s" && !completed && onToggleStart) {
       event.preventDefault();
       onToggleStart();
+      return;
+    }
+    if (key === "t" && !completed && onDueChange) {
+      event.preventDefault();
+      onDueChange(isDueToday ? tomorrowStr : todayStr);
+      return;
+    }
+    if (
+      (key === "1" || key === "2" || key === "3" || key === "0") &&
+      !completed &&
+      onPriorityChange
+    ) {
+      event.preventDefault();
+      const map: Record<string, "H" | "M" | "L" | ""> = {
+        "1": "H",
+        "2": "M",
+        "3": "L",
+        "0": "",
+      };
+      onPriorityChange(map[key]);
+      return;
+    }
+    if (
+      (event.key === "Backspace" || event.key === "Delete") &&
+      onDelete
+    ) {
+      event.preventDefault();
+      onDelete();
     }
   }
+
   return (
     <article
+      ref={rowRef}
       data-task-row
       data-completion={transition?.phase}
       aria-busy={!!transition}
       onKeyDown={handleRowKeyDown}
+      onWheel={handleWheel}
       className="task-row min-w-0 flex-1"
     >
       <div
@@ -160,11 +263,12 @@ export function TaskRow({
             "group/row [&:has(:focus-visible)]:bg-(--row-hover)",
             variant === "list" &&
               "-mx-2.5 px-2.5 md:-mx-3 md:px-3 [.board-card_&]:mx-0 [.board-card_&]:px-0",
+            drawerPinned && "bg-(--row-hover)",
           )}
         >
           <div
             className={cn(
-              "grid",
+              "grid items-start",
               hasRightActions
                 ? "grid-cols-[2rem_minmax(0,1fr)_auto] md:grid-cols-[1.75rem_minmax(0,1fr)_auto]"
                 : "grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[1.75rem_minmax(0,1fr)]",
@@ -210,7 +314,7 @@ export function TaskRow({
                 className={cn(
                   "block min-w-0 w-full transition-colors duration-150 text-sm leading-5 [overflow-wrap:anywhere]",
                   checked &&
-                    "text-muted-foreground line-through decoration-muted-foreground/40",
+                    "text-muted-foreground line-through decoration-muted-foreground/60",
                 )}
               >
                 {task.description}
@@ -320,6 +424,35 @@ export function TaskRow({
               >
                 {extraActions}
                 {!completed && onDueChange && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={disabled}
+                    aria-label={
+                      isDueToday
+                        ? `Schedule tomorrow: ${task.description}`
+                        : `Schedule today: ${task.description}`
+                    }
+                    title={isDueToday ? "Move to Tomorrow" : "Schedule Today"}
+                    onClick={() =>
+                      onDueChange(isDueToday ? tomorrowStr : todayStr)
+                    }
+                    className={cn(
+                      "size-7 text-muted-foreground transition-opacity hover:text-foreground",
+                      drawerPinned
+                        ? "opacity-100"
+                        : "opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
+                    )}
+                  >
+                    {isDueToday ? (
+                      <Sunrise className="size-3.5" strokeWidth={1.6} />
+                    ) : (
+                      <Sun className="size-3.5" strokeWidth={1.6} />
+                    )}
+                  </Button>
+                )}
+                {!completed && onDueChange && (
                   <DatePicker
                     id={`due-${task.uuid}`}
                     value={dueDay}
@@ -337,11 +470,13 @@ export function TaskRow({
                         title={
                           task.due
                             ? `Due ${dueLabel(task.due)} — click to change`
-                            : "Set due date"
+                            : "Choose due date"
                         }
                         className={cn(
                           "size-7 text-muted-foreground transition-opacity hover:text-foreground",
-                          "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100 data-[state=open]:opacity-100",
+                          drawerPinned
+                            ? "opacity-100"
+                            : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100 data-[state=open]:opacity-100",
                         )}
                       >
                         <CalendarDays className="size-3.5" strokeWidth={1.6} />
@@ -366,7 +501,7 @@ export function TaskRow({
                     onClick={onToggleStart}
                     className={cn(
                       "size-7 text-muted-foreground transition-opacity hover:text-foreground",
-                      started
+                      started || drawerPinned
                         ? "text-foreground opacity-100"
                         : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
                     )}
@@ -376,6 +511,25 @@ export function TaskRow({
                     ) : (
                       <Play className="size-3.5" />
                     )}
+                  </Button>
+                )}
+                {onDelete && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={disabled}
+                    aria-label={`Delete task: ${task.description}`}
+                    title="Delete task"
+                    onClick={onDelete}
+                    className={cn(
+                      "size-7 text-muted-foreground transition-opacity hover:bg-destructive/10 hover:text-destructive",
+                      drawerPinned
+                        ? "opacity-100"
+                        : "opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
+                    )}
+                  >
+                    <Trash2 className="size-3.5" strokeWidth={1.6} />
                   </Button>
                 )}
               </div>
