@@ -48,6 +48,7 @@ import { TaskForm } from "@/features/tasks/task-form";
 import { TaskRow } from "@/features/tasks/task-row";
 import { TaskToast } from "@/features/tasks/task-toast";
 import { api, RequestError } from "@/lib/api";
+import { CommandPalette } from "./command-palette";
 import { taskDate } from "@core/tasks/quick-task";
 import {
   columnTasks,
@@ -204,6 +205,7 @@ export default function App() {
   );
   const [seriesUuid, setSeriesUuid] = useState("");
   const [open, setOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickProject, setQuickProject] = useState("");
   const [quickError, setQuickError] = useState("");
@@ -214,6 +216,7 @@ export default function App() {
     task: Task;
     wasCompleted: boolean;
     wasStarted?: boolean;
+    wasDeleted?: boolean;
     message?: string;
     board?: { columnId: string; beforeUuid: string | null };
   }>();
@@ -242,7 +245,6 @@ export default function App() {
   const [tags, setTags] = useState("");
   const [due, setDue] = useState("");
   const [formError, setFormError] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const generation = useRef(0);
   const organizationGeneration = useRef(0);
@@ -424,6 +426,18 @@ export default function App() {
   }, [needsCheck, open]);
   useEffect(() => {
     const shortcuts = (event: KeyboardEvent) => {
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "k"
+      ) {
+        event.preventDefault();
+        if (!busy && !organizationSaving && !open && !quickOpen) {
+          setCommandOpen((value) => !value);
+        }
+        return;
+      }
       const target = event.target;
       if (
         event.defaultPrevented ||
@@ -433,8 +447,8 @@ export default function App() {
         event.metaKey ||
         event.altKey ||
         open ||
+        commandOpen ||
         quickOpen ||
-        confirmDelete ||
         document.querySelector(
           '[role="dialog"], [role="alertdialog"], [data-state="open"][data-slot="select-content"], [data-state="open"][data-slot="popover-content"]',
         ) ||
@@ -444,6 +458,19 @@ export default function App() {
           ))
       )
         return;
+      if (
+        (event.key.toLowerCase() === "j" || event.key.toLowerCase() === "k") &&
+        !(target instanceof Element && target.closest("[data-task-row]"))
+      ) {
+        const firstRow = document.querySelector<HTMLElement>(
+          "[data-task-row] [data-task-drag-surface]:not(:disabled)",
+        );
+        if (firstRow) {
+          event.preventDefault();
+          firstRow.focus();
+          return;
+        }
+      }
       if (event.key.toLowerCase() === "q") {
         event.preventDefault();
         openQuickAdd();
@@ -492,8 +519,8 @@ export default function App() {
     return () => window.removeEventListener("keydown", shortcuts);
   }, [
     open,
+    commandOpen,
     quickOpen,
-    confirmDelete,
     openQuickAdd,
     organizationPage,
     busy,
@@ -916,6 +943,29 @@ export default function App() {
           ? () => void toggleStartTask(task)
           : undefined
       }
+      onDueChange={
+        task.status !== "completed"
+          ? (nextDue) => {
+              const date = nextDue
+                ? new Date(`${nextDue}T00:00:00`)
+                : undefined;
+              void mutate("action", {
+                uuid: task.uuid,
+                action: "edit",
+                task: {
+                  description: task.description,
+                  project: task.project || "",
+                  priority: task.priority || "",
+                  tags: task.tags,
+                  recur: task.recur,
+                  until: task.until ? taskDate(new Date(task.until)) : undefined,
+                  due: date ? taskDate(date) : "",
+                  note: "",
+                },
+              });
+            }
+          : undefined
+      }
       onEdit={() => openEditor(task)}
       onComplete={() => void toggleTask(task, task.status === "completed")}
     />
@@ -1081,6 +1131,21 @@ export default function App() {
             </Button>
           </div>
           <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              aria-label="Open command palette"
+              aria-keyshortcuts="Meta+K Control+K"
+              disabled={busy || organizationSaving}
+              onClick={() => setCommandOpen(true)}
+              className="hidden h-7 gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 text-xs font-normal text-muted-foreground hover:bg-muted/80 hover:text-foreground sm:inline-flex"
+            >
+              <span>Command</span>
+              <kbd className="rounded bg-background/80 px-1 py-0.5 font-sans text-[10px] leading-none text-muted-foreground">
+                ⌘K
+              </kbd>
+            </Button>
             <ThemeSwitcher />
             <Button
               variant="ghost"
@@ -1951,6 +2016,58 @@ export default function App() {
         </Button>
       </div>
 
+      <CommandPalette
+        open={commandOpen}
+        onOpenChange={setCommandOpen}
+        tasks={tasks}
+        projects={filterProjects}
+        organization={organization}
+        currentProject={currentProject}
+        layout={layout}
+        onAddTask={openQuickAdd}
+        onAddProject={() => editProject("")}
+        onFocusPicker={() => {
+          setOrganizationError("");
+          setFocusPickerOpen(true);
+        }}
+        onToggleLayout={() => {
+          setLayout((current) => {
+            const next = current === "list" ? "board" : "list";
+            try {
+              localStorage.setItem("aster.task-layout", next);
+            } catch {
+              /* Layout still works without browser storage. */
+            }
+            return next;
+          });
+        }}
+        onView={(value) => {
+          openTaskView();
+          setView(value);
+          setProject("");
+          setQuery("");
+        }}
+        onProject={(name) => {
+          openTaskView();
+          setProject(name);
+          setView("pending");
+          setQuery("");
+        }}
+        onEditProject={editProject}
+        onProjectStatus={transition}
+        onEntry={openEntry}
+        onOrganization={() => {
+          setProjectsPage(false);
+          setOrganizationPage(true);
+          setActiveEntry(undefined);
+          setSearchOpen(false);
+          setQuery("");
+          setProject("");
+        }}
+        onRecovery={() => setRecoveryOpen(true)}
+        onEditTask={(task) => openEditor(task)}
+      />
+
       <QuickAdd
         open={quickOpen}
         projects={filterProjects}
@@ -2017,7 +2134,12 @@ export default function App() {
         onAction={() => {
           if (undoTask) {
             setToastOpen(false);
-            if (undoTask.board)
+            if (undoTask.wasDeleted)
+              void mutate("action", {
+                uuid: undoTask.task.uuid,
+                action: "restore",
+              });
+            else if (undoTask.board)
               void moveTask(
                 undoTask.task,
                 undoTask.board.columnId,
@@ -2073,8 +2195,16 @@ export default function App() {
             if (latest) await load();
             return latest;
           }}
-          onSave={(name, description, revision, outcome, nextTask, color) =>
-            changeOrganization({
+          onSave={async (
+            name,
+            description,
+            revision,
+            outcome,
+            nextTask,
+            color,
+          ) => {
+            const isNew = !editingProject;
+            const saved = await changeOrganization({
               kind: "project",
               action: "save",
               revision,
@@ -2086,8 +2216,15 @@ export default function App() {
                 nextTask,
                 color,
               },
-            })
-          }
+            });
+            if (saved && isNew && !organizationPage) {
+              openTaskView();
+              setView("pending");
+              setProject(name);
+              setQuery("");
+            }
+            return saved;
+          }}
         />
       )}
       {focusPickerOpen && !transitionProject && (
@@ -2327,7 +2464,29 @@ export default function App() {
                 });
               return saved;
             }}
-            onDelete={() => setConfirmDelete(true)}
+            onDelete={() => {
+              if (!editing) return;
+              const target = editing;
+              void mutate(
+                "action",
+                {
+                  uuid: target.uuid,
+                  action: "delete",
+                },
+                "editor",
+              ).then((saved) => {
+                if (saved) {
+                  setUndoTask({
+                    task: target,
+                    wasCompleted: target.status === "completed",
+                    wasDeleted: true,
+                    message: "Task deleted",
+                  });
+                  setToastVersion((value) => value + 1);
+                  setToastOpen(true);
+                }
+              });
+            }}
             onSubmit={submit}
           />
         )}
@@ -2346,35 +2505,6 @@ export default function App() {
           }}
         />
       )}
-      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this task?</AlertDialogTitle>
-            <AlertDialogDescription>
-              You can restore this task in Data &amp; recovery.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (editing)
-                  void mutate(
-                    "action",
-                    {
-                      uuid: editing.uuid,
-                      action: "delete",
-                    },
-                    "editor",
-                  );
-              }}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              Delete task
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </ProjectColorsProvider>
   );
 }

@@ -1,3 +1,4 @@
+import { LabelIcon } from "@/components/icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,14 +22,15 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { ProjectIcon } from "@/features/projects/project-icon";
 import { DatePicker } from "@/features/tasks/date-picker";
 import { LabelsPicker } from "@/features/tasks/labels-picker";
 import { ProjectPicker } from "@/features/tasks/project-picker";
 import { parseQuickTask, type QuickToken } from "@core/tasks/quick-task";
-import type { SavedTag } from "@core/workspace/organization";
+import { itemColor, type SavedTag } from "@core/workspace/organization";
 import type { TaskInput } from "@shared/tasks";
 import { format } from "date-fns";
-import { ArrowUp, Flag, ListPlus, Plus, X } from "lucide-react";
+import { ArrowUp, CircleHelp, Flag, ListPlus, X } from "lucide-react";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
 const chip =
@@ -82,7 +84,6 @@ export function QuickAdd({
   });
   const expression = parseQuickTask(text, { ignored });
   const parsed = { ...expression, task: withProject(expression.task) };
-  const expanded = !!text.trim();
   const locked = busy || blocked;
   const validation =
     parsed.errors[0] ||
@@ -91,6 +92,33 @@ export function QuickAdd({
   const dueDay = parsed.task.due
     ? format(new Date(isoDate(parsed.task.due)), "yyyy-MM-dd")
     : "";
+
+  const trailingMatch = text.match(/(?:^|\s)([#@])([^\s#@]*)$/);
+  const triggerKind = trailingMatch?.[1] as "#" | "@" | undefined;
+  const triggerQuery = (trailingMatch?.[2] || "").toLocaleLowerCase();
+  const projectSuggestions =
+    triggerKind === "#"
+      ? projects
+          .filter((p) => p.toLocaleLowerCase().includes(triggerQuery))
+          .slice(0, 6)
+      : [];
+  const labelSuggestions =
+    triggerKind === "@"
+      ? availableLabels
+          .filter((l) => l.name.toLocaleLowerCase().includes(triggerQuery))
+          .slice(0, 6)
+      : [];
+
+  function applySuggestion(tokenText: string) {
+    if (!trailingMatch) return;
+    const prefixLen =
+      trailingMatch[0].length - (1 + (trailingMatch[2]?.length || 0));
+    const replaceStart =
+      text.length - trailingMatch[0].length + prefixLen;
+    const next = text.slice(0, replaceStart) + tokenText + " ";
+    change(next);
+    requestAnimationFrame(() => input.current?.focus());
+  }
 
   function change(value: string) {
     setText(value);
@@ -153,13 +181,10 @@ export function QuickAdd({
           variant="ghost"
           size="icon-sm"
           disabled={locked}
-          aria-label="More options"
-          className={
-            "size-9 shrink-0 p-0 text-muted-foreground " +
-            (expanded ? "md:size-7" : "md:size-8")
-          }
+          aria-label="Quick syntax help"
+          className="size-9 shrink-0 p-0 text-muted-foreground md:size-7"
         >
-          <Plus className="size-5" strokeWidth={1.5} />
+          <CircleHelp className="size-4" strokeWidth={1.5} />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -183,7 +208,7 @@ export function QuickAdd({
           <br />
           Try tomorrow at 14 or 2026-10-20.
           <br />
-          Enter to add · Shift + Enter for a new line · ⌘E for editor
+          Enter to add · Tab to autocomplete · ⌘E for editor
         </p>
       </PopoverContent>
     </Popover>
@@ -250,7 +275,6 @@ export function QuickAdd({
         >
           <div className="min-h-0 overflow-y-auto overscroll-contain">
             <div data-quick-input-row className="flex items-center gap-2">
-              {!expanded && more}
               <div className="relative min-w-0 flex-1">
                 <Label htmlFor="quick-expression" className="sr-only">
                   Task expression
@@ -268,19 +292,36 @@ export function QuickAdd({
                   value={text}
                   rows={1}
                   maxLength={4000}
-                  placeholder="Task name"
+                  placeholder="Task name… (try #project, @label, tomorrow, p1)"
                   disabled={locked}
                   aria-describedby={
                     validation || error ? "quick-error" : undefined
                   }
                   aria-invalid={!!validation || !!error}
-                  className="relative min-h-6 max-h-[min(10rem,25dvh)] resize-none rounded-none border-0 bg-transparent p-0 text-base leading-6 shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 md:text-base dark:bg-transparent"
+                  className="relative min-h-6 max-h-[min(10rem,25dvh)] resize-none rounded-none border-0 bg-transparent p-0 text-base leading-6 shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0 focus-visible:ring-offset-0 md:text-base dark:bg-transparent"
                   onScroll={(e) => {
                     if (mirror.current)
                       mirror.current.scrollTop = e.currentTarget.scrollTop;
                   }}
                   onChange={(e) => change(e.target.value)}
                   onKeyDown={(e) => {
+                    if (
+                      e.key === "Tab" &&
+                      !e.shiftKey &&
+                      (projectSuggestions.length > 0 ||
+                        labelSuggestions.length > 0)
+                    ) {
+                      e.preventDefault();
+                      if (projectSuggestions[0]) {
+                        const name = projectSuggestions[0];
+                        applySuggestion(
+                          /\s/.test(name) ? `#"${name}"` : `#${name}`,
+                        );
+                      } else if (labelSuggestions[0]) {
+                        applySuggestion(`@${labelSuggestions[0].name}`);
+                      }
+                      return;
+                    }
                     if (
                       (e.metaKey || e.ctrlKey) &&
                       e.key.toLowerCase() === "e" &&
@@ -303,136 +344,173 @@ export function QuickAdd({
                   }}
                 />
               </div>
-              {!expanded && actions}
             </div>
-            {expanded && (
-              <div
-                className="mt-3 flex min-w-0 items-center gap-2"
-                data-quick-attributes
-              >
-                <div
-                  data-quick-options
-                  className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0"
-                >
-                  {more}
-                  <ProjectPicker
-                    returnFocus={() => input.current?.focus()}
-                    id="quick-project"
-                    compact
-                    value={parsed.task.project || ""}
-                    projects={projects}
-                    disabled={locked}
-                    onChange={(value) => {
-                      setNoProject(!value);
-                      setField("project", value ? `#"${value}"` : "");
-                    }}
-                  />
-                  <div
-                    className={
-                      "flex max-w-full" +
-                      (dueToken ? " rounded-[5px] border border-input" : "")
-                    }
-                  >
-                    <DatePicker
-                      returnFocus={() => input.current?.focus()}
-                      id="quick-due"
-                      compact
-                      value={dueDay}
-                      label={dueToken?.label}
-                      disabled={locked}
-                      className={
-                        dueToken
-                          ? "h-[34px] rounded-r-none border-0 md:h-[26px]"
-                          : undefined
-                      }
-                      onChange={(value) => setField("due", value)}
-                    />
-                    {dueToken && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        disabled={locked}
-                        aria-label="Keep date as text"
-                        className="h-[34px] w-8 rounded-l-none md:h-[26px] md:w-6 p-0 text-muted-foreground"
-                        onClick={() => {
-                          setIgnored((items) => [...items, dueToken.id]);
-                          input.current?.focus();
-                        }}
-                      >
-                        <X className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                  <Select
-                    disabled={locked}
-                    value={parsed.task.priority || "none"}
-                    onValueChange={(v) =>
-                      setField(
-                        "priority",
-                        (
-                          {
-                            H: "p1",
-                            M: "p2",
-                            L: "p3",
-                            none: "p4",
-                          } as Record<string, string>
-                        )[v],
-                      )
-                    }
-                  >
-                    <SelectTrigger
-                      aria-label="Priority"
-                      className={
-                        chip +
-                        " w-auto gap-1.5 data-[size=default]:h-9 md:data-[size=default]:h-7 [&>svg:last-child]:hidden"
-                      }
-                    >
-                      <Flag className="size-4" />
-                      <SelectValue>
-                        {(
-                          {
-                            H: "Priority 1",
-                            M: "Priority 2",
-                            L: "Priority 3",
-                          } as Record<string, string>
-                        )[parsed.task.priority || ""] || "Priority"}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent onCloseAutoFocus={restoreInput}>
-                      <SelectItem value="H">Priority 1</SelectItem>
-                      <SelectItem value="M">Priority 2</SelectItem>
-                      <SelectItem value="L">Priority 3</SelectItem>
-                      <SelectItem value="none">No priority</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <LabelsPicker
-                    compact
-                    id="quick-tags"
-                    value={parsed.task.tags}
-                    choices={availableLabels}
-                    disabled={locked}
-                    returnFocus={() => input.current?.focus()}
-                    onChange={(tags) =>
-                      setField(
-                        "tag",
-                        tags.map((t) => "@" + t).join(" "),
-                      )
-                    }
-                  />
+            {(projectSuggestions.length > 0 || labelSuggestions.length > 0) && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
+                <span className="text-[11px] text-muted-foreground">
+                  {triggerKind === "#" ? "Projects (Tab):" : "Labels (Tab):"}
+                </span>
+                {projectSuggestions.map((name, idx) => (
                   <Button
+                    key={name}
                     type="button"
-                    variant="outline"
-                    className={chip}
-                    disabled={locked || !!parsed.errors.length}
-                    onClick={editForm}
+                    variant={idx === 0 ? "secondary" : "ghost"}
+                    size="xs"
+                    className="h-6 gap-1 rounded-full px-2 text-xs font-normal"
+                    onClick={() =>
+                      applySuggestion(
+                        /\s/.test(name) ? `#"${name}"` : `#${name}`,
+                      )
+                    }
                   >
-                    <ListPlus className="size-4" />
-                    Task editor
+                    <ProjectIcon name={name} className="size-3" />
+                    <span>{name}</span>
                   </Button>
-                </div>
-                {actions}
+                ))}
+                {labelSuggestions.map((label, idx) => (
+                  <Button
+                    key={label.id}
+                    type="button"
+                    variant={idx === 0 ? "secondary" : "ghost"}
+                    size="xs"
+                    className="h-6 gap-1 rounded-full px-2 text-xs font-normal"
+                    onClick={() => applySuggestion(`@${label.name}`)}
+                  >
+                    <LabelIcon
+                      className="size-3"
+                      style={{ color: itemColor(label.color) }}
+                    />
+                    <span>{label.name}</span>
+                  </Button>
+                ))}
               </div>
             )}
+            <div
+              className="mt-3 flex min-w-0 items-center gap-2 border-t border-border/60 pt-3"
+              data-quick-attributes
+            >
+              <div
+                data-quick-options
+                className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0"
+              >
+                {more}
+                <ProjectPicker
+                  returnFocus={() => input.current?.focus()}
+                  id="quick-project"
+                  compact
+                  value={parsed.task.project || ""}
+                  projects={projects}
+                  disabled={locked}
+                  onChange={(value) => {
+                    setNoProject(!value);
+                    setField("project", value ? `#"${value}"` : "");
+                  }}
+                />
+                <div
+                  className={
+                    "flex max-w-full" +
+                    (dueToken ? " rounded-[5px] border border-input" : "")
+                  }
+                >
+                  <DatePicker
+                    returnFocus={() => input.current?.focus()}
+                    id="quick-due"
+                    compact
+                    value={dueDay}
+                    label={dueToken?.label}
+                    disabled={locked}
+                    className={
+                      dueToken
+                        ? "h-[34px] rounded-r-none border-0 md:h-[26px]"
+                        : undefined
+                    }
+                    onChange={(value) => setField("due", value)}
+                  />
+                  {dueToken && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={locked}
+                      aria-label="Keep date as text"
+                      className="h-[34px] w-8 rounded-l-none md:h-[26px] md:w-6 p-0 text-muted-foreground"
+                      onClick={() => {
+                        setIgnored((items) => [...items, dueToken.id]);
+                        input.current?.focus();
+                      }}
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+                <Select
+                  disabled={locked}
+                  value={parsed.task.priority || "none"}
+                  onValueChange={(v) =>
+                    setField(
+                      "priority",
+                      (
+                        {
+                          H: "p1",
+                          M: "p2",
+                          L: "p3",
+                          none: "p4",
+                        } as Record<string, string>
+                      )[v],
+                    )
+                  }
+                >
+                  <SelectTrigger
+                    aria-label="Priority"
+                    className={
+                      chip +
+                      " w-auto gap-1.5 data-[size=default]:h-9 md:data-[size=default]:h-7 [&>svg:last-child]:hidden"
+                    }
+                  >
+                    <Flag className="size-4" />
+                    <SelectValue>
+                      {(
+                        {
+                          H: "Priority 1",
+                          M: "Priority 2",
+                          L: "Priority 3",
+                        } as Record<string, string>
+                      )[parsed.task.priority || ""] || "Priority"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent onCloseAutoFocus={restoreInput}>
+                    <SelectItem value="H">Priority 1</SelectItem>
+                    <SelectItem value="M">Priority 2</SelectItem>
+                    <SelectItem value="L">Priority 3</SelectItem>
+                    <SelectItem value="none">No priority</SelectItem>
+                  </SelectContent>
+                </Select>
+                <LabelsPicker
+                  compact
+                  id="quick-tags"
+                  value={parsed.task.tags}
+                  choices={availableLabels}
+                  disabled={locked}
+                  returnFocus={() => input.current?.focus()}
+                  onChange={(tags) =>
+                    setField(
+                      "tag",
+                      tags.map((t) => "@" + t).join(" "),
+                    )
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={chip}
+                  disabled={locked || !!parsed.errors.length}
+                  onClick={editForm}
+                >
+                  <ListPlus className="size-4" />
+                  Task editor
+                </Button>
+              </div>
+              {actions}
+            </div>
             {(validation || error) && (
               <Alert
                 id="quick-error"

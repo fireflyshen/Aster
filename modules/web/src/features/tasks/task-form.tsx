@@ -1,7 +1,5 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { LabelsPicker } from "./labels-picker";
-import type { SavedTag } from "@core/workspace/organization";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -12,24 +10,15 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import type { Task, TaskInput } from "@shared/tasks";
-import type { FormEvent } from "react";
-import { Trash2 } from "lucide-react";
-import { useState } from "react";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from "@/components/ui/alert-dialog";
-import { RepeatSelect, RepeatEnd } from "./repeat-fields";
 import { recurrenceLabel } from "@core/tasks/recurrence";
+import type { SavedTag } from "@core/workspace/organization";
+import type { Task, TaskInput } from "@shared/tasks";
+import { Trash2 } from "lucide-react";
+import type { FormEvent } from "react";
 import { DatePicker } from "./date-picker";
+import { LabelsPicker } from "./labels-picker";
 import { ProjectPicker } from "./project-picker";
+import { RepeatEnd, RepeatSelect } from "./repeat-fields";
 
 type TaskFormProps = {
   draft: TaskInput;
@@ -72,10 +61,6 @@ export function TaskForm({
   onRemoveNote,
   onSubmit,
 }: TaskFormProps) {
-  const [removing, setRemoving] = useState<{
-    entry: string;
-    description: string;
-  }>();
   return (
     <form
       noValidate
@@ -95,7 +80,7 @@ export function TaskForm({
     >
       <div
         data-editor-body
-        className="min-h-0 overflow-y-auto overscroll-contain px-5 pt-1 pb-5"
+        className="min-h-0 overflow-y-auto overscroll-contain px-5 pt-4 pb-5"
       >
         <Label htmlFor="description" className="sr-only">
           Task name
@@ -111,16 +96,27 @@ export function TaskForm({
             });
             onClearError();
           }}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing &&
+              event.nativeEvent.keyCode !== 229
+            ) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
           disabled={busy || needsCheck}
           required
           maxLength={2000}
-          rows={3}
+          rows={1}
           aria-invalid={formError === "Enter a task name."}
           aria-describedby={formError ? "editor-error" : undefined}
-          className="min-h-28 resize-none md:min-h-24 md:text-sm"
+          className="min-h-8 resize-none rounded-none border-0 bg-transparent px-0 py-0 text-base leading-6 font-semibold shadow-none focus-visible:ring-0 md:text-lg dark:bg-transparent"
         />
-        <div className="mt-5 grid grid-cols-1 gap-x-5 gap-y-5 border-t pt-5 sm:grid-cols-2 md:gap-y-4">
-          <div className="flex min-w-0 flex-col gap-2">
+        <div className="mt-4 grid grid-cols-1 gap-x-4 gap-y-3.5 border-t border-border/70 pt-4 sm:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-1.5">
             <Label
               htmlFor="edit-project"
               className="text-xs leading-4 font-normal text-muted-foreground"
@@ -137,7 +133,7 @@ export function TaskForm({
               disabled={busy || needsCheck}
             />
           </div>
-          <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-1.5">
             <Label
               htmlFor="due"
               className="text-xs leading-4 font-normal text-muted-foreground"
@@ -153,7 +149,7 @@ export function TaskForm({
               disabled={busy || needsCheck}
             />
           </div>
-          <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-1.5">
             <Label
               htmlFor="tags"
               className="text-xs leading-4 font-normal text-muted-foreground"
@@ -173,7 +169,7 @@ export function TaskForm({
               }}
             />
           </div>
-          <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-1.5">
             <Label
               htmlFor="priority"
               className="text-xs leading-4 font-normal text-muted-foreground"
@@ -206,8 +202,8 @@ export function TaskForm({
             </Select>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-          <div className="flex min-w-0 flex-col gap-2">
+        <div className="mt-3.5 grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-1.5">
             <Label
               htmlFor="repeat"
               className="text-xs leading-4 font-normal text-muted-foreground"
@@ -256,7 +252,7 @@ export function TaskForm({
             />
           )}
         </div>
-        <div className="mt-5 space-y-3 border-t pt-5">
+        <div className="mt-4 space-y-2.5 border-t border-border/70 pt-4">
           <Label
             htmlFor="task-note"
             className="text-xs font-normal text-muted-foreground"
@@ -264,11 +260,11 @@ export function TaskForm({
             Notes
           </Label>
           {!!editing?.annotations.length && (
-            <div className="divide-y rounded-md border px-3">
+            <div className="divide-y rounded-lg border px-3">
               {editing.annotations.map((note, index) => (
                 <div
                   key={`${note.entry}-${index}`}
-                  className="group/note flex items-start gap-3 py-3"
+                  className="group/note flex items-start gap-3 py-2.5"
                 >
                   <p className="min-w-0 flex-1 text-sm leading-5 whitespace-pre-wrap [overflow-wrap:anywhere]">
                     {note.description}
@@ -278,14 +274,11 @@ export function TaskForm({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="-mr-1 size-7 shrink-0 text-muted-foreground md:opacity-0 md:group-hover/note:opacity-100 md:group-focus-within/note:opacity-100"
+                      className="-mr-1 size-7 shrink-0 text-muted-foreground hover:text-destructive md:opacity-0 md:group-hover/note:opacity-100 md:group-focus-within/note:opacity-100"
                       aria-label={`Remove note ${index + 1}`}
                       disabled={busy || needsCheck}
                       onClick={() =>
-                        setRemoving({
-                          entry: note.entry!,
-                          description: note.description,
-                        })
+                        void onRemoveNote(note.entry!, note.description)
                       }
                     >
                       <Trash2 className="size-3.5" />
@@ -311,37 +304,11 @@ export function TaskForm({
               });
               onClearError();
             }}
-            className="min-h-20 resize-y md:text-sm"
+            className="min-h-16 resize-y md:text-sm"
           />
         </div>
-        <AlertDialog
-          open={!!removing}
-          onOpenChange={(open) => {
-            if (!open) setRemoving(undefined);
-          }}
-        >
-          <AlertDialogContent className="sm:max-w-sm">
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove this note?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This removes the note from this task.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (removing)
-                    void onRemoveNote(removing.entry, removing.description);
-                }}
-              >
-                Remove note
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
         {formError && (
-          <Alert id="editor-error" variant="destructive" className="mt-5">
+          <Alert id="editor-error" variant="destructive" className="mt-4">
             <AlertDescription>
               {formError}
               {needsCheck && (
@@ -360,7 +327,7 @@ export function TaskForm({
       </div>
       <div
         data-editor-actions
-        className="flex shrink-0 items-center justify-between gap-4 border-t px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:py-4"
+        className="flex shrink-0 items-center justify-between gap-4 border-t border-border/70 px-5 pt-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom))] md:py-3.5"
       >
         {editing && (
           <Button
@@ -368,18 +335,30 @@ export function TaskForm({
             variant="ghost"
             disabled={busy || needsCheck}
             onClick={() => onDelete()}
-            className="-ml-2.5 h-11 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive md:h-9"
+            className="-ml-2.5 h-9 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
+            <Trash2 className="size-3.5" />
             Delete task
           </Button>
         )}
-        <Button
-          type="submit"
-          disabled={busy || needsCheck}
-          className="ml-auto h-11 min-w-24 md:h-9 md:min-w-20"
-        >
-          {busy ? <Spinner className="size-4" /> : "Save"}
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy}
+            onClick={() => onCheck()}
+            className="h-9"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={busy || needsCheck}
+            className="h-9 min-w-20"
+          >
+            {busy ? <Spinner className="size-4" /> : "Save"}
+          </Button>
+        </div>
       </div>
     </form>
   );

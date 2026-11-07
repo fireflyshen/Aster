@@ -119,6 +119,135 @@ export function OrganizationManager({
     )
       setEditing(undefined);
   }
+  const renderInlineLabelEditor = () => {
+    if (!editing || editing.kind !== "tag") return null;
+    return (
+      <form
+        key={editing.item.id || "new-tag"}
+        className="-mx-2.5 my-1 rounded-lg border border-border/80 bg-muted/25 px-3 py-2.5 md:-mx-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape" && !busy) {
+            e.preventDefault();
+            setEditing(undefined);
+            setLocalError("");
+          }
+        }}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                disabled={locked}
+                aria-label="Choose label color"
+                title="Choose color"
+                className="size-8 shrink-0 rounded-md"
+              >
+                <LabelIcon
+                  className="size-4"
+                  style={{ color: itemColor(editing.item.color) }}
+                />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-64 p-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                Label color
+              </p>
+              <ColorPicker
+                id="inline-label-color"
+                value={editing.item.color}
+                disabled={locked}
+                onChange={(color) =>
+                  setEditing({
+                    ...editing,
+                    item: { ...editing.item, color },
+                  } as Entry)
+                }
+              />
+            </PopoverContent>
+          </Popover>
+          <Input
+            id="organization-name"
+            autoFocus
+            value={editing.item.name}
+            placeholder="Label name…"
+            maxLength={60}
+            autoComplete="off"
+            disabled={locked}
+            onChange={(e) => {
+              setLocalError("");
+              setEditing({
+                ...editing,
+                item: { ...editing.item, name: e.target.value },
+              } as Entry);
+            }}
+            className="h-8 min-w-[160px] flex-1 bg-background text-sm shadow-none"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            disabled={locked}
+            aria-label={
+              editing.item.favorite
+                ? "Remove from favorites"
+                : "Add to favorites"
+            }
+            title={
+              editing.item.favorite
+                ? "Favorited"
+                : "Add to sidebar favorites"
+            }
+            onClick={() =>
+              setEditing({
+                ...editing,
+                item: { ...editing.item, favorite: !editing.item.favorite },
+              } as Entry)
+            }
+            className={cn(
+              "size-8 shrink-0",
+              editing.item.favorite
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Heart
+              className={cn("size-4", editing.item.favorite && "fill-current")}
+            />
+          </Button>
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={busy}
+              onClick={() => {
+                setEditing(undefined);
+                setLocalError("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" size="xs" disabled={locked}>
+              {busy ? <Spinner className="size-3.5" /> : "Save"}
+            </Button>
+          </div>
+        </div>
+        {(localError || error) && (
+          <p role="alert" className="mt-1.5 text-xs text-destructive">
+            {localError || error}
+          </p>
+        )}
+      </form>
+    );
+  };
+
   const rows = (kind: Entry["kind"]) => {
     const list = kind === "filter" ? data.filters : data.tags;
     const Icon = kind === "filter" ? FilterIcon : LabelIcon;
@@ -138,6 +267,13 @@ export function OrganizationManager({
           .includes(search.trim().toLocaleLowerCase()),
       )
       .map((item) => {
+        if (
+          kind === "tag" &&
+          editing?.kind === "tag" &&
+          editing.item.id === item.id
+        ) {
+          return renderInlineLabelEditor();
+        }
         const entry = { kind, item } as Entry;
         return (
           <div
@@ -156,12 +292,49 @@ export function OrganizationManager({
                 style={{ color: itemColor(item.color) }}
               />
               <span className="truncate">{item.name}</span>
+              {kind === "filter" && (item as SavedFilter).description && (
+                <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+                  {(item as SavedFilter).description}
+                </span>
+              )}
             </Button>
             {kind === "tag" && (
               <span className="ml-3 text-xs tabular-nums text-muted-foreground">
                 {(item as SavedTag).count || ""}
               </span>
             )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={locked}
+              aria-label={
+                item.favorite
+                  ? `Remove ${item.name} from favorites`
+                  : `Add ${item.name} to favorites`
+              }
+              title={
+                item.favorite ? "Remove from favorites" : "Add to favorites"
+              }
+              onClick={() =>
+                void onChange({
+                  revision: data.revision,
+                  kind,
+                  action: "save",
+                  item: { ...item, favorite: !item.favorite },
+                })
+              }
+              className={cn(
+                "ml-1 size-7 transition-opacity",
+                item.favorite
+                  ? "text-primary opacity-100"
+                  : "text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+              )}
+            >
+              <Heart
+                className={cn("size-3.5", item.favorite && "fill-current")}
+              />
+            </Button>
             <RowMenu
               entry={entry}
               disabled={locked}
@@ -238,28 +411,33 @@ export function OrganizationManager({
               </Button>
             </div>
             <CollapsibleContent>
+              {kind === "tag" &&
+                editing?.kind === "tag" &&
+                !editing.item.id &&
+                renderInlineLabelEditor()}
               {rows(kind)}
               {!!search.trim() && !rows(kind).length && (
                 <p className="py-5 text-sm text-muted-foreground">
                   No {kind === "filter" ? "filters" : "labels"} found
                 </p>
               )}
-              {!(kind === "filter" ? data.filters : data.tags).length && (
-                <Button
-                  variant="ghost"
-                  onClick={() => edit(fresh(kind))}
-                  disabled={locked}
-                  className="task-add-button my-2"
-                >
-                  <Plus className="size-4" />
-                  {kind === "filter" ? "Add filter" : "Add label"}
-                </Button>
-              )}
+              {!(kind === "filter" ? data.filters : data.tags).length &&
+                !(kind === "tag" && editing?.kind === "tag") && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => edit(fresh(kind))}
+                    disabled={locked}
+                    className="task-add-button my-2"
+                  >
+                    <Plus className="size-4" />
+                    {kind === "filter" ? "Add filter" : "Add label"}
+                  </Button>
+                )}
             </CollapsibleContent>
           </Collapsible>
         ))}
       <Dialog
-        open={!!editing}
+        open={editing?.kind === "filter"}
         onOpenChange={(next) => {
           if (!next && !busy) setEditing(undefined);
         }}

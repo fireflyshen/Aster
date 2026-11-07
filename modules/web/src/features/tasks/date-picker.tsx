@@ -6,10 +6,16 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "cn";
-import { format } from "date-fns";
+import { addDays, format, nextMonday } from "date-fns";
 import { enUS } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
-import { useState } from "react";
+import {
+  ArrowRight,
+  CalendarIcon,
+  Sun,
+  Sunrise,
+  X,
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
 
 export function DatePicker({
   value,
@@ -22,6 +28,8 @@ export function DatePicker({
   className,
   ariaLabel = "Due date",
   emptyLabel,
+  trigger,
+  align = "start",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -33,9 +41,19 @@ export function DatePicker({
   className?: string;
   ariaLabel?: string;
   emptyLabel?: string;
+  trigger?: ReactNode;
+  align?: "start" | "center" | "end";
 }) {
   const [open, setOpen] = useState(false);
   const date = value ? new Date(`${value}T00:00:00`) : undefined;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = addDays(today, 1);
+  const nextWeek = nextMonday(today);
+  const todayStr = format(today, "yyyy-MM-dd");
+  const tomorrowStr = format(tomorrow, "yyyy-MM-dd");
+  const nextWeekStr = format(nextWeek, "yyyy-MM-dd");
+
   const select = (next?: Date) => {
     onChange(next ? format(next, "yyyy-MM-dd") : "");
     setOpen(false);
@@ -43,32 +61,39 @@ export function DatePicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          id={id}
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          aria-label={ariaLabel}
-          className={cn(
-            "h-11 w-full justify-start px-3 text-left text-base font-normal",
-            !compact && "md:h-9 md:text-sm",
-            compact &&
-              "h-9 min-w-0 md:h-7 w-auto max-w-48 shrink gap-1.5 rounded-[5px] border-input px-2 py-0 text-[13px] text-muted-foreground shadow-none has-[>svg]:px-2 [&_svg]:size-4",
-            compact && value && "text-foreground",
-            !value && "text-muted-foreground",
-            className,
-          )}
-        >
-          <CalendarIcon className="size-4 shrink-0" />
-          <span className="truncate">
-            {date
-              ? label || format(date, compact ? "MMM d" : "MMM d, yyyy")
-              : emptyLabel || (compact ? "Date" : "No date")}
-          </span>
-        </Button>
+        {trigger || (
+          <Button
+            id={id}
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            aria-label={ariaLabel}
+            className={cn(
+              "h-11 w-full justify-start px-3 text-left text-base font-normal",
+              !compact && "md:h-9 md:text-sm",
+              compact &&
+                "h-9 w-auto max-w-48 min-w-0 shrink gap-1.5 rounded-[5px] border-input px-2 py-0 text-[13px] text-muted-foreground shadow-none has-[>svg]:px-2 md:h-7 [&_svg]:size-4",
+              compact && value && "text-foreground",
+              !value && "text-muted-foreground",
+              className,
+            )}
+          >
+            <CalendarIcon className="size-4 shrink-0" />
+            <span className="truncate">
+              {date
+                ? label ||
+                  (value === todayStr
+                    ? "Today"
+                    : value === tomorrowStr
+                      ? "Tomorrow"
+                      : format(date, compact ? "MMM d" : "MMM d, yyyy"))
+                : emptyLabel || (compact ? "Date" : "No date")}
+            </span>
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
-        align="end"
+        align={align}
         collisionPadding={16}
         className="w-auto p-0"
         aria-label={`Choose ${ariaLabel.toLowerCase()}`}
@@ -81,6 +106,74 @@ export function DatePicker({
             : undefined
         }
       >
+        <div className="grid grid-cols-1 gap-0.5 border-b p-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => select(today)}
+            className={cn(
+              "h-8 justify-between px-2.5 text-xs font-normal",
+              value === todayStr && "bg-accent font-medium",
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Sun className="size-3.5 text-muted-foreground" />
+              Today
+            </span>
+            <span className="text-muted-foreground">
+              {format(today, "EEE")}
+            </span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => select(tomorrow)}
+            className={cn(
+              "h-8 justify-between px-2.5 text-xs font-normal",
+              value === tomorrowStr && "bg-accent font-medium",
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Sunrise className="size-3.5 text-muted-foreground" />
+              Tomorrow
+            </span>
+            <span className="text-muted-foreground">
+              {format(tomorrow, "EEE")}
+            </span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => select(nextWeek)}
+            className={cn(
+              "h-8 justify-between px-2.5 text-xs font-normal",
+              value === nextWeekStr && "bg-accent font-medium",
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              <ArrowRight className="size-3.5 text-muted-foreground" />
+              Next week
+            </span>
+            <span className="text-muted-foreground">
+              {format(nextWeek, "MMM d")}
+            </span>
+          </Button>
+          {value && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => select()}
+              className="h-8 justify-start gap-2 px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-3.5" />
+              Clear date
+            </Button>
+          )}
+        </div>
         <Calendar
           mode="single"
           locale={enUS}
@@ -95,27 +188,7 @@ export function DatePicker({
           defaultMonth={date}
           onSelect={select}
           weekStartsOn={1}
-          autoFocus
         />
-        <div className="flex justify-between gap-2 border-t p-3">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={!value}
-            onClick={() => select()}
-          >
-            Clear date
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => select(new Date())}
-          >
-            Today
-          </Button>
-        </div>
       </PopoverContent>
     </Popover>
   );

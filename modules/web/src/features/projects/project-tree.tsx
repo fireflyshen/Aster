@@ -11,7 +11,7 @@ import {
   projectTaskCount,
   projectTree,
 } from "@core/workspace/projects";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Target } from "lucide-react";
 import { useState } from "react";
 import { ProjectActions } from "./project-actions";
 import { ProjectIcon } from "./project-icon";
@@ -121,14 +121,22 @@ export function ProjectTree({
             className={compact ? "size-[18px]" : "size-4"}
           />
           <span className="min-w-0 flex-1">
-            <span className="block truncate">
+            <span
+              className={`block truncate ${compact ? "" : "font-medium text-foreground"}`}
+            >
               {root === row.name && row.parent
                 ? projectPath(row.name)
                 : row.label}
             </span>
-            {!compact && (record?.outcome || record?.description) && (
+            {!compact && record?.outcome && (
+              <span className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                <Target className="size-3 shrink-0 opacity-70" />
+                <span className="truncate">{record.outcome}</span>
+              </span>
+            )}
+            {!compact && !record?.outcome && record?.description && (
               <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                {record.outcome || record.description}
+                {record.description}
               </span>
             )}
             {depth > (compact ? 4 : 6) && (
@@ -144,18 +152,46 @@ export function ProjectTree({
           )}
         </Button>
         {!compact && (
-          <>
-            <span className="hidden shrink-0 text-xs capitalize text-muted-foreground sm:block">
-              {inherited && inherited.name !== row.name
-                ? "In Focus"
-                : projectStatus(record) === "active"
-                  ? "Focus"
-                  : projectStatus(record)}
+          <div className="flex shrink-0 items-center gap-2">
+            {inherited && inherited.name !== row.name ? (
+              <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-block">
+                In Focus
+              </span>
+            ) : projectStatus(record) === "active" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={disabled}
+                title="Move project to Later"
+                onClick={() => onStatus(row.name, "later")}
+                className="h-6 gap-1 rounded-full border border-primary/25 bg-primary/8 px-2.5 text-[11px] font-medium text-foreground hover:bg-primary/15"
+              >
+                <Target className="size-3" strokeWidth={1.8} />
+                Focus
+              </Button>
+            ) : projectStatus(record) === "later" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                disabled={disabled}
+                title="Promote project to Focus"
+                onClick={() => onStatus(row.name, "active")}
+                className="h-6 gap-1 rounded-full border border-border/80 px-2.5 text-[11px] font-normal text-muted-foreground transition-opacity hover:border-border hover:bg-background hover:text-foreground md:opacity-0 md:group-hover/project:opacity-100 md:group-focus-within/project:opacity-100"
+              >
+                <Target className="size-3" strokeWidth={1.6} />
+                Focus
+              </Button>
+            ) : (
+              <span className="hidden text-xs capitalize text-muted-foreground sm:inline">
+                {projectStatus(record)}
+              </span>
+            )}
+            <span className="min-w-6 text-right text-xs tabular-nums text-muted-foreground">
+              {count || ""}
             </span>
-            <span className="min-w-5 text-right text-xs tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          </>
+          </div>
         )}
         <ProjectActions
           name={row.name}

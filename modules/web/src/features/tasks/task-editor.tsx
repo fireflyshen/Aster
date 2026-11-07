@@ -41,8 +41,10 @@ export function TaskEditor({
   const Description = desktop ? DialogDescription : SheetDescription;
   const body = (
     <>
-      <Header className="shrink-0 px-5 pt-5 pr-14 pb-4 text-left">
-        <Title className="text-base leading-6 font-medium">{title}</Title>
+      <Header className="shrink-0 border-b border-border/70 px-5 py-3.5 pr-12 text-left">
+        <Title className="text-xs font-medium tracking-wide text-muted-foreground">
+          {title}
+        </Title>
         <Description className="sr-only">
           Edit the task and its properties.
         </Description>
@@ -58,7 +60,7 @@ export function TaskEditor({
       <DialogContent
         data-editor-layout="desktop"
         showCloseButton={!busy}
-        className="flex max-h-[calc(100dvh-3rem)] w-[calc(100vw-3rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
+        className="flex max-h-[calc(100dvh-3rem)] w-[calc(100vw-3rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[540px]"
         onEscapeKeyDown={preventClose}
         onPointerDownOutside={preventClose}
       >

@@ -167,14 +167,15 @@ export function ProjectEditor({
             }
           }}
         >
-          <div className="space-y-4 overflow-y-auto px-5 py-5">
-            <div className="space-y-2">
+          <div className="space-y-3.5 overflow-y-auto px-5 py-4">
+            <div className="space-y-1.5">
               <Label htmlFor="project-name">Name</Label>
               <Input
                 id="project-name"
                 value={name}
                 maxLength={200}
                 autoComplete="off"
+                placeholder="Project name"
                 onChange={(event) => {
                   setName(event.target.value);
                   setLocalError("");
@@ -183,7 +184,7 @@ export function ProjectEditor({
                 className="h-10 text-base md:h-9 md:text-sm"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="project-color">Color</Label>
               <ColorPicker
                 id="project-color"
@@ -192,7 +193,7 @@ export function ProjectEditor({
                 disabled={busy || blocked || reloading}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="project-parent">Parent project</Label>
               <ProjectPicker
                 id="project-parent"
@@ -212,20 +213,21 @@ export function ProjectEditor({
                 </p>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="project-outcome">Finish line</Label>
               <Textarea
                 id="project-outcome"
                 value={outcome}
                 onChange={(event) => setOutcome(event.target.value)}
                 maxLength={500}
+                rows={2}
                 placeholder="What result would make this project complete?"
-                className="min-h-20 text-base md:text-sm"
+                className="min-h-16 text-base md:text-sm"
                 disabled={busy || blocked || reloading}
               />
             </div>
             {project && (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="project-next">Next step</Label>
                 <Select
                   value={nextTask || "none"}
@@ -265,7 +267,7 @@ export function ProjectEditor({
                 )}
               </div>
             )}
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label
                 htmlFor="project-description"
                 className="text-sm font-medium"
@@ -278,8 +280,8 @@ export function ProjectEditor({
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="What is this project about?"
                 maxLength={2000}
-                rows={5}
-                className="min-h-32 resize-y text-base shadow-none md:text-sm"
+                rows={3}
+                className="min-h-20 resize-y text-base shadow-none md:text-sm"
                 disabled={busy || blocked || reloading}
                 aria-describedby={error ? "project-error" : undefined}
               />

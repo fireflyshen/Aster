@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ProjectIcon } from "@/features/projects/project-icon";
+import { DatePicker } from "@/features/tasks/date-picker";
 import { formatDuration } from "@core/workspace/energy";
 import type { Task } from "@shared/tasks";
 import { cn } from "cn";
@@ -17,7 +18,13 @@ import {
   Repeat2,
   MessageSquare,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
+
+const isoDue = (value: string) =>
+  value.replace(
+    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+    "$1-$2-$3T$4:$5:$6Z",
+  );
 
 function dueLabel(value: string) {
   const date = new Date(value);
@@ -48,6 +55,7 @@ export function TaskRow({
   onEdit,
   onComplete,
   onToggleStart,
+  onDueChange,
   extraActions,
   trackedSeconds,
   timingUnavailable = false,
@@ -62,6 +70,7 @@ export function TaskRow({
   onEdit: () => void;
   onComplete: () => void;
   onToggleStart?: () => void;
+  onDueChange?: (due: string) => void;
   extraActions?: ReactNode;
   trackedSeconds?: number;
   timingUnavailable?: boolean;
@@ -71,7 +80,10 @@ export function TaskRow({
 }) {
   const checked = transition?.checked ?? completed;
   const started = !!task.start && !checked;
-  const hasRightActions = Boolean((!completed && onToggleStart) || extraActions);
+  const dueDay = task.due ? format(new Date(isoDue(task.due)), "yyyy-MM-dd") : "";
+  const hasRightActions = Boolean(
+    (!completed && (onToggleStart || onDueChange)) || extraActions,
+  );
   const hasDetails = !!(
     (showProject && task.project) ||
     task.due ||
@@ -83,11 +95,56 @@ export function TaskRow({
     started ||
     (trackedSeconds ?? 0) > 0
   );
+  function handleRowKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (
+      disabled ||
+      event.defaultPrevented ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      document.querySelector(
+        '[role="dialog"], [role="alertdialog"], [data-state="open"][data-slot="popover-content"]',
+      )
+    )
+      return;
+    const key = event.key.toLowerCase();
+    if (key === "j" || event.key === "ArrowDown" || key === "k" || event.key === "ArrowUp") {
+      const rows = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          "[data-task-row] [data-task-drag-surface]:not(:disabled)",
+        ),
+      );
+      const current = event.currentTarget.querySelector<HTMLElement>(
+        "[data-task-drag-surface]",
+      );
+      const index = current ? rows.indexOf(current) : -1;
+      if (index === -1) return;
+      const nextIndex =
+        key === "j" || event.key === "ArrowDown"
+          ? Math.min(rows.length - 1, index + 1)
+          : Math.max(0, index - 1);
+      if (nextIndex !== index) {
+        event.preventDefault();
+        rows[nextIndex]?.focus();
+      }
+      return;
+    }
+    if (key === "x") {
+      event.preventDefault();
+      onComplete();
+      return;
+    }
+    if (key === "s" && !completed && onToggleStart) {
+      event.preventDefault();
+      onToggleStart();
+    }
+  }
   return (
     <article
       data-task-row
       data-completion={transition?.phase}
       aria-busy={!!transition}
+      onKeyDown={handleRowKeyDown}
       className="task-row min-w-0 flex-1"
     >
       <div
@@ -262,6 +319,36 @@ export function TaskRow({
                 className="flex h-11 items-center gap-0.5 pl-1 md:h-8"
               >
                 {extraActions}
+                {!completed && onDueChange && (
+                  <DatePicker
+                    id={`due-${task.uuid}`}
+                    value={dueDay}
+                    disabled={disabled}
+                    align="end"
+                    ariaLabel={`Due date: ${task.description}`}
+                    onChange={onDueChange}
+                    trigger={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={disabled}
+                        aria-label={`Set due date: ${task.description}`}
+                        title={
+                          task.due
+                            ? `Due ${dueLabel(task.due)} — click to change`
+                            : "Set due date"
+                        }
+                        className={cn(
+                          "size-7 text-muted-foreground transition-opacity hover:text-foreground",
+                          "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100 data-[state=open]:opacity-100",
+                        )}
+                      >
+                        <CalendarDays className="size-3.5" strokeWidth={1.6} />
+                      </Button>
+                    }
+                  />
+                )}
                 {!completed && onToggleStart && (
                   <Button
                     type="button"

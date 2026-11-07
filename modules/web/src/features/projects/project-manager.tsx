@@ -1,13 +1,6 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import {
   focusProject,
@@ -16,9 +9,17 @@ import {
   type ProjectStatus,
 } from "@core/workspace/focus";
 import type { Organization } from "@core/workspace/organization";
+import { cn } from "cn";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { ProjectTree } from "./project-tree";
+
+const statusTabs = [
+  { value: "all", label: "All" },
+  { value: "active", label: "Focus" },
+  { value: "later", label: "Later" },
+  { value: "completed", label: "Completed" },
+] as const;
 
 export function ProjectManager({
   data,
@@ -85,18 +86,31 @@ export function ProjectManager({
         </Button>
       </div>
       {mode === "all" && (
-        <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger aria-label="Project status" className="mb-4 w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {["all", "active", "later", "completed"].map((value) => (
-              <SelectItem key={value} value={value}>
-                {value[0].toUpperCase() + value.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div
+          role="tablist"
+          aria-label="Project status"
+          className="mb-4 inline-flex items-center gap-1 rounded-lg bg-muted/70 p-1"
+        >
+          {statusTabs.map((tab) => (
+            <Button
+              key={tab.value}
+              type="button"
+              role="tab"
+              aria-selected={status === tab.value}
+              variant="ghost"
+              size="xs"
+              onClick={() => setStatus(tab.value)}
+              className={cn(
+                "h-7 rounded-md px-2.5 text-xs font-medium transition-colors",
+                status === tab.value
+                  ? "bg-background text-foreground shadow-2xs hover:bg-background"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
       )}
       {error && (
         <Alert variant="destructive" className="mb-4">
@@ -138,9 +152,28 @@ export function ProjectManager({
         />
       )}
       {!loading && !matches.length && (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          {search.trim() ? "No projects found" : "No projects yet"}
-        </p>
+        <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+          <p className="text-sm text-muted-foreground">
+            {search.trim()
+              ? "No matching projects found."
+              : mode === "later"
+                ? "No projects waiting in Later."
+                : "No projects yet."}
+          </p>
+          {!search.trim() && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={onAdd}
+              className="mt-1 gap-1.5"
+            >
+              <Plus className="size-3.5" />
+              New project
+            </Button>
+          )}
+        </div>
       )}
     </section>
   );
