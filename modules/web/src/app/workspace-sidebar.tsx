@@ -137,11 +137,13 @@ export function WorkspaceSidebar({
         onClick={onAdd}
         disabled={busy || needsCheck}
         aria-keyshortcuts="Q"
-        className="mb-3 h-9 w-full justify-start gap-2.5 px-3 font-medium text-primary"
+        className="mb-3 h-9 w-full justify-start gap-2.5 px-2.5 font-medium text-primary hover:bg-navigation-hover has-[>svg]:px-2.5"
       >
         <Plus className="size-5" />
         Add task
-        <kbd className="ml-auto font-sans text-xs text-muted-foreground">Q</kbd>
+        <kbd className="ml-auto rounded border border-border/80 bg-background/80 px-1.5 py-0.5 font-sans text-[11px] leading-none text-muted-foreground">
+          Q
+        </kbd>
       </Button>
       <nav aria-label="Task views" className="space-y-0.5">
         {(Object.entries(views) as [View, string][]).map(([value, label]) => {
@@ -238,7 +240,7 @@ export function WorkspaceSidebar({
           </nav>
         </>
       )}
-      <div className="mt-6 mb-1 flex items-center justify-between pl-3">
+      <div className="mt-6 mb-1 flex items-center justify-between pl-1">
         <Button
           variant="ghost"
           onClick={() => {
@@ -248,7 +250,7 @@ export function WorkspaceSidebar({
           disabled={busy || organizationSaving}
           aria-label="Manage projects"
           aria-current={organizationPage && projectsPage ? "page" : undefined}
-          className="h-8 px-0 text-xs font-medium text-muted-foreground hover:bg-transparent aria-[current=page]:text-foreground"
+          className="h-7 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-navigation-hover hover:text-foreground aria-[current=page]:bg-navigation-selected aria-[current=page]:text-foreground"
         >
           Focus ·{" "}
           {
@@ -264,7 +266,7 @@ export function WorkspaceSidebar({
           aria-label="Add project"
           disabled={busy || organizationSaving}
           onClick={onAddProject}
-          className="text-muted-foreground"
+          className="size-7 text-muted-foreground hover:bg-navigation-hover hover:text-foreground"
         >
           <Plus className="size-4" />
         </Button>
@@ -292,12 +294,12 @@ export function WorkspaceSidebar({
         />
       </nav>
       <Button
-        variant="ghost"
+        variant="navigation"
         onClick={() => {
           onProjects();
           if (innerWidth < 768) onOpenChange(false);
         }}
-        className="mt-2 h-8 justify-start px-3 text-xs text-muted-foreground"
+        className="mt-1 h-8 text-xs"
       >
         All projects
       </Button>
@@ -370,13 +372,13 @@ export function WorkspaceSidebar({
         </div>
       )}
       <Button
-        variant="ghost"
+        variant="navigation"
         onClick={() => {
           onRecovery();
           if (innerWidth < 768) onOpenChange(false);
         }}
         disabled={busy || organizationSaving}
-        className="mt-4 h-9 w-full justify-start gap-2.5 px-3 text-xs text-muted-foreground"
+        className="mt-4 h-9 text-xs"
       >
         <DatabaseBackup className="size-4" />
         Data & recovery

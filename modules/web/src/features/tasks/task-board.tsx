@@ -169,10 +169,10 @@ function BoardCard({
           listeners?.onTouchStart?.(event);
       }}
       className={cn(
-        "board-card group/card relative cursor-grab select-none active:cursor-grabbing [&:has(:focus-visible)]:bg-muted/50",
+        "board-card group/card relative select-none [&:has(:focus-visible)]:bg-(--row-hover)",
         compact
-          ? "flex min-w-0 items-start border-b border-border px-0 shadow-none"
-          : "rounded-lg border border-border bg-background px-3 pt-1 pb-1 shadow-[0_1px_2px_rgb(0_0_0/0.025)] transition-[box-shadow,opacity,border-color] duration-150 hover:border-input hover:shadow-sm",
+          ? "-mx-2.5 flex min-w-0 items-start px-2.5 shadow-none md:-mx-3 md:px-3"
+          : "cursor-grab rounded-xl border border-border/80 bg-card px-3.5 pt-1.5 pb-1.5 shadow-[0_1px_2px_rgb(0_0_0/0.03)] transition-[box-shadow,opacity,border-color,background-color] duration-150 hover:border-ring/40 hover:shadow-[0_3px_10px_rgb(0_0_0/0.05)] active:cursor-grabbing",
         isDragging && "opacity-30",
         before &&
           "before:absolute before:-top-2 before:inset-x-0 before:h-0.5 before:rounded-full before:bg-primary/60",
@@ -287,44 +287,40 @@ function BoardColumn({
       <div
         className={cn(
           "mb-3 flex h-11 items-center gap-1.5 md:h-10",
-          compact && "mb-0 border-b",
+          compact && "mb-0.5 border-b border-border/80",
         )}
       >
-        {compact && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
+        {compact ? (
+          <button
+            type="button"
             aria-label={`${collapsed ? "Expand" : "Collapse"} group: ${column.name}`}
             aria-expanded={!collapsed}
             onClick={() => setCollapsed(!collapsed)}
-            className="-ml-1.5 size-7 text-muted-foreground"
+            className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
           >
             <ChevronRight
               className={cn(
-                "size-3.5 transition-transform duration-150",
+                "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
                 !collapsed && "rotate-90",
               )}
             />
-          </Button>
+            <h2 className="min-w-0 truncate text-sm font-semibold">
+              {column.name}
+            </h2>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {count}
+            </span>
+          </button>
+        ) : (
+          <>
+            <h2 className="min-w-0 truncate text-sm font-semibold">
+              {column.name}
+            </h2>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+              {count}
+            </span>
+          </>
         )}
-        <h2
-          onClick={compact ? () => setCollapsed(!collapsed) : undefined}
-          className={cn(
-            "min-w-0 truncate text-sm font-semibold",
-            compact && "cursor-pointer select-none",
-          )}
-        >
-          {column.name}
-        </h2>
-        <span
-          onClick={compact ? () => setCollapsed(!collapsed) : undefined}
-          className={cn(
-            "text-xs tabular-nums text-muted-foreground",
-            compact && "cursor-pointer select-none",
-          )}
-        >
-          {count}
-        </span>
         {column.id !== UNSECTIONED && (
           <Popover open={menu} onOpenChange={setMenu}>
             <PopoverTrigger asChild>
@@ -726,7 +722,11 @@ export function TaskBoard({
               variant="ghost"
               disabled={disabled}
               onClick={() => openEditor({ id: "", name: "" })}
-              className="h-11 w-full justify-start gap-2.5 self-start text-sm font-normal text-muted-foreground md:h-10"
+              className={
+                layout === "list"
+                  ? "task-add-button"
+                  : "h-11 w-full justify-start gap-2.5 self-start rounded-xl border border-dashed border-border/80 px-3.5 text-sm font-normal text-muted-foreground hover:border-ring/40 hover:bg-(--row-hover) hover:text-foreground md:h-10"
+              }
             >
               <Plus className="size-[18px]" strokeWidth={1.5} />
               {layout === "list" ? "Add group" : "Add column"}

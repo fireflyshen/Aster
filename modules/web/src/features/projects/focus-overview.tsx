@@ -198,7 +198,7 @@ export function FocusOverview({
             return (
               <section
                 key={project.name}
-                className="group/focus min-w-0 border-b pb-6 [&_[data-task-surface]]:border-0"
+                className="group/focus min-w-0 border-b border-border/80 pb-6 [&_[data-task-surface]]:border-0 [&_[data-task-surface]::after]:hidden"
                 aria-label={`Focus: ${project.name}`}
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
@@ -206,7 +206,7 @@ export function FocusOverview({
                     variant="ghost"
                     disabled={disabled}
                     onClick={() => onOpen(project.name)}
-                    className="h-auto min-w-0 justify-start px-0 text-base font-semibold hover:bg-transparent has-[>svg]:px-0"
+                    className="-ml-2.5 h-auto min-w-0 justify-start gap-2 rounded-lg px-2.5 py-1 text-base font-semibold hover:bg-(--row-hover) has-[>svg]:px-2.5"
                   >
                     <ProjectIcon name={project.name} />
                     <span className="truncate">{project.name}</span>

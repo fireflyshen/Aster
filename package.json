@@ -123,7 +123,8 @@
     "dev:web": "npm --prefix modules/web run dev",
     "build:web": "npm --prefix modules/web run build",
     "check:web": "npm --prefix modules/web run check",
-    "test:web": "npm --prefix modules/web run test"
+    "test:web": "npm --prefix modules/web run test",
+    "deploy": "bash deploy/deploy-rn.sh"
   },
   "dependencies": {
     "@raycast/api": "^1.104.19",

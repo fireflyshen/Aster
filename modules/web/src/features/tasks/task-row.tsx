@@ -86,13 +86,19 @@ export function TaskRow({
       aria-busy={!!transition}
       className="task-row min-w-0 flex-1"
     >
-      <div className="min-h-0 overflow-hidden">
+      <div
+        className={cn(
+          "min-h-0",
+          transition?.phase === "leaving" && "overflow-hidden",
+        )}
+      >
         <div
           data-task-surface
+          data-variant={variant}
           className={cn(
-            "group/row [&:has(:focus-visible)]:bg-muted/50",
+            "group/row [&:has(:focus-visible)]:bg-(--row-hover)",
             variant === "list" &&
-              "border-b border-border [.board-card_&]:border-b-0",
+              "-mx-2.5 px-2.5 md:-mx-3 md:px-3 [.board-card_&]:mx-0 [.board-card_&]:px-0",
           )}
         >
           <div

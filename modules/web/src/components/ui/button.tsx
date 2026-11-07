@@ -4,20 +4,21 @@ import { Slot } from "radix-ui";
 import * as React from "react";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-colors duration-150 outline-none select-none focus-visible:ring-2 focus-visible:ring-ring/35 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default:
+          "bg-primary text-primary-foreground hover:bg-primary/90 active:scale-[0.99]",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
+          "bg-destructive text-white hover:bg-destructive/90 active:scale-[0.99] focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
         outline:
-          "border border-input bg-background shadow-none hover:border-ring/60 data-[state=open]:border-ring/70 focus-visible:border-ring/70 focus-visible:ring-ring/15 focus-visible:ring-offset-0 dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border border-input bg-background shadow-none hover:bg-accent/60 hover:border-ring/60 data-[state=open]:border-ring/70 focus-visible:border-ring/70 focus-visible:ring-ring/15 focus-visible:ring-offset-0 dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent dark:hover:bg-accent/50",
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80 active:scale-[0.99]",
+        ghost: "hover:bg-accent dark:hover:bg-accent/60",
         navigation:
-          "w-full justify-start gap-2.5 font-normal text-muted-foreground hover:bg-navigation-hover hover:text-foreground aria-[current=page]:bg-navigation-selected aria-[current=page]:text-foreground aria-[current=page]:font-medium aria-[current=page]:hover:bg-navigation-selected aria-[current=page]:active:bg-navigation-selected",
+          "w-full justify-start gap-2.5 px-2.5 has-[>svg]:px-2.5 font-normal text-muted-foreground hover:bg-navigation-hover hover:text-foreground aria-[current=page]:bg-navigation-selected aria-[current=page]:text-foreground aria-[current=page]:font-medium aria-[current=page]:hover:bg-navigation-selected aria-[current=page]:active:bg-navigation-selected",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

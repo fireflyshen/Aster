@@ -1375,7 +1375,7 @@ export default function App() {
                     variant="ghost"
                     disabled={busy || organizationSaving || !organizationReady}
                     onClick={() => editProject(currentProject)}
-                    className="group -mt-3 mb-6 h-auto min-h-8 max-w-full justify-start gap-2 px-0 py-1 text-left text-sm leading-6 font-normal whitespace-pre-wrap text-muted-foreground hover:bg-transparent hover:text-foreground disabled:opacity-100 has-[>svg]:px-0"
+                    className="group -mt-3 -ml-2.5 mb-6 h-auto min-h-8 max-w-full justify-start gap-2 rounded-lg px-2.5 py-1 text-left text-sm leading-6 font-normal whitespace-pre-wrap text-muted-foreground hover:bg-(--row-hover) hover:text-foreground disabled:opacity-100 has-[>svg]:px-2.5"
                   >
                     <span className="min-w-0 [overflow-wrap:anywhere]">
                       {projectDescription || "Add description"}

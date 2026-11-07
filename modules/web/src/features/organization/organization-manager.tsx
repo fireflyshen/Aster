@@ -143,7 +143,7 @@ export function OrganizationManager({
           <div
             key={item.id}
             data-organization-row
-            className="group flex min-h-10 items-center border-b"
+            className="group -mx-2.5 flex min-h-10 items-center px-2.5 md:-mx-3 md:px-3"
           >
             <Button
               variant="ghost"
@@ -216,11 +216,11 @@ export function OrganizationManager({
       {!loading &&
         (["filter", "tag"] as const).map((kind) => (
           <Collapsible key={kind} defaultOpen className="mb-6">
-            <div className="flex h-11 items-center gap-2 border-b md:h-10">
+            <div className="flex h-11 items-center gap-2 border-b border-border/80 md:h-10">
               <CollapsibleTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="group h-full min-w-0 flex-1 justify-start gap-2 rounded-none px-0 text-sm font-semibold hover:bg-transparent has-[>svg]:px-0"
+                  className="group -ml-2 h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-semibold hover:bg-(--row-hover) has-[>svg]:px-2"
                 >
                   <ChevronDown className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
                   {kind === "filter" ? "Filters" : "Labels"}
