@@ -7,14 +7,20 @@ export interface Command {
   args: string[];
   env: NodeJS.ProcessEnv;
   timeout: number;
+  input?: string;
 }
 
 export function quoteRemoteArgument(value: string): string {
-  if (value.includes("\0")) throw new Error("Task arguments cannot contain a null character.");
+  if (value.includes("\0"))
+    throw new Error("Task arguments cannot contain a null character.");
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
-export function buildCommand(connection: Connection, args: string[], platform = process.platform): Command {
+export function buildCommand(
+  connection: Connection,
+  args: string[],
+  platform = process.platform,
+): Command {
   const baseEnv: NodeJS.ProcessEnv = { ...process.env };
   if (platform === "win32") {
     baseEnv.SystemRoot = process.env.SystemRoot || "C:\\Windows";
@@ -37,7 +43,10 @@ export function buildCommand(connection: Connection, args: string[], platform = 
       .map(quoteRemoteArgument)
       .join(" ");
     return {
-      executable: platform === "win32" ? `${baseEnv.SystemRoot}\\System32\\OpenSSH\\ssh.exe` : "/usr/bin/ssh",
+      executable:
+        platform === "win32"
+          ? `${baseEnv.SystemRoot}\\System32\\OpenSSH\\ssh.exe`
+          : "/usr/bin/ssh",
       args: [
         "-T",
         "-o",
@@ -61,12 +70,25 @@ export function buildCommand(connection: Connection, args: string[], platform = 
   }
   return {
     executable: connection.kind === "wsl" ? "wsl.exe" : connection.taskCommand,
-    args: connection.kind === "wsl" ? ["-d", connection.distribution!, "--", connection.taskCommand, ...args] : args,
+    args:
+      connection.kind === "wsl"
+        ? [
+            "-d",
+            connection.distribution!,
+            "--",
+            connection.taskCommand,
+            ...args,
+          ]
+        : args,
     env:
       connection.kind === "local"
         ? {
             ...baseEnv,
-            PATH: prependExecutableDirectories(baseEnv.PATH, [connection.taskCommand], platform),
+            PATH: prependExecutableDirectories(
+              baseEnv.PATH,
+              [connection.taskCommand],
+              platform,
+            ),
           }
         : baseEnv,
     timeout: 10_000,

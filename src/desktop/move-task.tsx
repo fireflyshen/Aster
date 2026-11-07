@@ -1,8 +1,23 @@
-import { Action, ActionPanel, Icon, List, showToast, Toast, useNavigation } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Icon,
+  List,
+  showToast,
+  Toast,
+  useNavigation,
+} from "@raycast/api";
 import { useRef, useState } from "react";
 import type { TaskwarriorTask } from "../core/tasks/model.ts";
-import { defaultBoard, taskColumnId, unsectionedColumn } from "../core/workspace/board.ts";
-import { WorkspaceError, type WorkspaceClient } from "../core/workspace/client.ts";
+import {
+  defaultBoard,
+  taskColumnId,
+  unsectionedColumn,
+} from "../core/workspace/board.ts";
+import {
+  WorkspaceError,
+  type WorkspaceClient,
+} from "../core/workspace/client.ts";
 import type { Organization } from "../core/workspace/organization.ts";
 
 export function MoveTask({
@@ -61,7 +76,10 @@ export function MoveTask({
       setMustReload(true);
       await showToast({
         style: Toast.Style.Failure,
-        title: error instanceof WorkspaceError && error.uncertain ? "Move Unconfirmed" : "Could Not Move Task",
+        title:
+          error instanceof WorkspaceError && error.uncertain
+            ? "Move Unconfirmed"
+            : "Could Not Move Task",
         message: String(error),
       });
     } finally {
@@ -70,7 +88,11 @@ export function MoveTask({
     }
   }
   return (
-    <List navigationTitle="Move to Column" searchBarPlaceholder="Choose a column" isLoading={busy}>
+    <List
+      navigationTitle="Move to Column"
+      searchBarPlaceholder="Choose a column"
+      isLoading={busy}
+    >
       {[unsectionedColumn, ...board.columns].map((column) => (
         <List.Item
           key={column.id}
@@ -81,9 +103,17 @@ export function MoveTask({
           actions={
             <ActionPanel>
               {!busy && !mustReload && column.id !== current ? (
-                <Action title={`Move to ${column.name}`} icon={Icon.ArrowRight} onAction={() => move(column.id)} />
+                <Action
+                  title={`Move to ${column.name}`}
+                  icon={Icon.ArrowRight}
+                  onAction={() => move(column.id)}
+                />
               ) : null}
-              <Action title="Refresh Workspace" icon={Icon.ArrowClockwise} onAction={reload} />
+              <Action
+                title="Refresh Workspace"
+                icon={Icon.ArrowClockwise}
+                onAction={reload}
+              />
             </ActionPanel>
           }
         />

@@ -1,10 +1,29 @@
-import { Action, ActionPanel, Alert, Color, confirmAlert, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Alert,
+  Color,
+  confirmAlert,
+  Icon,
+  Keyboard,
+  List,
+  showToast,
+  Toast,
+} from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import { useRef, useState } from "react";
 import { TaskExecutionError } from "../core/connection/errors.ts";
 import { formatTaskDate } from "../core/tasks/date.ts";
-import { taskGroup, type TaskView, type TaskwarriorTask } from "../core/tasks/model.ts";
-import { defaultBoard, taskColumnId, unsectionedColumn } from "../core/workspace/board.ts";
+import {
+  taskGroup,
+  type TaskView,
+  type TaskwarriorTask,
+} from "../core/tasks/model.ts";
+import {
+  defaultBoard,
+  taskColumnId,
+  unsectionedColumn,
+} from "../core/workspace/board.ts";
 import { formatDuration } from "../core/workspace/energy.ts";
 import { focusProject } from "../core/workspace/focus.ts";
 import { itemColor } from "../core/workspace/organization.ts";
@@ -16,6 +35,7 @@ import { FocusProjects } from "./focus-projects";
 import { MoveTask } from "./move-task";
 import { QuickCapture } from "./quick-capture";
 import { TaskDetail } from "./task-detail";
+import { RecoveryListView, SeriesForm, NotesList } from "./task-extras";
 import { TaskForm } from "./task-form";
 import { useTaskService } from "./use-task-service";
 import { useWorkspace } from "./use-workspace";
@@ -49,7 +69,10 @@ function displayDate(date: Date): string {
   });
 }
 
-function taskAccessories(task: TaskwarriorTask, trackedSeconds?: number): List.Item.Accessory[] {
+function taskAccessories(
+  task: TaskwarriorTask,
+  trackedSeconds?: number,
+): List.Item.Accessory[] {
   const accessories: List.Item.Accessory[] = [];
   if (trackedSeconds && trackedSeconds > 0) {
     accessories.push({
@@ -65,7 +88,12 @@ function taskAccessories(task: TaskwarriorTask, trackedSeconds?: number): List.I
       },
     });
   }
-  const date = task.status === "completed" ? task.end : taskGroup(task) === "waiting" ? task.wait : task.due;
+  const date =
+    task.status === "completed"
+      ? task.end
+      : taskGroup(task) === "waiting"
+        ? task.wait
+        : task.due;
   if (date)
     accessories.push({
       text: displayDate(date),
@@ -83,12 +111,19 @@ export default function MyTasks() {
   const workspace = useWorkspace(service.connection);
   const organization = workspace.error ? undefined : workspace.data;
   const board = organization?.board || defaultBoard();
-  const { data, error, isLoading, revalidate } = usePromise(loadTaskView, [service, filter, organization, expression], {
-    onError: () => undefined,
-  });
+  const { data, error, isLoading, revalidate } = usePromise(
+    loadTaskView,
+    [service, filter, organization, expression],
+    {
+      onError: () => undefined,
+    },
+  );
   const catalog = usePromise(
     async () => {
-      const [projects, tags] = await Promise.all([service.loadProjects(), service.loadTags()]);
+      const [projects, tags] = await Promise.all([
+        service.loadProjects(),
+        service.loadTags(),
+      ]);
       return { projects, tags };
     },
     [],
@@ -102,17 +137,31 @@ export default function MyTasks() {
     ]),
   ].sort();
   const tags = [
-    ...new Set([...(catalog.data?.tags || []), ...(organization?.tags || []).map((item) => item.name)]),
+    ...new Set([
+      ...(catalog.data?.tags || []),
+      ...(organization?.tags || []).map((item) => item.name),
+    ]),
   ].sort();
   const custom =
-    filter === "focus" || filter === "expression" || filter.startsWith("filter:") || filter.startsWith("column:");
-  const groups = custom ? ["all"] : filter === "completed" ? ["completed"] : GROUPS;
+    filter === "focus" ||
+    filter === "expression" ||
+    filter.startsWith("filter:") ||
+    filter.startsWith("column:");
+  const groups = custom
+    ? ["all"]
+    : filter === "completed"
+      ? ["completed"]
+      : GROUPS;
   const tasks = data || [];
   const [undoTask, setUndoTask] = useState<TaskwarriorTask>();
   const [pendingTask, setPendingTask] = useState<string>();
   const unconfirmed = useRef(new Set<string>());
   async function refreshAll() {
-    const [tasks] = await Promise.all([revalidate(), workspace.revalidate(), catalog.revalidate()]);
+    const [tasks] = await Promise.all([
+      revalidate(),
+      workspace.revalidate(),
+      catalog.revalidate(),
+    ]);
     if (tasks instanceof Error) throw tasks;
     unconfirmed.current.clear();
   }
@@ -120,12 +169,20 @@ export default function MyTasks() {
     if (!undoTask || busy.current) return;
     const task = undoTask;
     setUndoTask(undefined);
-    await mutate(task, task.status === "completed" ? "Task completed" : "Task reopened", async () => {
-      const matches = await service.loadTasks(task.status === "completed" ? "pending" : "completed");
-      if (!matches.some((current) => current.uuid === task.uuid))
-        throw new Error("This task has changed. Refresh before undoing.");
-      return task.status === "completed" ? service.completeTask(task.uuid) : service.reopenTask(task.uuid);
-    });
+    await mutate(
+      task,
+      task.status === "completed" ? "Task completed" : "Task reopened",
+      async () => {
+        const matches = await service.loadTasks(
+          task.status === "completed" ? "pending" : "completed",
+        );
+        if (!matches.some((current) => current.uuid === task.uuid))
+          throw new Error("This task has changed. Refresh before undoing.");
+        return task.status === "completed"
+          ? runTaskAction(task, "complete")
+          : runTaskAction(task, "reopen");
+      },
+    );
   }
 
   async function refreshTasks() {
@@ -134,7 +191,12 @@ export default function MyTasks() {
     if (result instanceof Error) throw result;
   }
 
-  async function mutate(task: TaskwarriorTask, title: string, action: () => Promise<string>, reversible = false) {
+  async function mutate(
+    task: TaskwarriorTask,
+    title: string,
+    action: () => Promise<unknown>,
+    reversible = false,
+  ) {
     if (busy.current || unconfirmed.current.has(task.uuid)) return;
     busy.current = true;
     setIsMutating(true);
@@ -152,7 +214,8 @@ export default function MyTasks() {
         toast.message = "Saved. Refresh to load the latest tasks.";
       }
     } catch (error) {
-      if (error instanceof TaskExecutionError && error.outcome === "unknown") unconfirmed.current.add(task.uuid);
+      if (error instanceof TaskExecutionError && error.outcome === "unknown")
+        unconfirmed.current.add(task.uuid);
       toast.style = Toast.Style.Failure;
       toast.title =
         error instanceof TaskExecutionError && error.outcome === "unknown"
@@ -167,6 +230,20 @@ export default function MyTasks() {
     }
   }
 
+  function runTaskAction(
+    task: TaskwarriorTask,
+    action: "complete" | "reopen" | "start" | "stop",
+  ) {
+    if (workspace.client?.taskAction)
+      return workspace.client.taskAction({ uuid: task.uuid, action });
+    return action === "complete"
+      ? service.completeTask(task.uuid)
+      : action === "reopen"
+        ? service.reopenTask(task.uuid)
+        : action === "start"
+          ? service.startTask(task.uuid)
+          : service.stopTask(task.uuid);
+  }
   function commonActions() {
     return (
       <ActionPanel.Section>
@@ -176,6 +253,18 @@ export default function MyTasks() {
           shortcut={Keyboard.Shortcut.Common.New}
           target={<QuickCapture service={service} onSaved={refreshAll} />}
         />
+        {workspace.client ? (
+          <Action.Push
+            title="Data & Recovery"
+            icon={Icon.Trash}
+            target={
+              <RecoveryListView
+                workspace={workspace.client}
+                onSaved={refreshAll}
+              />
+            }
+          />
+        ) : null}
         <Action
           title="Refresh Tasks"
           icon={Icon.ArrowClockwise}
@@ -224,7 +313,9 @@ export default function MyTasks() {
             }
           />
         ) : null}
-        {workspace.client && organization?.energy && organization.energy.remaining <= 25 ? (
+        {workspace.client &&
+        organization?.energy &&
+        organization.energy.remaining <= 25 ? (
           <Action
             title="Restore +30 Energy (Elixir)"
             icon={Icon.Bolt}
@@ -272,7 +363,11 @@ export default function MyTasks() {
             }
           />
         ) : null}
-        <Action.Push title="Check Connection" icon={Icon.Network} target={<CheckConnection service={service} />} />
+        <Action.Push
+          title="Check Connection"
+          icon={Icon.Network}
+          target={<CheckConnection service={service} />}
+        />
       </ActionPanel.Section>
     );
   }
@@ -288,7 +383,10 @@ export default function MyTasks() {
             mutate(
               task,
               completed ? "Task reopened" : "Task completed",
-              () => (completed ? service.reopenTask(task.uuid) : service.completeTask(task.uuid)),
+              () =>
+                completed
+                  ? runTaskAction(task, "reopen")
+                  : runTaskAction(task, "complete"),
               true,
             )
           }
@@ -297,7 +395,15 @@ export default function MyTasks() {
           title="Edit Task"
           icon={Icon.Pencil}
           shortcut={Keyboard.Shortcut.Common.Edit}
-          target={<TaskForm task={task} service={service} onSaved={refreshAll} />}
+          target={
+            <TaskForm
+              task={task}
+              service={service}
+              onSaved={refreshAll}
+              workspace={workspace.client}
+              labels={organization?.tags}
+            />
+          }
         />
         {workspace.client && organization ? (
           <Action.Push
@@ -307,7 +413,14 @@ export default function MyTasks() {
               macOS: { modifiers: ["cmd", "shift"], key: "m" },
               Windows: { modifiers: ["ctrl", "shift"], key: "m" },
             }}
-            target={<MoveTask task={task} workspace={workspace.client} initial={organization} onSaved={refreshAll} />}
+            target={
+              <MoveTask
+                task={task}
+                workspace={workspace.client}
+                initial={organization}
+                onSaved={refreshAll}
+              />
+            }
           />
         ) : null}
         {!completed && task.project && organization && workspace.client ? (
@@ -348,7 +461,20 @@ export default function MyTasks() {
               title={task.start ? "Stop Task" : "Start Task"}
               icon={task.start ? Icon.Stop : Icon.Play}
               onAction={() => {
-                if (!task.start && organization?.energy && organization.energy.remaining <= 0) {
+                if (!task.start && organization?.timing?.available === false) {
+                  void showToast({
+                    style: Toast.Style.Failure,
+                    title: "Timer Data Unavailable",
+                    message:
+                      "Refresh before starting. Existing timers can still be stopped.",
+                  });
+                  return;
+                }
+                if (
+                  !task.start &&
+                  organization?.energy &&
+                  organization.energy.remaining <= 0
+                ) {
                   void showToast({
                     style: Toast.Style.Failure,
                     title: "Daily Energy Exhausted",
@@ -356,8 +482,13 @@ export default function MyTasks() {
                   });
                   return;
                 }
-                void mutate(task, task.start ? "Task stopped" : "Task started", () =>
-                  task.start ? service.stopTask(task.uuid) : service.startTask(task.uuid),
+                void mutate(
+                  task,
+                  task.start ? "Task stopped" : "Task started",
+                  () =>
+                    task.start
+                      ? runTaskAction(task, "stop")
+                      : runTaskAction(task, "start"),
                 );
               }}
             />
@@ -366,14 +497,32 @@ export default function MyTasks() {
               type={Action.PickDate.Type.Date}
               onChange={(date) => {
                 if (date)
-                  void mutate(task, "Task deferred", () => service.setTaskWait(task.uuid, formatTaskDate(date)));
+                  void mutate(task, "Task deferred", () =>
+                    workspace.client?.taskAction
+                      ? workspace.client.taskAction({
+                          uuid: task.uuid,
+                          action: "wait",
+                          wait: formatTaskDate(date),
+                        })
+                      : service.setTaskWait(task.uuid, formatTaskDate(date)),
+                  );
               }}
             />
             {task.wait ? (
               <Action
                 title="Clear Waiting Date"
                 icon={Icon.Clock}
-                onAction={() => mutate(task, "Task available", () => service.setTaskWait(task.uuid, ""))}
+                onAction={() =>
+                  mutate(task, "Task available", () =>
+                    workspace.client?.taskAction
+                      ? workspace.client.taskAction({
+                          uuid: task.uuid,
+                          action: "wait",
+                          wait: "",
+                        })
+                      : service.setTaskWait(task.uuid, ""),
+                  )
+                }
               />
             ) : null}
           </ActionPanel.Section>
@@ -387,12 +536,42 @@ export default function MyTasks() {
               <TaskDetail
                 task={task}
                 projectDescription={
-                  organization?.projects?.find((project) => project.name === task.project)?.description
+                  organization?.projects?.find(
+                    (project) => project.name === task.project,
+                  )?.description
                 }
                 columnName={
                   organization &&
-                  [unsectionedColumn, ...board.columns].find((column) => column.id === taskColumnId(task, board))?.name
+                  [unsectionedColumn, ...board.columns].find(
+                    (column) => column.id === taskColumnId(task, board),
+                  )?.name
                 }
+              />
+            }
+          />
+          {task.parent ? (
+            <Action.Push
+              title="Edit Series"
+              icon={Icon.ArrowClockwise}
+              target={
+                <SeriesForm
+                  uuid={task.parent}
+                  service={service}
+                  workspace={workspace.client}
+                  onSaved={refreshAll}
+                />
+              }
+            />
+          ) : null}
+          <Action.Push
+            title="Manage Notes"
+            icon={Icon.Text}
+            target={
+              <NotesList
+                uuid={task.uuid}
+                service={service}
+                workspace={workspace.client}
+                onSaved={refreshAll}
               />
             }
           />
@@ -404,14 +583,25 @@ export default function MyTasks() {
               if (
                 await confirmAlert({
                   title: "Delete this task?",
-                  message: task.description,
+                  message:
+                    task.description +
+                    (workspace.client?.taskAction
+                      ? "\nYou can restore it in Data & Recovery."
+                      : "\nThe shared workspace is disabled; this deletion will not have a recovery snapshot."),
                   primaryAction: {
                     title: "Delete Task",
                     style: Alert.ActionStyle.Destructive,
                   },
                 })
               ) {
-                await mutate(task, "Task deleted", () => service.deleteTask(task.uuid));
+                await mutate(task, "Task deleted", () =>
+                  workspace.client?.taskAction
+                    ? workspace.client.taskAction({
+                        uuid: task.uuid,
+                        action: "delete",
+                      })
+                    : service.deleteTask(task.uuid),
+                );
               }
             }}
           />
@@ -426,25 +616,39 @@ export default function MyTasks() {
     <List
       isLoading={isLoading || isMutating}
       navigationTitle={
-        organization?.energy
-          ? `My Tasks · ⚡ ${organization.energy.remaining}/${organization.energy.max} · ${service.connection.label}`
-          : `My Tasks · ${service.connection.label}`
+        organization?.timing?.available === false
+          ? `My Tasks · Timer unavailable · ${service.connection.label}`
+          : organization?.energy
+            ? `My Tasks · ⚡ ${organization.energy.remaining}/${organization.energy.max} · ${service.connection.label}`
+            : `My Tasks · ${service.connection.label}`
       }
       searchBarPlaceholder="Search description, project or tags"
       searchBarAccessory={
         <List.Dropdown tooltip="View Tasks" value={filter} onChange={setFilter}>
           <List.Dropdown.Section title="Views">
             {VIEWS.map((view) => (
-              <List.Dropdown.Item key={view.id} title={view.title} value={view.id} />
+              <List.Dropdown.Item
+                key={view.id}
+                title={view.title}
+                value={view.id}
+              />
             ))}
           </List.Dropdown.Section>
           {filter === "expression" ? (
-            <List.Dropdown.Item title="Custom Filter" value="expression" icon={Icon.Filter} />
+            <List.Dropdown.Item
+              title="Custom Filter"
+              value="expression"
+              icon={Icon.Filter}
+            />
           ) : null}
           {organization?.filters.length ? (
             <List.Dropdown.Section title="Saved Filters">
               {[...organization.filters]
-                .sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name))
+                .sort(
+                  (a, b) =>
+                    Number(b.favorite) - Number(a.favorite) ||
+                    a.name.localeCompare(b.name),
+                )
                 .map((item) => (
                   <List.Dropdown.Item
                     key={item.id}
@@ -479,7 +683,10 @@ export default function MyTasks() {
                   value={`tag:${tag}`}
                   icon={{
                     source: Icon.Tag,
-                    tintColor: itemColor(organization?.tags.find((item) => item.name === tag)?.color || "gray"),
+                    tintColor: itemColor(
+                      organization?.tags.find((item) => item.name === tag)
+                        ?.color || "gray",
+                    ),
                   }}
                 />
               ))}
@@ -495,7 +702,9 @@ export default function MyTasks() {
                   icon={{
                     source: Icon.Hashtag,
                     tintColor: itemColor(
-                      organization?.projects?.find((project) => project.name === row.name)?.color || "gray",
+                      organization?.projects?.find(
+                        (project) => project.name === row.name,
+                      )?.color || "gray",
                     ),
                   }}
                 />
@@ -565,11 +774,20 @@ export default function MyTasks() {
       )}
       {!error &&
         groups.map((group) => {
-          const items = tasks.filter((task) => group === "all" || group === "completed" || taskGroup(task) === group);
+          const items = tasks.filter(
+            (task) =>
+              group === "all" ||
+              group === "completed" ||
+              taskGroup(task) === group,
+          );
           return items.length ? (
             <List.Section
               key={group}
-              title={custom ? undefined : GROUP_TITLES[group as keyof typeof GROUP_TITLES]}
+              title={
+                custom
+                  ? undefined
+                  : GROUP_TITLES[group as keyof typeof GROUP_TITLES]
+              }
               subtitle={String(items.length)}
             >
               {items.map((task) => (
@@ -592,15 +810,27 @@ export default function MyTasks() {
                   }
                   title={task.description}
                   subtitle={task.project}
-                  keywords={[task.project ?? "", ...task.tags, String(task.id ?? "")].filter(Boolean)}
+                  keywords={[
+                    task.project ?? "",
+                    ...task.tags,
+                    String(task.id ?? ""),
+                  ].filter(Boolean)}
                   accessories={[
                     ...task.tags.slice(0, 2).map((tag) => ({
                       tag: {
                         value: tag,
-                        color: itemColor(organization?.tags.find((item) => item.name === tag)?.color || "gray"),
+                        color: itemColor(
+                          organization?.tags.find((item) => item.name === tag)
+                            ?.color || "gray",
+                        ),
                       },
                     })),
-                    ...taskAccessories(task, organization?.energy?.taskSeconds?.[task.uuid.toLowerCase()]),
+                    ...taskAccessories(
+                      task,
+                      organization?.energy?.taskSeconds?.[
+                        task.uuid.toLowerCase()
+                      ],
+                    ),
                   ]}
                   actions={
                     isMutating || unconfirmed.current.has(task.uuid) ? (

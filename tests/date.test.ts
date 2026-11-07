@@ -5,8 +5,18 @@ import { parseTaskwarriorDate } from "../src/core/tasks/model.ts";
 
 test("editing another field preserves an existing due time on the selected day", () => {
   const existing = new Date(2026, 9, 5, 16, 30);
-  assert.equal(parseTaskwarriorDate(formatTaskDate(new Date(2026, 9, 5), existing))?.getTime(), existing.getTime());
-  assert.equal(parseTaskwarriorDate(formatTaskDate(new Date(2026, 9, 6), existing))?.getHours(), 0);
+  assert.equal(
+    parseTaskwarriorDate(
+      formatTaskDate(new Date(2026, 9, 5), existing),
+    )?.getTime(),
+    existing.getTime(),
+  );
+  assert.equal(
+    parseTaskwarriorDate(
+      formatTaskDate(new Date(2026, 9, 6), existing),
+    )?.getHours(),
+    0,
+  );
 });
 
 test("selected calendar dates round-trip across VPS timezones and DST", () => {
@@ -14,7 +24,10 @@ test("selected calendar dates round-trip across VPS timezones and DST", () => {
   try {
     for (const timezone of ["Asia/Shanghai", "America/New_York", "UTC"]) {
       process.env.TZ = timezone;
-      for (const day of [new Date(2026, 2, 8, 23, 30), new Date(2026, 10, 1, 17)]) {
+      for (const day of [
+        new Date(2026, 2, 8, 23, 30),
+        new Date(2026, 10, 1, 17),
+      ]) {
         const encoded = formatTaskDate(day);
         const decoded = parseTaskwarriorDate(encoded)!;
         assert.equal(decoded.getFullYear(), day.getFullYear());

@@ -1,7 +1,11 @@
 import { isVirtualTag } from "./options.ts";
 
 export function tagName(value: unknown): string {
-  if (typeof value !== "string" || !/^[\p{L}\p{N}_@.][\p{L}\p{N}_@.-]{0,59}$/u.test(value) || isVirtualTag(value))
+  if (
+    typeof value !== "string" ||
+    !/^[\p{L}\p{N}_@.][\p{L}\p{N}_@.-]{0,59}$/u.test(value) ||
+    isVirtualTag(value)
+  )
     throw new Error(
       "Labels must contain 1–60 characters, without spaces, command characters, or reserved virtual tags.",
     );
@@ -10,7 +14,12 @@ export function tagName(value: unknown): string {
 
 // Tokenize arguments, never a shell command. Only read-only filter atoms reach Taskwarrior.
 export function filterArguments(expression: string): string[] {
-  if (typeof expression !== "string" || !expression.trim() || expression.length > 1024 || /[\0\r\n]/.test(expression))
+  if (
+    typeof expression !== "string" ||
+    !expression.trim() ||
+    expression.length > 1024 ||
+    /[\0\r\n]/.test(expression)
+  )
     throw new Error("Enter a filter query, up to 1024 characters.");
   const tokens: string[] = [];
   let word = "",
@@ -50,13 +59,17 @@ export function filterArguments(expression: string): string[] {
       return token;
     }
     if (token === ")") {
-      if (!depth || needsTerm) throw new Error("Check the parentheses in the query.");
+      if (!depth || needsTerm)
+        throw new Error("Check the parentheses in the query.");
       depth--;
       needsTerm = false;
       return token;
     }
     if (/^(and|or|xor)$/i.test(token)) {
-      if (needsTerm) throw new Error("Add a filter condition on both sides of each operator.");
+      if (needsTerm)
+        throw new Error(
+          "Add a filter condition on both sides of each operator.",
+        );
       needsTerm = true;
       return token.toLowerCase();
     }
@@ -65,10 +78,13 @@ export function filterArguments(expression: string): string[] {
       !/^[+-][\p{L}\p{N}_@.][\p{L}\p{N}_@.-]{0,79}$/u.test(token) &&
       !/^(?!rc(?:\.|:))[a-z][a-z0-9_]*(?:\.[a-z]+)?:[^\0\r\n]*$/i.test(token)
     )
-      throw new Error(`Unsupported “${token}”. Use +label, attribute:value, and / or, and parentheses.`);
+      throw new Error(
+        `Unsupported “${token}”. Use +label, attribute:value, and / or, and parentheses.`,
+      );
     needsTerm = false;
     return token;
   });
-  if (depth || needsTerm) throw new Error("Incomplete query. Check the conditions and parentheses.");
+  if (depth || needsTerm)
+    throw new Error("Incomplete query. Check the conditions and parentheses.");
   return result;
 }

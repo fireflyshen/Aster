@@ -3,10 +3,18 @@ import { usePromise } from "@raycast/utils";
 import type { TaskService } from "../core/tasks/service.ts";
 import { useTaskService } from "./use-task-service";
 
-export default function CheckConnection({ service: providedService }: { service?: TaskService }) {
+export default function CheckConnection({
+  service: providedService,
+}: {
+  service?: TaskService;
+}) {
   const service = useTaskService(providedService);
   const { connection } = service;
-  const { data, error, isLoading, revalidate } = usePromise(service.checkConnection, [], { onError: () => undefined });
+  const { data, error, isLoading, revalidate } = usePromise(
+    service.checkConnection,
+    [],
+    { onError: () => undefined },
+  );
   const diagnostics = error
     ? `Connection failed\n${error.message}`
     : [
@@ -34,18 +42,36 @@ export default function CheckConnection({ service: providedService }: { service?
         data ? (
           <Detail.Metadata>
             <Detail.Metadata.Label title="Connection" text={connection.label} />
-            <Detail.Metadata.Label title="Task Command" text={connection.taskCommand} />
-            {connection.taskrc ? <Detail.Metadata.Label title="Taskrc" text={connection.taskrc} /> : null}
+            <Detail.Metadata.Label
+              title="Task Command"
+              text={connection.taskCommand}
+            />
+            {connection.taskrc ? (
+              <Detail.Metadata.Label title="Taskrc" text={connection.taskrc} />
+            ) : null}
             <Detail.Metadata.Label title="Taskwarrior" text={data.version} />
-            <Detail.Metadata.Label title="Pending Tasks" text={String(data.pendingTasks)} />
-            <Detail.Metadata.Label title="Elapsed" text={`${data.elapsedMs} ms`} />
+            <Detail.Metadata.Label
+              title="Pending Tasks"
+              text={String(data.pendingTasks)}
+            />
+            <Detail.Metadata.Label
+              title="Elapsed"
+              text={`${data.elapsedMs} ms`}
+            />
           </Detail.Metadata>
         ) : undefined
       }
       actions={
         <ActionPanel>
-          <Action title="Check Again" icon={Icon.ArrowClockwise} onAction={revalidate} />
-          <Action.CopyToClipboard title="Copy Diagnostics" content={diagnostics} />
+          <Action
+            title="Check Again"
+            icon={Icon.ArrowClockwise}
+            onAction={revalidate}
+          />
+          <Action.CopyToClipboard
+            title="Copy Diagnostics"
+            content={diagnostics}
+          />
         </ActionPanel>
       }
     />

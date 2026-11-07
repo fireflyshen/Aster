@@ -125,3 +125,7 @@ Projects use native Taskwarrior dot paths (`Product.Web.Interface`). The UI expo
 Renaming or moving a project remaps its entire branch, including metadata and explicit project references in saved filters. Native writes target exact paths, deepest first, retaining descendant suffixes, UUIDs and task status. Deleting a branch clears its tasks' project field to Inbox and removes that branch's metadata; board placements stay unchanged. Partial native-write failures are reported as unconfirmed and never retried automatically. Focus references to tasks that leave an ancestor are cleared, and moves cannot create overlapping active goals.
 
 Project colors use the shared filter/label palette. Each project stores its optional color in workspace metadata; missing colors render gray. Colors are independent per subproject and preserved through branch changes and older clients that omit the field. Editing a color never writes Taskwarrior tasks.
+
+## Recovery, exports and repeating tasks
+
+The sidebar's **Data & recovery** opens deleted-task recovery and a full JSON export. Task editing adds **Repeat** / **Ends**, **Edit series** for existing occurrences, and multiline **Notes**. Stop series preserves existing tasks. These use native Taskwarrior recurrence and annotations; the recovery journal remains separate workspace metadata. See [behavior, limitations and validation](../../docs/reliability-2026-11-03.md).

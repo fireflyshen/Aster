@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isVirtualTag, parseProjects, uniqueTags } from "../src/core/tasks/options.ts";
+import {
+  isVirtualTag,
+  parseProjects,
+  uniqueTags,
+} from "../src/core/tasks/options.ts";
 
 test("keeps project suggestions and removes virtual and duplicate tags", () => {
   const projects = parseProjects("Work\nHome\nWork\n");

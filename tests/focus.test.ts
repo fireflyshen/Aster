@@ -1,8 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { focusProject, projectStatus } from "../src/core/workspace/focus.ts";
-import { createSshWorkspaceClient, WorkspaceError } from "../src/core/workspace/client.ts";
-import { resolveConnection, workspaceIdentity } from "../src/core/connection/settings.ts";
+import {
+  createSshWorkspaceClient,
+  WorkspaceError,
+} from "../src/core/workspace/client.ts";
+import {
+  resolveConnection,
+  workspaceIdentity,
+} from "../src/core/connection/settings.ts";
 import type { Organization } from "../src/core/workspace/organization.ts";
 
 test("legacy and external projects default to Later; only active projects and descendants belong to Focus", () => {
@@ -12,7 +18,8 @@ test("legacy and external projects default to Later; only active projects and de
   ];
   assert.equal(projectStatus({ name: "New", description: "" }), "later");
   assert.equal(focusProject("Work.Child", projects)?.name, "Work");
-  for (const name of ["Workplace", "Old", "Unknown", undefined]) assert.equal(focusProject(name, projects), undefined);
+  for (const name of ["Workplace", "Old", "Unknown", undefined])
+    assert.equal(focusProject(name, projects), undefined);
 });
 test("SSH workspace verifies the local RN source, transmits one revisioned change, and never retries uncertain writes", async () => {
   const connection = resolveConnection({ connectionMode: "ssh" });
@@ -116,10 +123,13 @@ test("TinyCast Focus shows selected next steps only, while Later and Today retai
       tags: [],
     },
   ];
-  const service = createTaskService(resolveConnection({ connectionMode: "local" }, "darwin"), async ({ args }) => ({
-    stdout: args[0] === "--version" ? "3.5.0" : JSON.stringify(data),
-    stderr: "",
-  }));
+  const service = createTaskService(
+    resolveConnection({ connectionMode: "local" }, "darwin"),
+    async ({ args }) => ({
+      stdout: args[0] === "--version" ? "3.5.0" : JSON.stringify(data),
+      stderr: "",
+    }),
+  );
   const organization: Organization = {
     revision: 1,
     filters: [],
@@ -135,15 +145,21 @@ test("TinyCast Focus shows selected next steps only, while Later and Today retai
     ],
   };
   assert.deepEqual(
-    (await loadTaskView(service, "focus", organization)).map((task) => task.uuid),
+    (await loadTaskView(service, "focus", organization)).map(
+      (task) => task.uuid,
+    ),
     ["next"],
   );
   assert.deepEqual(
-    (await loadTaskView(service, "later", organization)).map((task) => task.uuid),
+    (await loadTaskView(service, "later", organization)).map(
+      (task) => task.uuid,
+    ),
     ["due"],
   );
   assert.deepEqual(
-    (await loadTaskView(service, "today", organization)).map((task) => task.uuid),
+    (await loadTaskView(service, "today", organization)).map(
+      (task) => task.uuid,
+    ),
     ["due"],
   );
 });

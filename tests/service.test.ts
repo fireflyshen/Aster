@@ -11,7 +11,10 @@ test("Taskwarrior 2 is rejected before any task write", async () => {
     calls.push(args);
     return { stdout: "2.6.2", stderr: "" };
   });
-  await assert.rejects(service.addTask({ description: "x", tags: [] }), /requires Taskwarrior 3/);
+  await assert.rejects(
+    service.addTask({ description: "x", tags: [] }),
+    /requires Taskwarrior 3/,
+  );
   assert.deepEqual(calls, [["--version"]]);
 });
 
@@ -57,7 +60,12 @@ test("completed history is loaded separately and starting does not stop other ta
   const service = createTaskService(connection, async ({ args }) => {
     calls.push(args);
     return {
-      stdout: args[0] === "--version" ? "3.5.0" : args.includes("export") ? "[]" : "ok",
+      stdout:
+        args[0] === "--version"
+          ? "3.5.0"
+          : args.includes("export")
+            ? "[]"
+            : "ok",
       stderr: "",
     };
   });
@@ -119,7 +127,11 @@ test("project rename and removal use exact native filters and preserve task stat
     "project:Product launch",
   ]);
   assert.equal(writes[1][3], "project:");
-  assert.ok(writes.every((args) => !args.includes("delete") && !args.includes("status:pending")));
+  assert.ok(
+    writes.every(
+      (args) => !args.includes("delete") && !args.includes("status:pending"),
+    ),
+  );
   matches = false;
   await service.changeProject("Empty", "Still empty");
   assert.equal(calls.filter((args) => args.includes("modify")).length, 2);

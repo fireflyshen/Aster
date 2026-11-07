@@ -2,7 +2,13 @@ import { Action, ActionPanel, Form, Icon, useNavigation } from "@raycast/api";
 import { useState } from "react";
 import { filterArguments } from "../core/tasks/filter.ts";
 
-export function FilterForm({ expression, onApply }: { expression: string; onApply: (value: string) => void }) {
+export function FilterForm({
+  expression,
+  onApply,
+}: {
+  expression: string;
+  onApply: (value: string) => void;
+}) {
   const [value, setValue] = useState(expression);
   const [error, setError] = useState<string>();
   const { pop } = useNavigation();
@@ -20,7 +26,9 @@ export function FilterForm({ expression, onApply }: { expression: string; onAppl
                 onApply(value.trim());
                 pop();
               } catch (error) {
-                setError(error instanceof Error ? error.message : String(error));
+                setError(
+                  error instanceof Error ? error.message : String(error),
+                );
               }
             }}
           />

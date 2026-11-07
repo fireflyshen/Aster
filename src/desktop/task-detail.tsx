@@ -15,7 +15,9 @@ export function TaskDetail({
   columnName?: string;
 }) {
   const annotationText = task.annotations.length
-    ? task.annotations.map((item) => `- ${markdownText(item.description)}`).join("\n")
+    ? task.annotations
+        .map((item) => `- ${markdownText(item.description)}`)
+        .join("\n")
     : "No annotations.";
 
   return (
@@ -24,21 +26,57 @@ export function TaskDetail({
       markdown={`# ${markdownText(task.description)}${projectDescription ? `\n\n## Project\n\n${markdownText(projectDescription)}` : ""}${task.annotations.length ? `\n\n## Annotations\n\n${annotationText}` : ""}`}
       metadata={
         <Detail.Metadata>
-          {task.id ? <Detail.Metadata.Label title="ID" text={String(task.id)} /> : null}
+          {task.id ? (
+            <Detail.Metadata.Label title="ID" text={String(task.id)} />
+          ) : null}
           <Detail.Metadata.Label title="Status" text={task.status} />
           {task.status === "completed" && task.end ? (
-            <Detail.Metadata.Label title="Completed" text={task.end.toLocaleString()} />
+            <Detail.Metadata.Label
+              title="Completed"
+              text={task.end.toLocaleString()}
+            />
           ) : null}
-          {task.project ? <Detail.Metadata.Label title="Project" text={task.project} /> : null}
-          {columnName ? <Detail.Metadata.Label title="Column" text={columnName} /> : null}
-          {task.priority ? <Detail.Metadata.Label title="Priority" text={task.priority} /> : null}
-          {task.due ? <Detail.Metadata.Label title="Due" text={task.due.toLocaleString()} /> : null}
-          {task.scheduled ? <Detail.Metadata.Label title="Scheduled" text={task.scheduled.toLocaleString()} /> : null}
-          {task.wait ? <Detail.Metadata.Label title="Wait Until" text={task.wait.toLocaleString()} /> : null}
-          {task.until ? <Detail.Metadata.Label title="Until" text={task.until.toLocaleString()} /> : null}
-          {task.recur ? <Detail.Metadata.Label title="Recurrence" text={task.recur} /> : null}
+          {task.project ? (
+            <Detail.Metadata.Label title="Project" text={task.project} />
+          ) : null}
+          {columnName ? (
+            <Detail.Metadata.Label title="Column" text={columnName} />
+          ) : null}
+          {task.priority ? (
+            <Detail.Metadata.Label title="Priority" text={task.priority} />
+          ) : null}
+          {task.due ? (
+            <Detail.Metadata.Label
+              title="Due"
+              text={task.due.toLocaleString()}
+            />
+          ) : null}
+          {task.scheduled ? (
+            <Detail.Metadata.Label
+              title="Scheduled"
+              text={task.scheduled.toLocaleString()}
+            />
+          ) : null}
+          {task.wait ? (
+            <Detail.Metadata.Label
+              title="Wait Until"
+              text={task.wait.toLocaleString()}
+            />
+          ) : null}
+          {task.until ? (
+            <Detail.Metadata.Label
+              title="Until"
+              text={task.until.toLocaleString()}
+            />
+          ) : null}
+          {task.recur ? (
+            <Detail.Metadata.Label title="Recurrence" text={task.recur} />
+          ) : null}
           {task.depends.length ? (
-            <Detail.Metadata.Label title="Dependencies" text={String(task.depends.length)} />
+            <Detail.Metadata.Label
+              title="Dependencies"
+              text={String(task.depends.length)}
+            />
           ) : null}
           {task.tags.length ? (
             <Detail.Metadata.TagList title="Tags">

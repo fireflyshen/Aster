@@ -3,7 +3,9 @@ import { buildCommand, type Command } from "./command.ts";
 import { executionError } from "./errors.ts";
 import type { Connection } from "./settings.ts";
 
-export type Executor = (command: Command) => Promise<{ stdout: string; stderr: string }>;
+export type Executor = (
+  command: Command,
+) => Promise<{ stdout: string; stderr: string }>;
 
 export const executeProcess: Executor = (command) =>
   new Promise((resolve, reject) => {
@@ -22,7 +24,8 @@ export const executeProcess: Executor = (command) =>
         else resolve({ stdout, stderr });
       },
     );
-    child.stdin?.end();
+    child.stdin?.on("error", () => undefined); // execFile reports process failures; never crash on a closed import pipe.
+    child.stdin?.end(command.input);
   });
 
 export async function runTaskwarrior(
@@ -30,8 +33,10 @@ export async function runTaskwarrior(
   args: string[],
   write = false,
   executor = executeProcess,
+  input?: string,
 ): Promise<string> {
   const command = buildCommand(connection, args);
+  if (input !== undefined) command.input = input;
   try {
     const result = await executor(command);
     return result.stdout.trim();
@@ -44,7 +49,10 @@ const writes = new Map<string, Promise<unknown>>();
 
 // Serialize complete user operations, including switch-task's multiple commands.
 // This queue is per running extension process; other clients still require fresh reads.
-export async function serializeWrite<T>(connection: Connection, operation: () => Promise<T>): Promise<T> {
+export async function serializeWrite<T>(
+  connection: Connection,
+  operation: () => Promise<T>,
+): Promise<T> {
   const previous = writes.get(connection.key) ?? Promise.resolve();
   const current = previous.catch(() => undefined).then(operation);
   writes.set(connection.key, current);

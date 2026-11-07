@@ -17,11 +17,17 @@ test("uses permanent UUIDs and refuses bulk selectors", () => {
       "rc.confirmation=off",
       "rc.recurrence.confirmation=no",
     ]);
-    assert.throws(() => taskActionArguments("status:pending", action), /invalid task UUID/);
+    assert.throws(
+      () => taskActionArguments("status:pending", action),
+      /invalid task UUID/,
+    );
   }
   assert.throws(() => reopenTaskArguments("all"), /invalid task UUID/);
   assert.equal(reopenTaskArguments(uuid)[2], "status:pending");
-  assert.equal(waitTaskArguments(uuid, "20261006T000000Z")[2], "wait:20261006T000000Z");
+  assert.equal(
+    waitTaskArguments(uuid, "20261006T000000Z")[2],
+    "wait:20261006T000000Z",
+  );
 });
 
 test("keeps descriptions in one attribute and validates tags at the service boundary", () => {
@@ -34,8 +40,14 @@ test("keeps descriptions in one attribute and validates tags at the service boun
   const args = addTaskArguments(input);
   assert.equal(args[1], "description:中文 ' quotes $() project:other");
   assert.equal(args.filter((arg) => arg === "+focus").length, 1);
-  assert.throws(() => addTaskArguments({ description: "x", tags: ["PENDING"] }), /reserved/);
-  assert.throws(() => addTaskArguments({ description: " ", tags: [] }), /required/);
+  assert.throws(
+    () => addTaskArguments({ description: "x", tags: ["PENDING"] }),
+    /reserved/,
+  );
+  assert.throws(
+    () => addTaskArguments({ description: " ", tags: [] }),
+    /required/,
+  );
 });
 
 test("editing only changes core fields, leaving recurrence, dependencies and annotations intact", () => {
@@ -43,5 +55,9 @@ test("editing only changes core fields, leaving recurrence, dependencies and ann
   assert.ok(args.includes("project:"));
   assert.ok(args.includes("due:"));
   assert.ok(args.includes("tags:"));
-  assert.ok(!args.some((arg) => /^(recur|depends|scheduled|wait|until|annotations):/.test(arg)));
+  assert.ok(
+    !args.some((arg) =>
+      /^(recur|depends|scheduled|wait|until|annotations):/.test(arg),
+    ),
+  );
 });

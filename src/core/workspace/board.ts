@@ -7,6 +7,7 @@ export type BoardState = {
 export type BoardTask = {
   uuid: string;
   status: string;
+  parent?: string;
   start?: string | Date;
   wait?: string | Date;
 };
@@ -31,15 +32,36 @@ export const unsectionedColumn: BoardColumn = {
 export function defaultBoard(): BoardState {
   return { columns: [], placements: [], order: [] };
 }
-export function taskColumnId(task: Pick<BoardTask, "uuid">, board: BoardState): string {
-  const saved = board.placements.find((item) => item.uuid === task.uuid);
-  return saved && board.columns.some((column) => column.id === saved.columnId) ? saved.columnId : UNSECTIONED;
+export function taskColumnId(
+  task: Pick<BoardTask, "uuid" | "parent">,
+  board: BoardState,
+): string {
+  const saved =
+    board.placements.find((item) => item.uuid === task.uuid) ||
+    (task.parent
+      ? board.placements.find((item) => item.uuid === task.parent)
+      : undefined);
+  return saved && board.columns.some((column) => column.id === saved.columnId)
+    ? saved.columnId
+    : UNSECTIONED;
 }
-export function columnTasks<T extends BoardTask>(tasks: T[], board: BoardState, columnId: string): T[] {
+export function columnTasks<T extends BoardTask>(
+  tasks: T[],
+  board: BoardState,
+  columnId: string,
+): T[] {
   const order = new Map(board.order.map((uuid, index) => [uuid, index]));
   return tasks
     .filter((task) => taskColumnId(task, board) === columnId)
-    .sort((a, b) => (order.get(a.uuid) ?? Infinity) - (order.get(b.uuid) ?? Infinity));
+    .sort(
+      (a, b) =>
+        (order.get(a.uuid) ??
+          (a.parent ? order.get(a.parent) : undefined) ??
+          Infinity) -
+        (order.get(b.uuid) ??
+          (b.parent ? order.get(b.parent) : undefined) ??
+          Infinity),
+    );
 }
 
 export function placeCard(
@@ -61,6 +83,9 @@ export function placeCard(
   return {
     ...board,
     order,
-    placements: [...board.placements.filter((item) => item.uuid !== uuid), { uuid, columnId }],
+    placements: [
+      ...board.placements.filter((item) => item.uuid !== uuid),
+      { uuid, columnId },
+    ],
   };
 }

@@ -42,7 +42,8 @@ export function uniqueTags(values: string[]): string[] {
   const tags = new Map<string, string>();
   for (const value of values) {
     const tag = value.replace(/^\+/, "").trim();
-    if (tag && !tags.has(tag.toLocaleLowerCase())) tags.set(tag.toLocaleLowerCase(), tag);
+    if (tag && !tags.has(tag.toLocaleLowerCase()))
+      tags.set(tag.toLocaleLowerCase(), tag);
   }
   return [...tags.values()];
 }

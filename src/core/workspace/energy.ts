@@ -49,7 +49,8 @@ export type EnergyTaskLike = {
 
 function toDate(value: Date | string | undefined): Date | undefined {
   if (!value) return undefined;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? undefined : value;
+  if (value instanceof Date)
+    return Number.isNaN(value.getTime()) ? undefined : value;
   return parseTaskwarriorDate(value);
 }
 
@@ -68,9 +69,12 @@ export function energyDayWindow(now = new Date()): {
   return { day: `${year}-${month}-${date}`, start };
 }
 
-const UUID_TAG_PATTERN = /^uuid:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+const UUID_TAG_PATTERN =
+  /^uuid:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
-export function parseTimewarriorIntervals(output: string): TimewarriorInterval[] {
+export function parseTimewarriorIntervals(
+  output: string,
+): TimewarriorInterval[] {
   const trimmed = output.trim();
   if (!trimmed) return [];
   const startIdx = trimmed.indexOf("[");
@@ -95,7 +99,9 @@ export function parseTimewarriorIntervals(output: string): TimewarriorInterval[]
     const start = parseTaskwarriorDate(raw.start);
     if (!start) continue;
     const end = parseTaskwarriorDate(raw.end);
-    const tags = Array.isArray(raw.tags) ? raw.tags.filter((tag): tag is string => typeof tag === "string") : [];
+    const tags = Array.isArray(raw.tags)
+      ? raw.tags.filter((tag): tag is string => typeof tag === "string")
+      : [];
     let uuid: string | undefined;
     for (const tag of tags) {
       const match = UUID_TAG_PATTERN.exec(tag.trim());
@@ -123,9 +129,14 @@ export function calculateEnergy(
 ): EnergySummary {
   const { day, start: dayStart } = energyDayWindow(now);
   const sameDay = state?.day === day;
-  const bonus = sameDay && typeof state?.bonus === "number" && state.bonus > 0 ? Math.floor(state.bonus) : 0;
+  const bonus =
+    sameDay && typeof state?.bonus === "number" && state.bonus > 0
+      ? Math.floor(state.bonus)
+      : 0;
   const elixirCount =
-    sameDay && typeof state?.elixirCount === "number" && state.elixirCount > 0 ? Math.floor(state.elixirCount) : 0;
+    sameDay && typeof state?.elixirCount === "number" && state.elixirCount > 0
+      ? Math.floor(state.elixirCount)
+      : 0;
   const max = DAILY_ENERGY_MAX + bonus;
 
   const completedUuids = new Set<string>();
@@ -154,12 +165,19 @@ export function calculateEnergy(
 
   for (const interval of intervals) {
     const end = interval.end ?? now;
-    const durationSec = Math.max(0, Math.floor((end.getTime() - interval.start.getTime()) / 1000));
+    const durationSec = Math.max(
+      0,
+      Math.floor((end.getTime() - interval.start.getTime()) / 1000),
+    );
     const uuid = interval.uuid?.toLowerCase();
     const isCompleted = uuid ? completedUuids.has(uuid) : false;
 
     // Ignore accidental starts that were stopped within 60 seconds without completing the task.
-    if (interval.end && durationSec < MIN_VALID_INTERVAL_SECONDS && !isCompleted) {
+    if (
+      interval.end &&
+      durationSec < MIN_VALID_INTERVAL_SECONDS &&
+      !isCompleted
+    ) {
       continue;
     }
 
@@ -169,9 +187,15 @@ export function calculateEnergy(
     }
 
     if (end > dayStart && interval.start < now) {
-      const clippedStart = Math.max(interval.start.getTime(), dayStart.getTime());
+      const clippedStart = Math.max(
+        interval.start.getTime(),
+        dayStart.getTime(),
+      );
       const clippedEnd = Math.min(end.getTime(), now.getTime());
-      const todaySec = Math.max(0, Math.floor((clippedEnd - clippedStart) / 1000));
+      const todaySec = Math.max(
+        0,
+        Math.floor((clippedEnd - clippedStart) / 1000),
+      );
       trackedSecondsToday += todaySec;
     }
   }
@@ -179,16 +203,24 @@ export function calculateEnergy(
   // Fallback for active tasks if Timewarrior is not yet tracking them (e.g. local/test mode without hook).
   for (const [uuid, startDate] of activeTasks.entries()) {
     if (!tasksWithIntervals.has(uuid) && startDate < now) {
-      const durationSec = Math.max(0, Math.floor((now.getTime() - startDate.getTime()) / 1000));
+      const durationSec = Math.max(
+        0,
+        Math.floor((now.getTime() - startDate.getTime()) / 1000),
+      );
       taskSeconds[uuid] = (taskSeconds[uuid] || 0) + durationSec;
       const clippedStart = Math.max(startDate.getTime(), dayStart.getTime());
-      const todaySec = Math.max(0, Math.floor((now.getTime() - clippedStart) / 1000));
+      const todaySec = Math.max(
+        0,
+        Math.floor((now.getTime() - clippedStart) / 1000),
+      );
       trackedSecondsToday += todaySec;
     }
   }
 
   const entryCost = engagedTodayUuids.size * START_ENERGY_COST;
-  const durationCost = Math.floor(trackedSecondsToday / SECONDS_PER_ENERGY_POINT);
+  const durationCost = Math.floor(
+    trackedSecondsToday / SECONDS_PER_ENERGY_POINT,
+  );
   const used = entryCost + durationCost;
   const remaining = Math.max(0, max - used);
 
@@ -216,7 +248,10 @@ export function applyEnergyElixir(summary: EnergySummary): EnergyState {
   };
 }
 
-export function liveEnergySummary(summary?: EnergySummary, now = new Date()): EnergySummary | undefined {
+export function liveEnergySummary(
+  summary?: EnergySummary,
+  now = new Date(),
+): EnergySummary | undefined {
   if (!summary) return undefined;
   const currentWindow = energyDayWindow(now);
   if (currentWindow.day !== summary.day) {
@@ -224,7 +259,10 @@ export function liveEnergySummary(summary?: EnergySummary, now = new Date()): En
       day: currentWindow.day,
       max: DAILY_ENERGY_MAX,
       used: summary.activeCount * START_ENERGY_COST,
-      remaining: Math.max(0, DAILY_ENERGY_MAX - summary.activeCount * START_ENERGY_COST),
+      remaining: Math.max(
+        0,
+        DAILY_ENERGY_MAX - summary.activeCount * START_ENERGY_COST,
+      ),
       bonus: 0,
       elixirCount: 0,
       trackedSecondsToday: 0,
@@ -238,8 +276,12 @@ export function liveEnergySummary(summary?: EnergySummary, now = new Date()): En
   if (Number.isNaN(baseTime) || now.getTime() <= baseTime) return summary;
   const deltaSec = Math.floor((now.getTime() - baseTime) / 1000);
   const trackedSecondsToday = summary.trackedSecondsToday + deltaSec;
-  const previousDurationCost = Math.floor(summary.trackedSecondsToday / SECONDS_PER_ENERGY_POINT);
-  const nextDurationCost = Math.floor(trackedSecondsToday / SECONDS_PER_ENERGY_POINT);
+  const previousDurationCost = Math.floor(
+    summary.trackedSecondsToday / SECONDS_PER_ENERGY_POINT,
+  );
+  const nextDurationCost = Math.floor(
+    trackedSecondsToday / SECONDS_PER_ENERGY_POINT,
+  );
   const used = summary.used + (nextDurationCost - previousDurationCost);
   const remaining = Math.max(0, summary.max - used);
   return {

@@ -146,6 +146,31 @@
 .task-add-button {
   @apply h-11 w-full justify-start gap-2.5 px-0 text-sm font-normal text-muted-foreground hover:bg-transparent hover:text-foreground has-[>svg]:px-0 md:h-9;
 }
+
+/* A project is one navigation row, including its disclosure and menu. */
+[data-project-nav] {
+  border-radius: calc(var(--radius) - 2px);
+  transition: background-color 150ms ease;
+}
+[data-project-nav][data-selected="true"] {
+  background-color: var(--navigation-selected);
+}
+[data-project-nav] > button,
+[data-project-nav] > button:hover {
+  background-color: transparent;
+}
+@media (hover: hover) {
+  [data-project-nav]:not([data-selected="true"]):hover {
+    background-color: var(--navigation-hover);
+  }
+  [data-task-surface]:hover {
+    background-color: color-mix(in srgb, var(--muted) 45%, transparent);
+  }
+}
+[data-task-surface] {
+  border-radius: 3px;
+  transition: background-color 150ms ease;
+}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -247,4 +272,18 @@
 }
 .board-card [data-task-drag-surface]:active {
   cursor: grabbing;
+}
+
+/* Hover belongs to the entire management row, never only its title button. */
+.project-manager-row > button,
+.project-manager-row > button:hover {
+  background-color: transparent;
+}
+@media (hover: hover) {
+  .project-manager-row:hover {
+    background-color: color-mix(in srgb, var(--muted) 45%, transparent);
+  }
+}
+.project-manager-row {
+  transition: background-color 150ms ease;
 }

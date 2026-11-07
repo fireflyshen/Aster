@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseTaskwarriorTasks, taskGroup, tasksForView, type TaskwarriorTask } from "../src/core/tasks/model.ts";
+import {
+  parseTaskwarriorTasks,
+  taskGroup,
+  tasksForView,
+  type TaskwarriorTask,
+} from "../src/core/tasks/model.ts";
 
 test("parses and sorts Taskwarrior export data", () => {
   const tasks = parseTaskwarriorTasks(`warning before JSON
@@ -35,9 +40,18 @@ function task(values: Partial<TaskwarriorTask>): TaskwarriorTask {
 
 test("groups pending tasks by the most useful daily state", () => {
   const now = new Date(2026, 8, 10, 12);
-  assert.equal(taskGroup(task({ due: new Date(2026, 8, 9, 18) }), now), "overdue");
-  assert.equal(taskGroup(task({ due: new Date(2026, 8, 10, 18) }), now), "today");
-  assert.equal(taskGroup(task({ wait: new Date(2026, 8, 11) }), now), "waiting");
+  assert.equal(
+    taskGroup(task({ due: new Date(2026, 8, 9, 18) }), now),
+    "overdue",
+  );
+  assert.equal(
+    taskGroup(task({ due: new Date(2026, 8, 10, 18) }), now),
+    "today",
+  );
+  assert.equal(
+    taskGroup(task({ wait: new Date(2026, 8, 11) }), now),
+    "waiting",
+  );
   assert.equal(
     taskGroup(
       task({
@@ -49,7 +63,10 @@ test("groups pending tasks by the most useful daily state", () => {
     "waiting",
   );
   assert.equal(taskGroup(task({ depends: ["another-uuid"] }), now), "pending");
-  assert.equal(taskGroup(task({ scheduled: new Date(2026, 8, 11) }), now), "pending");
+  assert.equal(
+    taskGroup(task({ scheduled: new Date(2026, 8, 11) }), now),
+    "pending",
+  );
   assert.equal(taskGroup(task({}), now), "pending");
 });
 

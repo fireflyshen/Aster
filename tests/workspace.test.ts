@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTaskService } from "../src/core/tasks/service.ts";
-import { resolveConnection, workspaceIdentity } from "../src/core/connection/settings.ts";
+import {
+  resolveConnection,
+  workspaceIdentity,
+} from "../src/core/connection/settings.ts";
 import { loadTaskView } from "../src/core/workspace/task-views.ts";
-import { createWorkspaceClient, WorkspaceError, workspaceUrl } from "../src/core/workspace/client.ts";
+import {
+  createWorkspaceClient,
+  WorkspaceError,
+  workspaceUrl,
+} from "../src/core/workspace/client.ts";
 import type { Organization } from "../src/core/workspace/organization.ts";
 
 const connection = resolveConnection({ connectionMode: "ssh" });
@@ -29,43 +36,62 @@ const organization: Organization = {
 
 test("launcher views query native filters and keep board membership independent of status", async () => {
   const calls: string[][] = [];
-  const service = createTaskService(resolveConnection({ connectionMode: "local" }, "darwin"), async ({ args }) => {
-    if (args[0] === "--version") return { stdout: "3.5.0", stderr: "" };
-    calls.push(args);
-    const data = args.includes("status:completed")
-      ? [
-          {
-            uuid: "done",
-            description: "Completed task",
-            status: "completed",
-          },
-        ]
-      : [
-          {
-            uuid: "open",
-            description: "Open task",
-            status: "pending",
-            project: "Work",
-            tags: ["focus"],
-          },
-        ];
-    return { stdout: JSON.stringify(data), stderr: "" };
-  });
+  const service = createTaskService(
+    resolveConnection({ connectionMode: "local" }, "darwin"),
+    async ({ args }) => {
+      if (args[0] === "--version") return { stdout: "3.5.0", stderr: "" };
+      calls.push(args);
+      const data = args.includes("status:completed")
+        ? [
+            {
+              uuid: "done",
+              description: "Completed task",
+              status: "completed",
+            },
+          ]
+        : [
+            {
+              uuid: "open",
+              description: "Open task",
+              status: "pending",
+              project: "Work",
+              tags: ["focus"],
+            },
+          ];
+      return { stdout: JSON.stringify(data), stderr: "" };
+    },
+  );
   assert.equal((await loadTaskView(service, "project:Work"))[0].uuid, "open");
   assert.equal((await loadTaskView(service, "tag:focus"))[0].uuid, "open");
   assert.equal((await loadTaskView(service, "inbox")).length, 0);
-  assert.equal((await loadTaskView(service, "column:todo", organization))[0].status, "completed");
+  assert.equal(
+    (await loadTaskView(service, "column:todo", organization))[0].status,
+    "completed",
+  );
   await loadTaskView(service, "filter:focus", organization);
   assert.ok(calls.at(-1)?.includes("+focus"));
-  await assert.rejects(loadTaskView(service, "filter:missing", organization), /unavailable/);
+  await assert.rejects(
+    loadTaskView(service, "filter:missing", organization),
+    /unavailable/,
+  );
   await assert.rejects(loadTaskView(service, "column:todo"), /unavailable/);
   assert.ok(calls.every((args) => args.includes("export")));
 });
 
 test("workspace identity ignores display labels, but distinguishes actual Taskwarrior sources", () => {
-  assert.equal(workspaceIdentity(connection), workspaceIdentity({ ...connection, label: "RN", key: "web" }));
-  for (const change of [{ sshTarget: "other" }, { taskrc: "/different/taskrc" }, { taskCommand: "/bin/other-task" }])
-    assert.notEqual(workspaceIdentity(connection), workspaceIdentity({ ...connection, ...change }));
+  assert.equal(
+    workspaceIdentity(connection),
+    workspaceIdentity({ ...connection, label: "RN", key: "web" }),
+  );
+  for (const change of [
+    { sshTarget: "other" },
+    { taskrc: "/different/taskrc" },
+    { taskCommand: "/bin/other-task" },
+  ])
+    assert.notEqual(
+      workspaceIdentity(connection),
+      workspaceIdentity({ ...connection, ...change }),
+    );
   for (const address of [
     "https://example.com",
     "http://evil.test",
@@ -85,9 +111,13 @@ test("metadata moves verify the source, preserve CAS revision and never retry un
       url: url.pathname,
       body: init?.body as string | undefined,
     });
-    if (url.pathname === "/api/workspace") return new Response(JSON.stringify({ identity, organization }));
+    if (url.pathname === "/api/workspace")
+      return new Response(JSON.stringify({ identity, organization }));
     if (outcome === "unknown") throw new Error("socket closed");
-    if (outcome === "conflict") return new Response(JSON.stringify({ error: "Reload before saving" }), { status: 409 });
+    if (outcome === "conflict")
+      return new Response(JSON.stringify({ error: "Reload before saving" }), {
+        status: 409,
+      });
     return new Response(JSON.stringify(organization));
   });
   const client = createWorkspaceClient("http://localhost:4180", connection);
@@ -107,8 +137,14 @@ test("metadata moves verify the source, preserve CAS revision and never retry un
   assert.equal(calls.filter((call) => call.body).length, before);
   identity = workspaceIdentity(connection);
   outcome = "conflict";
-  await assert.rejects(client.move(move), (error: unknown) => error instanceof WorkspaceError && !error.uncertain);
+  await assert.rejects(
+    client.move(move),
+    (error: unknown) => error instanceof WorkspaceError && !error.uncertain,
+  );
   outcome = "unknown";
-  await assert.rejects(client.move(move), (error: unknown) => error instanceof WorkspaceError && error.uncertain);
+  await assert.rejects(
+    client.move(move),
+    (error: unknown) => error instanceof WorkspaceError && error.uncertain,
+  );
   assert.equal(calls.filter((call) => call.body).length, before + 2);
 });

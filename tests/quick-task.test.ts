@@ -4,7 +4,8 @@ import { parseQuickTask, taskDate } from "../src/core/tasks/quick-task.ts";
 
 const now = new Date(2026, 9, 17, 23, 45);
 const parse = (text: string) => parseQuickTask(text, { now });
-const due = (year: number, month: number, day: number) => taskDate(new Date(year, month - 1, day));
+const due = (year: number, month: number, day: number) =>
+  taskDate(new Date(year, month - 1, day));
 
 test("one expression maps to structured Taskwarrior fields", () => {
   assert.deepEqual(parse("明天 交报告 #工作 @专注 p1").task, {
@@ -60,7 +61,10 @@ test("priority levels map to H M L and unset; both tag prefixes work", () => {
     ["p4", ""],
   ])
     assert.equal(parse(`写代码 ${word}`).task.priority, priority);
-  assert.deepEqual(parse("写代码 @code %review @code").task.tags, ["code", "review"]);
+  assert.deepEqual(parse("写代码 @code %review @code").task.tags, [
+    "code",
+    "review",
+  ]);
 });
 test("ambiguous fields and invalid dates are rejected without rolling over dates", () => {
   for (const text of [
@@ -91,7 +95,10 @@ test("bounds match the API contract", () => {
   assert.ok(parse("a".repeat(2001)).errors.length);
   assert.ok(parse("任务 #" + "a".repeat(201)).errors.length);
   assert.ok(parse("任务 @" + "a".repeat(81)).errors.length);
-  assert.ok(parse("任务 " + Array.from({ length: 31 }, (_, i) => `@tag${i}`).join(" ")).errors.length);
+  assert.ok(
+    parse("任务 " + Array.from({ length: 31 }, (_, i) => `@tag${i}`).join(" "))
+      .errors.length,
+  );
   assert.equal(parse("  #工作  p1 ").task.description, "");
 });
 
@@ -106,19 +113,34 @@ test("the reference date-time expression preserves local clock time", () => {
     const result = parse(`Meet with Ada ${expression}`);
     assert.equal(result.errors.length, 0);
     assert.equal(result.task.description, "Meet with Ada");
-    const date = new Date(2026, 9, expression.startsWith("下周") ? 19 : 18, hour, minute);
+    const date = new Date(
+      2026,
+      9,
+      expression.startsWith("下周") ? 19 : 18,
+      hour,
+      minute,
+    );
     assert.equal(result.task.due, taskDate(date));
   }
-  for (const expression of ["tomorrow at 25", "明天 14:90", "tomorrow 13pm", "2026-02-30 14:00"])
+  for (const expression of [
+    "tomorrow at 25",
+    "明天 14:90",
+    "tomorrow 13pm",
+    "2026-02-30 14:00",
+  ])
     assert.ok(parse(`Meeting ${expression}`).errors.length);
-  assert.equal(parse('Read "tomorrow at 14"').task.description, "Read tomorrow at 14");
+  assert.equal(
+    parse('Read "tomorrow at 14"').task.description,
+    "Read tomorrow at 14",
+  );
   assert.equal(parse('Read "tomorrow at 14"').errors.length, 0);
 });
 
 test("highlight ranges preserve the exact original expression", () => {
   const text = '  Meet with Ada tomorrow at 14 #"Product design" @review p1';
   const result = parse(text);
-  for (const token of result.tokens) assert.equal(text.slice(token.start, token.end), token.raw);
+  for (const token of result.tokens)
+    assert.equal(text.slice(token.start, token.end), token.raw);
   assert.deepEqual(
     result.tokens.map((token) => token.raw),
     ["tomorrow at 14", '#"Product design"', "@review", "p1"],

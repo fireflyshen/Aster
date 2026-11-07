@@ -16,7 +16,8 @@ export const colors = [
   { id: "gray", name: "Gray", value: "#808080" },
 ] as const;
 export type Color = (typeof colors)[number]["id"];
-export const itemColor = (id: string) => colors.find((c) => c.id === id)?.value || "#808080";
+export const itemColor = (id: string) =>
+  colors.find((c) => c.id === id)?.value || "#808080";
 export type SavedFilter = {
   id: string;
   name: string;
@@ -49,6 +50,7 @@ export type Organization = {
   board?: BoardState;
   energyState?: EnergyState;
   energy?: EnergySummary;
+  timing?: { available: boolean; error?: string };
 };
 export type OrganizationChange =
   | BoardChange

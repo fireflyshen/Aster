@@ -19,6 +19,7 @@ export interface TaskwarriorTask {
   start?: Date;
   end?: Date;
   recur?: string;
+  parent?: string;
   depends: string[];
   annotations: TaskwarriorAnnotation[];
 }
@@ -42,6 +43,7 @@ interface ExportedTask {
   start?: unknown;
   end?: unknown;
   recur?: unknown;
+  parent?: unknown;
   depends?: unknown;
   annotations?: unknown;
 }
@@ -49,9 +51,11 @@ interface ExportedTask {
 function parseJsonArray(output: string): ExportedTask[] {
   const start = output.indexOf("[");
   const end = output.lastIndexOf("]");
-  if (start < 0 || end < start) throw new Error("Taskwarrior returned invalid export data.");
+  if (start < 0 || end < start)
+    throw new Error("Taskwarrior returned invalid export data.");
   const value = JSON.parse(output.slice(start, end + 1)) as unknown;
-  if (!Array.isArray(value)) throw new Error("Taskwarrior export was not a task list.");
+  if (!Array.isArray(value))
+    throw new Error("Taskwarrior export was not a task list.");
   return value as ExportedTask[];
 }
 
@@ -74,7 +78,8 @@ export function parseTaskwarriorDate(value: unknown): Date | undefined {
 }
 
 function strings(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+  if (Array.isArray(value))
+    return value.filter((item): item is string => typeof item === "string");
   return typeof value === "string" && value
     ? value
         .split(",")
@@ -91,7 +96,8 @@ function annotations(value: unknown): TaskwarriorAnnotation[] {
     if (typeof candidate.description !== "string") return [];
     return [
       {
-        entry: typeof candidate.entry === "string" ? candidate.entry : undefined,
+        entry:
+          typeof candidate.entry === "string" ? candidate.entry : undefined,
         description: candidate.description,
       },
     ];
@@ -102,7 +108,8 @@ export function parseTaskwarriorTasks(output: string): TaskwarriorTask[] {
   const tasks: TaskwarriorTask[] = [];
   for (const raw of parseJsonArray(output)) {
     if (!raw || typeof raw !== "object") continue;
-    if (typeof raw.uuid !== "string" || typeof raw.description !== "string") continue;
+    if (typeof raw.uuid !== "string" || typeof raw.description !== "string")
+      continue;
     tasks.push({
       uuid: raw.uuid,
       id: typeof raw.id === "number" ? raw.id : undefined,
@@ -119,6 +126,7 @@ export function parseTaskwarriorTasks(output: string): TaskwarriorTask[] {
       start: parseTaskwarriorDate(raw.start),
       end: parseTaskwarriorDate(raw.end),
       recur: typeof raw.recur === "string" ? raw.recur : undefined,
+      parent: typeof raw.parent === "string" ? raw.parent : undefined,
       depends: strings(raw.depends),
       annotations: annotations(raw.annotations),
     });
@@ -127,21 +135,38 @@ export function parseTaskwarriorTasks(output: string): TaskwarriorTask[] {
     (left, right) =>
       (right.end?.getTime() ?? 0) - (left.end?.getTime() ?? 0) ||
       right.urgency - left.urgency ||
-      (left.due?.getTime() ?? Number.MAX_SAFE_INTEGER) - (right.due?.getTime() ?? Number.MAX_SAFE_INTEGER) ||
-      (left.id ?? Number.MAX_SAFE_INTEGER) - (right.id ?? Number.MAX_SAFE_INTEGER),
+      (left.due?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+        (right.due?.getTime() ?? Number.MAX_SAFE_INTEGER) ||
+      (left.id ?? Number.MAX_SAFE_INTEGER) -
+        (right.id ?? Number.MAX_SAFE_INTEGER),
   );
 }
 
-export function taskGroup(task: TaskwarriorTask, now = new Date()): TaskwarriorTaskGroup {
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+export function taskGroup(
+  task: TaskwarriorTask,
+  now = new Date(),
+): TaskwarriorTaskGroup {
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const startOfTomorrow = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1,
+  );
   if (task.wait ? task.wait > now : task.status === "waiting") return "waiting";
   if (task.due && task.due < startOfToday) return "overdue";
   if (task.due && task.due < startOfTomorrow) return "today";
   return "pending";
 }
 
-export function tasksForView(tasks: TaskwarriorTask[], view: TaskView, now = new Date()): TaskwarriorTask[] {
+export function tasksForView(
+  tasks: TaskwarriorTask[],
+  view: TaskView,
+  now = new Date(),
+): TaskwarriorTask[] {
   return tasks.filter((task) => {
     if (view === "completed") return task.status === "completed";
     if (task.status !== "pending" && task.status !== "waiting") return false;
@@ -150,4 +175,16 @@ export function tasksForView(tasks: TaskwarriorTask[], view: TaskView, now = new
     if (view === "waiting") return group === "waiting";
     return true;
   });
+}
+
+export function isCompactTaskDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{8}T\d{6}Z$/.test(value)) return false;
+  const date = parseTaskwarriorDate(value);
+  return (
+    !!date &&
+    date
+      .toISOString()
+      .replace(/[-:]/g, "")
+      .replace(/\.\d{3}/, "") === value
+  );
 }

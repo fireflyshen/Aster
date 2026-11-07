@@ -4,6 +4,7 @@ Aster runs independently at `https://task.caten.top`, with a dedicated `aster.se
 
 - `/opt/aster/current` points to the active immutable release in `releases/`.
 - `/opt/aster/runtime/node` is a standalone Node.js 24 runtime. No dependency on another app after installation.
+- `/opt/aster/data/recovery.json` holds raw pre-delete task snapshots and board positions. Back it up alongside organization metadata and the native databases; never replace it during a code release.
 - `/opt/aster/data/organization.json` holds filters, colors, favorites, project descriptions and board columns. It is independent of releases and must be backed up.
 - `/var/lib/taskwarrior` remains the shared Taskwarrior 3 database for web, SSH CLI and TinyCast. The service uses the existing Taskwarrior account and permissions; SSH clients retain their original paths.
 - `/opt/aster/aster.env` contains explicit origin and Cloudflare Access configuration. File mode 0600; systemd reads it when starting the service.
@@ -20,3 +21,5 @@ The initial Taskwarrior reset first uses SQLite's backup API and checks integrit
 Initial deployment: 2026-10-18. Taskwarrior reset backup: `/opt/aster/backups/20261018T113846Z/` (4 records; SQLite integrity `ok`). The previous directory is retained there as `taskwarrior-original/`. Active task count after reset: 0. Cloudflare Access application: `aster`, separate application AUD, existing `Allow Me` policy.
 
 Focus 2.1 additionally enables `WORKSPACE_SOCKET=/opt/aster/data/workspace.sock`. This Unix socket is mode 0600, uses the same server process/metadata revision queue, and is reachable by the existing SSH Taskwarrior user. No additional port or Cloudflare policy is needed. Startup probes an existing socket before removing a stale instance and refuses to replace an active socket or ordinary file. The systemd sandbox already allows AF_UNIX and writes in `/opt/aster/data`.
+
+Version 2.5 uses Node.js 24's built-in SQLite backup API. Keep `data/restored-uda.json` and `data/restore-points/` with the organization and recovery files in deployment backups. An interrupted restore is rolled back before either HTTP or the private socket starts. Whole-workspace restore requires the native task DB, timer data and workspace directory to share a filesystem; RN's current paths satisfy this. No additional network port or Access policy is added.

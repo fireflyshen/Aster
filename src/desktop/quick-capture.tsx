@@ -15,6 +15,8 @@ import { useEffect, useRef, useState } from "react";
 import { TaskExecutionError } from "../core/connection/errors.ts";
 import { parseQuickTask } from "../core/tasks/quick-task.ts";
 import type { TaskService } from "../core/tasks/service.ts";
+import { useWorkspace } from "./use-workspace";
+import { WorkspaceError } from "../core/workspace/client.ts";
 import { TaskForm } from "./task-form";
 import { useTaskService } from "./use-task-service";
 
@@ -28,6 +30,7 @@ export function QuickCapture({
   initialExpression?: string;
 }) {
   const service = useTaskService(provided);
+  const workspace = useWorkspace(service.connection);
   const { pop } = useNavigation();
   const key = `capture:${service.connection.key}`;
   const [text, setText] = useState(initialExpression);
@@ -102,7 +105,14 @@ export function QuickCapture({
     else await popToRoot({ clearSearchBar: true });
   }
   async function add() {
-    if (!hydrated || !valid || submitting.current || didSave.current || unconfirmed) return;
+    if (
+      !hydrated ||
+      !valid ||
+      submitting.current ||
+      didSave.current ||
+      unconfirmed
+    )
+      return;
     submitting.current = true;
     setBusy(true);
     const toast = await showToast({
@@ -110,7 +120,9 @@ export function QuickCapture({
       title: "Adding task…",
     });
     try {
-      await service.addTask(parsed.task);
+      if (workspace.client?.addTask)
+        await workspace.client.addTask(parsed.task);
+      else await service.addTask(parsed.task);
       didSave.current = true;
       toast.style = Toast.Style.Success;
       toast.title = "Task added";
@@ -120,10 +132,16 @@ export function QuickCapture({
       });
       await closeCapture();
     } catch (error) {
-      const unknown = error instanceof TaskExecutionError && error.outcome === "unknown";
+      const unknown =
+        (error instanceof TaskExecutionError && error.outcome === "unknown") ||
+        (error instanceof WorkspaceError && error.uncertain);
       if (unknown) await markUnconfirmed();
       toast.style = didSave.current ? Toast.Style.Success : Toast.Style.Failure;
-      toast.title = didSave.current ? "Task Saved" : unknown ? "Result Unconfirmed" : "Could Not Add Task";
+      toast.title = didSave.current
+        ? "Task Saved"
+        : unknown
+          ? "Result Unconfirmed"
+          : "Could Not Add Task";
       toast.message = error instanceof Error ? error.message : String(error);
     } finally {
       submitting.current = false;
@@ -132,7 +150,12 @@ export function QuickCapture({
   }
   const actions = (
     <ActionPanel>
-      {hydrated && text.trim() && hydrated && !busy && !didSave.current && !unconfirmed ? (
+      {hydrated &&
+      text.trim() &&
+      hydrated &&
+      !busy &&
+      !didSave.current &&
+      !unconfirmed ? (
         <Action
           title="Add Task"
           icon={Icon.Plus}
@@ -155,7 +178,11 @@ export function QuickCapture({
           target={
             <TaskForm
               service={service}
-              initialInput={valid ? parsed.task : { description: text, tags: [] }}
+              workspace={workspace.client}
+              labels={workspace.data?.tags}
+              initialInput={
+                valid ? parsed.task : { description: text, tags: [] }
+              }
               onSaved={saved}
               onUnconfirmed={markUnconfirmed}
               onClose={async () => {
@@ -198,7 +225,8 @@ export function QuickCapture({
             if (
               await confirmAlert({
                 title: "Discard this draft?",
-                message: "A task may already have been saved. Check My Tasks before capturing it again.",
+                message:
+                  "A task may already have been saved. Check My Tasks before capturing it again.",
                 primaryAction: { title: "Discard Draft" },
               })
             ) {
@@ -230,7 +258,8 @@ export function QuickCapture({
       navigationTitle="Quick Add"
       searchText={text}
       onSearchTextChange={(value) => {
-        if (hydrated && !busy && !didSave.current && !unconfirmed) update(value);
+        if (hydrated && !busy && !didSave.current && !unconfirmed)
+          update(value);
       }}
       filtering={false}
       searchBarPlaceholder="Task tomorrow #Project @label p1"
@@ -240,13 +269,29 @@ export function QuickCapture({
         <List.Item
           id="preview"
           title={parsed.task.description || "Add a task name"}
-          subtitle={unconfirmed ? "Result unconfirmed — check My Tasks" : parsed.errors[0]}
-          icon={unconfirmed || parsed.errors.length ? Icon.Warning : Icon.Circle}
+          subtitle={
+            unconfirmed
+              ? "Result unconfirmed — check My Tasks"
+              : parsed.errors[0]
+          }
+          icon={
+            unconfirmed || parsed.errors.length ? Icon.Warning : Icon.Circle
+          }
           accessories={parsed.tokens
-            .filter((t, i, all) => all.findIndex((x) => x.kind === t.kind && x.value === t.value) === i)
+            .filter(
+              (t, i, all) =>
+                all.findIndex(
+                  (x) => x.kind === t.kind && x.value === t.value,
+                ) === i,
+            )
             .slice(0, 4)
             .map((t) => ({
-              tag: t.kind === "tag" ? `@${t.value}` : t.kind === "project" ? `#${t.value}` : t.label,
+              tag:
+                t.kind === "tag"
+                  ? `@${t.value}`
+                  : t.kind === "project"
+                    ? `#${t.value}`
+                    : t.label,
             }))}
           actions={actions}
         />

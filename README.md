@@ -31,7 +31,7 @@ Aster 是运行在本机的 Taskwarrior 3 客户端，通过 TinyCast（兼容 R
 
 列表下拉还支持项目、标签、Inbox、In Progress，以及网页保存的过滤器和看板栏目。栏目视图包含该栏的未完成和已完成任务；移动栏目不改变完成状态。任务详情可显示网页的项目描述。
 
-**共享网页资料**：插件设置的 Web Workspace URL 默认 `http://localhost:4180`，本机网页服务运行时，插件读取同一份过滤器、颜色、收藏、项目描述和栏目，不保存第二份。两边连接必须匹配。网页未运行时，任务查询与修改仍直接连接 RN；清空该设置可禁用共享资料。`⌘⇧O` 打开网页进行完整管理。具体适配取舍见 [TinyCast 产品说明](docs/desktop-product.md)。
+**共享网页资料**：插件设置的 Web Workspace URL 默认 `http://localhost:4180`，本机网页服务运行时，插件读取同一份过滤器、颜色、收藏、项目描述和栏目，不保存第二份。两边连接必须匹配。共享模式下，新增和修改也经由同一私有工作区，删除会保留恢复快照。工作区不可用时保留输入并提示重试；清空该设置可使用独立的原生 Taskwarrior 模式，该模式没有共享删除快照。`⌘⇧O` 打开网页进行完整管理。具体适配取舍见 [TinyCast 产品说明](docs/desktop-product.md)。
 
 删除使用 Taskwarrior 的 `delete`，不执行永久清除。必要时可通过 Taskwarrior CLI 找到已删除任务并修改为 `status:pending`。批量删除和清空数据库不放进日常客户端。
 
@@ -105,3 +105,12 @@ npm run build
 ```
 
 `npm run lint` 还会校验发布清单，发布前需将 `YOUR_RAYCAST_USERNAME` 换成真实 Raycast 账号。VPS 布局见 [remote setup](docs/remote-setup.md)。Taskwarrior 命令语义见 [官方手册](https://taskwarrior.org/docs/man/task.1/)。
+
+## Aster 2.5
+
+- 网页 **Data & recovery → Backups**：导出、上传备份、预览范围并恢复；恢复前副本可下载。
+- 网页及 TinyCast 任务编辑器支持重复规则和备注；TinyCast 的 **Data & Recovery** 可恢复删除任务，并打开网页管理完整备份。
+- 完整表单的标签可多选；网页支持搜索和就地新建，插件使用原生 TagPicker 和 New Labels 字段。
+- 计时读取异常会明确显示不可用，精力值暂停计算。恢复不重新启动计时。
+
+恢复限制、验证和发布记录见 [2.5 版本说明](docs/release-2.5.md)。

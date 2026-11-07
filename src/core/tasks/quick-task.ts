@@ -24,7 +24,8 @@ function dateValue(word: string, now: Date): Date | undefined {
     const date = dateValue(clock[1], now);
     let hour = Number(clock[2]);
     const minute = Number(clock[3] || 0);
-    if (!date || minute > 59 || (clock[4] ? hour < 1 || hour > 12 : hour > 23)) return;
+    if (!date || minute > 59 || (clock[4] ? hour < 1 || hour > 12 : hour > 23))
+      return;
     if (clock[4]) hour = (hour % 12) + (clock[4] === "pm" ? 12 : 0);
     date.setHours(hour, minute, 0, 0);
     return date;
@@ -54,17 +55,24 @@ function dateValue(word: string, now: Date): Date | undefined {
   }
   const weekday = /^(下周|本周|周|星期)([一二三四五六日天])$/.exec(word);
   if (weekday) {
-    const target = "日一二三四五六".indexOf(weekday[2] === "天" ? "日" : weekday[2]);
+    const target = "日一二三四五六".indexOf(
+      weekday[2] === "天" ? "日" : weekday[2],
+    );
     const mondayOffset = (date.getDay() + 6) % 7;
     let delta = ((target + 6) % 7) - mondayOffset;
-    if (weekday[1] === "下周" || (weekday[1] !== "本周" && delta < 0)) delta += 7;
+    if (weekday[1] === "下周" || (weekday[1] !== "本周" && delta < 0))
+      delta += 7;
     date.setDate(date.getDate() + delta);
     return date;
   }
   const exact = /^(\d{4})-(\d{2})-(\d{2})$/.exec(word);
   if (exact) {
     date.setFullYear(Number(exact[1]), Number(exact[2]) - 1, Number(exact[3]));
-    if (date.getFullYear() === +exact[1] && date.getMonth() === +exact[2] - 1 && date.getDate() === +exact[3])
+    if (
+      date.getFullYear() === +exact[1] &&
+      date.getMonth() === +exact[2] - 1 &&
+      date.getDate() === +exact[3]
+    )
       return date;
   }
 }
@@ -94,7 +102,9 @@ export function parseQuickTask(
     const id = `${count}:${raw}`;
     const word = raw.toLowerCase();
     const unquote = (value: string) => value.replace(/^(["'])(.*)\1$/, "$2");
-    let token: Omit<QuickToken, "id" | "raw" | "ignored" | "start" | "end"> | undefined;
+    let token:
+      | Omit<QuickToken, "id" | "raw" | "ignored" | "start" | "end">
+      | undefined;
     if (raw.startsWith("#") && raw.length > 1) {
       const value = unquote(raw.slice(1));
       token = { kind: "project", value, label: value };
@@ -102,7 +112,9 @@ export function parseQuickTask(
       const value = unquote(raw.slice(1));
       token = { kind: "tag", value, label: value };
     } else if (/^p[1-4]$/.test(word)) {
-      const value = ({ p1: "H", p2: "M", p3: "L", p4: "" } as Record<string, string>)[word];
+      const value = (
+        { p1: "H", p2: "M", p3: "L", p4: "" } as Record<string, string>
+      )[word];
       token = {
         kind: "priority",
         value,
@@ -172,18 +184,32 @@ export function parseQuickTask(
     }
     if (token.kind === "tag") {
       if (!/^[\p{L}\p{N}_@.-]{1,80}$/u.test(token.value))
-        errors.push("Use letters, numbers, underscores, or hyphens for labels, up to 80 characters.");
+        errors.push(
+          "Use letters, numbers, underscores, or hyphens for labels, up to 80 characters.",
+        );
       if (!task.tags.includes(token.value)) task.tags.push(token.value);
     } else {
       const field = token.kind === "due" ? "due" : token.kind;
-      if (tokens.some((t) => t.id !== id && !t.ignored && t.kind === token.kind && t.value !== token.value))
-        errors.push(`Specify only one ${{ due: "date", project: "project", priority: "priority" }[field]}.`);
+      if (
+        tokens.some(
+          (t) =>
+            t.id !== id &&
+            !t.ignored &&
+            t.kind === token.kind &&
+            t.value !== token.value,
+        )
+      )
+        errors.push(
+          `Specify only one ${{ due: "date", project: "project", priority: "priority" }[field]}.`,
+        );
       task[field] = token.value;
     }
   }
   task.description = words.join(" ").trim();
-  if (task.description.length > 2000) errors.push("Task name must be 2000 characters or fewer.");
-  if ((task.project?.length || 0) > 200) errors.push("Project name must be 200 characters or fewer.");
+  if (task.description.length > 2000)
+    errors.push("Task name must be 2000 characters or fewer.");
+  if ((task.project?.length || 0) > 200)
+    errors.push("Project name must be 200 characters or fewer.");
   if (task.tags.length > 30) errors.push("A task can have up to 30 labels.");
   return { task, tokens, errors: [...new Set(errors)] };
 }

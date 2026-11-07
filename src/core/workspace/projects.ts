@@ -1,14 +1,23 @@
 import { inProject } from "./focus.ts";
 
-export const projectParent = (name: string) => name.slice(0, Math.max(0, name.lastIndexOf(".")));
-export const projectLeaf = (name: string) => name.slice(name.lastIndexOf(".") + 1);
+export const projectParent = (name: string) =>
+  name.slice(0, Math.max(0, name.lastIndexOf(".")));
+export const projectLeaf = (name: string) =>
+  name.slice(name.lastIndexOf(".") + 1);
 export const projectPath = (name: string) => name.split(".").join(" / ");
 export const remapProject = (name: string, from: string, to: string) =>
   inProject(name, from) ? to + name.slice(from.length) : name;
 
 export function validateProjectName(name: string) {
-  if (!name.trim() || name.length > 200 || /[\0\r\n]/.test(name) || name.split(".").some((part) => !part.trim()))
-    throw new Error("Use a project path with non-empty names, up to 200 characters.");
+  if (
+    !name.trim() ||
+    name.length > 200 ||
+    /[\0\r\n]/.test(name) ||
+    name.split(".").some((part) => !part.trim())
+  )
+    throw new Error(
+      "Use a project path with non-empty names, up to 200 characters.",
+    );
 }
 
 export function projectNames(names: readonly string[]) {
@@ -47,7 +56,9 @@ export function projectTree(
     siblings.push(name);
     children.set(parent, siblings);
   }
-  const stack = [...(children.get("") || [])].reverse().map((name) => ({ name, depth: 0 }));
+  const stack = [...(children.get("") || [])]
+    .reverse()
+    .map((name) => ({ name, depth: 0 }));
   const rows: ProjectRow[] = [];
   while (stack.length) {
     const { name, depth } = stack.pop()!;
@@ -60,10 +71,17 @@ export function projectTree(
       hasChildren: !!branch.length,
     });
     if (!collapsed.has(name) || matches)
-      for (let index = branch.length - 1; index >= 0; index--) stack.push({ name: branch[index], depth: depth + 1 });
+      for (let index = branch.length - 1; index >= 0; index--)
+        stack.push({ name: branch[index], depth: depth + 1 });
   }
   return rows;
 }
 
-export const projectTaskCount = (name: string, counts: Record<string, number> = {}) =>
-  Object.entries(counts).reduce((sum, [path, count]) => sum + (inProject(path, name) ? count : 0), 0);
+export const projectTaskCount = (
+  name: string,
+  counts: Record<string, number> = {},
+) =>
+  Object.entries(counts).reduce(
+    (sum, [path, count]) => sum + (inProject(path, name) ? count : 0),
+    0,
+  );

@@ -6,18 +6,26 @@ import { resolveConnection } from "../src/core/connection/settings.ts";
 
 test("native filters retain grouping, quoted attributes, virtual tags and @ shorthand", () => {
   assert.equal(tagName("Ready"), "Ready");
-  assert.deepEqual(filterArguments('status:pending and (@Todo or +READY) project:"产品 设计" due.before:tomorrow'), [
-    "status:pending",
-    "and",
-    "(",
-    "+Todo",
-    "or",
-    "+READY",
-    ")",
-    "project:产品 设计",
-    "due.before:tomorrow",
+  assert.deepEqual(
+    filterArguments(
+      'status:pending and (@Todo or +READY) project:"产品 设计" due.before:tomorrow',
+    ),
+    [
+      "status:pending",
+      "and",
+      "(",
+      "+Todo",
+      "or",
+      "+READY",
+      ")",
+      "project:产品 设计",
+      "due.before:tomorrow",
+    ],
+  );
+  assert.deepEqual(filterArguments("-Blocked priority:H"), [
+    "-Blocked",
+    "priority:H",
   ]);
-  assert.deepEqual(filterArguments("-Blocked priority:H"), ["-Blocked", "priority:H"]);
 });
 test("filters cannot become commands or configuration overrides", () => {
   for (const expression of [
@@ -39,22 +47,40 @@ test("filters cannot become commands or configuration overrides", () => {
     "+Todo\nadd",
   ])
     assert.throws(() => filterArguments(expression), expression);
-  assert.deepEqual(filterArguments('description:"$(touch /tmp/not-run)"'), ["description:$(touch /tmp/not-run)"]);
-  for (const name of ["", "READY", "PENDING", "Todo rc.confirmation=off", "+Todo", "x\ny"])
+  assert.deepEqual(filterArguments('description:"$(touch /tmp/not-run)"'), [
+    "description:$(touch /tmp/not-run)",
+  ]);
+  for (const name of [
+    "",
+    "READY",
+    "PENDING",
+    "Todo rc.confirmation=off",
+    "+Todo",
+    "x\ny",
+  ])
     assert.throws(() => tagName(name));
 });
 test("queries use fixed export and tag rename modifies only matching non-deleted tasks", async () => {
   const calls: string[][] = [];
-  const service = createTaskService(resolveConnection({ connectionMode: "local" }, "darwin"), async ({ args }) => {
-    calls.push(args);
-    return {
-      stdout: args[0] === "--version" ? "3.5.0" : args.includes("export") ? "[]" : "OK",
-      stderr: "",
-    };
-  });
+  const service = createTaskService(
+    resolveConnection({ connectionMode: "local" }, "darwin"),
+    async ({ args }) => {
+      calls.push(args);
+      return {
+        stdout:
+          args[0] === "--version"
+            ? "3.5.0"
+            : args.includes("export")
+              ? "[]"
+              : "OK",
+        stderr: "",
+      };
+    },
+  );
   await service.filterTasks("@Todo or priority:H");
-  assert.deepEqual(calls[1].slice(0, 8), [
+  assert.deepEqual(calls[2].slice(0, 9), [
     "status.not:deleted",
+    "status.not:recurring",
     "(",
     "+Todo",
     "or",
@@ -64,15 +90,27 @@ test("queries use fixed export and tag rename modifies only matching non-deleted
     "rc.json.array=on",
   ]);
   await service.changeTag("Todo", "Doing");
-  assert.deepEqual(calls[2].slice(0, 5), ["status.not:deleted", "+Todo", "modify", "-Todo", "+Doing"]);
+  assert.deepEqual(calls[3].slice(0, 5), [
+    "status.not:deleted",
+    "+Todo",
+    "modify",
+    "-Todo",
+    "+Doing",
+  ]);
   await assert.rejects(service.filterTasks("+Todo delete"));
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 });
 
 test("virtual tags never appear in editable tags, while mixed-case Ready stays editable", async () => {
-  const service = createTaskService(resolveConnection({ connectionMode: "local" }, "darwin"), async ({ args }) => ({
-    stdout: args[0] === "--version" ? "3.5.0" : "ACTIVE\nREADY\nReady\nTodo\nPENDING",
-    stderr: "",
-  }));
+  const service = createTaskService(
+    resolveConnection({ connectionMode: "local" }, "darwin"),
+    async ({ args }) => ({
+      stdout:
+        args[0] === "--version"
+          ? "3.5.0"
+          : "ACTIVE\nREADY\nReady\nTodo\nPENDING",
+      stderr: "",
+    }),
+  );
   assert.deepEqual(await service.loadTags(), ["Ready", "Todo"]);
 });

@@ -137,5 +137,5 @@
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"
   },
-  "version": "2.3.0"
+  "version": "2.5.0"
 }

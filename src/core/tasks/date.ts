@@ -5,7 +5,9 @@ export function formatTaskDate(date: Date, existing?: Date): string {
     existing.getFullYear() === date.getFullYear() &&
     existing.getMonth() === date.getMonth() &&
     existing.getDate() === date.getDate();
-  const resolved = sameDay ? existing : new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const resolved = sameDay
+    ? existing
+    : new Date(date.getFullYear(), date.getMonth(), date.getDate());
   return resolved
     .toISOString()
     .replace(/[-:]/g, "")

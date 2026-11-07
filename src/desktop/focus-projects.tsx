@@ -1,10 +1,25 @@
-import { Action, ActionPanel, Form, Icon, List, Toast, confirmAlert, showToast, useNavigation } from "@raycast/api";
+import {
+  Action,
+  ActionPanel,
+  Form,
+  Icon,
+  List,
+  Toast,
+  confirmAlert,
+  showToast,
+  useNavigation,
+} from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import { useRef, useState } from "react";
 import type { TaskService } from "../core/tasks/service.ts";
 import type { WorkspaceClient } from "../core/workspace/client.ts";
 import { WorkspaceError } from "../core/workspace/client.ts";
-import { FOCUS_LIMIT, inProject, projectStatus, type ProjectStatus } from "../core/workspace/focus.ts";
+import {
+  FOCUS_LIMIT,
+  inProject,
+  projectStatus,
+  type ProjectStatus,
+} from "../core/workspace/focus.ts";
 import {
   colors,
   itemColor,
@@ -39,7 +54,9 @@ export function FocusProjects({
   const busy = useRef(false);
   const [blocked, setBlocked] = useState(false);
   const projects = data?.projects || initial.projects || [];
-  const active = projects.filter((project) => projectStatus(project) === "active");
+  const active = projects.filter(
+    (project) => projectStatus(project) === "active",
+  );
   async function save(change: OrganizationChange) {
     if (busy.current || blocked) return false;
     busy.current = true;
@@ -102,7 +119,11 @@ export function FocusProjects({
         }
       />
       <Action.Push
-        title={projectStatus(project) === "active" ? "Pause Project" : "Activate Project"}
+        title={
+          projectStatus(project) === "active"
+            ? "Pause Project"
+            : "Activate Project"
+        }
         icon={Icon.Play}
         target={
           <GoalForm
@@ -122,7 +143,8 @@ export function FocusProjects({
           icon={Icon.CheckCircle}
           onAction={async () => {
             const count = Object.entries(data?.projectCounts || {}).reduce(
-              (n, [name, total]) => n + (inProject(name, project.name) ? total : 0),
+              (n, [name, total]) =>
+                n + (inProject(name, project.name) ? total : 0),
               0,
             );
             if (
@@ -195,7 +217,11 @@ export function FocusProjects({
         <List.Section
           key={status}
           title={
-            status === "active" ? `Focus · ${active.length}/${FOCUS_LIMIT}` : status === "later" ? "Later" : "Completed"
+            status === "active"
+              ? `Focus · ${active.length}/${FOCUS_LIMIT}`
+              : status === "later"
+                ? "Later"
+                : "Completed"
           }
         >
           {projects
@@ -206,7 +232,12 @@ export function FocusProjects({
                 title={projectPath(project.name)}
                 subtitle={project.outcome || "Define a finish line"}
                 icon={{
-                  source: status === "active" ? Icon.BullsEye : status === "completed" ? Icon.CheckCircle : Icon.Tray,
+                  source:
+                    status === "active"
+                      ? Icon.BullsEye
+                      : status === "completed"
+                        ? Icon.CheckCircle
+                        : Icon.Tray,
                   tintColor: itemColor(project.color || "gray"),
                 }}
                 actions={actions(project)}
@@ -243,7 +274,9 @@ function GoalForm({
   const [draftRevision, setDraftRevision] = useState(revision);
   const [currentActive, setCurrentActive] = useState(active);
   const [name, setName] = useState(projectLeaf(project.name));
-  const [parent, setParent] = useState(initialParent ?? projectParent(project.name));
+  const [parent, setParent] = useState(
+    initialParent ?? projectParent(project.name),
+  );
   const [color, setColor] = useState<Color>(project.color || "gray");
   const [description, setDescription] = useState(project.description);
   const [outcome, setOutcome] = useState(project.outcome || "");
@@ -253,8 +286,12 @@ function GoalForm({
   const tasks = usePromise(service.loadTasks, [], {
     onError: () => undefined,
   });
-  const choices = (tasks.data || []).filter((task) => inProject(task.project, project.name));
-  const replacing = status === "active" && currentActive.filter((p) => p.name !== project.name).length >= FOCUS_LIMIT;
+  const choices = (tasks.data || []).filter((task) =>
+    inProject(task.project, project.name),
+  );
+  const replacing =
+    status === "active" &&
+    currentActive.filter((p) => p.name !== project.name).length >= FOCUS_LIMIT;
   return (
     <Form
       isLoading={saving || tasks.isLoading}
@@ -265,7 +302,10 @@ function GoalForm({
             title={replacing ? "Pause and Activate" : "Save"}
             onSubmit={async () => {
               if (saving) return;
-              if ((status === "active" || projectStatus(project) === "active") && !outcome.trim()) {
+              if (
+                (status === "active" || projectStatus(project) === "active") &&
+                !outcome.trim()
+              ) {
                 await showToast({
                   style: Toast.Style.Failure,
                   title: "Define a finish line",
@@ -283,7 +323,10 @@ function GoalForm({
               if (!status) {
                 try {
                   validateProjectName(path);
-                  if (name.includes(".")) throw new Error("Choose Parent Project instead of putting dots in the name.");
+                  if (name.includes("."))
+                    throw new Error(
+                      "Choose Parent Project instead of putting dots in the name.",
+                    );
                 } catch (error) {
                   await showToast({
                     style: Toast.Style.Failure,
@@ -343,7 +386,11 @@ function GoalForm({
               try {
                 const latest = await onReload();
                 setDraftRevision(latest.revision);
-                setCurrentActive((latest.projects || []).filter((p) => projectStatus(p) === "active"));
+                setCurrentActive(
+                  (latest.projects || []).filter(
+                    (p) => projectStatus(p) === "active",
+                  ),
+                );
                 setReplacement("");
                 await tasks.revalidate();
               } catch (error) {
@@ -366,8 +413,18 @@ function GoalForm({
         <>
           {!status && (
             <>
-              <Form.TextField id="name" title="Name" value={name} onChange={setName} />
-              <Form.Dropdown id="color" title="Color" value={color} onChange={(value) => setColor(value as Color)}>
+              <Form.TextField
+                id="name"
+                title="Name"
+                value={name}
+                onChange={setName}
+              />
+              <Form.Dropdown
+                id="color"
+                title="Color"
+                value={color}
+                onChange={(value) => setColor(value as Color)}
+              >
                 {colors.map((item) => (
                   <Form.Dropdown.Item
                     key={item.id}
@@ -380,15 +437,33 @@ function GoalForm({
                   />
                 ))}
               </Form.Dropdown>
-              <Form.Dropdown id="parent" title="Parent Project" value={parent} onChange={setParent}>
+              <Form.Dropdown
+                id="parent"
+                title="Parent Project"
+                value={parent}
+                onChange={setParent}
+              >
                 <Form.Dropdown.Item value="" title="No parent" />
                 {projectTree(
-                  projects.map((p) => p.name).filter((path) => !project.name || !inProject(path, project.name)),
+                  projects
+                    .map((p) => p.name)
+                    .filter(
+                      (path) => !project.name || !inProject(path, project.name),
+                    ),
                 ).map((row) => (
-                  <Form.Dropdown.Item key={row.name} value={row.name} title={projectPath(row.name)} />
+                  <Form.Dropdown.Item
+                    key={row.name}
+                    value={row.name}
+                    title={projectPath(row.name)}
+                  />
                 ))}
               </Form.Dropdown>
-              <Form.TextArea id="description" title="Description" value={description} onChange={setDescription} />
+              <Form.TextArea
+                id="description"
+                title="Description"
+                value={description}
+                onChange={setDescription}
+              />
             </>
           )}
           <Form.TextArea
@@ -399,23 +474,44 @@ function GoalForm({
             placeholder="What result would make this project complete?"
           />
           {replacing && (
-            <Form.Dropdown id="replacement" title="Pause Project" value={replacement} onChange={setReplacement}>
+            <Form.Dropdown
+              id="replacement"
+              title="Pause Project"
+              value={replacement}
+              onChange={setReplacement}
+            >
               <Form.Dropdown.Item value="" title="Choose one active project" />
               {active
                 .filter((p) => p.name !== project.name)
                 .map((p) => (
-                  <Form.Dropdown.Item key={p.name} value={p.name} title={p.name} />
+                  <Form.Dropdown.Item
+                    key={p.name}
+                    value={p.name}
+                    title={p.name}
+                  />
                 ))}
             </Form.Dropdown>
           )}
           {!status && (
-            <Form.Dropdown id="nextTask" title="Next Step" value={nextTask} onChange={setNextTask}>
+            <Form.Dropdown
+              id="nextTask"
+              title="Next Step"
+              value={nextTask}
+              onChange={setNextTask}
+            >
               <Form.Dropdown.Item value="" title="Choose later" />
               {nextTask && !choices.some((task) => task.uuid === nextTask) && (
-                <Form.Dropdown.Item value={nextTask} title="Previous task (completed or unavailable)" />
+                <Form.Dropdown.Item
+                  value={nextTask}
+                  title="Previous task (completed or unavailable)"
+                />
               )}
               {choices.map((task) => (
-                <Form.Dropdown.Item key={task.uuid} value={task.uuid} title={task.description} />
+                <Form.Dropdown.Item
+                  key={task.uuid}
+                  value={task.uuid}
+                  title={task.description}
+                />
               ))}
             </Form.Dropdown>
           )}

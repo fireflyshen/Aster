@@ -10,18 +10,29 @@ interface ProcessFailure extends Error {
 
 export class TaskExecutionError extends Error {
   readonly outcome: "failed" | "unknown";
-  constructor(message: string, outcome: "failed" | "unknown" = "failed", cause?: unknown) {
+  constructor(
+    message: string,
+    outcome: "failed" | "unknown" = "failed",
+    cause?: unknown,
+  ) {
     super(message, { cause });
     this.name = "TaskExecutionError";
     this.outcome = outcome;
   }
 }
 
-export function executionError(error: unknown, connection: Connection, write: boolean): TaskExecutionError {
+export function executionError(
+  error: unknown,
+  connection: Connection,
+  write: boolean,
+): TaskExecutionError {
   const failure = error as ProcessFailure;
   const detail = failure.stderr?.trim() || failure.message || String(error);
   const normalized = detail.toLowerCase();
-  const timeout = failure.killed || failure.signal === "SIGTERM" || normalized.includes("timed out");
+  const timeout =
+    failure.killed ||
+    failure.signal === "SIGTERM" ||
+    normalized.includes("timed out");
   if (failure.code === "ENOENT") {
     return new TaskExecutionError(
       connection.kind === "ssh"
@@ -41,15 +52,20 @@ export function executionError(error: unknown, connection: Connection, write: bo
       );
     }
     if (normalized.includes("permission denied (")) {
-      return new TaskExecutionError("SSH authentication failed. Check your SSH key or unlock it in ssh-agent.");
+      return new TaskExecutionError(
+        "SSH authentication failed. Check your SSH key or unlock it in ssh-agent.",
+      );
     }
     if (
       normalized.includes("could not resolve hostname") ||
       normalized.includes("connection refused") ||
       normalized.includes("network is unreachable") ||
-      (normalized.includes("connect to host") && normalized.includes("connection timed out"))
+      (normalized.includes("connect to host") &&
+        normalized.includes("connection timed out"))
     ) {
-      return new TaskExecutionError(`Could not connect to ${connection.sshTarget}. Check the host and network.`);
+      return new TaskExecutionError(
+        `Could not connect to ${connection.sshTarget}. Check the host and network.`,
+      );
     }
     if (
       write &&
@@ -79,8 +95,13 @@ export function executionError(error: unknown, connection: Connection, write: bo
       `Taskwarrior or its configuration was not found. Check “${connection.taskCommand}” and the taskrc path.`,
     );
   }
-  if (normalized.includes("wsl_e_distro_not_found") || normalized.includes("distribution was not found")) {
-    return new TaskExecutionError(`WSL distribution “${connection.distribution}” was not found.`);
+  if (
+    normalized.includes("wsl_e_distro_not_found") ||
+    normalized.includes("distribution was not found")
+  ) {
+    return new TaskExecutionError(
+      `WSL distribution “${connection.distribution}” was not found.`,
+    );
   }
   return new TaskExecutionError(detail, "failed", error);
 }

@@ -45,3 +45,7 @@
 My Tasks opens Focus next steps: one selected task per active project, at most three. Later retains tasks outside active projects; Today still includes real due commitments. Use **Manage Focus Projects** to edit finish lines, select next tasks, activate, pause or complete a project. Activating a fourth requires choosing an active project to pause. **Set as Next Step** references a task without copying it. Reload and Keep Draft recovers from revision conflicts or uncertain writes before another submission.
 
 The default Shared Workspace `auto` connects through the configured RN SSH account to Aster's private Unix socket. Source identity must match the extension's Taskwarrior executable and taskrc. The same server owns all metadata writes; no second file writer, HTTP auth tokens or browser login is required in TinyCast.
+
+## 2.5 adaptation
+
+Full forms add native Repeat/Ends, notes and label selection. My Tasks offers Manage Notes, Edit Series and Data & Recovery. Keep full backup import/preview in the browser (`?panel=data`), where replacement scope is readable. Shared task writes, including capture, use the existing source-checked private workspace bridge; deletion records the web recovery snapshot. Preserve preferences and the two command IDs when importing the update into TinyCast.
