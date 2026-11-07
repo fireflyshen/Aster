@@ -17,6 +17,7 @@ import {
   Repeat2,
   MessageSquare,
 } from "lucide-react";
+import type { ReactNode } from "react";
 
 function dueLabel(value: string) {
   const date = new Date(value);
@@ -47,6 +48,7 @@ export function TaskRow({
   onEdit,
   onComplete,
   onToggleStart,
+  extraActions,
   trackedSeconds,
   timingUnavailable = false,
   showProject = true,
@@ -60,6 +62,7 @@ export function TaskRow({
   onEdit: () => void;
   onComplete: () => void;
   onToggleStart?: () => void;
+  extraActions?: ReactNode;
   trackedSeconds?: number;
   timingUnavailable?: boolean;
   showProject?: boolean;
@@ -68,6 +71,7 @@ export function TaskRow({
 }) {
   const checked = transition?.checked ?? completed;
   const started = !!task.start && !checked;
+  const hasRightActions = Boolean((!completed && onToggleStart) || extraActions);
   const hasDetails = !!(
     (showProject && task.project) ||
     task.due ||
@@ -104,7 +108,7 @@ export function TaskRow({
           <div
             className={cn(
               "grid",
-              !completed && onToggleStart
+              hasRightActions
                 ? "grid-cols-[2rem_minmax(0,1fr)_auto] md:grid-cols-[1.75rem_minmax(0,1fr)_auto]"
                 : "grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[1.75rem_minmax(0,1fr)]",
             )}
@@ -140,7 +144,7 @@ export function TaskRow({
               type="button"
               variant="ghost"
               disabled={disabled}
-              data-task-drag-surface={variant === "card" ? "" : undefined}
+              data-task-drag-surface=""
               onClick={onEdit}
               className="disabled:opacity-100 flex h-auto min-h-11 min-w-0 w-full flex-col items-start justify-start gap-0 self-start rounded-sm px-0 py-3 text-left font-normal whitespace-normal hover:bg-transparent focus-visible:ring-1 md:min-h-8 md:py-1.5 dark:hover:bg-transparent"
             >
@@ -252,33 +256,41 @@ export function TaskRow({
                 </span>
               )}
             </Button>
-            {!completed && onToggleStart && (
-              <div className="flex h-11 items-center pl-1 md:h-8">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={disabled || (!started && timingUnavailable)}
-                  aria-label={`${started ? "Stop" : "Start"}: ${task.description}`}
-                  title={
-                    !started && timingUnavailable
-                      ? "Timer data unavailable. Refresh to start."
-                      : undefined
-                  }
-                  onClick={onToggleStart}
-                  className={cn(
-                    "size-7 text-muted-foreground transition-opacity hover:text-foreground",
-                    started
-                      ? "text-foreground opacity-100"
-                      : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
-                  )}
-                >
-                  {started ? (
-                    <Square className="size-3 fill-current" />
-                  ) : (
-                    <Play className="size-3.5" />
-                  )}
-                </Button>
+            {hasRightActions && (
+              <div
+                data-no-drag
+                className="flex h-11 items-center gap-0.5 pl-1 md:h-8"
+              >
+                {extraActions}
+                {!completed && onToggleStart && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={disabled || (!started && timingUnavailable)}
+                    aria-label={`${started ? "Stop" : "Start"}: ${task.description}`}
+                    title={
+                      !started && timingUnavailable
+                        ? "Timer data unavailable. Refresh to start."
+                        : started
+                          ? "Stop timer"
+                          : "Start timer"
+                    }
+                    onClick={onToggleStart}
+                    className={cn(
+                      "size-7 text-muted-foreground transition-opacity hover:text-foreground",
+                      started
+                        ? "text-foreground opacity-100"
+                        : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
+                    )}
+                  >
+                    {started ? (
+                      <Square className="size-3 fill-current" />
+                    ) : (
+                      <Play className="size-3.5" />
+                    )}
+                  </Button>
+                )}
               </div>
             )}
           </div>

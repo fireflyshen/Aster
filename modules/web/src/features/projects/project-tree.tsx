@@ -47,33 +47,37 @@ export function ProjectTree({
   const records = new Map(
     data.projects?.map((project) => [project.name, project]),
   );
-  return projectTree(names, collapsed, matches)
-    .filter((row) => !roots || roots.some((root) => inProject(row.name, root)))
-    .map((row) => {
-      const record = records.get(row.name);
-      const inherited = focusProject(row.name, data.projects);
-      const root = roots?.find((name) => inProject(row.name, name));
-      const depth = row.depth - (root ? root.split(".").length - 1 : 0);
-      const count = projectTaskCount(row.name, data.projectCounts);
-      const isCollapsed = collapsed.has(row.name) && !matches;
-      return (
-        <div
-          key={row.name}
-          data-project-row
-          data-project-nav={compact ? "" : undefined}
-          data-selected={compact && current === row.name ? "true" : undefined}
-          className={`group/project flex min-w-0 items-center gap-0.5 ${
-            compact
-              ? "min-h-9 pr-1"
-              : "project-manager-row -mx-2.5 min-h-14 pr-2.5 md:-mx-3 md:pr-3"
-          }`}
-          style={{
-            paddingInlineStart:
-              (compact ? 4 : 10) +
-              Math.min(depth, compact ? 4 : 6) * (compact ? 12 : 16),
-          }}
-        >
-          {row.hasChildren ? (
+  const rows = projectTree(names, collapsed, matches).filter(
+    (row) => !roots || roots.some((root) => inProject(row.name, root)),
+  );
+  const anyHasChildren = rows.some((row) => row.hasChildren);
+
+  return rows.map((row) => {
+    const record = records.get(row.name);
+    const inherited = focusProject(row.name, data.projects);
+    const root = roots?.find((name) => inProject(row.name, name));
+    const depth = row.depth - (root ? root.split(".").length - 1 : 0);
+    const count = projectTaskCount(row.name, data.projectCounts);
+    const isCollapsed = collapsed.has(row.name) && !matches;
+    return (
+      <div
+        key={row.name}
+        data-project-row
+        data-project-nav={compact ? "" : undefined}
+        data-selected={compact && current === row.name ? "true" : undefined}
+        className={`group/project flex min-w-0 items-center gap-0.5 ${
+          compact
+            ? "min-h-8 pr-1"
+            : "project-manager-row -mx-2.5 min-h-14 pr-2.5 md:-mx-3 md:pr-3"
+        }`}
+        style={{
+          paddingInlineStart:
+            (compact ? (anyHasChildren ? 4 : 0) : 10) +
+            Math.min(depth, compact ? 4 : 6) * (compact ? 12 : 16),
+        }}
+      >
+        {anyHasChildren &&
+          (row.hasChildren ? (
             <Button
               variant="ghost"
               size="icon-sm"
@@ -99,67 +103,72 @@ export function ProjectTree({
             </Button>
           ) : (
             <span className="w-6 shrink-0" />
-          )}
-          <Button
-            variant={compact ? "navigation" : "ghost"}
-            disabled={disabled}
-            aria-current={current === row.name ? "page" : undefined}
-            title={projectPath(row.name)}
-            onClick={() => onOpen(row.name)}
-            className={
-              compact
-                ? "min-w-0 flex-1 gap-2 px-1.5 text-left has-[>svg]:px-1.5"
-                : "h-auto min-h-14 min-w-0 flex-1 justify-start gap-2 px-1.5 py-2 text-left font-normal has-[>svg]:px-1.5"
-            }
-          >
-            <ProjectIcon name={row.name} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate">
-                {root === row.name && row.parent
-                  ? projectPath(row.name)
-                  : row.label}
-              </span>
-              {!compact && record?.description && (
-                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                  {record.description}
-                </span>
-              )}
-              {depth > (compact ? 4 : 6) && (
-                <span className="block truncate text-[11px] text-muted-foreground">
-                  {projectPath(row.parent)}
-                </span>
-              )}
+          ))}
+        <Button
+          variant={compact ? "navigation" : "ghost"}
+          disabled={disabled}
+          aria-current={current === row.name ? "page" : undefined}
+          title={projectPath(row.name)}
+          onClick={() => onOpen(row.name)}
+          className={
+            compact
+              ? `min-w-0 flex-1 gap-2.5 text-left ${anyHasChildren ? "px-1.5 has-[>svg]:px-1.5" : "px-2.5 has-[>svg]:px-2.5"}`
+              : "h-auto min-h-14 min-w-0 flex-1 justify-start gap-2.5 px-1.5 py-2 text-left font-normal has-[>svg]:px-1.5"
+          }
+        >
+          <ProjectIcon
+            name={row.name}
+            className={compact ? "size-[18px]" : "size-4"}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate">
+              {root === row.name && row.parent
+                ? projectPath(row.name)
+                : row.label}
             </span>
-            {compact && !!count && (
-              <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                {count}
+            {!compact && (record?.outcome || record?.description) && (
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                {record.outcome || record.description}
               </span>
             )}
-          </Button>
-          {!compact && (
-            <>
-              <span className="hidden shrink-0 text-xs capitalize text-muted-foreground sm:block">
-                {inherited && inherited.name !== row.name
-                  ? "In Focus"
-                  : projectStatus(record)}
+            {depth > (compact ? 4 : 6) && (
+              <span className="block truncate text-[11px] text-muted-foreground">
+                {projectPath(row.parent)}
               </span>
-              <span className="min-w-5 text-right text-xs tabular-nums text-muted-foreground">
-                {count}
-              </span>
-            </>
+            )}
+          </span>
+          {compact && !!count && (
+            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+              {count}
+            </span>
           )}
-          <ProjectActions
-            name={row.name}
-            status={projectStatus(record)}
-            onStatus={
-              inherited && inherited.name !== row.name ? undefined : onStatus
-            }
-            disabled={disabled}
-            onAddChild={onAddChild}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        </div>
-      );
-    });
+        </Button>
+        {!compact && (
+          <>
+            <span className="hidden shrink-0 text-xs capitalize text-muted-foreground sm:block">
+              {inherited && inherited.name !== row.name
+                ? "In Focus"
+                : projectStatus(record) === "active"
+                  ? "Focus"
+                  : projectStatus(record)}
+            </span>
+            <span className="min-w-5 text-right text-xs tabular-nums text-muted-foreground">
+              {count}
+            </span>
+          </>
+        )}
+        <ProjectActions
+          name={row.name}
+          status={projectStatus(record)}
+          onStatus={
+            inherited && inherited.name !== row.name ? undefined : onStatus
+          }
+          disabled={disabled}
+          onAddChild={onAddChild}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      </div>
+    );
+  });
 }

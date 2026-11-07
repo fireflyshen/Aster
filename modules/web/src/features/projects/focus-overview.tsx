@@ -1,14 +1,6 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -18,12 +10,16 @@ import { parseQuickTask } from "@core/tasks/quick-task";
 import { FOCUS_LIMIT, inProject, projectStatus } from "@core/workspace/focus";
 import type { Organization } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
-import { cn } from "cn";
 import {
   ArrowRight,
+  ArrowUpToLine,
   Check,
-  ChevronRight,
   CornerDownLeft,
+  Ellipsis,
+  FolderOpen,
+  ListPlus,
+  Pause,
+  Pencil,
   Plus,
   Target,
   X,
@@ -31,90 +27,107 @@ import {
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ProjectIcon } from "./project-icon";
 
-function NextStepMenu({
+function InlineOutcome({
   projectName,
-  currentUuid,
-  candidates,
+  outcome,
   disabled,
-  label,
-  className,
-  onSelect,
+  editing,
+  onStartEdit,
+  onStopEdit,
+  onSave,
 }: {
   projectName: string;
-  currentUuid?: string;
-  candidates: Task[];
+  outcome?: string;
   disabled: boolean;
-  label: string;
-  className?: string;
-  onSelect: (uuid: string) => void;
+  editing: boolean;
+  onStartEdit: () => void;
+  onStopEdit: () => void;
+  onSave?: (outcome: string) => Promise<boolean>;
 }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const filtered = candidates.filter((task) =>
-    task.description
-      .toLocaleLowerCase()
-      .includes(query.trim().toLocaleLowerCase()),
-  );
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) setQuery("");
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          aria-label={`${label} for ${projectName}`}
-          className={className}
-        >
-          {label}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        collisionPadding={16}
-        className="w-72 max-w-[calc(100vw-2rem)] p-0"
+  const [draft, setDraft] = useState(outcome || "");
+  const [saving, setSaving] = useState(false);
+
+  async function commit() {
+    if (!onSave || saving) {
+      onStopEdit();
+      return;
+    }
+    const next = draft.trim();
+    if (!next || next === (outcome || "").trim()) {
+      setDraft(outcome || "");
+      onStopEdit();
+      return;
+    }
+    setSaving(true);
+    try {
+      const ok = await onSave(next);
+      if (ok) onStopEdit();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (editing && onSave) {
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void commit();
+        }}
+        className="-mx-2 mb-3 flex items-center gap-1.5 rounded-lg bg-(--row-hover) px-2 py-1"
       >
-        <Command shouldFilter={false}>
-          <CommandInput
-            aria-label={`Search tasks in ${projectName}`}
-            placeholder="Switch next step…"
-            value={query}
-            onValueChange={setQuery}
-          />
-          <CommandList>
-            <CommandEmpty>No matching tasks</CommandEmpty>
-            <CommandGroup>
-              {filtered.map((item) => (
-                <CommandItem
-                  key={item.uuid}
-                  value={item.uuid}
-                  onSelect={() => {
-                    onSelect(item.uuid);
-                    setOpen(false);
-                    setQuery("");
-                  }}
-                >
-                  <Check
-                    className={cn(
-                      "size-4 shrink-0",
-                      item.uuid !== currentUuid && "opacity-0",
-                    )}
-                  />
-                  <span className="min-w-0 flex-1 truncate">
-                    {item.description}
-                  </span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+        <Target
+          className="size-3.5 shrink-0 text-muted-foreground"
+          strokeWidth={1.6}
+        />
+        <input
+          type="text"
+          autoFocus
+          value={draft}
+          maxLength={500}
+          disabled={disabled || saving}
+          aria-label={`Finish line for ${projectName}`}
+          placeholder="What result makes this project complete?"
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setDraft(outcome || "");
+              onStopEdit();
+            }
+          }}
+          onBlur={() => void commit()}
+          className="min-w-0 flex-1 bg-transparent text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+        />
+        {saving && <Spinner className="size-3.5 shrink-0" />}
+      </form>
+    );
+  }
+
+  if (!outcome) return null;
+
+  return (
+    <button
+      type="button"
+      disabled={disabled || !onSave}
+      onClick={() => {
+        setDraft(outcome || "");
+        onStartEdit();
+      }}
+      title={onSave ? "Click to edit finish line" : undefined}
+      className="group/outcome -mx-2 mb-3 flex max-w-full items-start gap-1.5 rounded-md px-2 py-0.5 text-left text-sm leading-6 text-muted-foreground transition-colors hover:bg-(--row-hover) hover:text-foreground disabled:pointer-events-none"
+    >
+      <Target
+        className="mt-1.5 size-3.5 shrink-0 text-muted-foreground/80"
+        strokeWidth={1.6}
+      />
+      <span className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">
+        {outcome}
+      </span>
+      {onSave && (
+        <Pencil className="mt-1.5 size-3 shrink-0 opacity-0 transition-opacity group-hover/outcome:opacity-60" />
+      )}
+    </button>
   );
 }
 
@@ -127,7 +140,7 @@ function FocusTaskComposer({
   projectName: string;
   disabled: boolean;
   onCreateTask?: (task: TaskInput, projectName: string) => Promise<boolean>;
-  onFallbackAdd: (projectName: string) => void;
+  onFallbackAdd: (projectName: string, draft?: TaskInput) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
@@ -194,7 +207,7 @@ function FocusTaskComposer({
 
   return (
     <form onSubmit={submit} className="mt-0.5">
-      <div className="-mx-2.5 flex min-h-11 items-center gap-2 rounded-lg bg-(--row-hover) px-2.5 md:-mx-3 md:min-h-9 md:px-3">
+      <div className="-mx-2.5 flex min-h-11 items-center gap-2 rounded-lg bg-(--row-hover) px-2.5 md:-mx-3 md:min-h-8 md:px-3">
         <span
           aria-hidden="true"
           className="flex h-11 w-8 shrink-0 items-center justify-start md:h-8 md:w-7"
@@ -207,7 +220,7 @@ function FocusTaskComposer({
           value={text}
           disabled={disabled || submitting}
           aria-label={`Add task to ${projectName}`}
-          placeholder={`Add task to ${projectName}… (e.g. tomorrow p1 @tag)`}
+          placeholder="New task… (Enter to add, Esc to close)"
           onChange={(event) => {
             setText(event.target.value);
             if (error) setError("");
@@ -218,6 +231,18 @@ function FocusTaskComposer({
               setEditing(false);
               setText("");
               setError("");
+              return;
+            }
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "e") {
+              event.preventDefault();
+              const parsed = parseQuickTask(text);
+              setEditing(false);
+              setText("");
+              setError("");
+              onFallbackAdd(projectName, {
+                ...parsed.task,
+                project: parsed.task.project || projectName,
+              });
             }
           }}
           onBlur={(event) => {
@@ -236,10 +261,31 @@ function FocusTaskComposer({
         />
         <div className="flex shrink-0 items-center gap-1">
           <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            disabled={disabled || submitting}
+            title="Open full task editor (⌘E)"
+            aria-label="Open full task editor"
+            onClick={() => {
+              const parsed = parseQuickTask(text);
+              setEditing(false);
+              setText("");
+              setError("");
+              onFallbackAdd(projectName, {
+                ...parsed.task,
+                project: parsed.task.project || projectName,
+              });
+            }}
+            className="size-7 text-muted-foreground hover:text-foreground"
+          >
+            <ListPlus className="size-3.5" />
+          </Button>
+          <Button
             type="submit"
             size="xs"
             disabled={disabled || submitting || !text.trim()}
-            className="h-7 gap-1 rounded-md px-2.5 text-xs shadow-none"
+            className="h-6 gap-1 rounded-md px-2 text-xs shadow-none"
           >
             {submitting ? (
               <Spinner className="size-3" />
@@ -290,6 +336,7 @@ export function FocusOverview({
   onAddTask,
   onCreateTask,
   onSelectNext,
+  onUpdateOutcome,
   renderTask,
 }: {
   data: Organization;
@@ -302,14 +349,17 @@ export function FocusOverview({
   onComplete?: (name: string) => void;
   onOpen: (name: string) => void;
   onEdit: (name: string) => void;
-  onAddTask: (name: string) => void;
+  onAddTask: (name: string, draft?: TaskInput) => void;
   onCreateTask?: (task: TaskInput, projectName: string) => Promise<boolean>;
   onSelectNext?: (projectName: string, taskUuid: string) => void;
-  renderTask: (task: Task) => ReactNode;
+  onUpdateOutcome?: (projectName: string, outcome: string) => Promise<boolean>;
+  renderTask: (task: Task, extraActions?: ReactNode) => ReactNode;
 }) {
-  const [collapsedUpNext, setCollapsedUpNext] = useState<Set<string>>(
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
     new Set(),
   );
+  const [editingOutcome, setEditingOutcome] = useState<string | null>(null);
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const projects = (data.projects || []).filter(
     (project) => projectStatus(project) === "active",
   );
@@ -371,17 +421,25 @@ export function FocusOverview({
               (item) => item.uuid === project.nextTask,
             );
             const nextStep = pinned || candidates[0];
-            const upNext = candidates.filter(
-              (item) => item.uuid !== nextStep?.uuid,
-            );
-            const isUpNextCollapsed = collapsedUpNext.has(project.name);
+            const orderedTasks = nextStep
+              ? [
+                  nextStep,
+                  ...candidates.filter((item) => item.uuid !== nextStep.uuid),
+                ]
+              : [];
+            const isExpanded = expandedProjects.has(project.name);
+            const visibleTasks = isExpanded
+              ? orderedTasks
+              : orderedTasks.slice(0, 5);
+            const hiddenCount = orderedTasks.length - visibleTasks.length;
+
             return (
               <section
                 key={project.name}
-                className="group/focus min-w-0 border-b border-border/80 pb-6 [&_[data-task-surface]]:border-0"
+                className="group/focus min-w-0 border-b border-border/80 pb-6"
                 aria-label={`Focus: ${project.name}`}
               >
-                <div className="mb-1.5 flex items-center justify-between gap-3">
+                <div className="mb-1 flex items-center justify-between gap-2">
                   <Button
                     variant="ghost"
                     disabled={disabled}
@@ -395,20 +453,9 @@ export function FocusOverview({
                         {candidates.length}
                       </span>
                     )}
-                    <ArrowRight className="size-4 text-muted-foreground opacity-60 transition-all duration-150 group-hover/focus:translate-x-0.5 group-hover/focus:opacity-100" />
+                    <ArrowRight className="size-4 text-muted-foreground opacity-50 transition-all duration-150 group-hover/focus:translate-x-0.5 group-hover/focus:opacity-100" />
                   </Button>
-                  <div className="flex shrink-0 items-center gap-1 md:opacity-0 md:transition-opacity md:group-hover/focus:opacity-100 md:group-focus-within/focus:opacity-100">
-                    {onComplete && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={disabled}
-                        onClick={() => onComplete(project.name)}
-                        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        Complete
-                      </Button>
-                    )}
+                  <div className="flex shrink-0 items-center gap-1 md:opacity-0 md:transition-opacity md:group-hover/focus:opacity-100 md:group-focus-within/focus:opacity-100 [&:has([data-state=open])]:opacity-100">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -418,120 +465,146 @@ export function FocusOverview({
                     >
                       Pause
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled}
-                      onClick={() => onEdit(project.name)}
-                      className="h-7 shrink-0 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    <Popover
+                      open={openMenu === project.name}
+                      onOpenChange={(next) =>
+                        setOpenMenu(next ? project.name : null)
+                      }
                     >
-                      Edit focus
-                    </Button>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={disabled}
+                          aria-label={`Project options: ${project.name}`}
+                          className="size-7 text-muted-foreground hover:text-foreground data-[state=open]:bg-accent"
+                        >
+                          <Ellipsis className="size-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-44 p-1">
+                        <Button
+                          variant="navigation"
+                          className="h-8 text-xs"
+                          onClick={() => {
+                            setOpenMenu(null);
+                            onOpen(project.name);
+                          }}
+                        >
+                          <FolderOpen className="size-3.5" />
+                          Open project
+                        </Button>
+                        {onUpdateOutcome && (
+                          <Button
+                            variant="navigation"
+                            className="h-8 text-xs"
+                            onClick={() => {
+                              setOpenMenu(null);
+                              setEditingOutcome(project.name);
+                            }}
+                          >
+                            <Target className="size-3.5" />
+                            Edit finish line
+                          </Button>
+                        )}
+                        <Button
+                          variant="navigation"
+                          className="h-8 text-xs"
+                          onClick={() => {
+                            setOpenMenu(null);
+                            onEdit(project.name);
+                          }}
+                        >
+                          <Pencil className="size-3.5" />
+                          Edit project
+                        </Button>
+                        <Button
+                          variant="navigation"
+                          className="h-8 text-xs"
+                          onClick={() => {
+                            setOpenMenu(null);
+                            onPause(project.name);
+                          }}
+                        >
+                          <Pause className="size-3.5" />
+                          Pause for later
+                        </Button>
+                        {onComplete && (
+                          <Button
+                            variant="navigation"
+                            className="h-8 text-xs"
+                            onClick={() => {
+                              setOpenMenu(null);
+                              onComplete(project.name);
+                            }}
+                          >
+                            <Check className="size-3.5" />
+                            Complete project
+                          </Button>
+                        )}
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
-                {project.outcome && (
-                  <p className="mb-4 text-sm leading-6 whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]">
-                    {project.outcome}
-                  </p>
-                )}
-                {nextStep ? (
-                  <div className="space-y-3">
-                    <div className="[&_[data-task-surface]::after]:hidden">
-                      <div className="mb-0.5 flex items-center justify-between gap-2">
-                        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                          <Target
-                            className="size-3 text-foreground/70"
-                            strokeWidth={1.8}
-                          />
-                          Next step
-                        </span>
-                        {candidates.length > 1 && onSelectNext && (
-                          <NextStepMenu
-                            projectName={project.name}
-                            currentUuid={nextStep.uuid}
-                            candidates={candidates}
+                <InlineOutcome
+                  projectName={project.name}
+                  outcome={project.outcome}
+                  disabled={disabled}
+                  editing={editingOutcome === project.name}
+                  onStartEdit={() => setEditingOutcome(project.name)}
+                  onStopEdit={() => setEditingOutcome(null)}
+                  onSave={
+                    onUpdateOutcome
+                      ? (outcome) => onUpdateOutcome(project.name, outcome)
+                      : undefined
+                  }
+                />
+                <div>
+                  {visibleTasks.map((item, index) => (
+                    <div key={item.uuid}>
+                      {renderTask(
+                        item,
+                        index > 0 && onSelectNext ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
                             disabled={disabled}
-                            label="Switch"
-                            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground md:opacity-0 md:transition-opacity md:group-hover/focus:opacity-100 md:group-focus-within/focus:opacity-100 data-[state=open]:opacity-100"
-                            onSelect={(uuid) =>
-                              onSelectNext(project.name, uuid)
-                            }
-                          />
-                        )}
-                      </div>
-                      {renderTask(nextStep)}
+                            title="Pin as top next step"
+                            aria-label={`Set as next step: ${item.description}`}
+                            onClick={() => onSelectNext(project.name, item.uuid)}
+                            className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100"
+                          >
+                            <ArrowUpToLine className="size-3.5" />
+                          </Button>
+                        ) : undefined,
+                      )}
                     </div>
-                    {upNext.length > 0 && (
-                      <div className="pt-1">
-                        <button
-                          type="button"
-                          aria-expanded={!isUpNextCollapsed}
-                          onClick={() =>
-                            setCollapsedUpNext((prev) => {
-                              const next = new Set(prev);
-                              if (next.has(project.name))
-                                next.delete(project.name);
-                              else next.add(project.name);
-                              return next;
-                            })
-                          }
-                          className="-ml-2 mb-0.5 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors select-none hover:bg-(--row-hover) hover:text-foreground"
-                        >
-                          <ChevronRight
-                            className={cn(
-                              "size-3.5 transition-transform duration-150",
-                              !isUpNextCollapsed && "rotate-90",
-                            )}
-                          />
-                          Up next · {upNext.length}
-                        </button>
-                        {!isUpNextCollapsed && (
-                          <div>
-                            {upNext.map((item) => (
-                              <div
-                                key={item.uuid}
-                                className="group/upnext relative flex min-w-0 items-center"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  {renderTask(item)}
-                                </div>
-                                {onSelectNext && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="xs"
-                                    disabled={disabled}
-                                    aria-label={`Set as next step: ${item.description}`}
-                                    onClick={() =>
-                                      onSelectNext(project.name, item.uuid)
-                                    }
-                                    className="ml-1 shrink-0 text-xs text-muted-foreground hover:text-foreground md:opacity-0 md:transition-opacity md:group-hover/upnext:opacity-100 md:group-focus-within/upnext:opacity-100"
-                                  >
-                                    <Target className="size-3" />
-                                    Set as next
-                                  </Button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    <FocusTaskComposer
-                      projectName={project.name}
-                      disabled={disabled}
-                      onCreateTask={onCreateTask}
-                      onFallbackAdd={onAddTask}
-                    />
-                  </div>
-                ) : (
+                  ))}
+                  {hiddenCount > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setExpandedProjects((prev) => {
+                          const next = new Set(prev);
+                          next.add(project.name);
+                          return next;
+                        })
+                      }
+                      className="-mx-2.5 mt-0.5 h-8 px-2.5 text-xs font-normal text-muted-foreground hover:bg-(--row-hover) hover:text-foreground md:-mx-3 md:px-3"
+                    >
+                      Show {hiddenCount} more task{hiddenCount === 1 ? "" : "s"}
+                    </Button>
+                  )}
                   <FocusTaskComposer
                     projectName={project.name}
                     disabled={disabled}
                     onCreateTask={onCreateTask}
                     onFallbackAdd={onAddTask}
                   />
-                )}
+                </div>
               </section>
             );
           })}

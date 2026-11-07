@@ -34,7 +34,10 @@ import { OrganizationManager } from "@/features/organization/organization-manage
 import { FocusPicker } from "@/features/projects/focus-picker";
 import { FocusOverview } from "@/features/projects/focus-overview";
 import { ProjectEditor } from "@/features/projects/project-editor";
-import { ProjectColorsProvider } from "@/features/projects/project-icon";
+import {
+  ProjectColorsProvider,
+  ProjectIcon,
+} from "@/features/projects/project-icon";
 import { ProjectManager } from "@/features/projects/project-manager";
 import { ProjectTransition } from "@/features/projects/project-transition";
 import { QuickAdd } from "@/features/tasks/quick-add";
@@ -56,8 +59,10 @@ import {
 } from "@core/workspace/board";
 import { liveEnergySummary } from "@core/workspace/energy";
 import {
+  FOCUS_LIMIT,
   focusProject,
   inProject,
+  projectStatus,
   type ProjectStatus,
 } from "@core/workspace/focus";
 import {
@@ -87,6 +92,7 @@ import {
   Plus,
   RotateCw,
   Search,
+  Target,
   Trash2,
   X,
 } from "lucide-react";
@@ -99,6 +105,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import { ThemeSwitcher } from "./theme-switcher";
 import { views, WorkspaceSidebar } from "./workspace-sidebar";
@@ -222,6 +229,10 @@ export default function App() {
   }>();
   const [editingProject, setEditingProject] = useState<string>();
   const [newProjectParent, setNewProjectParent] = useState("");
+  const [editingHeaderOutcome, setEditingHeaderOutcome] = useState(false);
+  const [headerOutcomeDraft, setHeaderOutcomeDraft] = useState("");
+  const [editingHeaderDesc, setEditingHeaderDesc] = useState(false);
+  const [headerDescDraft, setHeaderDescDraft] = useState("");
   const [deletingProject, setDeletingProject] = useState<{
     name: string;
     revision: number;
@@ -744,6 +755,10 @@ export default function App() {
     ]),
   ];
   const currentProject = filterProjects.includes(project) ? project : "";
+  useEffect(() => {
+    setEditingHeaderOutcome(false);
+    setEditingHeaderDesc(false);
+  }, [currentProject]);
   const specialPage =
     !organizationPage &&
     !activeItem &&
@@ -751,6 +766,64 @@ export default function App() {
     (view === "focus" || view === "later");
   const inbox =
     view === "pending" && !currentProject && !query.trim() && !activeItem;
+  const viewCounts: Partial<Record<View, number>> = {
+    pending: tasks.filter(
+      (task) =>
+        task.status !== "completed" &&
+        !task.project &&
+        taskGroup(task) !== "waiting",
+    ).length,
+    today: tasks.filter(
+      (task) =>
+        task.status !== "completed" &&
+        ["overdue", "today"].includes(taskGroup(task)),
+    ).length,
+    waiting: tasks.filter((task) => taskGroup(task) === "waiting").length,
+  };
+  function withViewDefaults(input: TaskInput): TaskInput {
+    const defaultTag =
+      activeEntry?.kind === "tag" && activeItem ? activeItem.name : "";
+    const mergedTags =
+      defaultTag && !input.tags.includes(defaultTag)
+        ? [...input.tags, defaultTag]
+        : input.tags;
+    return {
+      ...input,
+      project: input.project || currentProject,
+      due: input.due || (view === "today" ? taskDate(new Date()) : ""),
+      tags: mergedTags,
+    };
+  }
+  async function createTaskInView(input: TaskInput, columnId?: string) {
+    if (writeLock.current || needsCheck) return false;
+    const knownUuids = new Set(tasks.map((item) => item.uuid));
+    const prepared = withViewDefaults(input);
+    const saved = await mutate(
+      "tasks",
+      prepared,
+      undefined,
+      columnId && columnId !== UNSECTIONED
+        ? async (fresh) => {
+            const created = fresh.find((item) => !knownUuids.has(item.uuid));
+            if (!created) return;
+            try {
+              const latest = await api<Organization>("organization", {
+                kind: "board",
+                action: "task.move",
+                revision: organization.revision,
+                uuid: created.uuid,
+                columnId,
+                beforeUuid: null,
+              });
+              setOrganization(latest);
+            } catch {
+              /* Task is already saved; board placement will sync on next load. */
+            }
+          }
+        : undefined,
+    );
+    return Boolean(saved);
+  }
   const visible = tasks.filter((task) => {
     const group =
       task.status === "completed" && view === "today"
@@ -821,10 +894,11 @@ export default function App() {
       action: "elixir",
     });
   }
-  const renderTask = (task: Task) => (
+  const renderTask = (task: Task, extraActions?: ReactNode) => (
     <TaskRow
       key={task.uuid}
       task={task}
+      extraActions={extraActions}
       variant={!specialPage && layout === "board" ? "card" : "list"}
       showProject={
         !specialPage && layout === "board"
@@ -847,9 +921,11 @@ export default function App() {
     />
   );
 
-  const projectDescription = organization.projects?.find(
+  const currentProjectRecord = organization.projects?.find(
     (item) => item.name === currentProject,
-  )?.description;
+  );
+  const projectDescription = currentProjectRecord?.description;
+  const projectOutcome = currentProjectRecord?.outcome;
   function editProject(name: string) {
     setOrganizationError("");
     setNewProjectParent("");
@@ -862,8 +938,44 @@ export default function App() {
   }
   function transition(name: string, status: ProjectStatus) {
     setOrganizationError("");
-    setTransitionProject({ name, status });
     if (innerWidth < 768) setNavOpen(false);
+    if (status === "later") {
+      void changeOrganization({
+        revision: organization.revision,
+        kind: "project",
+        action: "status",
+        name,
+        status: "later",
+      });
+      return;
+    }
+    if (status === "active") {
+      const record = organization.projects?.find((p) => p.name === name);
+      const active = (organization.projects || []).filter(
+        (item) => item.name !== name && projectStatus(item) === "active",
+      );
+      const overlaps = active.filter(
+        (item) => inProject(item.name, name) || inProject(name, item.name),
+      );
+      if (
+        record?.outcome?.trim() &&
+        active.length < FOCUS_LIMIT &&
+        overlaps.length === 0
+      ) {
+        void changeOrganization({
+          revision: organization.revision,
+          kind: "project",
+          action: "status",
+          name,
+          status: "active",
+          outcome: record.outcome,
+        }).then((saved) => {
+          if (saved) setFocusPickerOpen(false);
+        });
+        return;
+      }
+    }
+    setTransitionProject({ name, status });
   }
   function deleteProject(name: string) {
     setOrganizationError("");
@@ -884,6 +996,7 @@ export default function App() {
         activeEntry={activeEntry}
         hasActiveItem={!!activeItem}
         projects={filterProjects}
+        viewCounts={viewCounts}
         busy={busy}
         needsCheck={needsCheck}
         organizationSaving={
@@ -1050,21 +1163,63 @@ export default function App() {
               data-workspace-heading
               className="mb-6 flex min-h-10 items-center justify-between gap-4"
             >
-              <h1
-                title={currentProject ? projectPath(currentProject) : undefined}
-                id="view-title"
-                tabIndex={-1}
-                className="min-w-0 truncate text-2xl leading-8 font-bold tracking-[-0.5px] outline-none"
-              >
-                {organizationPage
-                  ? projectsPage
-                    ? "Projects"
-                    : "Filters & labels"
-                  : activeItem?.name ||
-                    (currentProject
-                      ? projectLeaf(currentProject)
-                      : views[view])}
-              </h1>
+              <div className="flex min-w-0 items-center gap-2.5">
+                {currentProject && !organizationPage && !activeItem && (
+                  <ProjectIcon
+                    name={currentProject}
+                    className="size-5 shrink-0"
+                  />
+                )}
+                <h1
+                  title={
+                    currentProject ? projectPath(currentProject) : undefined
+                  }
+                  id="view-title"
+                  tabIndex={-1}
+                  className="min-w-0 truncate text-2xl leading-8 font-bold tracking-[-0.5px] outline-none"
+                >
+                  {organizationPage
+                    ? projectsPage
+                      ? "Projects"
+                      : "Filters & labels"
+                    : activeItem?.name ||
+                      (currentProject
+                        ? projectLeaf(currentProject)
+                        : views[view])}
+                </h1>
+                {currentProject && !organizationPage && !activeItem && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    disabled={busy || organizationSaving}
+                    onClick={() =>
+                      transition(
+                        focusProject(currentProject, organization.projects)
+                          ?.name || currentProject,
+                        focusProject(currentProject, organization.projects)
+                          ? "later"
+                          : "active",
+                      )
+                    }
+                    className={cn(
+                      "h-6 shrink-0 gap-1 rounded-full border px-2.5 text-[11px] font-medium",
+                      focusProject(currentProject, organization.projects)
+                        ? "border-primary/25 bg-primary/8 text-foreground hover:bg-primary/14"
+                        : "border-border text-muted-foreground hover:bg-(--row-hover) hover:text-foreground",
+                    )}
+                  >
+                    {focusProject(currentProject, organization.projects) ? (
+                      <>
+                        <Target className="size-3" strokeWidth={1.8} />
+                        Focus
+                      </>
+                    ) : (
+                      "Later"
+                    )}
+                  </Button>
+                )}
+              </div>
               {!organizationPage && !specialPage && (
                 <div className="flex shrink-0 items-center gap-2">
                   <TabsList
@@ -1104,11 +1259,12 @@ export default function App() {
                         <Ellipsis className="size-5" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent align="end" className="w-40 p-1">
+                    <PopoverContent align="end" className="w-44 p-1">
                       {currentProject && !activeItem && (
                         <>
                           <Button
                             variant="navigation"
+                            className="h-8 text-xs"
                             disabled={busy || organizationSaving}
                             onClick={() => {
                               setViewMenuOpen(false);
@@ -1137,12 +1293,13 @@ export default function App() {
                             ) : (
                               <>
                                 <Play className="size-3.5" />
-                                Activate project
+                                Add to Focus
                               </>
                             )}
                           </Button>
                           <Button
                             variant="navigation"
+                            className="h-8 text-xs"
                             disabled={busy || organizationSaving}
                             onClick={() => {
                               setViewMenuOpen(false);
@@ -1158,57 +1315,54 @@ export default function App() {
                             <Check className="size-3.5" />
                             Complete project
                           </Button>
+                          <Button
+                            variant="navigation"
+                            className="h-8 text-xs"
+                            disabled={
+                              busy || organizationSaving || !organizationReady
+                            }
+                            onClick={() => {
+                              setViewMenuOpen(false);
+                              addSubproject(currentProject);
+                            }}
+                          >
+                            <Plus className="size-3.5" />
+                            Add subproject
+                          </Button>
+                          <Button
+                            variant="navigation"
+                            className="h-8 text-xs"
+                            disabled={
+                              busy || organizationSaving || !organizationReady
+                            }
+                            onClick={() => {
+                              setViewMenuOpen(false);
+                              editProject(currentProject);
+                            }}
+                          >
+                            <Pencil className="size-3.5" />
+                            Edit project
+                          </Button>
+                          <Button
+                            variant="navigation"
+                            disabled={
+                              busy || organizationSaving || !organizationReady
+                            }
+                            className="h-8 text-xs text-destructive"
+                            onClick={() => {
+                              setViewMenuOpen(false);
+                              deleteProject(currentProject);
+                            }}
+                          >
+                            <Trash2 className="size-3.5" />
+                            Delete project
+                          </Button>
                         </>
-                      )}
-                      {currentProject && !activeItem && (
-                        <Button
-                          variant="navigation"
-                          disabled={
-                            busy || organizationSaving || !organizationReady
-                          }
-                          onClick={() => {
-                            setViewMenuOpen(false);
-                            addSubproject(currentProject);
-                          }}
-                        >
-                          <Plus className="size-3.5" />
-                          Add subproject
-                        </Button>
-                      )}
-                      {currentProject && !activeItem && (
-                        <Button
-                          variant="navigation"
-                          disabled={
-                            busy || organizationSaving || !organizationReady
-                          }
-                          onClick={() => {
-                            setViewMenuOpen(false);
-                            editProject(currentProject);
-                          }}
-                        >
-                          <Pencil className="size-3.5" />
-                          Edit project
-                        </Button>
-                      )}
-                      {currentProject && !activeItem && (
-                        <Button
-                          variant="navigation"
-                          disabled={
-                            busy || organizationSaving || !organizationReady
-                          }
-                          className="text-destructive"
-                          onClick={() => {
-                            setViewMenuOpen(false);
-                            deleteProject(currentProject);
-                          }}
-                        >
-                          <Trash2 className="size-3.5" />
-                          Delete project
-                        </Button>
                       )}
                       {activeItem && (
                         <Button
                           variant="navigation"
+                          className="h-8 text-xs"
                           onClick={() => {
                             setViewMenuOpen(false);
                             setProjectsPage(false);
@@ -1222,35 +1376,38 @@ export default function App() {
                             : "labels"}
                         </Button>
                       )}
-                      {(Object.entries(views) as [View, string][]).map(
-                        ([key, label]) => (
-                          <Button
-                            key={key}
-                            variant="navigation"
-                            aria-current={
-                              view === key && !currentProject
-                                ? "page"
-                                : undefined
-                            }
-                            className="h-8 text-xs"
-                            onClick={() => {
-                              openTaskView();
-                              setView(key);
-                              setViewMenuOpen(false);
-                              setProject("");
-                              setQuery("");
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "size-3.5",
-                                (view !== key || currentProject) && "invisible",
-                              )}
-                            />
-                            {label}
-                          </Button>
-                        ),
-                      )}
+                      {!currentProject &&
+                        !activeItem &&
+                        (Object.entries(views) as [View, string][]).map(
+                          ([key, label]) => (
+                            <Button
+                              key={key}
+                              variant="navigation"
+                              aria-current={
+                                view === key && !currentProject
+                                  ? "page"
+                                  : undefined
+                              }
+                              className="h-8 text-xs"
+                              onClick={() => {
+                                openTaskView();
+                                setView(key);
+                                setViewMenuOpen(false);
+                                setProject("");
+                                setQuery("");
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "size-3.5",
+                                  (view !== key || currentProject) &&
+                                    "invisible",
+                                )}
+                              />
+                              {label}
+                            </Button>
+                          ),
+                        )}
                     </PopoverContent>
                   </Popover>
                 </div>
@@ -1297,8 +1454,33 @@ export default function App() {
                     },
                   });
                 }}
-                onAddTask={(name) => {
+                onUpdateOutcome={(projectName, outcome) => {
+                  const current = organization.projects?.find(
+                    (item) => item.name === projectName,
+                  );
+                  return changeOrganization({
+                    kind: "project",
+                    action: "save",
+                    revision: organization.revision,
+                    originalName: projectName,
+                    item: {
+                      name: projectName,
+                      description: current?.description || "",
+                      outcome,
+                      nextTask: current?.nextTask || "",
+                      color: current?.color,
+                    },
+                  });
+                }}
+                onAddTask={(name, initial) => {
                   if (writeLock.current || needsCheck || open) return;
+                  if (initial) {
+                    openEditor(undefined, {
+                      ...initial,
+                      project: initial.project || name,
+                    });
+                    return;
+                  }
                   setQuickProject(name);
                   setQuickError("");
                   setQuickOpen(true);
@@ -1394,17 +1576,158 @@ export default function App() {
             ) : (
               <>
                 {!!currentProject && !activeItem && (
-                  <Button
-                    variant="ghost"
-                    disabled={busy || organizationSaving || !organizationReady}
-                    onClick={() => editProject(currentProject)}
-                    className="group -mt-3 -ml-2.5 mb-6 h-auto min-h-8 max-w-full justify-start gap-2 rounded-lg px-2.5 py-1 text-left text-sm leading-6 font-normal whitespace-pre-wrap text-muted-foreground hover:bg-(--row-hover) hover:text-foreground disabled:opacity-100 has-[>svg]:px-2.5"
-                  >
-                    <span className="min-w-0 [overflow-wrap:anywhere]">
-                      {projectDescription || "Add description"}
-                    </span>
-                    <Pencil className="size-3.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-                  </Button>
+                  <div className="-mt-3 mb-6 space-y-1">
+                    {(projectOutcome ||
+                      focusProject(currentProject, organization.projects) ||
+                      editingHeaderOutcome) &&
+                      (editingHeaderOutcome ? (
+                        <form
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const next = headerOutcomeDraft.trim();
+                            setEditingHeaderOutcome(false);
+                            if (next === (projectOutcome || "").trim()) return;
+                            if (
+                              focusProject(
+                                currentProject,
+                                organization.projects,
+                              ) &&
+                              !next
+                            )
+                              return;
+                            void changeOrganization({
+                              kind: "project",
+                              action: "save",
+                              revision: organization.revision,
+                              originalName: currentProject,
+                              item: {
+                                name: currentProject,
+                                description: projectDescription || "",
+                                outcome: next,
+                                nextTask: currentProjectRecord?.nextTask || "",
+                                color: currentProjectRecord?.color,
+                              },
+                            });
+                          }}
+                          className="-mx-2.5 flex items-center gap-1.5 rounded-lg bg-(--row-hover) px-2.5 py-1"
+                        >
+                          <Target
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                            strokeWidth={1.6}
+                          />
+                          <input
+                            type="text"
+                            autoFocus
+                            value={headerOutcomeDraft}
+                            maxLength={500}
+                            disabled={
+                              busy || organizationSaving || !organizationReady
+                            }
+                            placeholder="What result makes this project complete?"
+                            onChange={(event) =>
+                              setHeaderOutcomeDraft(event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                setEditingHeaderOutcome(false);
+                              }
+                            }}
+                            onBlur={(event) =>
+                              event.currentTarget.form?.requestSubmit()
+                            }
+                            className="min-w-0 flex-1 bg-transparent text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+                          />
+                        </form>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          disabled={
+                            busy || organizationSaving || !organizationReady
+                          }
+                          onClick={() => {
+                            setHeaderOutcomeDraft(projectOutcome || "");
+                            setEditingHeaderOutcome(true);
+                          }}
+                          className="group -ml-2.5 h-auto min-h-7 max-w-full justify-start gap-1.5 rounded-lg px-2.5 py-0.5 text-left text-sm leading-6 font-normal whitespace-pre-wrap text-foreground/85 hover:bg-(--row-hover) hover:text-foreground disabled:opacity-100 has-[>svg]:px-2.5"
+                        >
+                          <Target
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                            strokeWidth={1.6}
+                          />
+                          <span className="min-w-0 [overflow-wrap:anywhere]">
+                            {projectOutcome || "Set finish line"}
+                          </span>
+                          <Pencil className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60 group-focus-visible:opacity-60" />
+                        </Button>
+                      ))}
+                    {editingHeaderDesc ? (
+                      <form
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          const next = headerDescDraft.trim();
+                          setEditingHeaderDesc(false);
+                          if (next === (projectDescription || "").trim())
+                            return;
+                          void changeOrganization({
+                            kind: "project",
+                            action: "save",
+                            revision: organization.revision,
+                            originalName: currentProject,
+                            item: {
+                              name: currentProject,
+                              description: next,
+                              outcome: projectOutcome,
+                              nextTask: currentProjectRecord?.nextTask || "",
+                              color: currentProjectRecord?.color,
+                            },
+                          });
+                        }}
+                        className="-mx-2.5 flex items-center gap-2 rounded-lg bg-(--row-hover) px-2.5 py-1"
+                      >
+                        <input
+                          type="text"
+                          autoFocus
+                          value={headerDescDraft}
+                          maxLength={2000}
+                          disabled={
+                            busy || organizationSaving || !organizationReady
+                          }
+                          placeholder="Add project notes or description…"
+                          onChange={(event) =>
+                            setHeaderDescDraft(event.target.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              event.preventDefault();
+                              setEditingHeaderDesc(false);
+                            }
+                          }}
+                          onBlur={(event) =>
+                            event.currentTarget.form?.requestSubmit()
+                          }
+                          className="min-w-0 flex-1 bg-transparent text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+                        />
+                      </form>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        disabled={
+                          busy || organizationSaving || !organizationReady
+                        }
+                        onClick={() => {
+                          setHeaderDescDraft(projectDescription || "");
+                          setEditingHeaderDesc(true);
+                        }}
+                        className="group -ml-2.5 h-auto min-h-7 max-w-full justify-start gap-2 rounded-lg px-2.5 py-0.5 text-left text-sm leading-6 font-normal whitespace-pre-wrap text-muted-foreground hover:bg-(--row-hover) hover:text-foreground disabled:opacity-100 has-[>svg]:px-2.5"
+                      >
+                        <span className="min-w-0 [overflow-wrap:anywhere]">
+                          {projectDescription || "Add description"}
+                        </span>
+                        <Pencil className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60 group-focus-visible:opacity-60" />
+                      </Button>
+                    )}
+                  </div>
                 )}
                 {activeEntry?.kind === "filter" &&
                   (activeItem as SavedFilter)?.description && (
@@ -1546,7 +1869,12 @@ export default function App() {
                       moving={boardMove}
                       renderTask={renderTask}
                       onMove={moveTask}
-                      onAdd={openQuickAdd}
+                      onCreateTask={createTaskInView}
+                      onAdd={(initial) =>
+                        initial
+                          ? openEditor(undefined, withViewDefaults(initial))
+                          : openQuickAdd()
+                      }
                       canAddTask={view !== "completed"}
                       hasSearch={!!query.trim()}
                       onClearSearch={() => {
@@ -1594,7 +1922,12 @@ export default function App() {
                       moving={boardMove}
                       renderTask={renderTask}
                       onMove={moveTask}
-                      onAdd={openQuickAdd}
+                      onCreateTask={createTaskInView}
+                      onAdd={(initial) =>
+                        initial
+                          ? openEditor(undefined, withViewDefaults(initial))
+                          : openQuickAdd()
+                      }
                       canAddTask={view !== "completed"}
                       hasSearch={!!query.trim()}
                       onClearSearch={() => {
@@ -1638,10 +1971,11 @@ export default function App() {
           }
         }}
         onAdd={async (task) => {
-          const saved = await mutate("tasks", task, "quick");
+          const prepared = withViewDefaults(task);
+          const saved = await mutate("tasks", prepared, "quick");
           if (saved) {
             setQuickProject("");
-            setAddedProject(task.project || "");
+            setAddedProject(prepared.project || "");
             setUndoTask(undefined);
             setToastVersion((value) => value + 1);
             setToastOpen(true);
@@ -1651,7 +1985,7 @@ export default function App() {
         onEdit={(task) => {
           setQuickOpen(false);
           setQuickProject("");
-          openEditor(undefined, task);
+          openEditor(undefined, withViewDefaults(task));
         }}
       />
 
@@ -1759,8 +2093,49 @@ export default function App() {
       {focusPickerOpen && !transitionProject && (
         <FocusPicker
           data={organization}
+          busy={organizationSaving}
+          error={organizationError}
           onClose={() => setFocusPickerOpen(false)}
           onChoose={(name) => transition(name, "active")}
+          onCreateAndFocus={async (name, outcome, replaceProject) => {
+            if (writeLock.current || organizationBlocked || needsCheck)
+              return false;
+            writeLock.current = true;
+            setOrganizationSaving(true);
+            setOrganizationError("");
+            organizationGeneration.current++;
+            try {
+              const created = await api<Organization>("organization", {
+                kind: "project",
+                action: "save",
+                revision: organization.revision,
+                item: {
+                  name,
+                  description: "",
+                  outcome,
+                  nextTask: "",
+                },
+              });
+              const activated = await api<Organization>("organization", {
+                kind: "project",
+                action: "status",
+                revision: created.revision,
+                name,
+                status: "active",
+                outcome,
+                ...(replaceProject ? { replaceProject } : {}),
+              });
+              setOrganization(activated);
+              await load();
+              return true;
+            } catch (error) {
+              setOrganizationError((error as Error).message);
+              return false;
+            } finally {
+              writeLock.current = false;
+              setOrganizationSaving(false);
+            }
+          }}
         />
       )}
       {transitionProject && (

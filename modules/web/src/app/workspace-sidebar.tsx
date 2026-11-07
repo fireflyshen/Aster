@@ -4,6 +4,7 @@ import { ProjectTree } from "@/features/projects/project-tree";
 import { formatDuration, type EnergySummary } from "@core/workspace/energy";
 import {
   FOCUS_LIMIT,
+  focusProject,
   projectStatus,
   type ProjectStatus,
 } from "@core/workspace/focus";
@@ -17,17 +18,19 @@ import type { View } from "@shared/tasks";
 import { cn } from "cn";
 import {
   Archive,
-  DatabaseBackup,
   Asterisk,
   CalendarDays,
+  ChevronRight,
   CircleCheck,
   Clock3,
+  DatabaseBackup,
   Inbox,
   PanelLeft,
   Plus,
   Target,
   Zap,
 } from "lucide-react";
+import { useState } from "react";
 import { WorkspaceNavigation } from "./workspace-navigation";
 
 export const views: Record<View, string> = {
@@ -58,6 +61,7 @@ type WorkspaceSidebarProps = {
   hasActiveItem: boolean;
   activeEntry?: { kind: "filter" | "tag"; id: string };
   projects: string[];
+  viewCounts?: Partial<Record<View, number>>;
   busy: boolean;
   needsCheck: boolean;
   organizationSaving: boolean;
@@ -94,6 +98,7 @@ export function WorkspaceSidebar({
   activeEntry,
   hasActiveItem,
   projects,
+  viewCounts,
   busy,
   needsCheck,
   organizationSaving,
@@ -115,9 +120,21 @@ export function WorkspaceSidebar({
   onOrganization,
   onRecovery,
 }: WorkspaceSidebarProps) {
+  const [laterCollapsed, setLaterCollapsed] = useState(false);
+  const activeRoots = (organization.projects || [])
+    .filter((p) => projectStatus(p) === "active")
+    .map((p) => p.name);
+  const laterProjects = projects.filter((name) => {
+    const record = organization.projects?.find((p) => p.name === name);
+    const status = projectStatus(record);
+    return (
+      !focusProject(name, organization.projects) && status !== "completed"
+    );
+  });
+
   return (
     <WorkspaceNavigation open={navOpen} onOpenChange={onOpenChange}>
-      <div className="mb-4 flex h-12 items-center gap-2 px-1 text-sm font-semibold md:px-3">
+      <div className="mb-3 flex h-10 items-center gap-2 px-1 text-sm font-semibold md:px-2.5">
         <Button
           id="sidebar-close"
           variant="ghost"
@@ -148,6 +165,7 @@ export function WorkspaceSidebar({
       <nav aria-label="Task views" className="space-y-0.5">
         {(Object.entries(views) as [View, string][]).map(([value, label]) => {
           const Icon = viewIcons[value];
+          const count = viewCounts?.[value];
           return (
             <Button
               key={value}
@@ -167,7 +185,16 @@ export function WorkspaceSidebar({
               }}
             >
               <Icon className="size-[18px]" />
-              {label}
+              <span className="truncate">{label}</span>
+              {value === "focus" ? (
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  {activeRoots.length}/{FOCUS_LIMIT}
+                </span>
+              ) : count ? (
+                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  {count}
+                </span>
+              ) : null}
             </Button>
           );
         })}
@@ -188,7 +215,7 @@ export function WorkspaceSidebar({
         (item) => item.favorite,
       ).length && (
         <>
-          <p className="mt-7 mb-2 px-3 text-xs font-medium text-muted-foreground">
+          <p className="mt-6 mb-1.5 px-2.5 text-xs font-medium text-muted-foreground">
             Favorites
           </p>
           <nav aria-label="Favorites" className="space-y-0.5">
@@ -240,7 +267,7 @@ export function WorkspaceSidebar({
           </nav>
         </>
       )}
-      <div className="mt-6 mb-1 flex items-center justify-between pl-1">
+      <div className="mt-6 mb-1 flex items-center justify-between pl-0.5">
         <Button
           variant="ghost"
           onClick={() => {
@@ -252,13 +279,7 @@ export function WorkspaceSidebar({
           aria-current={organizationPage && projectsPage ? "page" : undefined}
           className="h-7 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-navigation-hover hover:text-foreground aria-[current=page]:bg-navigation-selected aria-[current=page]:text-foreground"
         >
-          Focus ·{" "}
-          {
-            (organization.projects || []).filter(
-              (p) => projectStatus(p) === "active",
-            ).length
-          }
-          /{FOCUS_LIMIT}
+          Projects
         </Button>
         <Button
           variant="ghost"
@@ -272,41 +293,83 @@ export function WorkspaceSidebar({
         </Button>
       </div>
       <nav aria-label="Project" className="flex-1 space-y-0.5">
-        <ProjectTree
-          names={projects}
-          data={organization}
-          roots={(organization.projects || [])
-            .filter((p) => projectStatus(p) === "active")
-            .map((p) => p.name)}
-          compact
-          current={
-            !organizationPage && !hasActiveItem ? currentProject : undefined
-          }
-          disabled={busy || organizationSaving}
-          onOpen={(name) => {
-            onProject(name);
-            if (innerWidth < 768) onOpenChange(false);
-          }}
-          onAddChild={onAddSubproject}
-          onStatus={onProjectStatus}
-          onEdit={onEditProject}
-          onDelete={onDeleteProject}
-        />
+        {activeRoots.length > 0 && (
+          <ProjectTree
+            names={projects}
+            data={organization}
+            roots={activeRoots}
+            compact
+            current={
+              !organizationPage && !hasActiveItem ? currentProject : undefined
+            }
+            disabled={busy || organizationSaving}
+            onOpen={(name) => {
+              onProject(name);
+              if (innerWidth < 768) onOpenChange(false);
+            }}
+            onAddChild={onAddSubproject}
+            onStatus={onProjectStatus}
+            onEdit={onEditProject}
+            onDelete={onDeleteProject}
+          />
+        )}
+        {laterProjects.length > 0 && (
+          <div className={activeRoots.length > 0 ? "pt-2" : ""}>
+            {activeRoots.length > 0 && (
+              <button
+                type="button"
+                aria-expanded={!laterCollapsed}
+                onClick={() => setLaterCollapsed((prev) => !prev)}
+                className="mb-0.5 flex h-6 w-full items-center gap-1 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors select-none hover:bg-navigation-hover hover:text-foreground"
+              >
+                <ChevronRight
+                  className={cn(
+                    "size-3 transition-transform duration-150",
+                    !laterCollapsed && "rotate-90",
+                  )}
+                />
+                Later · {laterProjects.length}
+              </button>
+            )}
+            {(!laterCollapsed || activeRoots.length === 0) && (
+              <ProjectTree
+                names={laterProjects}
+                data={organization}
+                compact
+                current={
+                  !organizationPage && !hasActiveItem
+                    ? currentProject
+                    : undefined
+                }
+                disabled={busy || organizationSaving}
+                onOpen={(name) => {
+                  onProject(name);
+                  if (innerWidth < 768) onOpenChange(false);
+                }}
+                onAddChild={onAddSubproject}
+                onStatus={onProjectStatus}
+                onEdit={onEditProject}
+                onDelete={onDeleteProject}
+              />
+            )}
+          </div>
+        )}
+        {activeRoots.length === 0 && laterProjects.length === 0 && (
+          <Button
+            variant="navigation"
+            disabled={busy || organizationSaving}
+            onClick={onAddProject}
+            className="h-8 text-xs text-muted-foreground"
+          >
+            <Plus className="size-3.5" />
+            New project
+          </Button>
+        )}
       </nav>
-      <Button
-        variant="navigation"
-        onClick={() => {
-          onProjects();
-          if (innerWidth < 768) onOpenChange(false);
-        }}
-        className="mt-1 h-8 text-xs"
-      >
-        All projects
-      </Button>
       {timingUnavailable && (
         <div
           role="status"
-          className="mt-6 space-y-1 px-3 text-xs leading-5 text-muted-foreground"
+          className="mt-6 space-y-1 px-2.5 text-xs leading-5 text-muted-foreground"
         >
           <p>Timer data unavailable</p>
           <p>Energy cannot be calculated.</p>
@@ -322,7 +385,7 @@ export function WorkspaceSidebar({
         </div>
       )}
       {energy && (
-        <div className="mt-6 space-y-1.5 px-3" aria-label="Daily energy">
+        <div className="mt-6 space-y-1.5 px-2.5" aria-label="Daily energy">
           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 font-medium text-foreground tabular-nums">
               <Zap
@@ -385,7 +448,7 @@ export function WorkspaceSidebar({
       </Button>
       <p
         className={cn(
-          "px-3 pb-2 text-xs text-muted-foreground",
+          "px-2.5 pb-2 text-xs text-muted-foreground",
           energy ? "mt-3" : "mt-6",
         )}
       >

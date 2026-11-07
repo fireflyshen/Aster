@@ -23,14 +23,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { parseQuickTask } from "@core/tasks/quick-task";
 import {
   columnTasks,
   placeCard,
   UNSECTIONED,
   unsectionedColumn,
   type BoardChange,
-  type BoardState,
   type BoardColumn as Column,
+  type BoardState,
 } from "@core/workspace/board";
 import type { Organization } from "@core/workspace/organization";
 import {
@@ -50,23 +51,28 @@ import {
   type DragOverEvent,
   type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
-import type { Task } from "@shared/tasks";
+import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import {
   ArrowLeft,
   ArrowRight,
-  Ellipsis,
-  GripVertical,
   ChevronRight,
+  CornerDownLeft,
+  Ellipsis,
+  FolderPlus,
+  GripVertical,
+  ListPlus,
   Pencil,
   Plus,
   Trash2,
+  X,
 } from "lucide-react";
 import {
   useCallback,
   useLayoutEffect,
   useRef,
   useState,
+  type FormEvent,
   type MouseEvent,
   type ReactNode,
   type TouchEvent,
@@ -94,7 +100,8 @@ type Props = {
     columnId: string,
     beforeUuid: string | null,
   ) => Promise<boolean>;
-  onAdd: () => void;
+  onAdd: (draft?: TaskInput) => void;
+  onCreateTask?: (task: TaskInput, columnId?: string) => Promise<boolean>;
   canAddTask?: boolean;
   hasSearch?: boolean;
   onClearSearch?: () => void;
@@ -102,6 +109,7 @@ type Props = {
   onReload: () => Promise<Organization | undefined>;
   onClearError: () => void;
 };
+
 function canDrag(target: EventTarget, card: HTMLDivElement) {
   // Portal menus bubble through React's card tree, but are not drag surfaces.
   if (!(target instanceof Element) || !card.contains(target)) return false;
@@ -115,6 +123,335 @@ function canDrag(target: EventTarget, card: HTMLDivElement) {
   const control = target.closest("button,a");
   return !control || control.hasAttribute("data-task-drag-surface");
 }
+
+function BoardTaskComposer({
+  column,
+  compact,
+  disabled,
+  onCreateTask,
+  onFallbackAdd,
+}: {
+  column: Column;
+  compact: boolean;
+  disabled: boolean;
+  onCreateTask?: (task: TaskInput, columnId?: string) => Promise<boolean>;
+  onFallbackAdd: (draft?: TaskInput) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  if (!editing) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={disabled}
+        onClick={() => {
+          if (!onCreateTask) {
+            onFallbackAdd();
+            return;
+          }
+          setError("");
+          setEditing(true);
+          requestAnimationFrame(() => inputRef.current?.focus());
+        }}
+        className={
+          compact
+            ? "task-add-button"
+            : "mt-1 flex h-9 w-full items-center justify-start gap-2 rounded-lg px-2.5 text-xs font-normal text-muted-foreground transition-colors hover:bg-(--row-hover) hover:text-foreground has-[>svg]:px-2.5"
+        }
+      >
+        <Plus
+          className={compact ? "size-[18px]" : "size-4"}
+          strokeWidth={1.5}
+        />
+        Add task
+      </Button>
+    );
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (disabled || submitting || !onCreateTask) return;
+    const parsed = parseQuickTask(text);
+    if (parsed.errors.length) {
+      setError(parsed.errors[0]);
+      inputRef.current?.focus();
+      return;
+    }
+    if (!parsed.task.description.trim()) {
+      setEditing(false);
+      setText("");
+      setError("");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const ok = await onCreateTask(parsed.task, column.id);
+      if (ok) {
+        setText("");
+        requestAnimationFrame(() => inputRef.current?.focus());
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className={compact ? "mt-0.5" : "mt-1"}>
+      <div
+        className={
+          compact
+            ? "-mx-2.5 flex min-h-11 items-center gap-2 rounded-lg bg-(--row-hover) px-2.5 md:-mx-3 md:min-h-8 md:px-3"
+            : "flex min-h-10 items-center gap-2 rounded-xl border border-ring/40 bg-card px-3 py-1.5 shadow-xs"
+        }
+      >
+        {compact && (
+          <span
+            aria-hidden="true"
+            className="flex h-11 w-8 shrink-0 items-center justify-start md:h-8 md:w-7"
+          >
+            <span className="size-[18px] rounded-full border border-muted-foreground/45 bg-background" />
+          </span>
+        )}
+        <input
+          ref={inputRef}
+          type="text"
+          value={text}
+          disabled={disabled || submitting}
+          aria-label={`Add task${column.id !== UNSECTIONED ? ` to ${column.name}` : ""}`}
+          placeholder={
+            column.id !== UNSECTIONED
+              ? `Add task to ${column.name}…`
+              : "New task… (Enter to add, Esc to close)"
+          }
+          onChange={(event) => {
+            setText(event.target.value);
+            if (error) setError("");
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setEditing(false);
+              setText("");
+              setError("");
+              return;
+            }
+            if (
+              (event.metaKey || event.ctrlKey) &&
+              event.key.toLowerCase() === "e"
+            ) {
+              event.preventDefault();
+              const parsed = parseQuickTask(text);
+              setEditing(false);
+              setText("");
+              setError("");
+              onFallbackAdd(parsed.task);
+            }
+          }}
+          onBlur={(event) => {
+            if (
+              !text.trim() &&
+              !submitting &&
+              !event.currentTarget.form?.contains(
+                event.relatedTarget as Node | null,
+              )
+            ) {
+              setEditing(false);
+              setError("");
+            }
+          }}
+          className="min-w-0 flex-1 bg-transparent py-1 text-sm leading-5 outline-none placeholder:text-muted-foreground"
+        />
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            disabled={disabled || submitting}
+            title="Open full task editor (⌘E)"
+            aria-label="Open full task editor"
+            onClick={() => {
+              const parsed = parseQuickTask(text);
+              setEditing(false);
+              setText("");
+              setError("");
+              onFallbackAdd(parsed.task);
+            }}
+            className="size-7 text-muted-foreground hover:text-foreground"
+          >
+            <ListPlus className="size-3.5" />
+          </Button>
+          <Button
+            type="submit"
+            size="xs"
+            disabled={disabled || submitting || !text.trim()}
+            className="h-6 gap-1 rounded-md px-2 text-xs shadow-none"
+          >
+            {submitting ? (
+              <Spinner className="size-3" />
+            ) : (
+              <>
+                Add
+                <CornerDownLeft className="size-3 opacity-70" />
+              </>
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            disabled={submitting}
+            aria-label="Cancel adding task"
+            onClick={() => {
+              setEditing(false);
+              setText("");
+              setError("");
+            }}
+            className="size-7 text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+      {error && (
+        <p role="alert" className="mt-1.5 text-xs text-destructive">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+function InlineColumnCreator({
+  layout,
+  revision,
+  disabled,
+  saving,
+  onSave,
+}: {
+  layout: "list" | "board";
+  revision: number;
+  disabled: boolean;
+  saving: boolean;
+  onSave: (change: BoardChange) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  if (!editing) {
+    return (
+      <div className={layout === "list" ? "pt-2" : ""}>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={disabled}
+          onClick={() => {
+            setEditing(true);
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }}
+          className={
+            layout === "list"
+              ? "-ml-2.5 h-8 gap-2 rounded-lg px-2.5 text-xs font-normal text-muted-foreground/80 hover:bg-(--row-hover) hover:text-foreground has-[>svg]:px-2.5"
+              : "h-11 w-full justify-start gap-2.5 self-start rounded-xl border border-dashed border-border/80 px-3.5 text-sm font-normal text-muted-foreground hover:border-ring/40 hover:bg-(--row-hover) hover:text-foreground md:h-10"
+          }
+        >
+          <FolderPlus className="size-4" strokeWidth={1.5} />
+          {layout === "list" ? "Add section" : "Add column"}
+        </Button>
+      </div>
+    );
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setEditing(false);
+      setName("");
+      return;
+    }
+    if (disabled || saving) return;
+    const ok = await onSave({
+      kind: "board",
+      action: "column.save",
+      revision,
+      column: { id: "", name: trimmed },
+    });
+    if (ok) {
+      setName("");
+      setEditing(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className={
+        layout === "list"
+          ? "mt-2 flex max-w-sm items-center gap-1.5 rounded-lg border border-ring/40 bg-background px-2.5 py-1"
+          : "flex h-10 w-full items-center gap-1.5 self-start rounded-xl border border-ring/40 bg-background px-3"
+      }
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        value={name}
+        maxLength={40}
+        disabled={disabled || saving}
+        placeholder={layout === "list" ? "Section name…" : "Column name…"}
+        onChange={(event) => setName(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            setEditing(false);
+            setName("");
+          }
+        }}
+        onBlur={(event) => {
+          if (
+            !name.trim() &&
+            !saving &&
+            !event.currentTarget.form?.contains(
+              event.relatedTarget as Node | null,
+            )
+          ) {
+            setEditing(false);
+          }
+        }}
+        className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground"
+      />
+      <Button
+        type="submit"
+        size="xs"
+        disabled={disabled || saving || !name.trim()}
+        className="h-6 rounded-md px-2 text-xs shadow-none"
+      >
+        {saving ? <Spinner className="size-3" /> : "Add"}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-xs"
+        disabled={saving}
+        aria-label="Cancel"
+        onClick={() => {
+          setEditing(false);
+          setName("");
+        }}
+        className="size-6 text-muted-foreground hover:text-foreground"
+      >
+        <X className="size-3.5" />
+      </Button>
+    </form>
+  );
+}
+
 function BoardCard({
   task,
   column,
@@ -125,6 +462,7 @@ function BoardCard({
   children,
   onMove,
   compact,
+  interactive = true,
 }: {
   task: Task;
   column: Column;
@@ -133,6 +471,7 @@ function BoardCard({
   saving: boolean;
   before: boolean;
   compact?: boolean;
+  interactive?: boolean;
   children: ReactNode;
   onMove: (task: Task, columnId: string) => void;
 }) {
@@ -140,12 +479,12 @@ function BoardCard({
     useDraggable({
       id: task.uuid,
       data: { columnId: column.id, name: task.description },
-      disabled,
+      disabled: disabled || !interactive,
     });
   const { setNodeRef: setDropRef } = useDroppable({
     id: `card:${task.uuid}`,
     data: { kind: "card", columnId: column.id, uuid: task.uuid },
-    disabled,
+    disabled: disabled || !interactive,
   });
   const setRefs = useCallback(
     (node: HTMLDivElement | null) => {
@@ -154,6 +493,7 @@ function BoardCard({
     },
     [setNodeRef, setDropRef],
   );
+  const canMoveColumn = columns.length > 1;
   return (
     <div
       ref={setRefs}
@@ -161,11 +501,11 @@ function BoardCard({
       data-compact={compact ? "true" : undefined}
       aria-busy={saving}
       onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
-        if (canDrag(event.target, event.currentTarget))
+        if (interactive && canDrag(event.target, event.currentTarget))
           listeners?.onMouseDown?.(event);
       }}
       onTouchStart={(event: TouchEvent<HTMLDivElement>) => {
-        if (canDrag(event.target, event.currentTarget))
+        if (interactive && canDrag(event.target, event.currentTarget))
           listeners?.onTouchStart?.(event);
       }}
       className={cn(
@@ -179,72 +519,77 @@ function BoardCard({
       )}
     >
       {children}
-      <div
-        data-no-drag
-        className={cn(
-          "flex items-center text-muted-foreground transition-opacity",
-          compact
-            ? "h-11 shrink-0 gap-0.5 self-start pl-0.5 opacity-75 md:h-8 md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 [&:has([data-state=open])]:opacity-100"
-            : "h-9 justify-between pb-0.5 opacity-80 md:h-7 md:opacity-65 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 [&:has([data-state=open])]:opacity-100",
-        )}
-      >
-        <Button
-          ref={setActivatorNodeRef}
-          {...attributes}
-          onKeyDown={(event) => listeners?.onKeyDown?.(event)}
-          data-drag-handle
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          disabled={disabled}
-          aria-label={`Drag task: ${task.description}`}
+      {interactive && (!compact || canMoveColumn || saving) && (
+        <div
+          data-no-drag
           className={cn(
-            "cursor-grab touch-none text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:cursor-grabbing",
-            compact ? "size-7 max-md:size-9" : "-ml-1 size-7 max-md:size-9",
+            "flex items-center text-muted-foreground transition-opacity",
+            compact
+              ? "h-11 shrink-0 gap-0.5 self-start pl-0.5 opacity-75 md:h-8 md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 [&:has([data-state=open])]:opacity-100"
+              : "h-9 justify-between pb-0.5 opacity-80 md:h-7 md:opacity-65 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 [&:has([data-state=open])]:opacity-100",
           )}
         >
-          <GripVertical className="size-3.5" />
-        </Button>
-        {saving ? (
-          <Spinner className="mr-2 size-3.5" aria-label="Saving task" />
-        ) : (
-          <Select
-            value={column.id}
-            disabled={disabled}
-            onValueChange={(id) => {
-              if (id !== column.id) onMove(task, id);
-            }}
-          >
-            <SelectTrigger
-              aria-label={`Move task: ${task.description}`}
-              className={cn(
-                "w-auto gap-1 rounded-sm border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground dark:bg-transparent dark:hover:bg-accent",
-                compact
-                  ? "data-[size=default]:h-9 md:data-[size=default]:h-7"
-                  : "-mr-1 data-[size=default]:h-9 md:data-[size=default]:h-6",
-              )}
+          {!compact && (
+            <Button
+              ref={setActivatorNodeRef}
+              {...attributes}
+              onKeyDown={(event) => listeners?.onKeyDown?.(event)}
+              data-drag-handle
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={disabled}
+              aria-label={`Drag task: ${task.description}`}
+              className="-ml-1 size-7 cursor-grab touch-none text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:cursor-grabbing max-md:size-9"
             >
-              <SelectValue>Move</SelectValue>
-            </SelectTrigger>
-            <SelectContent position="popper" align="end" sideOffset={4}>
-              {columns.map((item) => (
-                <SelectItem key={item.id} value={item.id}>
-                  {item.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+              <GripVertical className="size-3.5" />
+            </Button>
+          )}
+          {saving ? (
+            <Spinner className="mr-2 size-3.5" aria-label="Saving task" />
+          ) : (
+            canMoveColumn && (
+              <Select
+                value={column.id}
+                disabled={disabled}
+                onValueChange={(id) => {
+                  if (id !== column.id) onMove(task, id);
+                }}
+              >
+                <SelectTrigger
+                  aria-label={`Move task: ${task.description}`}
+                  className={cn(
+                    "w-auto gap-1 rounded-md border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground dark:bg-transparent dark:hover:bg-accent",
+                    compact
+                      ? "data-[size=default]:h-9 md:data-[size=default]:h-7"
+                      : "-mr-1 data-[size=default]:h-9 md:data-[size=default]:h-6",
+                  )}
+                >
+                  <SelectValue>{column.name}</SelectValue>
+                </SelectTrigger>
+                <SelectContent position="popper" align="end" sideOffset={4}>
+                  {columns.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
 function BoardColumn({
   column,
   count,
   index,
   total,
   disabled,
+  showHeader = true,
   onEdit,
   onShift,
   onDelete,
@@ -258,6 +603,7 @@ function BoardColumn({
   index: number;
   total: number;
   disabled: boolean;
+  showHeader?: boolean;
   onEdit: () => void;
   onShift: (direction: "left" | "right") => void;
   onDelete: () => void;
@@ -284,111 +630,113 @@ function BoardColumn({
         isOver && "bg-muted/70",
       )}
     >
-      <div
-        className={cn(
-          "mb-3 flex h-11 items-center gap-1.5 md:h-10",
-          compact && "mb-0.5 border-b border-border/80",
-        )}
-      >
-        {compact ? (
-          <button
-            type="button"
-            aria-label={`${collapsed ? "Expand" : "Collapse"} group: ${column.name}`}
-            aria-expanded={!collapsed}
-            onClick={() => setCollapsed(!collapsed)}
-            className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
-          >
-            <ChevronRight
-              className={cn(
-                "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-                !collapsed && "rotate-90",
-              )}
-            />
-            <h2 className="min-w-0 truncate text-sm font-semibold">
-              {column.name}
-            </h2>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          </button>
-        ) : (
-          <>
-            <h2 className="min-w-0 truncate text-sm font-semibold">
-              {column.name}
-            </h2>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          </>
-        )}
-        {column.id !== UNSECTIONED && (
-          <Popover open={menu} onOpenChange={setMenu}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Column options: ${column.name}`}
-                disabled={disabled}
-                className="ml-auto text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100"
-              >
-                <Ellipsis className="size-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-40 p-1">
-              <Button
-                variant="navigation"
-                className="h-8 text-xs"
-                onClick={() => {
-                  setMenu(false);
-                  onEdit();
-                }}
-              >
-                <Pencil className="size-3.5" />
-                Rename
-              </Button>
-              <Button
-                variant="navigation"
-                className="h-8 text-xs"
-                disabled={index === 0}
-                onClick={() => {
-                  setMenu(false);
-                  onShift("left");
-                }}
-              >
-                <ArrowLeft className="size-3.5" />
-                Move left
-              </Button>
-              <Button
-                variant="navigation"
-                className="h-8 text-xs"
-                disabled={index === total - 1}
-                onClick={() => {
-                  setMenu(false);
-                  onShift("right");
-                }}
-              >
-                <ArrowRight className="size-3.5" />
-                Move right
-              </Button>
-              {column.id !== UNSECTIONED && (
+      {showHeader && (
+        <div
+          className={cn(
+            "mb-3 flex h-11 items-center gap-1.5 md:h-10",
+            compact && "mb-0.5 border-b border-border/80",
+          )}
+        >
+          {compact ? (
+            <button
+              type="button"
+              aria-label={`${collapsed ? "Expand" : "Collapse"} group: ${column.name}`}
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(!collapsed)}
+              className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
+            >
+              <ChevronRight
+                className={cn(
+                  "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+                  !collapsed && "rotate-90",
+                )}
+              />
+              <h2 className="min-w-0 truncate text-sm font-semibold">
+                {column.name}
+              </h2>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {count}
+              </span>
+            </button>
+          ) : (
+            <>
+              <h2 className="min-w-0 truncate text-sm font-semibold">
+                {column.name}
+              </h2>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                {count}
+              </span>
+            </>
+          )}
+          {column.id !== UNSECTIONED && (
+            <Popover open={menu} onOpenChange={setMenu}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Column options: ${column.name}`}
+                  disabled={disabled}
+                  className="ml-auto text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100"
+                >
+                  <Ellipsis className="size-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-40 p-1">
                 <Button
                   variant="navigation"
-                  className="h-8 text-xs text-destructive"
+                  className="h-8 text-xs"
                   onClick={() => {
                     setMenu(false);
-                    onDelete();
+                    onEdit();
                   }}
                 >
-                  <Trash2 className="size-3.5" />
-                  Delete column
+                  <Pencil className="size-3.5" />
+                  Rename
                 </Button>
-              )}
-            </PopoverContent>
-          </Popover>
-        )}
-      </div>
+                <Button
+                  variant="navigation"
+                  className="h-8 text-xs"
+                  disabled={index === 0}
+                  onClick={() => {
+                    setMenu(false);
+                    onShift("left");
+                  }}
+                >
+                  <ArrowLeft className="size-3.5" />
+                  Move left
+                </Button>
+                <Button
+                  variant="navigation"
+                  className="h-8 text-xs"
+                  disabled={index === total - 1}
+                  onClick={() => {
+                    setMenu(false);
+                    onShift("right");
+                  }}
+                >
+                  <ArrowRight className="size-3.5" />
+                  Move right
+                </Button>
+                {column.id !== UNSECTIONED && (
+                  <Button
+                    variant="navigation"
+                    className="h-8 text-xs text-destructive"
+                    onClick={() => {
+                      setMenu(false);
+                      onDelete();
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete column
+                  </Button>
+                )}
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+      )}
       <div
-        hidden={compact && collapsed}
+        hidden={compact && showHeader && collapsed}
         className={
           compact
             ? activeDrag
@@ -403,6 +751,7 @@ function BoardColumn({
     </section>
   );
 }
+
 export function TaskBoard({
   layout = "board",
   initialScrollLeft,
@@ -420,6 +769,7 @@ export function TaskBoard({
   renderTask,
   onMove,
   onAdd,
+  onCreateTask,
   canAddTask = true,
   hasSearch = false,
   onClearSearch,
@@ -443,6 +793,8 @@ export function TaskBoard({
     if (scrollArea.current) scrollArea.current.scrollLeft = initialScrollLeft;
   }, [initialScrollLeft, board.columns.length]);
   const columns = [unsectionedColumn, ...board.columns];
+  const hasCustomColumns = board.columns.length > 0;
+
   const keyboardCoordinates: KeyboardCoordinateGetter = (
     event,
     { currentCoordinates, context },
@@ -571,6 +923,11 @@ export function TaskBoard({
           </Button>
         </div>
       )}
+      {loaded && !loading && !tasks.length && !hasSearch && !canAddTask && (
+        <p className="py-8 text-sm text-muted-foreground">
+          No completed tasks yet.
+        </p>
+      )}
       <DndContext
         sensors={sensors}
         collisionDetection={(args) => {
@@ -653,6 +1010,10 @@ export function TaskBoard({
           >
             {columns.map((column, index) => {
               const items = columnTasks(tasks, displayBoard, column.id);
+              const showColumnHeader =
+                layout === "board" ||
+                (hasCustomColumns &&
+                  (column.id !== UNSECTIONED || items.length > 0 || !!active));
               return (
                 <BoardColumn
                   key={column.id}
@@ -663,6 +1024,7 @@ export function TaskBoard({
                   index={index - 1}
                   total={board.columns.length}
                   disabled={disabled}
+                  showHeader={showColumnHeader}
                   onEdit={() => openEditor(column)}
                   onShift={(direction) => {
                     onClearError();
@@ -688,6 +1050,7 @@ export function TaskBoard({
                     <BoardCard
                       key={task.uuid}
                       compact={layout === "list"}
+                      interactive={canAddTask}
                       task={task}
                       column={column}
                       columns={columns}
@@ -704,33 +1067,34 @@ export function TaskBoard({
                       {renderTask(task)}
                     </BoardCard>
                   ))}
-                  {column.id === UNSECTIONED && canAddTask && (
-                    <Button
-                      variant="ghost"
-                      disabled={disabled}
-                      onClick={onAdd}
-                      className="task-add-button"
-                    >
-                      <Plus className="size-[18px]" strokeWidth={1.5} />
-                      Add task
-                    </Button>
-                  )}
+                  {canAddTask &&
+                    (layout === "board" ||
+                      column.id !== UNSECTIONED ||
+                      !hasCustomColumns ||
+                      items.length > 0) && (
+                      <BoardTaskComposer
+                        column={column}
+                        compact={layout === "list"}
+                        disabled={disabled}
+                        onCreateTask={onCreateTask}
+                        onFallbackAdd={onAdd}
+                      />
+                    )}
                 </BoardColumn>
               );
             })}
-            <Button
-              variant="ghost"
-              disabled={disabled}
-              onClick={() => openEditor({ id: "", name: "" })}
-              className={
-                layout === "list"
-                  ? "task-add-button"
-                  : "h-11 w-full justify-start gap-2.5 self-start rounded-xl border border-dashed border-border/80 px-3.5 text-sm font-normal text-muted-foreground hover:border-ring/40 hover:bg-(--row-hover) hover:text-foreground md:h-10"
-              }
-            >
-              <Plus className="size-[18px]" strokeWidth={1.5} />
-              {layout === "list" ? "Add group" : "Add column"}
-            </Button>
+            {canAddTask && (
+              <InlineColumnCreator
+                layout={layout}
+                revision={revision}
+                disabled={disabled}
+                saving={saving}
+                onSave={(change) => {
+                  onClearError();
+                  return onChange(change);
+                }}
+              />
+            )}
           </div>
         </div>
         <DragOverlay
