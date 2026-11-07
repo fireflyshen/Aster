@@ -17,6 +17,13 @@ export async function startWorkspaceSocket(
     action?: (input: Record<string, unknown>) => Promise<unknown>;
     deleted?: () => Promise<unknown>;
     series?: (uuid: string) => Promise<unknown>;
+    tasks?: (filter?: string) => Promise<unknown>;
+    parse?: (input: unknown) => unknown;
+    export?: () => Promise<unknown>;
+    points?: () => Promise<unknown>;
+    download?: (id: string) => Promise<unknown>;
+    preview?: (input: unknown) => Promise<unknown>;
+    restore?: (token: unknown) => Promise<unknown>;
   },
 ) {
   if (!path.startsWith("/") || path.length > 100)
@@ -54,7 +61,10 @@ export async function startWorkspaceSocket(
     res.setHeader("Cache-Control", "no-store");
     let release: (() => void) | undefined;
     try {
-      release = workspace.enter?.();
+      // Restore obtains the exclusive gate itself; holding a reader here would deadlock.
+      const restoreRequest =
+        req.method === "POST" && req.url === "/api/backup/restore";
+      if (!restoreRequest) release = workspace.enter?.();
       if (req.method === "GET" && req.url === "/api/workspace") {
         res.end(
           JSON.stringify({
@@ -68,11 +78,23 @@ export async function startWorkspaceSocket(
       if (
         !(
           (req.method === "POST" &&
-            ["/api/organization", "/api/action", "/api/tasks"].includes(
-              route,
-            )) ||
+            [
+              "/api/organization",
+              "/api/action",
+              "/api/tasks",
+              "/api/quick/preview",
+              "/api/backup/preview",
+              "/api/backup/restore",
+            ].includes(route)) ||
           (req.method === "GET" &&
-            ["/api/recovery", "/api/recurrence"].includes(route))
+            [
+              "/api/recovery",
+              "/api/recurrence",
+              "/api/tasks",
+              "/api/export",
+              "/api/backup/points",
+              "/api/backup/download",
+            ].includes(route))
         )
       ) {
         res.writeHead(404);
@@ -89,16 +111,51 @@ export async function startWorkspaceSocket(
         return;
       }
       let result;
-      if (
+      const parameters = new URL(req.url || "/", "http://localhost")
+        .searchParams;
+      if (req.method === "GET" && route === "/api/tasks" && workspace.tasks)
+        result = await workspace.tasks(parameters.get("filter") ?? undefined);
+      else if (
+        req.method === "POST" &&
+        route === "/api/quick/preview" &&
+        workspace.parse
+      )
+        result = workspace.parse(await body(req));
+      else if (
+        req.method === "GET" &&
+        route === "/api/export" &&
+        workspace.export
+      )
+        result = await workspace.export();
+      else if (
+        req.method === "GET" &&
+        route === "/api/backup/points" &&
+        workspace.points
+      )
+        result = { points: await workspace.points() };
+      else if (
+        req.method === "GET" &&
+        route === "/api/backup/download" &&
+        workspace.download
+      )
+        result = await workspace.download(parameters.get("id") || "");
+      else if (
+        req.method === "POST" &&
+        route === "/api/backup/preview" &&
+        workspace.preview
+      )
+        result = await workspace.preview(await body(req, 8 * 1024 * 1024));
+      else if (restoreRequest && workspace.restore)
+        result = await workspace.restore((await body(req)).token);
+      else if (
         req.method === "POST" &&
         route === "/api/tasks" &&
         workspace.addTask
       ) {
         result = await workspace.addTask(await body(req));
-        res.end(JSON.stringify(result));
+        res.end(JSON.stringify(result ?? { ok: true }));
         return;
-      }
-      if (
+      } else if (
         req.method === "GET" &&
         route === "/api/recovery" &&
         workspace.deleted
@@ -125,7 +182,7 @@ export async function startWorkspaceSocket(
         res.end("{}");
         return;
       }
-      res.end(JSON.stringify(result));
+      res.end(JSON.stringify(result ?? { ok: true }));
     } catch (error) {
       const e = error as Error & { status?: number; outcome?: string };
       res.writeHead(e.status || 400);

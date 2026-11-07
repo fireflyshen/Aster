@@ -1,6 +1,6 @@
 # 项目架构
 
-Aster 有两个客户端：Raycast / Tinycast 桌面扩展，以及适配电脑与手机的 Web 模块。两者共用 Taskwarrior 核心逻辑，默认连接 RN。Web 独立运行，正式部署为 `https://task.caten.top/`，由 RN 的 `aster.service` 管理。
+Aster 有三个客户端：Raycast / Tinycast 桌面扩展、Web 模块，以及独立 Go TUI。桌面与 Web 共用 TypeScript 核心；TUI 通过 SSH 读取 Taskwarrior JSON，通过现有私有工作区执行写入，默认连接 RN。Web 独立运行，正式部署为 `https://task.caten.top/`，由 RN 的 `aster.service` 管理。
 
 ## 目录职责
 
@@ -94,3 +94,11 @@ npm run build
 ## TinyCast 共享资料
 
 `GET /api/workspace` 受现有认证保护，只读元数据和连接标识，不依赖 SSH。桌面核对来源后读取过滤器、项目描述和栏目；移动栏目走原有带 revision 的接口。网页是这些元数据的唯一写入者，桌面不直接写文件，避免两个进程绕过版本检查。任务操作继续直连 Taskwarrior。产品边界和快捷键见 [桌面产品说明](desktop-product.md)。
+
+## Go TUI
+
+`modules/tui/` 是拥有独立 `go.mod` 的 Go 模块。`client.go` 封装 OpenSSH、数据源核对和工作区接口；`main.go` 负责启动，`model.go` 管理导航与异步状态，`forms.go` 提供操作菜单和表单，`view.go` 渲染自适应工作台。产物是 `dist/tui/aster`。客户端不直接写组织资料文件，不导入 TypeScript 核心；任务操作和 Focus 约束由已有服务端处理。
+
+Focus 首页通过可搜索项目弹窗直接选择 Later 项目，再进入完成目标与替换确认；不会跳到项目管理页。父子重叠项目优先展示对应的替换项，多项重叠要求先暂停。
+
+列表与看板现在复用 `task-board.tsx` 的布局参数，栏目、拖动、移动菜单与编辑逻辑只有一份，列表布局增加折叠和紧凑行。私有 socket 新增任务查询、快速解析和备份端点，复用现有业务服务；恢复请求在身份校验后直接进入排他 gate，不持有普通 reader lease。

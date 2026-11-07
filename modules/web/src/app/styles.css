@@ -163,13 +163,26 @@
   [data-project-nav]:not([data-selected="true"]):hover {
     background-color: var(--navigation-hover);
   }
-  [data-task-surface]:hover {
+  [data-task-surface]:hover,
+  .board-card[data-compact="true"]:hover {
     background-color: color-mix(in srgb, var(--muted) 45%, transparent);
   }
+  .board-card[data-compact="true"] [data-task-surface]:hover {
+    background-color: transparent;
+  }
 }
-[data-task-surface] {
+[data-task-surface],
+.board-card[data-compact="true"] {
   border-radius: 3px;
   transition: background-color 150ms ease;
+}
+.board-card[data-compact="true"] [data-task-surface] {
+  background-color: transparent;
+}
+.board-card:has([data-completion="leaving"]) {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
 }
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -276,14 +289,18 @@
 
 /* Hover belongs to the entire management row, never only its title button. */
 .project-manager-row > button,
-.project-manager-row > button:hover {
+.project-manager-row > button:hover,
+[data-organization-row] > button,
+[data-organization-row] > button:hover {
   background-color: transparent;
 }
 @media (hover: hover) {
-  .project-manager-row:hover {
+  .project-manager-row:hover,
+  [data-organization-row]:hover {
     background-color: color-mix(in srgb, var(--muted) 45%, transparent);
   }
 }
-.project-manager-row {
+.project-manager-row,
+[data-organization-row] {
   transition: background-color 150ms ease;
 }

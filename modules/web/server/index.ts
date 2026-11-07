@@ -1,3 +1,4 @@
+import { parseQuickTask } from "../../../src/core/tasks/quick-task.ts";
 import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { dirname, extname, resolve, sep } from "node:path";
@@ -299,6 +300,28 @@ if (process.env.WORKSPACE_SOCKET) {
       action: taskAction,
       addTask: (input) => service.addTask(taskInput(input)),
       deleted: recovery.list,
+      tasks: async (filter) => ({
+        tasks:
+          filter !== undefined
+            ? await service.filterTasks(filter)
+            : (
+                await Promise.all([
+                  service.loadTasks(),
+                  service.loadTasks("completed"),
+                ])
+              ).flat(),
+      }),
+      parse: (input) => {
+        const text = (input as { text?: unknown })?.text;
+        if (typeof text !== "string" || text.length > 4000)
+          throw new Error("Enter a short task expression.");
+        return parseQuickTask(text);
+      },
+      export: recovery.export,
+      points: backupRestore.points,
+      download: backupRestore.download,
+      preview: backupRestore.preview,
+      restore: backupRestore.apply,
       series: async (uuid: string) => {
         const task = await service.rawTask(uuid);
         if (task.status !== "recurring")

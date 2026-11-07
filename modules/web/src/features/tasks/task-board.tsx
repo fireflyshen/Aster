@@ -57,6 +57,7 @@ import {
   ArrowRight,
   Ellipsis,
   GripVertical,
+  ChevronRight,
   Pencil,
   Plus,
   Trash2,
@@ -74,6 +75,7 @@ import { BoardColumnEditor } from "./board-column-editor";
 
 type Position = { columnId: string; beforeUuid: string | null };
 type Props = {
+  layout?: "board" | "list";
   initialScrollLeft: number;
   onScrollPositionChange: (position: number) => void;
   tasks: Task[];
@@ -93,6 +95,9 @@ type Props = {
     beforeUuid: string | null,
   ) => Promise<boolean>;
   onAdd: () => void;
+  canAddTask?: boolean;
+  hasSearch?: boolean;
+  onClearSearch?: () => void;
   onChange: (change: BoardChange) => Promise<boolean>;
   onReload: () => Promise<Organization | undefined>;
   onClearError: () => void;
@@ -119,6 +124,7 @@ function BoardCard({
   before,
   children,
   onMove,
+  compact,
 }: {
   task: Task;
   column: Column;
@@ -126,6 +132,7 @@ function BoardCard({
   disabled: boolean;
   saving: boolean;
   before: boolean;
+  compact?: boolean;
   children: ReactNode;
   onMove: (task: Task, columnId: string) => void;
 }) {
@@ -151,6 +158,7 @@ function BoardCard({
     <div
       ref={setRefs}
       data-task-card={task.uuid}
+      data-compact={compact ? "true" : undefined}
       aria-busy={saving}
       onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
         if (canDrag(event.target, event.currentTarget))
@@ -161,7 +169,10 @@ function BoardCard({
           listeners?.onTouchStart?.(event);
       }}
       className={cn(
-        "board-card group relative cursor-grab rounded-lg border border-border bg-background px-3 pt-1 select-none shadow-[0_1px_2px_rgb(0_0_0/0.025)] transition-[box-shadow,opacity] duration-150 hover:shadow-sm active:cursor-grabbing",
+        "board-card group/card relative cursor-grab select-none active:cursor-grabbing [&:has(:focus-visible)]:bg-muted/50",
+        compact
+          ? "flex min-w-0 items-start border-b border-border px-0 shadow-none"
+          : "rounded-lg border border-border bg-background px-3 pt-1 pb-1 shadow-[0_1px_2px_rgb(0_0_0/0.025)] transition-[box-shadow,opacity,border-color] duration-150 hover:border-input hover:shadow-sm",
         isDragging && "opacity-30",
         before &&
           "before:absolute before:-top-2 before:inset-x-0 before:h-0.5 before:rounded-full before:bg-primary/60",
@@ -170,7 +181,12 @@ function BoardCard({
       {children}
       <div
         data-no-drag
-        className="flex h-11 items-center justify-between pb-1 text-muted-foreground md:h-9"
+        className={cn(
+          "flex items-center text-muted-foreground transition-opacity",
+          compact
+            ? "h-11 shrink-0 gap-0.5 self-start pl-0.5 opacity-75 md:h-8 md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 [&:has([data-state=open])]:opacity-100"
+            : "h-9 justify-between pb-0.5 opacity-80 md:h-7 md:opacity-65 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 [&:has([data-state=open])]:opacity-100",
+        )}
       >
         <Button
           ref={setActivatorNodeRef}
@@ -182,9 +198,12 @@ function BoardCard({
           size="icon-sm"
           disabled={disabled}
           aria-label={`Drag task: ${task.description}`}
-          className="size-8 cursor-grab touch-none text-muted-foreground opacity-60 transition-opacity hover:opacity-100 max-md:size-11 active:cursor-grabbing"
+          className={cn(
+            "cursor-grab touch-none text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:cursor-grabbing",
+            compact ? "size-7 max-md:size-9" : "-ml-1 size-7 max-md:size-9",
+          )}
         >
-          <GripVertical className="size-4" />
+          <GripVertical className="size-3.5" />
         </Button>
         {saving ? (
           <Spinner className="mr-2 size-3.5" aria-label="Saving task" />
@@ -198,7 +217,12 @@ function BoardCard({
           >
             <SelectTrigger
               aria-label={`Move task: ${task.description}`}
-              className="w-auto gap-1 rounded-sm border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent data-[size=default]:h-11 md:data-[size=default]:h-8"
+              className={cn(
+                "w-auto gap-1 rounded-sm border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground dark:bg-transparent dark:hover:bg-accent",
+                compact
+                  ? "data-[size=default]:h-9 md:data-[size=default]:h-7"
+                  : "-mr-1 data-[size=default]:h-9 md:data-[size=default]:h-6",
+              )}
             >
               <SelectValue>Move</SelectValue>
             </SelectTrigger>
@@ -226,6 +250,8 @@ function BoardColumn({
   onDelete,
   children,
   append,
+  compact,
+  activeDrag,
 }: {
   column: Column;
   count: number;
@@ -237,6 +263,8 @@ function BoardColumn({
   onDelete: () => void;
   children: ReactNode;
   append: boolean;
+  compact?: boolean;
+  activeDrag?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
@@ -244,21 +272,57 @@ function BoardColumn({
     disabled,
   });
   const [menu, setMenu] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   return (
     <section
       ref={setNodeRef}
       data-board-column={column.id}
       aria-label={`${column.name} column`}
       className={cn(
-        "min-w-0 snap-start rounded-lg pb-4 transition-colors",
+        "group/column min-w-0 snap-start rounded-lg transition-colors",
+        compact ? "pb-0" : "pb-4",
         isOver && "bg-muted/70",
       )}
     >
-      <div className="mb-3 flex h-11 items-center gap-2 md:h-10">
-        <h2 className="min-w-0 truncate text-sm font-semibold">
+      <div
+        className={cn(
+          "mb-3 flex h-11 items-center gap-1.5 md:h-10",
+          compact && "mb-0 border-b",
+        )}
+      >
+        {compact && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`${collapsed ? "Expand" : "Collapse"} group: ${column.name}`}
+            aria-expanded={!collapsed}
+            onClick={() => setCollapsed(!collapsed)}
+            className="-ml-1.5 size-7 text-muted-foreground"
+          >
+            <ChevronRight
+              className={cn(
+                "size-3.5 transition-transform duration-150",
+                !collapsed && "rotate-90",
+              )}
+            />
+          </Button>
+        )}
+        <h2
+          onClick={compact ? () => setCollapsed(!collapsed) : undefined}
+          className={cn(
+            "min-w-0 truncate text-sm font-semibold",
+            compact && "cursor-pointer select-none",
+          )}
+        >
           {column.name}
         </h2>
-        <span className="text-xs tabular-nums text-muted-foreground">
+        <span
+          onClick={compact ? () => setCollapsed(!collapsed) : undefined}
+          className={cn(
+            "text-xs tabular-nums text-muted-foreground",
+            compact && "cursor-pointer select-none",
+          )}
+        >
           {count}
         </span>
         {column.id !== UNSECTIONED && (
@@ -269,7 +333,7 @@ function BoardColumn({
                 size="icon-sm"
                 aria-label={`Column options: ${column.name}`}
                 disabled={disabled}
-                className="ml-auto text-muted-foreground"
+                className="ml-auto text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100"
               >
                 <Ellipsis className="size-4" />
               </Button>
@@ -327,7 +391,16 @@ function BoardColumn({
           </Popover>
         )}
       </div>
-      <div className="min-h-56 space-y-2.5">
+      <div
+        hidden={compact && collapsed}
+        className={
+          compact
+            ? activeDrag
+              ? "min-h-6"
+              : "min-h-0"
+            : "min-h-56 space-y-2.5"
+        }
+      >
         {children}
         {append && <div className="h-0.5 rounded-full bg-primary/60" />}
       </div>
@@ -335,6 +408,7 @@ function BoardColumn({
   );
 }
 export function TaskBoard({
+  layout = "board",
   initialScrollLeft,
   onScrollPositionChange,
   tasks,
@@ -350,6 +424,9 @@ export function TaskBoard({
   renderTask,
   onMove,
   onAdd,
+  canAddTask = true,
+  hasSearch = false,
+  onClearSearch,
   onChange,
   onReload,
   onClearError,
@@ -374,15 +451,26 @@ export function TaskBoard({
     event,
     { currentCoordinates, context },
   ) => {
-    if (event.code !== "ArrowLeft" && event.code !== "ArrowRight") return;
+    const backward = layout === "list" ? "ArrowUp" : "ArrowLeft";
+    const forward = layout === "list" ? "ArrowDown" : "ArrowRight";
+    if (event.code !== backward && event.code !== forward) return;
     event.preventDefault();
     const current =
       context.over?.data.current?.columnId ??
       context.active?.data.current?.columnId;
     const index = columns.findIndex((item) => item.id === current);
-    const target = columns[index + (event.code === "ArrowRight" ? 1 : -1)];
+    const target = columns[index + (event.code === forward ? 1 : -1)];
     const rect = target && context.droppableRects.get(target.id);
     if (!rect || !context.collisionRect) return;
+    if (layout === "list")
+      return {
+        ...currentCoordinates,
+        y:
+          currentCoordinates.y +
+          rect.top +
+          rect.height / 2 -
+          (context.collisionRect.top + context.collisionRect.height / 2),
+      };
     return {
       ...currentCoordinates,
       x:
@@ -446,7 +534,10 @@ export function TaskBoard({
   }
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   return (
-    <div aria-label="Task board" aria-busy={loading}>
+    <div
+      aria-label={layout === "list" ? "Tasks grouped by column" : "Task board"}
+      aria-busy={loading}
+    >
       <p className="sr-only" role="status" aria-live="polite">
         {announcement}
       </p>
@@ -469,6 +560,19 @@ export function TaskBoard({
         <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
           <Spinner className="size-4" />
           Loading…
+        </div>
+      )}
+      {loaded && !loading && !tasks.length && hasSearch && onClearSearch && (
+        <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
+          <span>No matching tasks in this view.</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClearSearch}
+            className="h-8 px-2.5 text-xs text-foreground"
+          >
+            Clear search
+          </Button>
         </div>
       )}
       <DndContext
@@ -507,7 +611,9 @@ export function TaskBoard({
           },
           screenReaderInstructions: {
             draggable:
-              "Press Space to pick up a task, Left or Right to choose a column, Space to move, or Escape to cancel. Use the Move menu as an alternative.",
+              layout === "list"
+                ? "Press Space to pick up a task, Up or Down to choose a group, Space to move, or Escape to cancel. Use the Move menu as an alternative."
+                : "Press Space to pick up a task, Left or Right to choose a column, Space to move, or Escape to cancel. Use the Move menu as an alternative.",
           },
         }}
         onDragStart={({ active }) =>
@@ -531,19 +637,31 @@ export function TaskBoard({
           ref={scrollArea}
           data-board-scroll
           role="region"
-          aria-label="Board columns"
+          aria-label={layout === "list" ? "Task groups" : "Board columns"}
           tabIndex={0}
           onScroll={(event) =>
             onScrollPositionChange(event.currentTarget.scrollLeft)
           }
-          className="min-w-0 snap-x snap-proximity overflow-x-auto overscroll-x-contain rounded-sm pb-6 outline-none focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset"
+          className={cn(
+            "min-w-0 rounded-sm pb-6 outline-none focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
+            layout === "board" &&
+              "snap-x snap-proximity overflow-x-auto overscroll-x-contain",
+          )}
         >
-          <div className="grid grid-flow-col auto-cols-[18rem] gap-6">
+          <div
+            className={
+              layout === "list"
+                ? "space-y-5"
+                : "grid grid-flow-col auto-cols-[18rem] gap-6"
+            }
+          >
             {columns.map((column, index) => {
               const items = columnTasks(tasks, displayBoard, column.id);
               return (
                 <BoardColumn
                   key={column.id}
+                  compact={layout === "list"}
+                  activeDrag={!!active}
                   column={column}
                   count={items.length}
                   index={index - 1}
@@ -573,6 +691,7 @@ export function TaskBoard({
                   {items.map((task) => (
                     <BoardCard
                       key={task.uuid}
+                      compact={layout === "list"}
                       task={task}
                       column={column}
                       columns={columns}
@@ -589,7 +708,7 @@ export function TaskBoard({
                       {renderTask(task)}
                     </BoardCard>
                   ))}
-                  {column.id === UNSECTIONED && (
+                  {column.id === UNSECTIONED && canAddTask && (
                     <Button
                       variant="ghost"
                       disabled={disabled}
@@ -610,7 +729,7 @@ export function TaskBoard({
               className="h-11 w-full justify-start gap-2.5 self-start text-sm font-normal text-muted-foreground md:h-10"
             >
               <Plus className="size-[18px]" strokeWidth={1.5} />
-              Add column
+              {layout === "list" ? "Add group" : "Add column"}
             </Button>
           </div>
         </div>

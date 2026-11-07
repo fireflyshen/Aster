@@ -31,6 +31,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationManager } from "@/features/organization/organization-manager";
+import { FocusPicker } from "@/features/projects/focus-picker";
 import { FocusOverview } from "@/features/projects/focus-overview";
 import { ProjectEditor } from "@/features/projects/project-editor";
 import { ProjectColorsProvider } from "@/features/projects/project-icon";
@@ -41,7 +42,6 @@ import { TaskEditor } from "@/features/tasks/task-editor";
 import { RecoveryCenter } from "@/features/recovery/recovery-center";
 import { SeriesEditor } from "@/features/tasks/series-editor";
 import { TaskForm } from "@/features/tasks/task-form";
-import { TaskList } from "@/features/tasks/task-list";
 import { TaskRow } from "@/features/tasks/task-row";
 import { TaskToast } from "@/features/tasks/task-toast";
 import { api, RequestError } from "@/lib/api";
@@ -154,7 +154,6 @@ export default function App() {
     beforeUuid: string | null;
   }>();
   const boardScroll = useRef(0);
-  const [expandedProjects, setExpandedProjects] = useState<string[]>([]);
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const [organizationPage, setOrganizationPage] = useState(false);
   const [projectsPage, setProjectsPage] = useState(false);
@@ -197,6 +196,7 @@ export default function App() {
   const [seriesUuid, setSeriesUuid] = useState("");
   const [open, setOpen] = useState(false);
   const [quickOpen, setQuickOpen] = useState(false);
+  const [quickProject, setQuickProject] = useState("");
   const [quickError, setQuickError] = useState("");
   const [toastOpen, setToastOpen] = useState(false);
   const [toastVersion, setToastVersion] = useState(0);
@@ -213,6 +213,7 @@ export default function App() {
     checked: boolean;
     phase: "checking" | "leaving";
   }>();
+  const [focusPickerOpen, setFocusPickerOpen] = useState(false);
   const [transitionProject, setTransitionProject] = useState<{
     name: string;
     status: ProjectStatus;
@@ -236,7 +237,7 @@ export default function App() {
   const previousScope = useRef("");
   const scope = nativeFilter
     ? `filter=${encodeURIComponent(nativeFilter)}`
-    : `scope=${view === "completed" ? "completed" : layout === "board" ? "board" : "pending"}`;
+    : `scope=${view === "completed" ? "completed" : "board"}`;
   const loadOrganization = useCallback(async () => {
     const ticket = ++organizationGeneration.current;
     try {
@@ -321,15 +322,6 @@ export default function App() {
               : remapProject(name, original, change.item.name)
             : name,
         );
-        setExpandedProjects((names) =>
-          names.flatMap((name) =>
-            !inProject(name, original)
-              ? [name]
-              : change.action === "delete"
-                ? []
-                : [remapProject(name, original, change.item.name)],
-          ),
-        );
       }
       if (
         change.kind !== "board" &&
@@ -413,6 +405,7 @@ export default function App() {
 
   const openQuickAdd = useCallback(() => {
     if (writeLock.current || needsCheck || open) return;
+    setQuickProject("");
     setQuickError("");
     setQuickOpen(true);
   }, [needsCheck, open]);
@@ -430,7 +423,7 @@ export default function App() {
         quickOpen ||
         confirmDelete ||
         document.querySelector(
-          '[role="dialog"], [role="alertdialog"], [data-state="open"][data-slot="select-content"]',
+          '[role="dialog"], [role="alertdialog"], [data-state="open"][data-slot="select-content"], [data-state="open"][data-slot="popover-content"]',
         ) ||
         (target instanceof Element &&
           target.closest(
@@ -441,6 +434,23 @@ export default function App() {
       if (event.key.toLowerCase() === "q") {
         event.preventDefault();
         openQuickAdd();
+      }
+      if (
+        event.key.toLowerCase() === "b" &&
+        !organizationPage &&
+        !busy &&
+        !organizationSaving
+      ) {
+        event.preventDefault();
+        setLayout((current) => {
+          const next = current === "list" ? "board" : "list";
+          try {
+            localStorage.setItem("aster.task-layout", next);
+          } catch {
+            /* Layout still works without browser storage. */
+          }
+          return next;
+        });
       }
       if (event.key.toLowerCase() === "m" && innerWidth >= 768) {
         event.preventDefault();
@@ -454,14 +464,31 @@ export default function App() {
       if (event.key === "/") {
         event.preventDefault();
         setOrganizationPage(false);
-        setView("pending");
+        if (view === "focus" || view === "later") setView("pending");
         setSearchOpen(true);
         document.getElementById("task-search")?.focus();
+      }
+      if (event.key === "Escape" && (searchOpen || query)) {
+        event.preventDefault();
+        setQuery("");
+        setSearchOpen(false);
+        document.getElementById("search-toggle")?.focus();
       }
     };
     window.addEventListener("keydown", shortcuts);
     return () => window.removeEventListener("keydown", shortcuts);
-  }, [open, quickOpen, confirmDelete, openQuickAdd]);
+  }, [
+    open,
+    quickOpen,
+    confirmDelete,
+    openQuickAdd,
+    organizationPage,
+    busy,
+    organizationSaving,
+    view,
+    searchOpen,
+    query,
+  ]);
 
   async function mutate(
     route: string,
@@ -720,21 +747,17 @@ export default function App() {
     !activeItem &&
     !currentProject &&
     (view === "focus" || view === "later");
+  const inbox =
+    view === "pending" && !currentProject && !query.trim() && !activeItem;
   const visible = tasks.filter((task) => {
-    if (
-      layout === "list" &&
-      view !== "completed" &&
-      !nativeFilter &&
-      task.status === "completed"
-    )
-      return false;
     const group =
-      layout === "board" && task.status === "completed" && view === "today"
+      task.status === "completed" && view === "today"
         ? taskGroup({ ...task, status: "pending", wait: undefined })
         : taskGroup(task);
     return (
       (view !== "today" || ["overdue", "today"].includes(group)) &&
       (view !== "waiting" || group === "waiting") &&
+      (!inbox || !task.project) &&
       (!currentProject || inProject(task.project, currentProject)) &&
       [task.description, task.project, ...task.tags]
         .join(" ")
@@ -742,18 +765,6 @@ export default function App() {
         .includes(query.trim().toLocaleLowerCase())
     );
   });
-  const emptyTitle =
-    query.trim() || currentProject
-      ? "No results"
-      : activeItem
-        ? "No results"
-        : view === "today"
-          ? "No tasks"
-          : view === "completed"
-            ? "No completed tasks"
-            : view === "waiting"
-              ? "No waiting tasks"
-              : "No tasks";
   const connectionLabel = loading
     ? "RN · Connecting"
     : needsCheck
@@ -808,8 +819,6 @@ export default function App() {
       action: "elixir",
     });
   }
-  const inbox =
-    view === "pending" && !currentProject && !query.trim() && !activeItem;
   const renderTask = (task: Task) => (
     <TaskRow
       key={task.uuid}
@@ -1063,6 +1072,7 @@ export default function App() {
                     <TabsTrigger
                       value="list"
                       aria-label="List view"
+                      aria-keyshortcuts="B"
                       disabled={busy || organizationSaving}
                       className="gap-1.5 px-2 text-xs"
                     >
@@ -1072,6 +1082,7 @@ export default function App() {
                     <TabsTrigger
                       value="board"
                       aria-label="Board view"
+                      aria-keyshortcuts="B"
                       disabled={busy || organizationSaving}
                       className="gap-1.5 px-2 text-xs"
                     >
@@ -1244,7 +1255,8 @@ export default function App() {
                   needsCheck
                 }
                 error={organizationError || notice}
-                onLater={() => setView("later")}
+                onChooseProject={() => setFocusPickerOpen(true)}
+                onPause={(name) => transition(name, "later")}
                 onOpen={(name) => {
                   openTaskView();
                   setView("pending");
@@ -1252,10 +1264,27 @@ export default function App() {
                   setQuery("");
                 }}
                 onEdit={editProject}
+                onSelectNext={(projectName, taskUuid) => {
+                  const current = organization.projects?.find(
+                    (item) => item.name === projectName,
+                  );
+                  void changeOrganization({
+                    kind: "project",
+                    action: "save",
+                    revision: organization.revision,
+                    originalName: projectName,
+                    item: {
+                      name: projectName,
+                      description: current?.description || "",
+                      outcome: current?.outcome,
+                      nextTask: taskUuid,
+                      color: current?.color,
+                    },
+                  });
+                }}
                 onAddTask={(name) => {
-                  openTaskView();
-                  setView("pending");
-                  setProject(name);
+                  if (writeLock.current || needsCheck || open) return;
+                  setQuickProject(name);
                   setQuickError("");
                   setQuickOpen(true);
                 }}
@@ -1456,36 +1485,53 @@ export default function App() {
                   </Alert>
                 )}
                 <TabsContent value="list" className="mt-0 min-w-0">
-                  <TaskList
-                    visible={visible}
-                    projects={inbox ? [] : filterProjects}
-                    loading={loading}
-                    loaded={loaded}
-                    inbox={inbox}
-                    disabled={busy || needsCheck}
-                    emptyTitle={emptyTitle}
-                    hasFilters={!!(query || currentProject)}
-                    renderTask={renderTask}
-                    onAdd={openQuickAdd}
-                    onEditProject={editProject}
-                    onDeleteProject={deleteProject}
-                    expandedProjects={expandedProjects}
-                    onProjectExpand={(name, expanded) =>
-                      setExpandedProjects((current) =>
-                        expanded
-                          ? [...new Set([...current, name])]
-                          : current.filter((item) => item !== name),
-                      )
+                  <Suspense
+                    fallback={
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Spinner className="size-4" />
+                        Loading groups…
+                      </div>
                     }
-                    onOpenProject={(name) => {
-                      setProject(name);
-                      setView("pending");
-                    }}
-                    onClearFilters={() => {
-                      setQuery("");
-                      setProject("");
-                    }}
-                  />
+                  >
+                    <TaskBoard
+                      layout="list"
+                      initialScrollLeft={boardScroll.current}
+                      onScrollPositionChange={(position) => {
+                        boardScroll.current = position;
+                      }}
+                      tasks={visible}
+                      board={organization.board || defaultBoard()}
+                      revision={organization.revision}
+                      saving={organizationSaving}
+                      blocked={
+                        organizationBlocked || needsCheck || !organizationReady
+                      }
+                      error={organizationError}
+                      onChange={changeBoard}
+                      onReload={reloadBoard}
+                      onClearError={() => setOrganizationError("")}
+                      loading={loading}
+                      loaded={loaded}
+                      disabled={
+                        busy ||
+                        needsCheck ||
+                        organizationSaving ||
+                        loading ||
+                        organizationBlocked ||
+                        !organizationReady
+                      }
+                      moving={boardMove}
+                      renderTask={renderTask}
+                      onMove={moveTask}
+                      onAdd={openQuickAdd}
+                      canAddTask={view !== "completed"}
+                      hasSearch={!!query.trim()}
+                      onClearSearch={() => {
+                        setQuery("");
+                        setSearchOpen(false);
+                      }}
+                    />
+                  </Suspense>
                 </TabsContent>
                 <TabsContent value="board" className="mt-0 min-w-0">
                   <Suspense
@@ -1526,6 +1572,12 @@ export default function App() {
                       renderTask={renderTask}
                       onMove={moveTask}
                       onAdd={openQuickAdd}
+                      canAddTask={view !== "completed"}
+                      hasSearch={!!query.trim()}
+                      onClearSearch={() => {
+                        setQuery("");
+                        setSearchOpen(false);
+                      }}
                     />
                   </Suspense>
                 </TabsContent>
@@ -1546,26 +1598,26 @@ export default function App() {
       <QuickAdd
         open={quickOpen}
         projects={filterProjects}
-        defaultProject={currentProject}
+        availableLabels={organization.tags}
+        defaultProject={quickProject || currentProject}
         busy={busy}
         blocked={needsCheck}
         error={quickError}
         onClearError={() => setQuickError("")}
-        onCheck={() => setQuickOpen(false)}
+        onCheck={() => {
+          setQuickOpen(false);
+          setQuickProject("");
+        }}
         onOpenChange={(value) => {
-          if (!writeLock.current) setQuickOpen(value);
+          if (!writeLock.current) {
+            setQuickOpen(value);
+            if (!value) setQuickProject("");
+          }
         }}
         onAdd={async (task) => {
           const saved = await mutate("tasks", task, "quick");
           if (saved) {
-            openTaskView();
-            setView("pending");
-            setProject(
-              currentProject && task.project === currentProject
-                ? currentProject
-                : "",
-            );
-            setQuery("");
+            setQuickProject("");
             setAddedProject(task.project || "");
             setUndoTask(undefined);
             setToastVersion((value) => value + 1);
@@ -1575,6 +1627,7 @@ export default function App() {
         }}
         onEdit={(task) => {
           setQuickOpen(false);
+          setQuickProject("");
           openEditor(undefined, task);
         }}
       />
@@ -1680,6 +1733,13 @@ export default function App() {
           }
         />
       )}
+      {focusPickerOpen && !transitionProject && (
+        <FocusPicker
+          data={organization}
+          onClose={() => setFocusPickerOpen(false)}
+          onChoose={(name) => transition(name, "active")}
+        />
+      )}
       {transitionProject && (
         <ProjectTransition
           key={`${transitionProject.name}:${transitionProject.status}`}
@@ -1696,7 +1756,13 @@ export default function App() {
           busy={organizationSaving}
           blocked={!organizationReady || organizationBlocked || needsCheck}
           error={organizationError}
-          onClose={() => setTransitionProject(undefined)}
+          onBack={
+            focusPickerOpen ? () => setTransitionProject(undefined) : undefined
+          }
+          onClose={() => {
+            setTransitionProject(undefined);
+            setFocusPickerOpen(false);
+          }}
           onSave={changeOrganization}
           onReload={async () => {
             const result = await loadOrganization();

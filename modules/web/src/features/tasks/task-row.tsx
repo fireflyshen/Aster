@@ -84,14 +84,15 @@ export function TaskRow({
       data-task-row
       data-completion={transition?.phase}
       aria-busy={!!transition}
-      className="task-row"
+      className="task-row min-w-0 flex-1"
     >
       <div className="min-h-0 overflow-hidden">
         <div
           data-task-surface
           className={cn(
             "group/row [&:has(:focus-visible)]:bg-muted/50",
-            variant === "list" && "border-b border-border",
+            variant === "list" &&
+              "border-b border-border [.board-card_&]:border-b-0",
           )}
         >
           <div
@@ -263,7 +264,7 @@ export function TaskRow({
                     "size-7 text-muted-foreground transition-opacity hover:text-foreground",
                     started
                       ? "text-foreground opacity-100"
-                      : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:focus-visible:opacity-100",
+                      : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
                   )}
                 >
                   {started ? (

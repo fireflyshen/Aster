@@ -1,4 +1,3 @@
-import { LabelIcon } from "@/components/icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,7 +6,6 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Popover,
@@ -24,8 +22,10 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { DatePicker } from "@/features/tasks/date-picker";
+import { LabelsPicker } from "@/features/tasks/labels-picker";
 import { ProjectPicker } from "@/features/tasks/project-picker";
 import { parseQuickTask, type QuickToken } from "@core/tasks/quick-task";
+import type { SavedTag } from "@core/workspace/organization";
 import type { TaskInput } from "@shared/tasks";
 import { format } from "date-fns";
 import { ArrowUp, Flag, ListPlus, Plus, X } from "lucide-react";
@@ -50,6 +50,7 @@ export function QuickAdd({
   onAdd,
   onEdit,
   projects,
+  availableLabels = [],
   defaultProject = "",
 }: {
   open: boolean;
@@ -62,14 +63,13 @@ export function QuickAdd({
   onAdd: (task: TaskInput) => Promise<boolean>;
   onEdit: (task: TaskInput) => void;
   projects: string[];
+  availableLabels?: SavedTag[];
   defaultProject?: string;
 }) {
   const [noProject, setNoProject] = useState(false);
   const [text, setText] = useState("");
   const [ignored, setIgnored] = useState<string[]>([]);
   const [attempted, setAttempted] = useState(false);
-  const [tagsOpen, setTagsOpen] = useState(false);
-  const [tagText, setTagText] = useState("");
   const mirror = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const restoreInput = (event: Event) => {
@@ -183,7 +183,7 @@ export function QuickAdd({
           <br />
           Try tomorrow at 14 or 2026-10-20.
           <br />
-          Enter to add · Shift + Enter for a new line
+          Enter to add · Shift + Enter for a new line · ⌘E for editor
         </p>
       </PopoverContent>
     </Popover>
@@ -281,6 +281,16 @@ export function QuickAdd({
                   }}
                   onChange={(e) => change(e.target.value)}
                   onKeyDown={(e) => {
+                    if (
+                      (e.metaKey || e.ctrlKey) &&
+                      e.key.toLowerCase() === "e" &&
+                      !locked &&
+                      !parsed.errors.length
+                    ) {
+                      e.preventDefault();
+                      editForm();
+                      return;
+                    }
                     if (
                       e.key === "Enter" &&
                       !e.shiftKey &&
@@ -395,80 +405,20 @@ export function QuickAdd({
                       <SelectItem value="none">No priority</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Popover
-                    open={tagsOpen}
-                    onOpenChange={(value) => {
-                      setTagsOpen(value);
-                      if (value) setTagText(parsed.task.tags.join(", "));
-                    }}
-                  >
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={locked}
-                        className={chip + " min-w-0 max-w-44"}
-                      >
-                        <LabelIcon className="size-4" />
-                        <span className="truncate">
-                          {parsed.task.tags.length
-                            ? parsed.task.tags.join(", ")
-                            : "Labels"}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      align="start"
-                      collisionPadding={12}
-                      className="w-64 space-y-3 p-3"
-                      onCloseAutoFocus={restoreInput}
-                    >
-                      <Label
-                        htmlFor="quick-tags"
-                        className="text-xs font-normal"
-                      >
-                        Labels, separated by commas
-                      </Label>
-                      <Input
-                        id="quick-tags"
-                        value={tagText}
-                        onChange={(e) => setTagText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                            e.preventDefault();
-                            setField(
-                              "tag",
-                              tagText
-                                .split(/[,，]/)
-                                .map((t) => t.trim())
-                                .filter(Boolean)
-                                .map((t) => "@" + t)
-                                .join(" "),
-                            );
-                            setTagsOpen(false);
-                          }
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => {
-                          setField(
-                            "tag",
-                            tagText
-                              .split(/[,，]/)
-                              .map((t) => t.trim())
-                              .filter(Boolean)
-                              .map((t) => "@" + t)
-                              .join(" "),
-                          );
-                          setTagsOpen(false);
-                        }}
-                      >
-                        Apply labels
-                      </Button>
-                    </PopoverContent>
-                  </Popover>
+                  <LabelsPicker
+                    compact
+                    id="quick-tags"
+                    value={parsed.task.tags}
+                    choices={availableLabels}
+                    disabled={locked}
+                    returnFocus={() => input.current?.focus()}
+                    onChange={(tags) =>
+                      setField(
+                        "tag",
+                        tags.map((t) => "@" + t).join(" "),
+                      )
+                    }
+                  />
                   <Button
                     type="button"
                     variant="outline"

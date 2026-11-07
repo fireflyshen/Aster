@@ -23,3 +23,13 @@ Initial deployment: 2026-10-18. Taskwarrior reset backup: `/opt/aster/backups/20
 Focus 2.1 additionally enables `WORKSPACE_SOCKET=/opt/aster/data/workspace.sock`. This Unix socket is mode 0600, uses the same server process/metadata revision queue, and is reachable by the existing SSH Taskwarrior user. No additional port or Cloudflare policy is needed. Startup probes an existing socket before removing a stale instance and refuses to replace an active socket or ordinary file. The systemd sandbox already allows AF_UNIX and writes in `/opt/aster/data`.
 
 Version 2.5 uses Node.js 24's built-in SQLite backup API. Keep `data/restored-uda.json` and `data/restore-points/` with the organization and recovery files in deployment backups. An interrupted restore is rolled back before either HTTP or the private socket starts. Whole-workspace restore requires the native task DB, timer data and workspace directory to share a filesystem; RN's current paths satisfy this. No additional network port or Access policy is added.
+
+## 2026-11-07: TUI workspace and grouped lists
+
+Release: `/opt/aster/releases/20261107-102802-tui-groups`.
+Previous release retained: `/opt/aster/releases/20261104-2.5.0`.
+Pre-deployment backup: `/opt/aster/backups/before-20261107-102802-tui-groups`.
+
+This release adds the searchable Focus picker, shared list/board groups, and private task/filter, quick-preview and backup endpoints used by the Go TUI. Existing environment, origin, Access policy and socket path are retained.
+
+Deployment checks: systemd active; health 200; unauthenticated direct API 401; public domain 302 to Access; private socket mode 0600; wrong source rejected with 409; task reads, filters, quick parsing, backup export and restore-point listing succeed. Backup includes the SQLite database (integrity check `ok`), task export, organization/recovery files, hooks, timer data and Taskwarrior config. Stored task fields and workspace files match before deployment; Taskwarrior's computed `urgency` is excluded from stored-field comparison.

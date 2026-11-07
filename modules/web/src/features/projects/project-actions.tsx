@@ -44,7 +44,7 @@ export function ProjectActions({
           size="icon-sm"
           disabled={disabled}
           aria-label={`Project options: ${name}`}
-          className="shrink-0 text-muted-foreground"
+          className="shrink-0 text-muted-foreground md:opacity-0 md:transition-opacity md:group-hover/project:opacity-100 md:group-focus-within/project:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
         >
           <Ellipsis className="size-4" />
         </Button>

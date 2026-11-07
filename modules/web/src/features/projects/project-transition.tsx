@@ -35,6 +35,7 @@ export function ProjectTransition({
   blocked,
   error,
   onClose,
+  onBack,
   onReload,
   onSave,
 }: {
@@ -45,6 +46,7 @@ export function ProjectTransition({
   blocked: boolean;
   error: string;
   onClose: () => void;
+  onBack?: () => void;
   onReload: () => Promise<Organization | undefined>;
   onSave: (change: ProjectFocusChange) => Promise<boolean>;
 }) {
@@ -55,7 +57,16 @@ export function ProjectTransition({
   const active = (data.projects || []).filter(
     (item) => item.name !== project.name && projectStatus(item) === "active",
   );
-  const replace = status === "active" && active.length >= FOCUS_LIMIT;
+  const overlaps = active.filter(
+    (item) =>
+      inProject(item.name, project.name) || inProject(project.name, item.name),
+  );
+  const replace =
+    status === "active" &&
+    (active.length >= FOCUS_LIMIT || overlaps.length > 0);
+  const replacementOptions = overlaps.length ? overlaps : active;
+  const chosenReplacement =
+    replacement || (overlaps.length === 1 ? overlaps[0].name : "");
   const unfinished = Object.entries(data.projectCounts || {}).reduce(
     (count, [name, value]) =>
       count + (inProject(name, project.name) ? value : 0),
@@ -86,7 +97,9 @@ export function ProjectTransition({
         }}
       >
         <DialogHeader className="shrink-0 border-b px-5 py-4 pr-14 text-left">
-          <DialogTitle className="text-base">{verb} project</DialogTitle>
+          <DialogTitle className="text-base">
+            {status === "active" ? "Add to Focus" : `${verb} project`}
+          </DialogTitle>
           <DialogDescription className="break-words">
             {project.name}
           </DialogDescription>
@@ -95,7 +108,12 @@ export function ProjectTransition({
           className="flex min-h-0 flex-col"
           onSubmit={async (event) => {
             event.preventDefault();
-            if (locked || (replace && !replacement)) return;
+            if (
+              locked ||
+              (status === "active" && overlaps.length > 1) ||
+              (replace && !chosenReplacement)
+            )
+              return;
             if (
               await onSave({
                 revision,
@@ -106,7 +124,11 @@ export function ProjectTransition({
                 ...(status === "active"
                   ? {
                       outcome,
-                      ...(replacement ? { replaceProject: replacement } : {}),
+                      ...(replace && chosenReplacement
+                        ? {
+                            replaceProject: chosenReplacement,
+                          }
+                        : {}),
                     }
                   : {}),
                 ...(status === "completed"
@@ -121,7 +143,13 @@ export function ProjectTransition({
             {status === "active" ? (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="focus-outcome">Finish line</Label>
+                  <Label htmlFor="focus-outcome">
+                    What does done look like?
+                  </Label>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    A concrete finish line keeps this project focused. You can
+                    change it later.
+                  </p>
                   <Textarea
                     id="focus-outcome"
                     value={outcome}
@@ -139,15 +167,15 @@ export function ProjectTransition({
                       Pause a project to make room
                     </Label>
                     <Select
-                      value={replacement}
+                      value={chosenReplacement}
                       onValueChange={setReplacement}
                       disabled={locked}
                     >
                       <SelectTrigger id="focus-replace" className="w-full">
-                        <SelectValue placeholder="Choose one of your three active projects" />
+                        <SelectValue placeholder="Choose an active project to pause" />
                       </SelectTrigger>
                       <SelectContent>
-                        {active.map((item) => (
+                        {replacementOptions.map((item) => (
                           <SelectItem key={item.name} value={item.name}>
                             {item.name}
                           </SelectItem>
@@ -155,7 +183,11 @@ export function ProjectTransition({
                       </SelectContent>
                     </Select>
                     <p className="text-xs leading-5 text-muted-foreground">
-                      Its tasks and board positions will be kept in Later.
+                      {overlaps.length > 1
+                        ? "Multiple child projects are active. Pause them before focusing this parent project."
+                        : overlaps.length
+                          ? "Parent and child projects share a Focus slot. Switch focus by pausing the overlapping project."
+                          : "The paused project stays in Later with its tasks and board positions."}
                     </p>
                   </div>
                 )}
@@ -196,6 +228,17 @@ export function ProjectTransition({
             )}
           </div>
           <footer className="flex shrink-0 justify-end gap-2 border-t px-5 py-4">
+            {onBack && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mr-auto"
+                disabled={busy}
+                onClick={onBack}
+              >
+                Back
+              </Button>
+            )}
             <Button
               type="button"
               variant="secondary"
@@ -208,14 +251,17 @@ export function ProjectTransition({
               type="submit"
               disabled={
                 locked ||
+                (status === "active" && overlaps.length > 1) ||
                 (status === "active" && !outcome.trim()) ||
-                (replace && !replacement)
+                (replace && !chosenReplacement)
               }
             >
               {busy ? (
                 <Spinner />
               ) : replace ? (
-                "Pause and activate"
+                "Switch focus"
+              ) : status === "active" ? (
+                "Add to Focus"
               ) : (
                 `${verb} project`
               )}

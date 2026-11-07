@@ -562,7 +562,10 @@ function RowMenu({
           size="icon-sm"
           disabled={disabled}
           aria-label={`Options: ${entry.item.name}`}
-          className={cn("ml-2 text-muted-foreground", open && "bg-accent")}
+          className={cn(
+            "ml-2 text-muted-foreground md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 data-[state=open]:opacity-100",
+            open && "bg-accent",
+          )}
         >
           <Ellipsis className="size-4" />
         </Button>

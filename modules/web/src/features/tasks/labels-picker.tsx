@@ -17,17 +17,24 @@ import {
 import { itemColor, type SavedTag } from "@core/workspace/organization";
 import { tagName } from "@core/tasks/filter";
 import { isVirtualTag } from "@core/tasks/options";
+import { cn } from "cn";
 
 export function LabelsPicker({
   value,
   choices,
   onChange,
   disabled,
+  compact = false,
+  id = "tags",
+  returnFocus,
 }: {
   value: string[];
   choices: SavedTag[];
   onChange: (tags: string[]) => void;
   disabled?: boolean;
+  compact?: boolean;
+  id?: string;
+  returnFocus?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -65,27 +72,50 @@ export function LabelsPicker({
     >
       <PopoverTrigger asChild>
         <Button
-          id="tags"
+          id={id}
           role="combobox"
           aria-label="Labels"
           aria-expanded={open}
           variant="outline"
           type="button"
           disabled={disabled}
-          className="h-11 w-full min-w-0 justify-between px-3 text-base font-normal md:h-9 md:text-sm"
+          className={cn(
+            "h-11 w-full min-w-0 justify-between px-3 text-base font-normal md:h-9 md:text-sm",
+            compact &&
+              "h-9 w-auto max-w-44 justify-start gap-1.5 rounded-[5px] border-input px-2 py-0 text-[13px] font-normal text-muted-foreground shadow-none has-[>svg]:px-2 md:h-7 md:text-[13px]",
+            compact && value.length > 0 && "text-foreground",
+          )}
         >
+          {compact && <LabelIcon className="size-4 shrink-0" />}
           <span
-            className={`truncate ${value.length ? "" : "text-muted-foreground"}`}
+            className={cn(
+              "truncate",
+              !value.length && !compact && "text-muted-foreground",
+            )}
           >
-            {value.length ? value.join(", ") : "Choose labels"}
+            {value.length
+              ? value.join(", ")
+              : compact
+                ? "Labels"
+                : "Choose labels"}
           </span>
-          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+          {!compact && (
+            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+          )}
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         collisionPadding={16}
         className="w-[var(--radix-popover-trigger-width)] min-w-[240px] max-w-[calc(100vw-2rem)] p-0"
+        onCloseAutoFocus={
+          returnFocus
+            ? (event) => {
+                event.preventDefault();
+                returnFocus();
+              }
+            : undefined
+        }
       >
         <Command shouldFilter={false}>
           <CommandInput

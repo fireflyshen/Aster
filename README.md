@@ -1,5 +1,15 @@
 # Aster
 
+## 终端客户端（Go TUI）
+
+独立模块 [`modules/tui`](modules/tui/README.md) 提供 Focus、任务列表与编辑、项目聚焦、计时和栏目移动，沿用 RN 的 SSH 连接和共享工作区。
+
+```sh
+cd modules/tui
+go build -o ../../dist/tui/aster .
+../../dist/tui/aster
+```
+
 ## Web 客户端（桌面与手机）
 
 网页客户端是本仓库的独立模块 [`modules/web`](modules/web/README.md)，界面使用 React + shadcn/ui，继续连接 RN 的同一份 Taskwarrior 数据。

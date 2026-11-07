@@ -129,3 +129,7 @@ Project colors use the shared filter/label palette. Each project stores its opti
 ## Recovery, exports and repeating tasks
 
 The sidebar's **Data & recovery** opens deleted-task recovery and a full JSON export. Task editing adds **Repeat** / **Ends**, **Edit series** for existing occurrences, and multiline **Notes**. Stop series preserves existing tasks. These use native Taskwarrior recurrence and annotations; the recovery journal remains separate workspace metadata. See [behavior, limitations and validation](../../docs/reliability-2026-11-03.md).
+
+## 列表分组与看板统一
+
+List 与 Board 使用同一份栏目及任务范围。每个列表分组对应一个看板栏目，顺序、任务归属、组内排序和空栏目一致；没有指定栏目的任务进入 Unsectioned。列表支持折叠、拖动、Move 菜单、新增分组、改名、调序和删除，操作会同步到看板。删除分组保留任务并移回 Unsectioned。收件箱仍只显示无项目任务，搜索和筛选不会清除隐藏任务的位置。

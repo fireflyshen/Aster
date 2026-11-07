@@ -1,12 +1,113 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { FOCUS_LIMIT, inProject, projectStatus } from "@core/workspace/focus";
 import type { Organization } from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
-import { ArrowRight, Plus, Target } from "lucide-react";
-import type { ReactNode } from "react";
+import { cn } from "cn";
+import { ArrowRight, Check, Plus, Target } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { ProjectIcon } from "./project-icon";
+
+function NextStepMenu({
+  projectName,
+  currentUuid,
+  candidates,
+  disabled,
+  label,
+  className,
+  onSelect,
+}: {
+  projectName: string;
+  currentUuid?: string;
+  candidates: Task[];
+  disabled: boolean;
+  label: string;
+  className?: string;
+  onSelect: (uuid: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const filtered = candidates.filter((task) =>
+    task.description
+      .toLocaleLowerCase()
+      .includes(query.trim().toLocaleLowerCase()),
+  );
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setQuery("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          aria-label={`${label} for ${projectName}`}
+          className={className}
+        >
+          {label}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        collisionPadding={16}
+        className="w-72 max-w-[calc(100vw-2rem)] p-0"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            aria-label={`Search tasks in ${projectName}`}
+            placeholder="Choose next step…"
+            value={query}
+            onValueChange={setQuery}
+          />
+          <CommandList>
+            <CommandEmpty>No matching tasks</CommandEmpty>
+            <CommandGroup>
+              {filtered.map((item) => (
+                <CommandItem
+                  key={item.uuid}
+                  value={item.uuid}
+                  onSelect={() => {
+                    onSelect(item.uuid);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "size-4 shrink-0",
+                      item.uuid !== currentUuid && "opacity-0",
+                    )}
+                  />
+                  <span className="min-w-0 flex-1 truncate">
+                    {item.description}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export function FocusOverview({
   data,
@@ -14,10 +115,12 @@ export function FocusOverview({
   loading,
   disabled,
   error,
-  onLater,
+  onChooseProject,
+  onPause,
   onOpen,
   onEdit,
   onAddTask,
+  onSelectNext,
   renderTask,
 }: {
   data: Organization;
@@ -25,10 +128,12 @@ export function FocusOverview({
   loading: boolean;
   disabled: boolean;
   error: string;
-  onLater: () => void;
+  onChooseProject: () => void;
+  onPause: (name: string) => void;
   onOpen: (name: string) => void;
   onEdit: (name: string) => void;
   onAddTask: (name: string) => void;
+  onSelectNext?: (projectName: string, taskUuid: string) => void;
   renderTask: (task: Task) => ReactNode;
 }) {
   const projects = (data.projects || []).filter(
@@ -45,9 +150,14 @@ export function FocusOverview({
         <span>
           {projects.length} / {FOCUS_LIMIT} active projects
         </span>
-        <Button variant="ghost" size="sm" disabled={disabled} onClick={onLater}>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          onClick={onChooseProject}
+        >
           <Plus className="size-4" />
-          Choose project
+          Add to Focus
         </Button>
       </div>
       {loading ? (
@@ -65,24 +175,30 @@ export function FocusOverview({
           <p className="max-w-md text-sm leading-6 text-muted-foreground">
             Keep up to three projects active. Everything else can wait in Later.
           </p>
-          <Button variant="outline" disabled={disabled} onClick={onLater}>
-            Choose from Later
+          <Button
+            variant="outline"
+            disabled={disabled}
+            onClick={onChooseProject}
+          >
+            Choose a project
             <ArrowRight className="size-4" />
           </Button>
         </div>
       ) : (
         <div className="space-y-8">
           {projects.map((project) => {
-            const task = tasks.find(
-              (task) =>
-                task.uuid === project.nextTask &&
-                inProject(task.project, project.name) &&
-                ["pending", "waiting"].includes(task.status),
+            const candidates = tasks.filter(
+              (item) =>
+                inProject(item.project, project.name) &&
+                ["pending", "waiting"].includes(item.status),
+            );
+            const task = candidates.find(
+              (item) => item.uuid === project.nextTask,
             );
             return (
               <section
                 key={project.name}
-                className="min-w-0 border-b pb-6 [&_[data-task-surface]]:border-0"
+                className="group/focus min-w-0 border-b pb-6 [&_[data-task-surface]]:border-0"
                 aria-label={`Focus: ${project.name}`}
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
@@ -94,36 +210,72 @@ export function FocusOverview({
                   >
                     <ProjectIcon name={project.name} />
                     <span className="truncate">{project.name}</span>
-                    <ArrowRight className="size-4 text-muted-foreground" />
+                    <ArrowRight className="size-4 text-muted-foreground transition-transform duration-150 group-hover/focus:translate-x-0.5" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={() => onEdit(project.name)}
-                    className="shrink-0 text-xs text-muted-foreground"
-                  >
-                    Edit goal
-                  </Button>
-                </div>
-                <p className="mb-5 text-sm leading-6 whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]">
-                  {project.outcome}
-                </p>
-                <p className="mb-1 text-xs font-medium text-muted-foreground">
-                  Next step
-                </p>
-                {task ? (
-                  renderTask(task)
-                ) : (
-                  <div className="flex min-h-12 flex-wrap items-center gap-2">
+                  <div className="flex shrink-0 items-center gap-1 md:opacity-0 md:transition-opacity md:group-hover/focus:opacity-100 md:group-focus-within/focus:opacity-100">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() => onPause(project.name)}
+                      className="text-xs text-muted-foreground"
+                    >
+                      Pause
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       disabled={disabled}
                       onClick={() => onEdit(project.name)}
+                      className="shrink-0 text-xs text-muted-foreground"
                     >
-                      Choose a task
+                      Edit focus
                     </Button>
+                  </div>
+                </div>
+                {project.outcome && (
+                  <p className="mb-4 text-sm leading-6 whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]">
+                    {project.outcome}
+                  </p>
+                )}
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Next step
+                  </p>
+                  {task && candidates.length > 1 && onSelectNext && (
+                    <NextStepMenu
+                      projectName={project.name}
+                      currentUuid={task.uuid}
+                      candidates={candidates}
+                      disabled={disabled}
+                      label="Change"
+                      className="h-6 px-1.5 text-xs text-muted-foreground md:opacity-0 md:transition-opacity md:group-hover/focus:opacity-100 md:group-focus-within/focus:opacity-100 data-[state=open]:opacity-100"
+                      onSelect={(uuid) => onSelectNext(project.name, uuid)}
+                    />
+                  )}
+                </div>
+                {task ? (
+                  renderTask(task)
+                ) : (
+                  <div className="flex min-h-11 flex-wrap items-center gap-2">
+                    {candidates.length > 0 && onSelectNext ? (
+                      <NextStepMenu
+                        projectName={project.name}
+                        candidates={candidates}
+                        disabled={disabled}
+                        label="Choose a task"
+                        onSelect={(uuid) => onSelectNext(project.name, uuid)}
+                      />
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={() => onEdit(project.name)}
+                      >
+                        Choose a task
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"

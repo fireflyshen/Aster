@@ -62,7 +62,7 @@ export function ProjectTree({
           data-project-row
           data-project-nav={compact ? "" : undefined}
           data-selected={compact && current === row.name ? "true" : undefined}
-          className={`flex min-w-0 items-center gap-0.5 ${compact ? "min-h-9" : "project-manager-row min-h-14 border-b"}`}
+          className={`group/project flex min-w-0 items-center gap-0.5 ${compact ? "min-h-9" : "project-manager-row min-h-14 border-b"}`}
           style={{
             paddingInlineStart:
               Math.min(depth, compact ? 4 : 6) * (compact ? 12 : 16),
