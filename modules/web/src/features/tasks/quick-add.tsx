@@ -29,6 +29,7 @@ import { ProjectPicker } from "@/features/tasks/project-picker";
 import { parseQuickTask, type QuickToken } from "@core/tasks/quick-task";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
 import type { TaskInput } from "@shared/tasks";
+import { cn } from "cn";
 import { format } from "date-fns";
 import { ArrowUp, CircleHelp, Flag, ListPlus, X } from "lucide-react";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
@@ -40,6 +41,46 @@ const isoDate = (value: string) =>
     /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
     "$1-$2-$3T$4:$5:$6Z",
   );
+
+const PRIORITIES: {
+  value: "H" | "M" | "L" | "none";
+  label: string;
+  short: string;
+  iconClass: string;
+  chipClass: string;
+}[] = [
+  {
+    value: "H",
+    label: "Priority 1",
+    short: "P1",
+    iconClass: "fill-red-500/20 text-red-600 dark:text-red-400",
+    chipClass:
+      "border-red-500/35 bg-red-500/8 text-red-600 hover:bg-red-500/14 dark:text-red-400",
+  },
+  {
+    value: "M",
+    label: "Priority 2",
+    short: "P2",
+    iconClass: "fill-amber-500/20 text-amber-600 dark:text-amber-400",
+    chipClass:
+      "border-amber-500/35 bg-amber-500/8 text-amber-600 hover:bg-amber-500/14 dark:text-amber-400",
+  },
+  {
+    value: "L",
+    label: "Priority 3",
+    short: "P3",
+    iconClass: "fill-blue-500/20 text-blue-600 dark:text-blue-400",
+    chipClass:
+      "border-blue-500/35 bg-blue-500/8 text-blue-600 hover:bg-blue-500/14 dark:text-blue-400",
+  },
+  {
+    value: "none",
+    label: "Priority 4",
+    short: "Priority",
+    iconClass: "text-muted-foreground",
+    chipClass: "border-input text-muted-foreground",
+  },
+];
 
 export function QuickAdd({
   open,
@@ -442,48 +483,61 @@ export function QuickAdd({
                     </Button>
                   )}
                 </div>
-                <Select
-                  disabled={locked}
-                  value={parsed.task.priority || "none"}
-                  onValueChange={(v) =>
-                    setField(
-                      "priority",
-                      (
-                        {
-                          H: "p1",
-                          M: "p2",
-                          L: "p3",
-                          none: "p4",
-                        } as Record<string, string>
-                      )[v],
-                    )
-                  }
-                >
-                  <SelectTrigger
-                    aria-label="Priority"
-                    className={
-                      chip +
-                      " w-auto gap-1.5 data-[size=default]:h-9 md:data-[size=default]:h-7 [&>svg:last-child]:hidden"
-                    }
-                  >
-                    <Flag className="size-4" />
-                    <SelectValue>
-                      {(
-                        {
-                          H: "Priority 1",
-                          M: "Priority 2",
-                          L: "Priority 3",
-                        } as Record<string, string>
-                      )[parsed.task.priority || ""] || "Priority"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent onCloseAutoFocus={restoreInput}>
-                    <SelectItem value="H">Priority 1</SelectItem>
-                    <SelectItem value="M">Priority 2</SelectItem>
-                    <SelectItem value="L">Priority 3</SelectItem>
-                    <SelectItem value="none">No priority</SelectItem>
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  const currentPriorityVal = (parsed.task.priority || "none") as
+                    | "H"
+                    | "M"
+                    | "L"
+                    | "none";
+                  const activePriority =
+                    PRIORITIES.find((p) => p.value === currentPriorityVal) ||
+                    PRIORITIES[3];
+                  return (
+                    <Select
+                      disabled={locked}
+                      value={currentPriorityVal}
+                      onValueChange={(v) =>
+                        setField(
+                          "priority",
+                          (
+                            {
+                              H: "p1",
+                              M: "p2",
+                              L: "p3",
+                              none: "p4",
+                            } as Record<string, string>
+                          )[v],
+                        )
+                      }
+                    >
+                      <SelectTrigger
+                        aria-label="Priority"
+                        className={cn(
+                          chip,
+                          "w-auto gap-1.5 data-[size=default]:h-9 md:data-[size=default]:h-7 [&>svg:last-child]:hidden",
+                          activePriority.chipClass,
+                        )}
+                      >
+                        <Flag
+                          className={cn("size-3.5", activePriority.iconClass)}
+                        />
+                        <SelectValue>
+                          {activePriority.short}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent onCloseAutoFocus={restoreInput}>
+                        {PRIORITIES.map((p) => (
+                          <SelectItem key={p.value} value={p.value}>
+                            <span className="flex items-center gap-2">
+                              <Flag className={cn("size-3.5", p.iconClass)} />
+                              <span>{p.label}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
                 <LabelsPicker
                   compact
                   id="quick-tags"

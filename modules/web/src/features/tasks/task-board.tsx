@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { parseQuickTask } from "@core/tasks/quick-task";
+import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
 import {
   columnTasks,
   placeCard,
@@ -33,7 +33,7 @@ import {
   type BoardColumn as Column,
   type BoardState,
 } from "@core/workspace/board";
-import type { Organization } from "@core/workspace/organization";
+import type { Organization, SavedTag } from "@core/workspace/organization";
 import {
   closestCenter,
   DndContext,
@@ -53,17 +53,16 @@ import {
 } from "@dnd-kit/core";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
+import { format } from "date-fns";
 import {
   ArrowLeft,
   ArrowRight,
+  CalendarClock,
   ChevronRight,
-  CornerDownLeft,
   Ellipsis,
   FolderPlus,
   GripVertical,
-  ListPlus,
   Pencil,
-  Plus,
   Trash2,
   X,
 } from "lucide-react";
@@ -102,6 +101,12 @@ type Props = {
   ) => Promise<boolean>;
   onAdd: (draft?: TaskInput) => void;
   onCreateTask?: (task: TaskInput, columnId?: string) => Promise<boolean>;
+  projects?: string[];
+  availableLabels?: SavedTag[];
+  defaultProject?: string;
+  defaultDue?: string;
+  todaySplit?: boolean;
+  onRescheduleOverdue?: (overdueTasks: Task[]) => Promise<void>;
   canAddTask?: boolean;
   hasSearch?: boolean;
   onClearSearch?: () => void;
@@ -124,207 +129,15 @@ function canDrag(target: EventTarget, card: HTMLDivElement) {
   return !control || control.hasAttribute("data-task-drag-surface");
 }
 
-function BoardTaskComposer({
-  column,
-  compact,
-  disabled,
-  onCreateTask,
-  onFallbackAdd,
-}: {
-  column: Column;
-  compact: boolean;
-  disabled: boolean;
-  onCreateTask?: (task: TaskInput, columnId?: string) => Promise<boolean>;
-  onFallbackAdd: (draft?: TaskInput) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  if (!editing) {
-    return (
-      <Button
-        type="button"
-        variant="ghost"
-        disabled={disabled}
-        onClick={() => {
-          if (!onCreateTask) {
-            onFallbackAdd();
-            return;
-          }
-          setError("");
-          setEditing(true);
-          requestAnimationFrame(() => inputRef.current?.focus());
-        }}
-        className={
-          compact
-            ? "task-add-button"
-            : "mt-1 flex h-9 w-full items-center justify-start gap-2 rounded-lg px-2.5 text-xs font-normal text-muted-foreground transition-colors hover:bg-(--row-hover) hover:text-foreground has-[>svg]:px-2.5"
-        }
-      >
-        <Plus
-          className={compact ? "size-[18px]" : "size-4"}
-          strokeWidth={1.5}
-        />
-        Add task
-      </Button>
-    );
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (disabled || submitting || !onCreateTask) return;
-    const parsed = parseQuickTask(text);
-    if (parsed.errors.length) {
-      setError(parsed.errors[0]);
-      inputRef.current?.focus();
-      return;
-    }
-    if (!parsed.task.description.trim()) {
-      setEditing(false);
-      setText("");
-      setError("");
-      return;
-    }
-    setSubmitting(true);
-    setError("");
-    try {
-      const ok = await onCreateTask(parsed.task, column.id);
-      if (ok) {
-        setText("");
-        requestAnimationFrame(() => inputRef.current?.focus());
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className={compact ? "mt-0.5" : "mt-1"}>
-      <div
-        className={
-          compact
-            ? "-mx-2.5 flex min-h-11 items-center gap-2 rounded-lg bg-(--row-hover) px-2.5 md:-mx-3 md:min-h-8 md:px-3"
-            : "flex min-h-10 items-center gap-2 rounded-xl border border-ring/40 bg-card px-3 py-1.5 shadow-xs"
-        }
-      >
-        {compact && (
-          <span
-            aria-hidden="true"
-            className="flex h-11 w-8 shrink-0 items-center justify-start md:h-8 md:w-7"
-          >
-            <span className="size-[18px] rounded-full border border-muted-foreground/45 bg-background" />
-          </span>
-        )}
-        <input
-          ref={inputRef}
-          type="text"
-          value={text}
-          disabled={disabled || submitting}
-          aria-label={`Add task${column.id !== UNSECTIONED ? ` to ${column.name}` : ""}`}
-          placeholder={
-            column.id !== UNSECTIONED
-              ? `Add task to ${column.name}…`
-              : "New task… (Enter to add, Esc to close)"
-          }
-          onChange={(event) => {
-            setText(event.target.value);
-            if (error) setError("");
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              setEditing(false);
-              setText("");
-              setError("");
-              return;
-            }
-            if (
-              (event.metaKey || event.ctrlKey) &&
-              event.key.toLowerCase() === "e"
-            ) {
-              event.preventDefault();
-              const parsed = parseQuickTask(text);
-              setEditing(false);
-              setText("");
-              setError("");
-              onFallbackAdd(parsed.task);
-            }
-          }}
-          onBlur={(event) => {
-            if (
-              !text.trim() &&
-              !submitting &&
-              !event.currentTarget.form?.contains(
-                event.relatedTarget as Node | null,
-              )
-            ) {
-              setEditing(false);
-              setError("");
-            }
-          }}
-          className="min-w-0 flex-1 bg-transparent py-1 text-sm leading-5 outline-none placeholder:text-muted-foreground"
-        />
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={disabled || submitting}
-            title="Open full task editor (⌘E)"
-            aria-label="Open full task editor"
-            onClick={() => {
-              const parsed = parseQuickTask(text);
-              setEditing(false);
-              setText("");
-              setError("");
-              onFallbackAdd(parsed.task);
-            }}
-            className="size-7 text-muted-foreground hover:text-foreground"
-          >
-            <ListPlus className="size-3.5" />
-          </Button>
-          <Button
-            type="submit"
-            size="xs"
-            disabled={disabled || submitting || !text.trim()}
-            className="h-6 gap-1 rounded-md px-2 text-xs shadow-none"
-          >
-            {submitting ? (
-              <Spinner className="size-3" />
-            ) : (
-              <>
-                Add
-                <CornerDownLeft className="size-3 opacity-70" />
-              </>
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={submitting}
-            aria-label="Cancel adding task"
-            onClick={() => {
-              setEditing(false);
-              setText("");
-              setError("");
-            }}
-            className="size-7 text-muted-foreground hover:text-foreground"
-          >
-            <X className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-      {error && (
-        <p role="alert" className="mt-1.5 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </form>
+function isTaskOverdue(task: Task): boolean {
+  if (task.status === "completed" || !task.due) return false;
+  const iso = task.due.replace(
+    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+    "$1-$2-$3T$4:$5:$6Z",
   );
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return new Date(iso) < today;
 }
 
 function InlineColumnCreator({
@@ -767,6 +580,12 @@ export function TaskBoard({
   onMove,
   onAdd,
   onCreateTask,
+  projects = [],
+  availableLabels = [],
+  defaultProject = "",
+  defaultDue = "",
+  todaySplit = false,
+  onRescheduleOverdue,
   canAddTask = true,
   hasSearch = false,
   onClearSearch,
@@ -777,6 +596,8 @@ export function TaskBoard({
   const [active, setActive] = useState<Task>();
   const [position, setPosition] = useState<Position>();
   const [announcement, setAnnouncement] = useState("");
+  const [overdueCollapsed, setOverdueCollapsed] = useState(false);
+  const [reschedulingOverdue, setReschedulingOverdue] = useState(false);
   const [editor, setEditor] = useState<{
     column: Column;
     revision: number;
@@ -1005,98 +826,253 @@ export function TaskBoard({
                 : "grid grid-flow-col auto-cols-[18rem] gap-6"
             }
           >
-            {columns.map((column, index) => {
-              const items = columnTasks(tasks, displayBoard, column.id);
-              const nonEmptyColumns = columns.filter(
-                (col) => columnTasks(tasks, displayBoard, col.id).length > 0,
-              );
-              if (
-                layout === "list" &&
-                items.length === 0 &&
-                !active &&
-                (column.id !== UNSECTIONED || nonEmptyColumns.length > 0)
-              ) {
-                return null;
-              }
-              const showColumnHeader =
-                layout === "board" ||
-                (hasCustomColumns &&
-                  (nonEmptyColumns.length > 1 ||
-                    (nonEmptyColumns.length === 1 &&
-                      column.id !== UNSECTIONED)) &&
-                  (items.length > 0 || !!active));
-              return (
-                <BoardColumn
-                  key={column.id}
-                  compact={layout === "list"}
-                  activeDrag={!!active}
-                  column={column}
-                  count={items.length}
-                  index={index - 1}
-                  total={board.columns.length}
-                  disabled={disabled}
-                  showHeader={showColumnHeader}
-                  onEdit={() => openEditor(column)}
-                  onShift={(direction) => {
-                    onClearError();
-                    void onChange({
-                      kind: "board",
-                      action: "column.move",
-                      revision,
-                      columnId: column.id,
-                      direction,
-                    });
-                  }}
-                  onDelete={() => {
-                    onClearError();
-                    setDeleting({ column, revision });
-                  }}
-                  append={
-                    !!active &&
-                    position?.columnId === column.id &&
-                    position.beforeUuid === null
-                  }
-                >
-                  {items.map((task) => (
-                    <BoardCard
-                      key={task.uuid}
-                      compact={layout === "list"}
-                      interactive={canAddTask}
-                      task={task}
-                      column={column}
-                      columns={columns}
-                      disabled={disabled}
-                      saving={moving?.uuid === task.uuid}
-                      before={!!active && position?.beforeUuid === task.uuid}
-                      onMove={(task, columnId) =>
-                        void move(task, {
-                          columnId,
-                          beforeUuid: null,
-                        })
-                      }
-                    >
-                      {renderTask(task)}
-                    </BoardCard>
-                  ))}
-                  {canAddTask && layout === "board" && (
-                    <BoardTaskComposer
-                      column={column}
-                      compact={false}
-                      disabled={disabled}
-                      onCreateTask={onCreateTask}
-                      onFallbackAdd={onAdd}
-                    />
-                  )}
-                </BoardColumn>
-              );
-            })}
+            {todaySplit && layout === "list" ? (
+              (() => {
+                const ordered = columns.flatMap((col) =>
+                  columnTasks(tasks, displayBoard, col.id).map((task) => ({
+                    task,
+                    column: col,
+                  })),
+                );
+                const overdueEntries = ordered.filter(({ task }) =>
+                  isTaskOverdue(task),
+                );
+                const todayEntries = ordered.filter(
+                  ({ task }) => !isTaskOverdue(task),
+                );
+                return (
+                  <div className="space-y-6">
+                    {overdueEntries.length > 0 && (
+                      <section aria-label="Overdue tasks" className="min-w-0">
+                        <div className="mb-1 flex h-10 items-center justify-between gap-2 border-b border-border/80">
+                          <button
+                            type="button"
+                            aria-expanded={!overdueCollapsed}
+                            onClick={() =>
+                              setOverdueCollapsed(!overdueCollapsed)
+                            }
+                            className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
+                          >
+                            <ChevronRight
+                              className={cn(
+                                "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+                                !overdueCollapsed && "rotate-90",
+                              )}
+                            />
+                            <h2 className="text-sm font-semibold text-red-600 dark:text-red-400">
+                              Overdue
+                            </h2>
+                            <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-red-600 dark:text-red-400">
+                              {overdueEntries.length}
+                            </span>
+                          </button>
+                          {onRescheduleOverdue && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              disabled={disabled || reschedulingOverdue}
+                              onClick={async () => {
+                                setReschedulingOverdue(true);
+                                try {
+                                  await onRescheduleOverdue(
+                                    overdueEntries.map((item) => item.task),
+                                  );
+                                } finally {
+                                  setReschedulingOverdue(false);
+                                }
+                              }}
+                              className="h-7 gap-1.5 rounded-md px-2 text-xs font-medium text-red-600 hover:bg-red-500/10 hover:text-red-600 dark:text-red-400 dark:hover:text-red-400"
+                            >
+                              {reschedulingOverdue ? (
+                                <Spinner className="size-3" />
+                              ) : (
+                                <CalendarClock className="size-3.5" />
+                              )}
+                              Reschedule to Today
+                            </Button>
+                          )}
+                        </div>
+                        <div hidden={overdueCollapsed}>
+                          {overdueEntries.map(({ task, column }) => (
+                            <BoardCard
+                              key={task.uuid}
+                              compact
+                              interactive={canAddTask}
+                              task={task}
+                              column={column}
+                              columns={columns}
+                              disabled={disabled}
+                              saving={moving?.uuid === task.uuid}
+                              before={
+                                !!active && position?.beforeUuid === task.uuid
+                              }
+                              onMove={(t, columnId) =>
+                                void move(t, { columnId, beforeUuid: null })
+                              }
+                            >
+                              {renderTask(task)}
+                            </BoardCard>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+                    <section aria-label="Today tasks" className="min-w-0">
+                      {overdueEntries.length > 0 && (
+                        <div className="mb-1 flex h-10 items-center gap-2 border-b border-border/80">
+                          <h2 className="text-sm font-semibold">
+                            {format(new Date(), "MMM d")} · Today ·{" "}
+                            {format(new Date(), "EEEE")}
+                          </h2>
+                          <span className="text-xs tabular-nums text-muted-foreground">
+                            {todayEntries.length}
+                          </span>
+                        </div>
+                      )}
+                      <div>
+                        {todayEntries.map(({ task, column }) => (
+                          <BoardCard
+                            key={task.uuid}
+                            compact
+                            interactive={canAddTask}
+                            task={task}
+                            column={column}
+                            columns={columns}
+                            disabled={disabled}
+                            saving={moving?.uuid === task.uuid}
+                            before={
+                              !!active && position?.beforeUuid === task.uuid
+                            }
+                            onMove={(t, columnId) =>
+                              void move(t, { columnId, beforeUuid: null })
+                            }
+                          >
+                            {renderTask(task)}
+                          </BoardCard>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                );
+              })()
+            ) : (
+              columns.map((column, index) => {
+                const items = columnTasks(tasks, displayBoard, column.id);
+                const nonEmptyColumns = columns.filter(
+                  (col) => columnTasks(tasks, displayBoard, col.id).length > 0,
+                );
+                if (
+                  layout === "list" &&
+                  items.length === 0 &&
+                  !active &&
+                  (column.id !== UNSECTIONED || nonEmptyColumns.length > 0)
+                ) {
+                  return null;
+                }
+                const showColumnHeader =
+                  layout === "board" ||
+                  (hasCustomColumns &&
+                    (nonEmptyColumns.length > 1 ||
+                      (nonEmptyColumns.length === 1 &&
+                        column.id !== UNSECTIONED)) &&
+                    (items.length > 0 || !!active));
+                return (
+                  <BoardColumn
+                    key={column.id}
+                    compact={layout === "list"}
+                    activeDrag={!!active}
+                    column={column}
+                    count={items.length}
+                    index={index - 1}
+                    total={board.columns.length}
+                    disabled={disabled}
+                    showHeader={showColumnHeader}
+                    onEdit={() => openEditor(column)}
+                    onShift={(direction) => {
+                      onClearError();
+                      void onChange({
+                        kind: "board",
+                        action: "column.move",
+                        revision,
+                        columnId: column.id,
+                        direction,
+                      });
+                    }}
+                    onDelete={() => {
+                      onClearError();
+                      setDeleting({ column, revision });
+                    }}
+                    append={
+                      !!active &&
+                      position?.columnId === column.id &&
+                      position.beforeUuid === null
+                    }
+                  >
+                    {items.map((task) => (
+                      <BoardCard
+                        key={task.uuid}
+                        compact={layout === "list"}
+                        interactive={canAddTask}
+                        task={task}
+                        column={column}
+                        columns={columns}
+                        disabled={disabled}
+                        saving={moving?.uuid === task.uuid}
+                        before={!!active && position?.beforeUuid === task.uuid}
+                        onMove={(task, columnId) =>
+                          void move(task, {
+                            columnId,
+                            beforeUuid: null,
+                          })
+                        }
+                      >
+                        {renderTask(task)}
+                      </BoardCard>
+                    ))}
+                    {canAddTask && layout === "board" && (
+                      <TodoistTaskComposer
+                        mode="add"
+                        compact={false}
+                        disabled={disabled}
+                        ariaLabel={`Add task${column.id !== UNSECTIONED ? ` to ${column.name}` : ""}`}
+                        placeholder={
+                          column.id !== UNSECTIONED
+                            ? `Add task to ${column.name}…`
+                            : "Task name (try #project, @label, tomorrow, p1)"
+                        }
+                        defaultProject={defaultProject}
+                        defaultDue={defaultDue}
+                        projects={projects}
+                        availableLabels={availableLabels}
+                        onSubmitTask={
+                          onCreateTask
+                            ? (task) => onCreateTask(task, column.id)
+                            : undefined
+                        }
+                        onOpenFullEditor={onAdd}
+                      />
+                    )}
+                  </BoardColumn>
+                );
+              })
+            )}
             {canAddTask && layout === "list" && (
-              <BoardTaskComposer
-                column={unsectionedColumn}
-                compact={true}
+              <TodoistTaskComposer
+                mode="add"
+                compact
                 disabled={disabled}
-                onCreateTask={onCreateTask}
-                onFallbackAdd={onAdd}
+                ariaLabel="Add task"
+                placeholder="Task name (try #project, @label, tomorrow, p1)"
+                defaultProject={defaultProject}
+                defaultDue={defaultDue}
+                projects={projects}
+                availableLabels={availableLabels}
+                onSubmitTask={
+                  onCreateTask
+                    ? (task) => onCreateTask(task, unsectionedColumn.id)
+                    : undefined
+                }
+                onOpenFullEditor={onAdd}
               />
             )}
             {canAddTask && layout === "board" && (

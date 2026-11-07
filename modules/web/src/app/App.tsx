@@ -961,17 +961,53 @@ export default function App() {
       action: "elixir",
     });
   }
+  async function rescheduleOverdueToToday(overdueTasks: Task[]) {
+    if (writeLock.current || needsCheck || !overdueTasks.length) return;
+    writeLock.current = true;
+    setBusy(true);
+    setNotice("");
+    const todayDue = taskDate(new Date());
+    try {
+      for (const item of overdueTasks) {
+        await api("action", {
+          uuid: item.uuid,
+          action: "edit",
+          task: {
+            description: item.description,
+            project: item.project || "",
+            priority: item.priority || "",
+            tags: item.tags,
+            recur: item.recur,
+            until: item.until ? taskDate(new Date(item.until)) : undefined,
+            due: todayDue,
+            note: "",
+          },
+        });
+      }
+      void loadOrganization();
+      if (!(await load())) {
+        setNotice("Saved. Refresh to check your tasks.");
+        setNeedsCheck(true);
+      }
+    } catch (error) {
+      if (error instanceof RequestError && error.uncertain) {
+        setNeedsCheck(true);
+      }
+      setNotice((error as Error).message);
+    } finally {
+      writeLock.current = false;
+      setBusy(false);
+    }
+  }
   const renderTask = (task: Task, extraActions?: ReactNode) => (
     <TaskRow
       key={task.uuid}
       task={task}
       extraActions={extraActions}
       variant={!specialPage && layout === "board" ? "card" : "list"}
-      showProject={
-        !specialPage && layout === "board"
-          ? !currentProject
-          : !!query.trim() || !!activeItem
-      }
+      showProject={!currentProject && !specialPage}
+      projects={filterProjects}
+      availableLabels={organization.tags}
       completed={task.status === "completed"}
       overdue={taskGroup(task) === "overdue"}
       disabled={busy || organizationSaving || needsCheck || (loading && !loaded)}
@@ -981,6 +1017,16 @@ export default function App() {
       onToggleStart={
         task.status !== "completed"
           ? () => void toggleStartTask(task)
+          : undefined
+      }
+      onSaveInline={
+        task.status !== "completed"
+          ? (nextTask) =>
+              mutate("action", {
+                uuid: task.uuid,
+                action: "edit",
+                task: nextTask,
+              })
           : undefined
       }
       onDueChange={
@@ -2025,6 +2071,12 @@ export default function App() {
                       renderTask={renderTask}
                       onMove={moveTask}
                       onCreateTask={createTaskInView}
+                      projects={filterProjects}
+                      availableLabels={organization.tags}
+                      defaultProject={currentProject}
+                      defaultDue={view === "today" ? taskDate(new Date()) : ""}
+                      todaySplit={view === "today" && !query.trim() && !activeItem}
+                      onRescheduleOverdue={rescheduleOverdueToToday}
                       onAdd={(initial) =>
                         initial
                           ? openEditor(undefined, withViewDefaults(initial))
@@ -2078,6 +2130,10 @@ export default function App() {
                       renderTask={renderTask}
                       onMove={moveTask}
                       onCreateTask={createTaskInView}
+                      projects={filterProjects}
+                      availableLabels={organization.tags}
+                      defaultProject={currentProject}
+                      defaultDue={view === "today" ? taskDate(new Date()) : ""}
                       onAdd={(initial) =>
                         initial
                           ? openEditor(undefined, withViewDefaults(initial))

@@ -6,9 +6,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "cn";
-import { addDays, format, nextMonday } from "date-fns";
+import { addDays, format, nextMonday, nextSaturday } from "date-fns";
 import { enUS } from "date-fns/locale";
 import {
+  Armchair,
   ArrowRight,
   CalendarIcon,
   Sun,
@@ -49,9 +50,11 @@ export function DatePicker({
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = addDays(today, 1);
+  const weekend = nextSaturday(today);
   const nextWeek = nextMonday(today);
   const todayStr = format(today, "yyyy-MM-dd");
   const tomorrowStr = format(tomorrow, "yyyy-MM-dd");
+  const weekendStr = format(weekend, "yyyy-MM-dd");
   const nextWeekStr = format(nextWeek, "yyyy-MM-dd");
 
   const select = (next?: Date) => {
@@ -73,7 +76,13 @@ export function DatePicker({
               !compact && "md:h-9 md:text-sm",
               compact &&
                 "h-9 w-auto max-w-48 min-w-0 shrink gap-1.5 rounded-[5px] border-input px-2 py-0 text-[13px] text-muted-foreground shadow-none has-[>svg]:px-2 md:h-7 [&_svg]:size-4",
-              compact && value && "text-foreground",
+              compact &&
+                value &&
+                (value === todayStr
+                  ? "border-emerald-500/35 bg-emerald-500/8 text-emerald-700 dark:text-emerald-400"
+                  : value === tomorrowStr
+                    ? "border-amber-500/35 bg-amber-500/8 text-amber-700 dark:text-amber-400"
+                    : "border-violet-500/35 bg-violet-500/8 text-violet-700 dark:text-violet-400"),
               !value && "text-muted-foreground",
               className,
             )}
@@ -100,8 +109,8 @@ export function DatePicker({
         onCloseAutoFocus={
           returnFocus
             ? (event) => {
-                event.preventDefault();
-                returnFocus();
+                 event.preventDefault();
+                 returnFocus();
               }
             : undefined
         }
@@ -118,7 +127,7 @@ export function DatePicker({
             )}
           >
             <span className="inline-flex items-center gap-2">
-              <Sun className="size-3.5 text-muted-foreground" />
+              <Sun className="size-3.5 text-emerald-600 dark:text-emerald-400" />
               Today
             </span>
             <span className="text-muted-foreground">
@@ -136,11 +145,29 @@ export function DatePicker({
             )}
           >
             <span className="inline-flex items-center gap-2">
-              <Sunrise className="size-3.5 text-muted-foreground" />
+              <Sunrise className="size-3.5 text-amber-600 dark:text-amber-400" />
               Tomorrow
             </span>
             <span className="text-muted-foreground">
               {format(tomorrow, "EEE")}
+            </span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => select(weekend)}
+            className={cn(
+              "h-8 justify-between px-2.5 text-xs font-normal",
+              value === weekendStr && "bg-accent font-medium",
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Armchair className="size-3.5 text-blue-600 dark:text-blue-400" />
+              This weekend
+            </span>
+            <span className="text-muted-foreground">
+              {format(weekend, "EEE")}
             </span>
           </Button>
           <Button
@@ -154,7 +181,7 @@ export function DatePicker({
             )}
           >
             <span className="inline-flex items-center gap-2">
-              <ArrowRight className="size-3.5 text-muted-foreground" />
+              <ArrowRight className="size-3.5 text-violet-600 dark:text-violet-400" />
               Next week
             </span>
             <span className="text-muted-foreground">
@@ -170,7 +197,7 @@ export function DatePicker({
               className="h-8 justify-start gap-2 px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
             >
               <X className="size-3.5" />
-              Clear date
+              No date
             </Button>
           )}
         </div>

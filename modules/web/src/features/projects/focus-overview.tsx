@@ -6,7 +6,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
-import { parseQuickTask } from "@core/tasks/quick-task";
+import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
 import { FOCUS_LIMIT, inProject, projectStatus } from "@core/workspace/focus";
 import type { Organization } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
@@ -14,17 +14,14 @@ import {
   ArrowRight,
   ArrowUpToLine,
   Check,
-  CornerDownLeft,
   Ellipsis,
   FolderOpen,
-  ListPlus,
   Pause,
   Pencil,
   Plus,
   Target,
-  X,
 } from "lucide-react";
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ProjectIcon } from "./project-icon";
 
 function InlineOutcome({
@@ -128,197 +125,6 @@ function InlineOutcome({
         <Pencil className="mt-1.5 size-3 shrink-0 opacity-0 transition-opacity group-hover/outcome:opacity-60" />
       )}
     </button>
-  );
-}
-
-function FocusTaskComposer({
-  projectName,
-  disabled,
-  onCreateTask,
-  onFallbackAdd,
-}: {
-  projectName: string;
-  disabled: boolean;
-  onCreateTask?: (task: TaskInput, projectName: string) => Promise<boolean>;
-  onFallbackAdd: (projectName: string, draft?: TaskInput) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  if (!editing) {
-    return (
-      <Button
-        type="button"
-        variant="ghost"
-        disabled={disabled}
-        onClick={() => {
-          if (!onCreateTask) {
-            onFallbackAdd(projectName);
-            return;
-          }
-          setError("");
-          setEditing(true);
-          requestAnimationFrame(() => inputRef.current?.focus());
-        }}
-        className="task-add-button"
-      >
-        <Plus className="size-[18px]" strokeWidth={1.5} />
-        Add task
-      </Button>
-    );
-  }
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (disabled || submitting || !onCreateTask) return;
-    const parsed = parseQuickTask(text);
-    if (parsed.errors.length) {
-      setError(parsed.errors[0]);
-      inputRef.current?.focus();
-      return;
-    }
-    if (!parsed.task.description.trim()) {
-      setEditing(false);
-      setText("");
-      setError("");
-      return;
-    }
-    setSubmitting(true);
-    setError("");
-    try {
-      const ok = await onCreateTask(
-        {
-          ...parsed.task,
-          project: parsed.task.project || projectName,
-        },
-        projectName,
-      );
-      if (ok) {
-        setText("");
-        requestAnimationFrame(() => inputRef.current?.focus());
-      }
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="mt-0.5">
-      <div className="-mx-2.5 flex min-h-11 items-center gap-2 rounded-lg bg-(--row-hover) px-2.5 md:-mx-3 md:min-h-8 md:px-3">
-        <span
-          aria-hidden="true"
-          className="flex h-11 w-8 shrink-0 items-center justify-start md:h-8 md:w-7"
-        >
-          <span className="size-[18px] rounded-full border border-muted-foreground/45 bg-background" />
-        </span>
-        <input
-          ref={inputRef}
-          type="text"
-          value={text}
-          disabled={disabled || submitting}
-          aria-label={`Add task to ${projectName}`}
-          placeholder="New task… (Enter to add, Esc to close)"
-          onChange={(event) => {
-            setText(event.target.value);
-            if (error) setError("");
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.preventDefault();
-              setEditing(false);
-              setText("");
-              setError("");
-              return;
-            }
-            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "e") {
-              event.preventDefault();
-              const parsed = parseQuickTask(text);
-              setEditing(false);
-              setText("");
-              setError("");
-              onFallbackAdd(projectName, {
-                ...parsed.task,
-                project: parsed.task.project || projectName,
-              });
-            }
-          }}
-          onBlur={(event) => {
-            if (
-              !text.trim() &&
-              !submitting &&
-              !event.currentTarget.form?.contains(
-                event.relatedTarget as Node | null,
-              )
-            ) {
-              setEditing(false);
-              setError("");
-            }
-          }}
-          className="min-w-0 flex-1 bg-transparent py-1.5 text-sm leading-5 outline-none placeholder:text-muted-foreground"
-        />
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={disabled || submitting}
-            title="Open full task editor (⌘E)"
-            aria-label="Open full task editor"
-            onClick={() => {
-              const parsed = parseQuickTask(text);
-              setEditing(false);
-              setText("");
-              setError("");
-              onFallbackAdd(projectName, {
-                ...parsed.task,
-                project: parsed.task.project || projectName,
-              });
-            }}
-            className="size-7 text-muted-foreground hover:text-foreground"
-          >
-            <ListPlus className="size-3.5" />
-          </Button>
-          <Button
-            type="submit"
-            size="xs"
-            disabled={disabled || submitting || !text.trim()}
-            className="h-6 gap-1 rounded-md px-2 text-xs shadow-none"
-          >
-            {submitting ? (
-              <Spinner className="size-3" />
-            ) : (
-              <>
-                Add
-                <CornerDownLeft className="size-3 opacity-70" />
-              </>
-            )}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={submitting}
-            aria-label="Cancel adding task"
-            onClick={() => {
-              setEditing(false);
-              setText("");
-              setError("");
-            }}
-            className="size-7 text-muted-foreground hover:text-foreground"
-          >
-            <X className="size-3.5" />
-          </Button>
-        </div>
-      </div>
-      {error && (
-        <p role="alert" className="mt-1.5 text-xs text-destructive">
-          {error}
-        </p>
-      )}
-    </form>
   );
 }
 
@@ -598,11 +404,22 @@ export function FocusOverview({
                       Show {hiddenCount} more task{hiddenCount === 1 ? "" : "s"}
                     </Button>
                   )}
-                  <FocusTaskComposer
-                    projectName={project.name}
+                  <TodoistTaskComposer
+                    mode="add"
+                    compact
                     disabled={disabled}
-                    onCreateTask={onCreateTask}
-                    onFallbackAdd={onAddTask}
+                    ariaLabel={`Add task to ${project.name}`}
+                    placeholder="Task name (try @label, tomorrow, p1)"
+                    defaultProject={project.name}
+                    availableLabels={data.tags || []}
+                    onSubmitTask={
+                      onCreateTask
+                        ? (task) => onCreateTask(task, project.name)
+                        : undefined
+                    }
+                    onOpenFullEditor={(draft) =>
+                      onAddTask(project.name, draft)
+                    }
                   />
                 </div>
               </section>
