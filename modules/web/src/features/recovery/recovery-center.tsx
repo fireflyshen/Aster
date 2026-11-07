@@ -201,7 +201,7 @@ export function RecoveryCenter({
                   {visible.map((task) => (
                     <div
                       key={task.uuid}
-                      className="flex items-center gap-4 py-3"
+                      className="-mx-2.5 flex items-center gap-4 rounded-lg px-2.5 py-3 transition-colors hover:bg-(--row-hover)"
                     >
                       <div className="min-w-0 flex-1">
                         <p className="text-sm leading-5 [overflow-wrap:anywhere]">

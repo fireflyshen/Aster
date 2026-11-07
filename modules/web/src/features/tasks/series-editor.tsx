@@ -116,7 +116,7 @@ export function SeriesEditor({
           <Button
             variant="ghost"
             size="sm"
-            className="h-11 px-0 text-destructive md:h-9"
+            className="-ml-2.5 h-11 px-2.5 text-destructive hover:bg-destructive/10 hover:text-destructive md:h-9"
             disabled={busy || blocked || !data}
             onClick={() => setConfirm(true)}
           >

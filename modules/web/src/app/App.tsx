@@ -81,7 +81,9 @@ import {
   Ellipsis,
   List,
   PanelLeft,
+  Pause,
   Pencil,
+  Play,
   Plus,
   RotateCw,
   Search,
@@ -1124,9 +1126,20 @@ export default function App() {
                               );
                             }}
                           >
-                            {focusProject(currentProject, organization.projects)
-                              ? "Pause project"
-                              : "Activate project"}
+                            {focusProject(
+                              currentProject,
+                              organization.projects,
+                            ) ? (
+                              <>
+                                <Pause className="size-3.5" />
+                                Pause project
+                              </>
+                            ) : (
+                              <>
+                                <Play className="size-3.5" />
+                                Activate project
+                              </>
+                            )}
                           </Button>
                           <Button
                             variant="navigation"
@@ -1142,6 +1155,7 @@ export default function App() {
                               );
                             }}
                           >
+                            <Check className="size-3.5" />
                             Complete project
                           </Button>
                         </>
@@ -1257,6 +1271,7 @@ export default function App() {
                 error={organizationError || notice}
                 onChooseProject={() => setFocusPickerOpen(true)}
                 onPause={(name) => transition(name, "later")}
+                onComplete={(name) => transition(name, "completed")}
                 onOpen={(name) => {
                   openTaskView();
                   setView("pending");
@@ -1287,6 +1302,14 @@ export default function App() {
                   setQuickProject(name);
                   setQuickError("");
                   setQuickOpen(true);
+                }}
+                onCreateTask={async (task, projectName) => {
+                  if (writeLock.current || needsCheck) return false;
+                  const result = await mutate("tasks", {
+                    ...task,
+                    project: task.project || projectName,
+                  });
+                  return Boolean(result);
                 }}
                 renderTask={renderTask}
               />

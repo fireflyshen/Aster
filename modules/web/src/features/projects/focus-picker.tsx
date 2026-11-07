@@ -75,7 +75,7 @@ export function FocusPicker({
           </div>
         )}
         <div className="relative m-5 mb-2">
-          <Search className="pointer-events-none absolute top-3 left-3 size-4 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Find a project to focus on"
             placeholder="Search projects…"
@@ -85,7 +85,7 @@ export function FocusPicker({
           />
         </div>
         <div
-          className="min-h-0 overflow-y-auto px-3 pb-4"
+          className="min-h-0 space-y-0.5 overflow-y-auto px-3 pb-4"
           aria-label="Available Focus projects"
         >
           {projects.length === 0 ? (

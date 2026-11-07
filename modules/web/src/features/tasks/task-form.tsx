@@ -368,7 +368,7 @@ export function TaskForm({
             variant="ghost"
             disabled={busy || needsCheck}
             onClick={() => onDelete()}
-            className="h-11 px-0 text-xs text-destructive md:h-9"
+            className="-ml-2.5 h-11 px-2.5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive md:h-9"
           >
             Delete task
           </Button>

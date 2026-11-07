@@ -271,7 +271,7 @@ export function OrganizationManager({
             document.getElementById("organization-name")?.focus();
           }}
           showCloseButton={!busy}
-          className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[480px] [&>[data-slot=dialog-close]]:top-0.5 [&>[data-slot=dialog-close]]:right-1.5"
+          className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[480px]"
           onEscapeKeyDown={(e) => {
             if (busy) e.preventDefault();
           }}
@@ -281,7 +281,7 @@ export function OrganizationManager({
         >
           {editing && (
             <>
-              <header className="flex shrink-0 items-center gap-2 border-b px-4 py-3 pr-14">
+              <header className="flex shrink-0 items-center gap-2 border-b px-5 py-4 pr-14">
                 <DialogTitle className="text-base leading-6 font-semibold">
                   {editing.item.id ? "Edit " : "Add "}
                   {editing.kind === "filter" ? "filter" : "label"}

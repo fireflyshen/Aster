@@ -58,7 +58,7 @@ export function BoardColumnEditor({
     >
       <DialogContent
         showCloseButton={!busy}
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-0 sm:max-w-[440px]"
+        className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-y-auto p-0 sm:max-w-[440px]"
         onEscapeKeyDown={(event) => {
           if (busy) event.preventDefault();
         }}
@@ -74,7 +74,7 @@ export function BoardColumnEditor({
             Name your board column.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="-mt-4">
+        <form onSubmit={submit}>
           <div className="space-y-5 px-5 py-5">
             <div className="space-y-2">
               <Label htmlFor="column-name">Name</Label>
