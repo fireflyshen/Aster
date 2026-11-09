@@ -1,35 +1,36 @@
-# RN deployment
+# Deployment
 
-Aster runs independently at `https://task.caten.top`, with a dedicated `aster.service` under `/opt/aster`.
+Aster runs independently at `https://task.caten.top`.
+As of 2026-11-09, Aster is deployed on `dmit` inside Docker (`/opt/aster/compose.yml`) connected to `caddy_net`, with fallback support for systemd environments (`aster.service`).
 
-- `/opt/aster/current` points to the active immutable release in `releases/`.
-- `/opt/aster/runtime/node` is a standalone Node.js 24 runtime. No dependency on another app after installation.
-- `/opt/aster/data/recovery.json` holds raw pre-delete task snapshots and board positions. Back it up alongside organization metadata and the native databases; never replace it during a code release.
-- `/opt/aster/data/organization.json` holds filters, colors, favorites, project descriptions and board columns. It is independent of releases and must be backed up.
-- `/var/lib/taskwarrior` remains the shared Taskwarrior 3 database for web, SSH CLI and TinyCast. The service uses the existing Taskwarrior account and permissions; SSH clients retain their original paths.
-- `/opt/aster/aster.env` contains explicit origin and Cloudflare Access configuration. File mode 0600; systemd reads it when starting the service.
-- The service listens only on RN's `caddy_net` gateway, currently `172.19.0.1:4180`, not on the public interface. Caddy terminates TLS. API JWT verification also rejects direct unauthenticated requests.
+## Architecture & Layout
 
-Build with `npm run build:web`, copy `dist/web/{server.mjs,client/}` to a new release folder, switch `current` and restart `aster.service`. The bundle has no runtime npm dependencies. Retain the previous release to roll back; never overwrite data when updating code.
+- Target VPS alias: `dmit` (`root@179.255.102.39`).
+- `/opt/aster/current` points to the active immutable release in `/opt/aster/releases/`.
+- In Docker Compose on `dmit`, `./current` is mounted read-only to `/opt/aster/current:ro`.
+- `/opt/aster/data/` holds:
+  - `organization.json`: filters, colors, favorites, project descriptions, and board columns.
+  - `recovery.json`: raw pre-delete task snapshots and journal.
+  - `restored-uda.json`: restored custom UDA attributes.
+- `/var/lib/taskwarrior/`: shared Taskwarrior 3 database (`taskchampion.sqlite3`).
+- Host health check: `http://127.0.0.1:4180/healthz` (bound locally, proxied by Caddy to `https://task.caten.top`).
 
-Domain setup: proxied DNS A record to RN; a separate Aster Cloudflare Access application with the existing private-user allow policy; a narrowly scoped `task.caten.top/.well-known/acme-challenge/*` Bypass application for Caddy HTTP-01 renewal. Use Full (strict) for this host after a valid origin certificate is issued. Do not change the TLS mode of other domains.
+## Deployment Command
 
-Validate: systemd active, `/healthz` 200, direct API 401, domain redirects anonymous requests to Access, and signed-in browser task creation/edit/completion. Test records must be removed from the active database after checks. Keep backup records under `/opt/aster/backups` until explicitly told to delete them.
+Deploy directly from local repository:
 
-The initial Taskwarrior reset first uses SQLite's backup API and checks integrity, saves a full export and original config, then archives the entire previous data directory. All task states in the active database start empty. Web organization definitions are migrated separately, not cleared with Taskwarrior data.
+```bash
+pnpm run deploy
+```
 
-Initial deployment: 2026-10-18. Taskwarrior reset backup: `/opt/aster/backups/20261018T113846Z/` (4 records; SQLite integrity `ok`). The previous directory is retained there as `taskwarrior-original/`. Active task count after reset: 0. Cloudflare Access application: `aster`, separate application AUD, existing `Allow Me` policy.
+Or with custom tag / target:
+```bash
+SSH_TARGET=dmit bash deploy/deploy.sh [suffix]
+```
 
-Focus 2.1 additionally enables `WORKSPACE_SOCKET=/opt/aster/data/workspace.sock`. This Unix socket is mode 0600, uses the same server process/metadata revision queue, and is reachable by the existing SSH Taskwarrior user. No additional port or Cloudflare policy is needed. Startup probes an existing socket before removing a stale instance and refuses to replace an active socket or ordinary file. The systemd sandbox already allows AF_UNIX and writes in `/opt/aster/data`.
-
-Version 2.5 uses Node.js 24's built-in SQLite backup API. Keep `data/restored-uda.json` and `data/restore-points/` with the organization and recovery files in deployment backups. An interrupted restore is rolled back before either HTTP or the private socket starts. Whole-workspace restore requires the native task DB, timer data and workspace directory to share a filesystem; RN's current paths satisfy this. No additional network port or Access policy is added.
-
-## 2026-11-07: TUI workspace and grouped lists
-
-Release: `/opt/aster/releases/20261107-102802-tui-groups`.
-Previous release retained: `/opt/aster/releases/20261104-2.5.0`.
-Pre-deployment backup: `/opt/aster/backups/before-20261107-102802-tui-groups`.
-
-This release adds the searchable Focus picker, shared list/board groups, and private task/filter, quick-preview and backup endpoints used by the Go TUI. Existing environment, origin, Access policy and socket path are retained.
-
-Deployment checks: systemd active; health 200; unauthenticated direct API 401; public domain 302 to Access; private socket mode 0600; wrong source rejected with 409; task reads, filters, quick parsing, backup export and restore-point listing succeed. Backup includes the SQLite database (integrity check `ok`), task export, organization/recovery files, hooks, timer data and Taskwarrior config. Stored task fields and workspace files match before deployment; Taskwarrior's computed `urgency` is excluded from stored-field comparison.
+### What `pnpm run deploy` does:
+1. **Local Build**: Runs `npm run build:web` / `pnpm run build:web`, generating `dist/web/server.mjs` and `dist/web/client/`. (No git push or CI waiting required).
+2. **Metadata & DB Backup**: Connects to the target server (`dmit`), creates an atomic backup directory under `/opt/aster/backups/before-${RELEASE_ID}`, copies metadata JSONs, and executes an online SQLite backup of `taskchampion.sqlite3`.
+3. **Artifact Upload**: Streams clean release artifacts to `/opt/aster/releases/${RELEASE_ID}` via SSH tar (with macOS extended attributes stripped).
+4. **Service Switch & Recreate**: Atomically updates `/opt/aster/current -> ${REMOTE_RELEASE}`, recreates the Docker container via `docker compose up -d --force-recreate aster` (or restarts `systemctl restart aster.service` if on systemd), and polls `http://127.0.0.1:4180/healthz`.
+5. **Auto-Rollback**: If health checks fail within 10 seconds, it automatically rolls back the symlink and restarts the container to restore the previous release.

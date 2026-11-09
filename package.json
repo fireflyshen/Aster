@@ -38,7 +38,7 @@
       "type": "textfield",
       "required": false,
       "title": "SSH Target",
-      "default": "rn",
+      "default": "dmit",
       "description": "SSH host alias or user@host. Port and keys come from your system SSH config."
     },
     {
@@ -84,7 +84,7 @@
       "required": false,
       "title": "Shared Workspace",
       "default": "auto",
-      "description": "auto shares Focus, projects and board columns through your existing RN SSH connection. A local Aster URL is also supported; clear to disable."
+      "description": "auto shares Focus, projects and board columns through your existing remote SSH connection. A local Aster URL is also supported; clear to disable."
     }
   ],
   "commands": [
@@ -124,7 +124,7 @@
     "build:web": "npm --prefix modules/web run build",
     "check:web": "npm --prefix modules/web run check",
     "test:web": "npm --prefix modules/web run test",
-    "deploy": "bash deploy/deploy-rn.sh"
+    "deploy": "bash deploy/deploy.sh"
   },
   "dependencies": {
     "@raycast/api": "^1.104.19",

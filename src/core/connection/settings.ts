@@ -43,7 +43,7 @@ export function resolveConnection(
     throw new Error("Choose Local or SSH in extension preferences.");
   let connection: Omit<Connection, "key">;
   if (mode === "ssh") {
-    const sshTarget = preferences.sshTarget?.trim() || "rn";
+    const sshTarget = preferences.sshTarget?.trim() || "dmit";
     if (!/^[a-zA-Z0-9_][a-zA-Z0-9_.@:[\]-]*$/.test(sshTarget)) {
       throw new Error(
         "SSH Target must be a host alias or user@host, without command options or spaces.",

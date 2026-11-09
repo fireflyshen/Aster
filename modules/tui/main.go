@@ -10,7 +10,7 @@ import (
 
 func main() {
 	c := Client{}
-	flag.StringVar(&c.Host, "ssh", "rn", "SSH host alias")
+	flag.StringVar(&c.Host, "ssh", "dmit", "SSH host alias")
 	flag.StringVar(&c.TaskCommand, "task", "/usr/local/bin/task", "remote Taskwarrior command")
 	flag.StringVar(&c.Taskrc, "taskrc", "/etc/taskwarrior/taskrc", "remote taskrc")
 	flag.StringVar(&c.Node, "node", "/opt/aster/runtime/node", "remote Node runtime")

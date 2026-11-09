@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development SSH_TARGET=rn node --experimental-strip-types server/index.ts",
+    "dev": "NODE_ENV=development SSH_TARGET=dmit node --experimental-strip-types server/index.ts",
     "build": "vite build && esbuild server/index.ts --bundle --packages=external --platform=node --format=esm --outfile=../../dist/web/server.mjs",
     "check": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.ts && npm run build && node --test tests/server.test.mjs",
-    "deploy": "bash ../../deploy/deploy-rn.sh"
+    "deploy": "bash ../../deploy/deploy.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

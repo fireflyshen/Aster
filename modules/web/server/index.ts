@@ -15,7 +15,7 @@ import { startWorkspaceSocket } from "./workspace-ipc.ts";
 import { body, taskInput } from "./validation.ts";
 
 const development = process.env.NODE_ENV === "development";
-const sshTarget = process.env.SSH_TARGET ?? (development ? "rn" : undefined);
+const sshTarget = process.env.SSH_TARGET ?? (development ? "dmit" : undefined);
 const origin = process.env.PUBLIC_ORIGIN || "http://localhost:4180";
 const team = process.env.CF_ACCESS_TEAM_DOMAIN;
 const audience = process.env.CF_ACCESS_AUD;
@@ -24,7 +24,7 @@ if (process.env.NODE_ENV === "production" && (!team || !audience))
 const service = createTaskService({
   kind: sshTarget ? "ssh" : "local",
   key: "aster-web",
-  label: "RN",
+  label: "DMIT",
   taskCommand: process.env.TASK_COMMAND || "/usr/local/bin/task",
   taskrc:
     process.env.TASKRC ?? (sshTarget ? "/etc/taskwarrior/taskrc" : undefined),
