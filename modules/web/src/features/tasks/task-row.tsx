@@ -72,6 +72,33 @@ function dueLabel(value: string) {
   );
 }
 
+const PRIORITIES = [
+  {
+    value: "H" as const,
+    label: "Priority 1",
+    short: "P1",
+    iconClass: "fill-red-500/20 text-red-600 dark:text-red-400",
+  },
+  {
+    value: "M" as const,
+    label: "Priority 2",
+    short: "P2",
+    iconClass: "fill-amber-500/20 text-amber-600 dark:text-amber-400",
+  },
+  {
+    value: "L" as const,
+    label: "Priority 3",
+    short: "P3",
+    iconClass: "fill-blue-500/20 text-blue-600 dark:text-blue-400",
+  },
+  {
+    value: "" as const,
+    label: "Priority 4",
+    short: "None",
+    iconClass: "text-muted-foreground",
+  },
+];
+
 const SWIPE_EVENT = "aster:swipe-row";
 
 export function TaskRow({
@@ -131,6 +158,7 @@ export function TaskRow({
 
   const [editingInline, setEditingInline] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
   const [drawerPinned, setDrawerPinned] = useState(false);
   const rowRef = useRef<HTMLElement>(null);
 
@@ -140,7 +168,7 @@ export function TaskRow({
       : onDelete,
   );
   const hasRightActions = Boolean(
-    (!completed && (onSaveInline || onToggleStart || onDueChange)) ||
+    (!completed && (onSaveInline || onToggleStart || onDueChange || onPriorityChange)) ||
     hasMoreMenu ||
     extraActions,
   );
@@ -313,7 +341,7 @@ export function TaskRow({
     );
   }
 
-  const actionsVisible = drawerPinned || moreOpen;
+  const actionsVisible = drawerPinned || moreOpen || priorityPopoverOpen;
 
   return (
     <article
@@ -352,51 +380,62 @@ export function TaskRow({
             <Label
               htmlFor={`complete-${task.uuid}`}
               className={cn(
-                "task-check-target relative flex h-11 w-8 items-center justify-start self-start md:h-8 md:w-7",
+                "task-check-target group/check relative flex size-8 shrink-0 items-center justify-start self-start pt-3 md:size-7 md:pt-2",
                 disabled ? "cursor-default" : "cursor-pointer",
               )}
             >
-              <Checkbox
-                id={`complete-${task.uuid}`}
-                checked={checked}
-                disabled={disabled}
-                aria-label={`${completed ? "Reopen" : "Complete"}: ${task.description}`}
-                onCheckedChange={onComplete}
-                className={cn(
-                  "task-complete size-[18px] rounded-full border-muted-foreground/60 bg-background shadow-none transition-colors focus-visible:ring-1 disabled:opacity-100 enabled:hover:border-foreground data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground",
-                  !checked &&
-                    task.priority === "H" &&
-                    "border-red-500 bg-red-500/10 enabled:hover:border-red-600 enabled:hover:bg-red-500/20 dark:border-red-400",
-                  !checked &&
-                    task.priority === "M" &&
-                    "border-amber-500 bg-amber-500/10 enabled:hover:border-amber-600 enabled:hover:bg-amber-500/20 dark:border-amber-400",
-                  !checked &&
-                    task.priority === "L" &&
-                    "border-blue-500 bg-blue-500/10 enabled:hover:border-blue-600 enabled:hover:bg-blue-500/20 dark:border-blue-400",
-                )}
-              />
-              {!checked && !disabled && (
-                <Check
-                  aria-hidden="true"
+              <div className="relative flex size-[18px] items-center justify-center">
+                <Checkbox
+                  id={`complete-${task.uuid}`}
+                  checked={checked}
+                  disabled={disabled}
+                  aria-label={`${completed ? "Reopen" : "Complete"}: ${task.description}`}
+                  onCheckedChange={onComplete}
                   className={cn(
-                    "task-check-preview pointer-events-none absolute top-1/2 left-0.5 size-3.5 -translate-y-1/2",
-                    task.priority === "H"
-                      ? "text-red-600 dark:text-red-400"
-                      : task.priority === "M"
-                        ? "text-amber-600 dark:text-amber-400"
-                        : task.priority === "L"
-                          ? "text-blue-600 dark:text-blue-400"
-                          : "text-muted-foreground",
+                    "task-complete size-[18px] rounded-full border-muted-foreground/60 bg-transparent shadow-none transition-all duration-150 focus-visible:ring-1 disabled:opacity-100 enabled:hover:border-foreground data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground",
+                    !checked &&
+                      task.priority === "H" &&
+                      "border-red-500 bg-red-500/10 enabled:hover:border-red-600 enabled:hover:bg-red-500/20 dark:border-red-400",
+                    !checked &&
+                      task.priority === "M" &&
+                      "border-amber-500 bg-amber-500/10 enabled:hover:border-amber-600 enabled:hover:bg-amber-500/20 dark:border-amber-400",
+                    !checked &&
+                      task.priority === "L" &&
+                      "border-blue-500 bg-blue-500/10 enabled:hover:border-blue-600 enabled:hover:bg-blue-500/20 dark:border-blue-400",
+                    checked &&
+                      task.priority === "H" &&
+                      "data-[state=checked]:border-red-500 data-[state=checked]:bg-red-500",
+                    checked &&
+                      task.priority === "M" &&
+                      "data-[state=checked]:border-amber-500 data-[state=checked]:bg-amber-500",
+                    checked &&
+                      task.priority === "L" &&
+                      "data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500",
                   )}
                 />
-              )}
+                {!checked && !disabled && (
+                  <Check
+                    aria-hidden="true"
+                    className={cn(
+                      "task-check-preview pointer-events-none absolute inset-0 m-auto size-3 opacity-0 transition-opacity duration-150 group-hover/check:opacity-80",
+                      task.priority === "H"
+                        ? "text-red-600 dark:text-red-400"
+                        : task.priority === "M"
+                          ? "text-amber-600 dark:text-amber-400"
+                          : task.priority === "L"
+                            ? "text-blue-600 dark:text-blue-400"
+                            : "text-muted-foreground",
+                    )}
+                  />
+                )}
+              </div>
             </Label>
             <Button
               type="button"
               variant="ghost"
               disabled={disabled}
               data-task-drag-surface=""
-              onClick={onEdit}
+              onClick={!completed && onSaveInline ? () => setEditingInline(true) : onEdit}
               className="flex h-auto min-h-11 min-w-0 w-full flex-col items-start justify-start gap-0 self-start rounded-sm px-0 py-3 text-left font-normal whitespace-normal hover:bg-transparent focus-visible:ring-1 disabled:opacity-100 md:min-h-8 md:py-1.5 dark:hover:bg-transparent"
             >
               <span
@@ -518,15 +557,13 @@ export function TaskRow({
                   {task.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="flex min-w-0 max-w-full items-start gap-1"
+                      className="inline-flex min-w-0 items-center gap-1 rounded-[4px] bg-muted/60 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       <LabelIcon
-                        className="mt-0.5 size-3 shrink-0"
-                        strokeWidth={1.5}
+                        className="size-2.5 shrink-0 opacity-70"
+                        strokeWidth={1.6}
                       />
-                      <span className="min-w-0 [overflow-wrap:anywhere]">
-                        {tag}
-                      </span>
+                      <span className="truncate">{tag}</span>
                     </span>
                   ))}
                 </span>
@@ -588,6 +625,66 @@ export function TaskRow({
                       </Button>
                     }
                   />
+                )}
+                {!completed && onPriorityChange && (
+                  <Popover open={priorityPopoverOpen} onOpenChange={setPriorityPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={disabled}
+                        aria-label={`Set priority: ${task.description}`}
+                        title={
+                          task.priority
+                            ? `Priority ${task.priority === "H" ? "1" : task.priority === "M" ? "2" : "3"}`
+                            : "Set priority"
+                        }
+                        className={cn(
+                          "size-7 text-muted-foreground transition-opacity hover:text-foreground",
+                          actionsVisible
+                            ? "opacity-100"
+                            : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100 data-[state=open]:opacity-100",
+                        )}
+                      >
+                        <Flag
+                          className={cn(
+                            "size-3.5",
+                            task.priority === "H" &&
+                              "fill-red-500/20 text-red-600 dark:text-red-400",
+                            task.priority === "M" &&
+                              "fill-amber-500/20 text-amber-600 dark:text-amber-400",
+                            task.priority === "L" &&
+                              "fill-blue-500/20 text-blue-600 dark:text-blue-400",
+                            !task.priority && "text-muted-foreground",
+                          )}
+                          strokeWidth={1.6}
+                        />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="end" className="w-36 p-1">
+                      {PRIORITIES.map((item) => (
+                        <Button
+                          key={item.label}
+                          type="button"
+                          variant="navigation"
+                          className="h-8 justify-between px-2 text-xs font-normal"
+                          onClick={() => {
+                            setPriorityPopoverOpen(false);
+                            onPriorityChange(item.value);
+                          }}
+                        >
+                          <span className="flex items-center gap-2">
+                            <Flag className={cn("size-3.5", item.iconClass)} />
+                            <span>{item.label}</span>
+                          </span>
+                          {(task.priority || "") === item.value && (
+                            <Check className="size-3 text-foreground" />
+                          )}
+                        </Button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
                 )}
                 {!completed && onToggleStart && (
                   <Button

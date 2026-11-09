@@ -1,4 +1,4 @@
-import { FilterIcon, LabelIcon, OrganizationIcon } from "@/components/icons";
+import { FilterIcon, LabelIcon, OrganizationIcon, TodayCalendarIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { ProjectTree } from "@/features/projects/project-tree";
 import { formatDuration, type EnergySummary } from "@core/workspace/energy";
@@ -34,20 +34,54 @@ import { useState } from "react";
 import { WorkspaceNavigation } from "./workspace-navigation";
 
 export const views: Record<View, string> = {
-  focus: "Focus",
-  later: "Later",
   pending: "Inbox",
   today: "Today",
+  focus: "Focus",
+  later: "Later",
   waiting: "Waiting",
   completed: "Completed",
 };
-const viewIcons = {
-  focus: Target,
-  later: Archive,
-  pending: Inbox,
-  today: CalendarDays,
-  waiting: Clock3,
-  completed: CircleCheck,
+
+const viewOrder: View[] = [
+  "pending",
+  "today",
+  "focus",
+  "later",
+  "waiting",
+  "completed",
+];
+
+const viewMeta: Record<
+  View,
+  {
+    icon: React.ComponentType<{ className?: string }>;
+    colorClass: string;
+  }
+> = {
+  pending: {
+    icon: Inbox,
+    colorClass: "text-blue-500/90 dark:text-blue-400",
+  },
+  today: {
+    icon: TodayCalendarIcon,
+    colorClass: "text-emerald-600 dark:text-emerald-500",
+  },
+  focus: {
+    icon: Target,
+    colorClass: "text-amber-500/90 dark:text-amber-400",
+  },
+  later: {
+    icon: Archive,
+    colorClass: "text-purple-500/80 dark:text-purple-400",
+  },
+  waiting: {
+    icon: Clock3,
+    colorClass: "text-orange-500/80 dark:text-orange-400",
+  },
+  completed: {
+    icon: CircleCheck,
+    colorClass: "text-muted-foreground",
+  },
 };
 
 type WorkspaceSidebarProps = {
@@ -132,20 +166,22 @@ export function WorkspaceSidebar({
 
   return (
     <WorkspaceNavigation open={navOpen} onOpenChange={onOpenChange}>
-      <div className="mb-3 flex h-10 items-center gap-2 px-1 text-sm font-semibold md:px-2.5">
+      <div className="mb-3 flex h-10 items-center justify-between px-1 md:px-2">
+        <div className="flex items-center gap-2">
+          <Asterisk className="size-5 text-primary" strokeWidth={1.8} />
+          <span className="text-sm font-semibold tracking-tight text-foreground">Aster</span>
+        </div>
         <Button
           id="sidebar-close"
           variant="ghost"
-          size="icon-sm"
+          size="icon-xs"
           aria-label="Hide sidebar"
-          className="text-muted-foreground md:hidden"
+          title="Collapse sidebar"
+          className="size-7 text-muted-foreground hover:bg-navigation-hover hover:text-foreground"
           onClick={() => onOpenChange(false)}
         >
-          <PanelLeft className="size-4" />
+          <PanelLeft className="size-4" strokeWidth={1.6} />
         </Button>
-        <Asterisk className="size-5 text-primary" strokeWidth={1.6} />
-        Aster
-        <span aria-hidden className="ml-auto hidden size-8 md:block" />
       </div>
       <Button
         variant="ghost"
@@ -161,8 +197,9 @@ export function WorkspaceSidebar({
         </kbd>
       </Button>
       <nav aria-label="Task views" className="space-y-0.5">
-        {(Object.entries(views) as [View, string][]).map(([value, label]) => {
-          const Icon = viewIcons[value];
+        {viewOrder.map((value) => {
+          const label = views[value];
+          const { icon: Icon, colorClass } = viewMeta[value];
           const count = viewCounts?.[value];
           return (
             <Button
@@ -182,7 +219,7 @@ export function WorkspaceSidebar({
                 if (innerWidth < 768) onOpenChange(false);
               }}
             >
-              <Icon className="size-[18px]" />
+              <Icon className={cn("size-[18px] shrink-0", colorClass)} />
               <span className="truncate">{label}</span>
               {value === "focus" ? (
                 <span className="ml-auto text-xs tabular-nums text-muted-foreground">

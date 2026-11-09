@@ -81,6 +81,7 @@ import {
 } from "@core/workspace/projects";
 import type { Task, TaskInput, View } from "@shared/tasks";
 import { cn } from "cn";
+import { format } from "date-fns";
 import {
   Check,
   Columns3,
@@ -1230,55 +1231,53 @@ export default function App() {
           setProject("");
         }}
       />
-      <Button
-        id="sidebar-toggle"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={navOpen ? "Hide sidebar" : "Show sidebar"}
-        aria-expanded={navOpen}
-        aria-controls="workspace-navigation"
-        aria-keyshortcuts="M"
-        data-sidebar-open={navOpen}
-        onClick={() => setNavigation(!navOpen)}
-        className="workspace-sidebar-toggle hidden text-muted-foreground md:inline-flex"
-      >
-        <PanelLeft className="size-[18px]" strokeWidth={1.5} />
-      </Button>
       <div className="workspace-main min-h-dvh" data-sidebar-open={navOpen}>
         <header className="sticky top-0 z-20 bg-background/85 backdrop-blur-md">
           <div className="workspace-frame flex h-12 items-center justify-between">
-            <div className="size-8 shrink-0">
-              <Button
-                id="sidebar-mobile-toggle"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Show sidebar"
-                aria-expanded={navOpen}
-                aria-controls="workspace-navigation"
-                onClick={() => setNavigation(true)}
-                className={cn(
-                  "text-muted-foreground md:hidden",
-                  navOpen && "invisible",
-                )}
-              >
-                <PanelLeft className="size-[18px]" strokeWidth={1.5} />
-              </Button>
+            <div className="flex items-center gap-2">
+              {!navOpen && (
+                <Button
+                  id="sidebar-toggle"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Show sidebar"
+                  title="Show sidebar"
+                  aria-expanded={false}
+                  onClick={() => setNavigation(true)}
+                  className="size-8 text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <PanelLeft className="size-[18px]" strokeWidth={1.6} />
+                </Button>
+              )}
             </div>
-            <div className="flex items-center gap-1">
-              <Button
+            <div className="flex items-center gap-1.5">
+              <button
                 type="button"
-                variant="ghost"
-                size="xs"
-                aria-label="Open command palette"
+                aria-label="Quick find (⌘K)"
                 aria-keyshortcuts="Meta+K Control+K"
                 disabled={busy || organizationSaving}
                 onClick={() => setCommandOpen(true)}
-                className="hidden h-7 gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 text-xs font-normal text-muted-foreground hover:bg-muted/80 hover:text-foreground sm:inline-flex"
+                className="group/search hidden h-8 w-44 items-center justify-between rounded-lg border border-border/70 bg-muted/40 px-2.5 text-xs text-muted-foreground transition-colors hover:border-ring/40 hover:bg-muted/70 hover:text-foreground sm:inline-flex md:w-52"
               >
-                <span>Command</span>
-                <kbd className="rounded bg-background/80 px-1 py-0.5 font-sans text-[10px] leading-none text-muted-foreground">
+                <span className="flex items-center gap-2">
+                  <Search className="size-3.5 text-muted-foreground/75 transition-colors group-hover/search:text-foreground" />
+                  <span className="font-normal">Quick find</span>
+                </span>
+                <kbd className="rounded border border-border/70 bg-background/80 px-1.5 py-0.5 font-sans text-[10px] leading-none text-muted-foreground/80 shadow-2xs">
                   ⌘K
                 </kbd>
+              </button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Quick add task (Q)"
+                title="Quick add task (Q)"
+                disabled={busy || needsCheck}
+                onClick={openQuickAdd}
+                className="size-8 text-primary hover:bg-accent"
+              >
+                <Plus className="size-5" strokeWidth={1.75} />
               </Button>
               <ThemeSwitcher />
               <Button
@@ -1299,7 +1298,7 @@ export default function App() {
                     setQuery("");
                   } else setSearchOpen(true);
                 }}
-                className="text-muted-foreground"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <Search className="size-[18px]" strokeWidth={1.5} />
               </Button>
@@ -1312,7 +1311,7 @@ export default function App() {
                   void load();
                   void loadOrganization();
                 }}
-                className="text-muted-foreground"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <RotateCw
                   className={cn("size-[17px]", loading && "animate-spin")}
@@ -1370,61 +1369,78 @@ export default function App() {
               data-workspace-heading
               className="mb-6 flex min-h-10 items-center justify-between gap-4"
             >
-              <div className="flex min-w-0 items-center gap-2.5">
-                {currentProject && !organizationPage && !activeItem && (
-                  <ProjectIcon
-                    name={currentProject}
-                    className="size-5 shrink-0"
-                  />
-                )}
-                <h1
-                  title={
-                    currentProject ? projectPath(currentProject) : undefined
-                  }
-                  id="view-title"
-                  tabIndex={-1}
-                  className="min-w-0 truncate text-2xl leading-8 font-bold tracking-[-0.5px] outline-none"
-                >
-                  {organizationPage
-                    ? projectsPage
-                      ? "Projects"
-                      : "Filters & labels"
-                    : activeItem?.name ||
-                      (currentProject
-                        ? projectLeaf(currentProject)
-                        : views[view])}
-                </h1>
-                {currentProject && !organizationPage && !activeItem && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    disabled={busy || organizationSaving}
-                    onClick={() =>
-                      transition(
-                        focusProject(currentProject, organization.projects)
-                          ?.name || currentProject,
-                        focusProject(currentProject, organization.projects)
-                          ? "later"
-                          : "active",
-                      )
+              <div className="flex min-w-0 flex-col">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  {currentProject && !organizationPage && !activeItem && (
+                    <ProjectIcon
+                      name={currentProject}
+                      className="size-5 shrink-0"
+                    />
+                  )}
+                  <h1
+                    title={
+                      currentProject ? projectPath(currentProject) : undefined
                     }
-                    className={cn(
-                      "h-6 shrink-0 gap-1 rounded-full border px-2.5 text-[11px] font-medium",
-                      focusProject(currentProject, organization.projects)
-                        ? "border-primary/25 bg-primary/8 text-foreground hover:bg-primary/14"
-                        : "border-border text-muted-foreground hover:bg-(--row-hover) hover:text-foreground",
-                    )}
+                    id="view-title"
+                    tabIndex={-1}
+                    className="min-w-0 truncate text-2xl leading-8 font-bold tracking-[-0.5px] outline-none"
                   >
-                    {focusProject(currentProject, organization.projects) ? (
-                      <>
-                        <Target className="size-3" strokeWidth={1.8} />
-                        Focus
-                      </>
-                    ) : (
-                      "Later"
-                    )}
-                  </Button>
+                    {organizationPage
+                      ? projectsPage
+                        ? "Projects"
+                        : "Filters & labels"
+                      : activeItem?.name ||
+                        (currentProject
+                          ? projectLeaf(currentProject)
+                          : views[view])}
+                  </h1>
+                  {view === "today" && !currentProject && !organizationPage && !activeItem && (
+                    <span className="text-xs font-semibold text-muted-foreground/80 tabular-nums">
+                      {viewCounts?.today ?? 0}
+                    </span>
+                  )}
+                  {view === "pending" && !currentProject && !organizationPage && !activeItem && (
+                    <span className="text-xs font-semibold text-muted-foreground/80 tabular-nums">
+                      {viewCounts?.pending ?? 0}
+                    </span>
+                  )}
+                  {currentProject && !organizationPage && !activeItem && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      disabled={busy || organizationSaving}
+                      onClick={() =>
+                        transition(
+                          focusProject(currentProject, organization.projects)
+                            ?.name || currentProject,
+                          focusProject(currentProject, organization.projects)
+                            ? "later"
+                            : "active",
+                        )
+                      }
+                      className={cn(
+                        "h-6 shrink-0 gap-1 rounded-full border px-2.5 text-[11px] font-medium",
+                        focusProject(currentProject, organization.projects)
+                          ? "border-primary/25 bg-primary/8 text-foreground hover:bg-primary/14"
+                          : "border-border text-muted-foreground hover:bg-(--row-hover) hover:text-foreground",
+                      )}
+                    >
+                      {focusProject(currentProject, organization.projects) ? (
+                        <>
+                          <Target className="size-3" strokeWidth={1.8} />
+                          Focus
+                        </>
+                      ) : (
+                        "Later"
+                      )}
+                    </Button>
+                  )}
+                </div>
+                {view === "today" && !currentProject && !organizationPage && !activeItem && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {format(now, "EEE, MMM d")}
+                  </p>
                 )}
               </div>
               {!organizationPage && !specialPage && (

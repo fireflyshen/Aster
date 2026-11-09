@@ -16,6 +16,40 @@ function Icon({ children, ...props }: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function TodayCalendarIcon({
+  day = new Date().getDate(),
+  ...props
+}: SVGProps<SVGSVGElement> & { day?: number }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2.5" />
+      <path d="M16 2v4M8 2v4M3 9.5h18" />
+      <text
+        x="12"
+        y="17.5"
+        textAnchor="middle"
+        fontSize="8"
+        fontWeight="650"
+        fill="currentColor"
+        stroke="none"
+        fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif"
+      >
+        {day}
+      </text>
+    </svg>
+  );
+}
+
 export function FilterIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
@@ -23,6 +57,7 @@ export function FilterIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
 export function LabelIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
@@ -31,6 +66,7 @@ export function LabelIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
 export function OrganizationIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

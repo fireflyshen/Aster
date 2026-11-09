@@ -59,10 +59,12 @@ import {
   ArrowLeft,
   ArrowRight,
   CalendarClock,
+  CheckCircle2,
   ChevronRight,
   Ellipsis,
   FolderPlus,
   GripVertical,
+  Inbox,
   Pencil,
   Plus,
   Trash2,
@@ -957,26 +959,40 @@ export function TaskBoard({
                           </div>
                         )}
                         <div>
-                          {todayEntries.map(({ task, column }) => (
-                            <BoardCard
-                              key={task.uuid}
-                              compact
-                              interactive={canAddTask}
-                              task={task}
-                              column={column}
-                              columns={columns}
-                              disabled={disabled}
-                              saving={moving?.uuid === task.uuid}
-                              before={
-                                !!active && position?.beforeUuid === task.uuid
-                              }
-                              onMove={(t, columnId) =>
-                                void move(t, { columnId, beforeUuid: null })
-                              }
-                            >
-                              {renderTask(task)}
-                            </BoardCard>
-                          ))}
+                          {todayEntries.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-10 text-center">
+                              <div className="relative mb-3 flex size-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+                                <CheckCircle2 className="size-7" strokeWidth={1.75} />
+                              </div>
+                              <h3 className="text-sm font-semibold text-foreground">
+                                All tasks completed!
+                              </h3>
+                              <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                                Everything scheduled for today is done. Enjoy your day!
+                              </p>
+                            </div>
+                          ) : (
+                            todayEntries.map(({ task, column }) => (
+                              <BoardCard
+                                key={task.uuid}
+                                compact
+                                interactive={canAddTask}
+                                task={task}
+                                column={column}
+                                columns={columns}
+                                disabled={disabled}
+                                saving={moving?.uuid === task.uuid}
+                                before={
+                                  !!active && position?.beforeUuid === task.uuid
+                                }
+                                onMove={(t, columnId) =>
+                                  void move(t, { columnId, beforeUuid: null })
+                                }
+                              >
+                                {renderTask(task)}
+                              </BoardCard>
+                            ))
+                          )}
                           {canAddTask && (
                             <TodoistTaskComposer
                               mode="add"
@@ -1049,6 +1065,19 @@ export function TaskBoard({
                         position.beforeUuid === null
                       }
                     >
+                      {items.length === 0 && !hasCustomColumns && !active && (
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                          <div className="relative mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
+                            <Inbox className="size-6" strokeWidth={1.5} />
+                          </div>
+                          <h3 className="text-sm font-medium text-foreground">
+                            No tasks here
+                          </h3>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Add a task below to get started
+                          </p>
+                        </div>
+                      )}
                       {items.map((task) => (
                         <BoardCard
                           key={task.uuid}
