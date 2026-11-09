@@ -68,10 +68,10 @@ export function BoardColumnEditor({
       >
         <DialogHeader className="border-b px-5 py-4 pr-14 text-left">
           <DialogTitle className="text-base font-semibold">
-            {column.id ? "Edit column" : "Add column"}
+            {column.id ? "Edit section" : "Add section"}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Name your board column.
+            Name your section.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>

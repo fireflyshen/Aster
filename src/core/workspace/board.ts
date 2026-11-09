@@ -26,7 +26,7 @@ export type BoardChange = { revision: number; kind: "board" } & (
 export const UNSECTIONED = "unsectioned";
 export const unsectionedColumn: BoardColumn = {
   id: UNSECTIONED,
-  name: "Unsectioned",
+  name: "No section",
 };
 
 export function defaultBoard(): BoardState {

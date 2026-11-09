@@ -56,8 +56,10 @@ import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { format } from "date-fns";
 import {
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   CalendarClock,
   CheckCircle2,
   ChevronRight,
@@ -195,8 +197,8 @@ function InlineColumnCreator({
             }}
             className="h-11 w-full justify-start gap-2.5 self-start rounded-xl border border-dashed border-border/80 px-3.5 text-sm font-normal text-muted-foreground hover:border-ring/40 hover:bg-(--row-hover) hover:text-foreground md:h-10"
           >
-            <FolderPlus className="size-4" strokeWidth={1.5} />
-            Add column
+            <Plus className="size-4" strokeWidth={1.5} />
+            Add section
           </Button>
         )}
       </div>
@@ -239,7 +241,7 @@ function InlineColumnCreator({
         value={name}
         maxLength={40}
         disabled={disabled || saving}
-        placeholder={layout === "list" ? "Name this section…" : "Column name…"}
+        placeholder="Name this section…"
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -267,13 +269,7 @@ function InlineColumnCreator({
         disabled={disabled || saving || !name.trim()}
         className="h-7 rounded-md px-2.5 text-xs font-medium shadow-none"
       >
-        {saving ? (
-          <Spinner className="size-3" />
-        ) : layout === "list" ? (
-          "Add section"
-        ) : (
-          "Add"
-        )}
+        {saving ? <Spinner className="size-3" /> : "Add section"}
       </Button>
       <Button
         type="button"
@@ -496,6 +492,69 @@ function BoardColumn({
                 </span>
               </button>
               <div className="flex-1 h-px bg-border/40 hidden sm:block" />
+              {column.id !== UNSECTIONED && (
+                <Popover open={menu} onOpenChange={setMenu}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Section options: ${column.name}`}
+                      disabled={disabled}
+                      className="text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100"
+                    >
+                      <Ellipsis className="size-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-44 p-1">
+                    <Button
+                      variant="navigation"
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        setMenu(false);
+                        onEdit();
+                      }}
+                    >
+                      <Pencil className="size-3.5" />
+                      Rename section
+                    </Button>
+                    <Button
+                      variant="navigation"
+                      className="h-8 text-xs"
+                      disabled={index === 0}
+                      onClick={() => {
+                        setMenu(false);
+                        onShift("left");
+                      }}
+                    >
+                      <ArrowUp className="size-3.5" />
+                      Move up
+                    </Button>
+                    <Button
+                      variant="navigation"
+                      className="h-8 text-xs"
+                      disabled={index === total - 1}
+                      onClick={() => {
+                        setMenu(false);
+                        onShift("right");
+                      }}
+                    >
+                      <ArrowDown className="size-3.5" />
+                      Move down
+                    </Button>
+                    <Button
+                      variant="navigation"
+                      className="h-8 text-xs text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setMenu(false);
+                        onDelete();
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                      Delete section
+                    </Button>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
           ) : (
             <>
@@ -505,72 +564,70 @@ function BoardColumn({
               <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
                 {count}
               </span>
+              {column.id !== UNSECTIONED && (
+                <Popover open={menu} onOpenChange={setMenu}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Column options: ${column.name}`}
+                      disabled={disabled}
+                      className="ml-auto text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100"
+                    >
+                      <Ellipsis className="size-4" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-40 p-1">
+                    <Button
+                      variant="navigation"
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        setMenu(false);
+                        onEdit();
+                      }}
+                    >
+                      <Pencil className="size-3.5" />
+                      Rename
+                    </Button>
+                    <Button
+                      variant="navigation"
+                      className="h-8 text-xs"
+                      disabled={index === 0}
+                      onClick={() => {
+                        setMenu(false);
+                        onShift("left");
+                      }}
+                    >
+                      <ArrowLeft className="size-3.5" />
+                      Move left
+                    </Button>
+                    <Button
+                      variant="navigation"
+                      className="h-8 text-xs"
+                      disabled={index === total - 1}
+                      onClick={() => {
+                        setMenu(false);
+                        onShift("right");
+                      }}
+                    >
+                      <ArrowRight className="size-3.5" />
+                      Move right
+                    </Button>
+                    <Button
+                      variant="navigation"
+                      className="h-8 text-xs text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setMenu(false);
+                        onDelete();
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                      Delete column
+                    </Button>
+                  </PopoverContent>
+                </Popover>
+              )}
             </>
-          )}
-          {column.id !== UNSECTIONED && (
-            <Popover open={menu} onOpenChange={setMenu}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Column options: ${column.name}`}
-                  disabled={disabled}
-                  className="ml-auto text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100"
-                >
-                  <Ellipsis className="size-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-40 p-1">
-                <Button
-                  variant="navigation"
-                  className="h-8 text-xs"
-                  onClick={() => {
-                    setMenu(false);
-                    onEdit();
-                  }}
-                >
-                  <Pencil className="size-3.5" />
-                  Rename
-                </Button>
-                <Button
-                  variant="navigation"
-                  className="h-8 text-xs"
-                  disabled={index === 0}
-                  onClick={() => {
-                    setMenu(false);
-                    onShift("left");
-                  }}
-                >
-                  <ArrowLeft className="size-3.5" />
-                  Move left
-                </Button>
-                <Button
-                  variant="navigation"
-                  className="h-8 text-xs"
-                  disabled={index === total - 1}
-                  onClick={() => {
-                    setMenu(false);
-                    onShift("right");
-                  }}
-                >
-                  <ArrowRight className="size-3.5" />
-                  Move right
-                </Button>
-                {column.id !== UNSECTIONED && (
-                  <Button
-                    variant="navigation"
-                    className="h-8 text-xs text-destructive"
-                    onClick={() => {
-                      setMenu(false);
-                      onDelete();
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                    Delete column
-                  </Button>
-                )}
-              </PopoverContent>
-            </Popover>
           )}
         </div>
       )}
@@ -1020,19 +1077,17 @@ export function TaskBoard({
                 })()
               : columns.map((column, index) => {
                   const items = columnTasks(tasks, displayBoard, column.id);
+                  const isUnsectioned = column.id === UNSECTIONED;
                   if (
-                    layout === "list" &&
+                    isUnsectioned &&
+                    hasCustomColumns &&
                     items.length === 0 &&
-                    !active &&
-                    column.id === UNSECTIONED &&
-                    hasCustomColumns
+                    !active
                   ) {
                     return null;
                   }
                   const showColumnHeader =
-                    layout === "board" ||
-                    (hasCustomColumns &&
-                      (columns.length > 1 || column.id !== UNSECTIONED));
+                    layout === "board" || !isUnsectioned;
                   return (
                     <BoardColumn
                       key={column.id}
@@ -1178,7 +1233,7 @@ export function TaskBoard({
           <AlertDialogHeader>
             <AlertDialogTitle>Delete {deleting?.column.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tasks will move to Unsectioned. Your tasks will be kept.
+              Tasks will move to No section. Your tasks will be kept.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {error && (
@@ -1221,7 +1276,13 @@ export function TaskBoard({
                   setDeleting(undefined);
               }}
             >
-              {saving ? <Spinner className="size-4" /> : "Delete column"}
+              {saving ? (
+                <Spinner className="size-4" />
+              ) : layout === "list" ? (
+                "Delete section"
+              ) : (
+                "Delete column"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
