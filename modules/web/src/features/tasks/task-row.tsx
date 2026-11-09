@@ -141,8 +141,8 @@ export function TaskRow({
   );
   const hasRightActions = Boolean(
     (!completed && (onSaveInline || onToggleStart || onDueChange)) ||
-      hasMoreMenu ||
-      extraActions,
+    hasMoreMenu ||
+    extraActions,
   );
   const hasDetails = !!(
     (showProject && task.project) ||
@@ -270,10 +270,7 @@ export function TaskRow({
       onPriorityChange(map[key]);
       return;
     }
-    if (
-      (event.key === "Backspace" || event.key === "Delete") &&
-      onDelete
-    ) {
+    if ((event.key === "Backspace" || event.key === "Delete") && onDelete) {
       event.preventDefault();
       onDelete();
     }
@@ -748,30 +745,28 @@ export function TaskRow({
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-1">
-                            {(
-                              [
-                                {
-                                  val: "H" as const,
-                                  label: "Priority 1",
-                                  cls: "fill-red-500/20 text-red-600 dark:text-red-400",
-                                },
-                                {
-                                  val: "M" as const,
-                                  label: "Priority 2",
-                                  cls: "fill-amber-500/20 text-amber-600 dark:text-amber-400",
-                                },
-                                {
-                                  val: "L" as const,
-                                  label: "Priority 3",
-                                  cls: "fill-blue-500/20 text-blue-600 dark:text-blue-400",
-                                },
-                                {
-                                  val: "" as const,
-                                  label: "Priority 4",
-                                  cls: "text-muted-foreground",
-                                },
-                              ]
-                            ).map((item) => (
+                            {[
+                              {
+                                val: "H" as const,
+                                label: "Priority 1",
+                                cls: "fill-red-500/20 text-red-600 dark:text-red-400",
+                              },
+                              {
+                                val: "M" as const,
+                                label: "Priority 2",
+                                cls: "fill-amber-500/20 text-amber-600 dark:text-amber-400",
+                              },
+                              {
+                                val: "L" as const,
+                                label: "Priority 3",
+                                cls: "fill-blue-500/20 text-blue-600 dark:text-blue-400",
+                              },
+                              {
+                                val: "" as const,
+                                label: "Priority 4",
+                                cls: "text-muted-foreground",
+                              },
+                            ].map((item) => (
                               <Button
                                 key={item.label}
                                 type="button"

@@ -109,8 +109,8 @@ export function DatePicker({
         onCloseAutoFocus={
           returnFocus
             ? (event) => {
-                 event.preventDefault();
-                 returnFocus();
+                event.preventDefault();
+                returnFocus();
               }
             : undefined
         }

@@ -200,9 +200,7 @@ export function OrganizationManager({
                 : "Add to favorites"
             }
             title={
-              editing.item.favorite
-                ? "Favorited"
-                : "Add to sidebar favorites"
+              editing.item.favorite ? "Favorited" : "Add to sidebar favorites"
             }
             onClick={() =>
               setEditing({

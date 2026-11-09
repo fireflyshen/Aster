@@ -223,7 +223,10 @@ export function CommandPalette({
             <CommandSeparator className="my-1" />
             <CommandGroup heading="Projects">
               {projects.map((name) => {
-                const count = projectTaskCount(name, organization.projectCounts);
+                const count = projectTaskCount(
+                  name,
+                  organization.projectCounts,
+                );
                 const inFocus = Boolean(
                   focusProject(name, organization.projects),
                 );

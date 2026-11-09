@@ -378,7 +378,9 @@ export function FocusOverview({
                             disabled={disabled}
                             title="Pin as top next step"
                             aria-label={`Set as next step: ${item.description}`}
-                            onClick={() => onSelectNext(project.name, item.uuid)}
+                            onClick={() =>
+                              onSelectNext(project.name, item.uuid)
+                            }
                             className="size-7 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100"
                           >
                             <ArrowUpToLine className="size-3.5" />
@@ -417,9 +419,7 @@ export function FocusOverview({
                         ? (task) => onCreateTask(task, project.name)
                         : undefined
                     }
-                    onOpenFullEditor={(draft) =>
-                      onAddTask(project.name, draft)
-                    }
+                    onOpenFullEditor={(draft) => onAddTask(project.name, draft)}
                   />
                 </div>
               </section>

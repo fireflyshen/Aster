@@ -853,75 +853,111 @@ export function TaskBoard({
                 : "grid grid-flow-col auto-cols-[18rem] gap-6"
             }
           >
-            {todaySplit && layout === "list" ? (
-              (() => {
-                const ordered = columns.flatMap((col) =>
-                  columnTasks(tasks, displayBoard, col.id).map((task) => ({
-                    task,
-                    column: col,
-                  })),
-                );
-                const overdueEntries = ordered.filter(({ task }) =>
-                  isTaskOverdue(task),
-                );
-                const todayEntries = ordered.filter(
-                  ({ task }) => !isTaskOverdue(task),
-                );
-                return (
-                  <div className="space-y-6">
-                    {overdueEntries.length > 0 && (
-                      <section aria-label="Overdue tasks" className="min-w-0">
-                        <div className="mb-1 flex h-10 items-center justify-between gap-2 border-b border-border/80">
-                          <button
-                            type="button"
-                            aria-expanded={!overdueCollapsed}
-                            onClick={() =>
-                              setOverdueCollapsed(!overdueCollapsed)
-                            }
-                            className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
-                          >
-                            <ChevronRight
-                              className={cn(
-                                "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-                                !overdueCollapsed && "rotate-90",
-                              )}
-                            />
-                            <h2 className="text-sm font-semibold text-red-600 dark:text-red-400">
-                              Overdue
-                            </h2>
-                            <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-red-600 dark:text-red-400">
-                              {overdueEntries.length}
-                            </span>
-                          </button>
-                          {onRescheduleOverdue && (
-                            <Button
+            {todaySplit && layout === "list"
+              ? (() => {
+                  const ordered = columns.flatMap((col) =>
+                    columnTasks(tasks, displayBoard, col.id).map((task) => ({
+                      task,
+                      column: col,
+                    })),
+                  );
+                  const overdueEntries = ordered.filter(({ task }) =>
+                    isTaskOverdue(task),
+                  );
+                  const todayEntries = ordered.filter(
+                    ({ task }) => !isTaskOverdue(task),
+                  );
+                  return (
+                    <div className="space-y-6">
+                      {overdueEntries.length > 0 && (
+                        <section aria-label="Overdue tasks" className="min-w-0">
+                          <div className="mb-1 flex h-10 items-center justify-between gap-2 border-b border-border/80">
+                            <button
                               type="button"
-                              variant="ghost"
-                              size="xs"
-                              disabled={disabled || reschedulingOverdue}
-                              onClick={async () => {
-                                setReschedulingOverdue(true);
-                                try {
-                                  await onRescheduleOverdue(
-                                    overdueEntries.map((item) => item.task),
-                                  );
-                                } finally {
-                                  setReschedulingOverdue(false);
-                                }
-                              }}
-                              className="h-7 gap-1.5 rounded-md px-2 text-xs font-medium text-red-600 hover:bg-red-500/10 hover:text-red-600 dark:text-red-400 dark:hover:text-red-400"
+                              aria-expanded={!overdueCollapsed}
+                              onClick={() =>
+                                setOverdueCollapsed(!overdueCollapsed)
+                              }
+                              className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
                             >
-                              {reschedulingOverdue ? (
-                                <Spinner className="size-3" />
-                              ) : (
-                                <CalendarClock className="size-3.5" />
-                              )}
-                              Reschedule to Today
-                            </Button>
-                          )}
-                        </div>
-                        <div hidden={overdueCollapsed}>
-                          {overdueEntries.map(({ task, column }) => (
+                              <ChevronRight
+                                className={cn(
+                                  "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+                                  !overdueCollapsed && "rotate-90",
+                                )}
+                              />
+                              <h2 className="text-sm font-semibold text-red-600 dark:text-red-400">
+                                Overdue
+                              </h2>
+                              <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-red-600 dark:text-red-400">
+                                {overdueEntries.length}
+                              </span>
+                            </button>
+                            {onRescheduleOverdue && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="xs"
+                                disabled={disabled || reschedulingOverdue}
+                                onClick={async () => {
+                                  setReschedulingOverdue(true);
+                                  try {
+                                    await onRescheduleOverdue(
+                                      overdueEntries.map((item) => item.task),
+                                    );
+                                  } finally {
+                                    setReschedulingOverdue(false);
+                                  }
+                                }}
+                                className="h-7 gap-1.5 rounded-md px-2 text-xs font-medium text-red-600 hover:bg-red-500/10 hover:text-red-600 dark:text-red-400 dark:hover:text-red-400"
+                              >
+                                {reschedulingOverdue ? (
+                                  <Spinner className="size-3" />
+                                ) : (
+                                  <CalendarClock className="size-3.5" />
+                                )}
+                                Reschedule to Today
+                              </Button>
+                            )}
+                          </div>
+                          <div hidden={overdueCollapsed}>
+                            {overdueEntries.map(({ task, column }) => (
+                              <BoardCard
+                                key={task.uuid}
+                                compact
+                                interactive={canAddTask}
+                                task={task}
+                                column={column}
+                                columns={columns}
+                                disabled={disabled}
+                                saving={moving?.uuid === task.uuid}
+                                before={
+                                  !!active && position?.beforeUuid === task.uuid
+                                }
+                                onMove={(t, columnId) =>
+                                  void move(t, { columnId, beforeUuid: null })
+                                }
+                              >
+                                {renderTask(task)}
+                              </BoardCard>
+                            ))}
+                          </div>
+                        </section>
+                      )}
+                      <section aria-label="Today tasks" className="min-w-0">
+                        {overdueEntries.length > 0 && (
+                          <div className="mb-1 flex h-10 items-center gap-2 border-b border-border/80">
+                            <h2 className="text-sm font-semibold">
+                              {format(new Date(), "MMM d")} · Today ·{" "}
+                              {format(new Date(), "EEEE")}
+                            </h2>
+                            <span className="text-xs tabular-nums text-muted-foreground">
+                              {todayEntries.length}
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          {todayEntries.map(({ task, column }) => (
                             <BoardCard
                               key={task.uuid}
                               compact
@@ -941,163 +977,127 @@ export function TaskBoard({
                               {renderTask(task)}
                             </BoardCard>
                           ))}
+                          {canAddTask && (
+                            <TodoistTaskComposer
+                              mode="add"
+                              compact
+                              disabled={disabled}
+                              ariaLabel="Add task to Today"
+                              placeholder="Task name (try #project, @label, tomorrow, p1)"
+                              defaultProject={defaultProject}
+                              defaultDue={defaultDue || taskDate(new Date())}
+                              projects={projects}
+                              availableLabels={availableLabels}
+                              onSubmitTask={
+                                onCreateTask
+                                  ? (task) =>
+                                      onCreateTask(task, unsectionedColumn.id)
+                                  : undefined
+                              }
+                              onOpenFullEditor={onAdd}
+                            />
+                          )}
                         </div>
                       </section>
-                    )}
-                    <section aria-label="Today tasks" className="min-w-0">
-                      {overdueEntries.length > 0 && (
-                        <div className="mb-1 flex h-10 items-center gap-2 border-b border-border/80">
-                          <h2 className="text-sm font-semibold">
-                            {format(new Date(), "MMM d")} · Today ·{" "}
-                            {format(new Date(), "EEEE")}
-                          </h2>
-                          <span className="text-xs tabular-nums text-muted-foreground">
-                            {todayEntries.length}
-                          </span>
-                        </div>
+                    </div>
+                  );
+                })()
+              : columns.map((column, index) => {
+                  const items = columnTasks(tasks, displayBoard, column.id);
+                  if (
+                    layout === "list" &&
+                    items.length === 0 &&
+                    !active &&
+                    column.id === UNSECTIONED &&
+                    hasCustomColumns
+                  ) {
+                    return null;
+                  }
+                  const showColumnHeader =
+                    layout === "board" ||
+                    (hasCustomColumns &&
+                      (columns.length > 1 || column.id !== UNSECTIONED));
+                  return (
+                    <BoardColumn
+                      key={column.id}
+                      compact={layout === "list"}
+                      activeDrag={!!active}
+                      column={column}
+                      count={items.length}
+                      index={index - 1}
+                      total={board.columns.length}
+                      disabled={disabled}
+                      showHeader={showColumnHeader}
+                      onEdit={() => openEditor(column)}
+                      onShift={(direction) => {
+                        onClearError();
+                        void onChange({
+                          kind: "board",
+                          action: "column.move",
+                          revision,
+                          columnId: column.id,
+                          direction,
+                        });
+                      }}
+                      onDelete={() => {
+                        onClearError();
+                        setDeleting({ column, revision });
+                      }}
+                      append={
+                        !!active &&
+                        position?.columnId === column.id &&
+                        position.beforeUuid === null
+                      }
+                    >
+                      {items.map((task) => (
+                        <BoardCard
+                          key={task.uuid}
+                          compact={layout === "list"}
+                          interactive={canAddTask}
+                          task={task}
+                          column={column}
+                          columns={columns}
+                          disabled={disabled}
+                          saving={moving?.uuid === task.uuid}
+                          before={
+                            !!active && position?.beforeUuid === task.uuid
+                          }
+                          onMove={(task, columnId) =>
+                            void move(task, {
+                              columnId,
+                              beforeUuid: null,
+                            })
+                          }
+                        >
+                          {renderTask(task)}
+                        </BoardCard>
+                      ))}
+                      {canAddTask && (
+                        <TodoistTaskComposer
+                          mode="add"
+                          compact={layout === "list"}
+                          disabled={disabled}
+                          ariaLabel={`Add task${column.id !== UNSECTIONED ? ` to ${column.name}` : ""}`}
+                          placeholder={
+                            column.id !== UNSECTIONED
+                              ? `Add task to ${column.name}…`
+                              : "Task name (try #project, @label, tomorrow, p1)"
+                          }
+                          defaultProject={defaultProject}
+                          defaultDue={defaultDue}
+                          projects={projects}
+                          availableLabels={availableLabels}
+                          onSubmitTask={
+                            onCreateTask
+                              ? (task) => onCreateTask(task, column.id)
+                              : undefined
+                          }
+                          onOpenFullEditor={onAdd}
+                        />
                       )}
-                      <div>
-                        {todayEntries.map(({ task, column }) => (
-                          <BoardCard
-                            key={task.uuid}
-                            compact
-                            interactive={canAddTask}
-                            task={task}
-                            column={column}
-                            columns={columns}
-                            disabled={disabled}
-                            saving={moving?.uuid === task.uuid}
-                            before={
-                              !!active && position?.beforeUuid === task.uuid
-                            }
-                            onMove={(t, columnId) =>
-                              void move(t, { columnId, beforeUuid: null })
-                            }
-                          >
-                            {renderTask(task)}
-                          </BoardCard>
-                        ))}
-                        {canAddTask && (
-                          <TodoistTaskComposer
-                            mode="add"
-                            compact
-                            disabled={disabled}
-                            ariaLabel="Add task to Today"
-                            placeholder="Task name (try #project, @label, tomorrow, p1)"
-                            defaultProject={defaultProject}
-                            defaultDue={defaultDue || taskDate(new Date())}
-                            projects={projects}
-                            availableLabels={availableLabels}
-                            onSubmitTask={
-                              onCreateTask
-                                ? (task) =>
-                                    onCreateTask(task, unsectionedColumn.id)
-                                : undefined
-                            }
-                            onOpenFullEditor={onAdd}
-                          />
-                        )}
-                      </div>
-                    </section>
-                  </div>
-                );
-              })()
-            ) : (
-              columns.map((column, index) => {
-                const items = columnTasks(tasks, displayBoard, column.id);
-                if (
-                  layout === "list" &&
-                  items.length === 0 &&
-                  !active &&
-                  column.id === UNSECTIONED &&
-                  hasCustomColumns
-                ) {
-                  return null;
-                }
-                const showColumnHeader =
-                  layout === "board" ||
-                  (hasCustomColumns &&
-                    (columns.length > 1 || column.id !== UNSECTIONED));
-                return (
-                  <BoardColumn
-                    key={column.id}
-                    compact={layout === "list"}
-                    activeDrag={!!active}
-                    column={column}
-                    count={items.length}
-                    index={index - 1}
-                    total={board.columns.length}
-                    disabled={disabled}
-                    showHeader={showColumnHeader}
-                    onEdit={() => openEditor(column)}
-                    onShift={(direction) => {
-                      onClearError();
-                      void onChange({
-                        kind: "board",
-                        action: "column.move",
-                        revision,
-                        columnId: column.id,
-                        direction,
-                      });
-                    }}
-                    onDelete={() => {
-                      onClearError();
-                      setDeleting({ column, revision });
-                    }}
-                    append={
-                      !!active &&
-                      position?.columnId === column.id &&
-                      position.beforeUuid === null
-                    }
-                  >
-                    {items.map((task) => (
-                      <BoardCard
-                        key={task.uuid}
-                        compact={layout === "list"}
-                        interactive={canAddTask}
-                        task={task}
-                        column={column}
-                        columns={columns}
-                        disabled={disabled}
-                        saving={moving?.uuid === task.uuid}
-                        before={!!active && position?.beforeUuid === task.uuid}
-                        onMove={(task, columnId) =>
-                          void move(task, {
-                            columnId,
-                            beforeUuid: null,
-                          })
-                        }
-                      >
-                        {renderTask(task)}
-                      </BoardCard>
-                    ))}
-                    {canAddTask && (
-                      <TodoistTaskComposer
-                        mode="add"
-                        compact={layout === "list"}
-                        disabled={disabled}
-                        ariaLabel={`Add task${column.id !== UNSECTIONED ? ` to ${column.name}` : ""}`}
-                        placeholder={
-                          column.id !== UNSECTIONED
-                            ? `Add task to ${column.name}…`
-                            : "Task name (try #project, @label, tomorrow, p1)"
-                        }
-                        defaultProject={defaultProject}
-                        defaultDue={defaultDue}
-                        projects={projects}
-                        availableLabels={availableLabels}
-                        onSubmitTask={
-                          onCreateTask
-                            ? (task) => onCreateTask(task, column.id)
-                            : undefined
-                        }
-                        onOpenFullEditor={onAdd}
-                      />
-                    )}
-                  </BoardColumn>
-                );
-              })
-            )}
+                    </BoardColumn>
+                  );
+                })}
             {canAddTask && (
               <InlineColumnCreator
                 layout={layout}

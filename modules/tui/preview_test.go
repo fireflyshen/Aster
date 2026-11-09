@@ -34,7 +34,11 @@ func TestPreviewArtifacts(t *testing.T) {
 			m.selected = m.current()
 			m.openTaskForm("task.edit", m.current().task)
 		}
-		if e := os.WriteFile(filepath.Join(dir, name+".ansi"), []byte(m.View()), 0600); e != nil {
+		if e := os.WriteFile(
+			filepath.Join(dir, name+".ansi"),
+			[]byte(m.View()),
+			0600,
+		); e != nil {
 			t.Fatal(e)
 		}
 	}

@@ -569,8 +569,7 @@ export default function App() {
     }
   }
   async function toggleTask(task: Task, completed: boolean, offerUndo = true) {
-    if (writeLock.current || needsCheck || organizationSaving)
-      return;
+    if (writeLock.current || needsCheck || organizationSaving) return;
     const started = performance.now();
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
@@ -885,11 +884,7 @@ export default function App() {
     ) {
       return false;
     }
-    if (
-      view === "completed" &&
-      task.status !== "completed" &&
-      !isCompleting
-    ) {
+    if (view === "completed" && task.status !== "completed" && !isCompleting) {
       return false;
     }
     const group =
@@ -1010,7 +1005,9 @@ export default function App() {
       availableLabels={organization.tags}
       completed={task.status === "completed"}
       overdue={taskGroup(task) === "overdue"}
-      disabled={busy || organizationSaving || needsCheck || (loading && !loaded)}
+      disabled={
+        busy || organizationSaving || needsCheck || (loading && !loaded)
+      }
       transition={completion?.uuid === task.uuid ? completion : undefined}
       trackedSeconds={taskTrackedSeconds(task)}
       timingUnavailable={organization.timing?.available === false}
@@ -1044,7 +1041,9 @@ export default function App() {
                   priority: task.priority || "",
                   tags: task.tags,
                   recur: task.recur,
-                  until: task.until ? taskDate(new Date(task.until)) : undefined,
+                  until: task.until
+                    ? taskDate(new Date(task.until))
+                    : undefined,
                   due: date ? taskDate(date) : "",
                   note: "",
                 },
@@ -1064,7 +1063,9 @@ export default function App() {
                   priority: nextPriority,
                   tags: task.tags,
                   recur: task.recur,
-                  until: task.until ? taskDate(new Date(task.until)) : undefined,
+                  until: task.until
+                    ? taskDate(new Date(task.until))
+                    : undefined,
                   due: task.due
                     ? taskDate(
                         new Date(
@@ -2080,7 +2081,9 @@ export default function App() {
                       availableLabels={organization.tags}
                       defaultProject={currentProject}
                       defaultDue={view === "today" ? taskDate(new Date()) : ""}
-                      todaySplit={view === "today" && !query.trim() && !activeItem}
+                      todaySplit={
+                        view === "today" && !query.trim() && !activeItem
+                      }
                       onRescheduleOverdue={rescheduleOverdueToToday}
                       onAdd={(initial) =>
                         initial

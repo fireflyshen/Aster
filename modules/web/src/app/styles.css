@@ -61,8 +61,15 @@
   --modal-shadow: 0 16px 56px #00000024, 0 2px 8px #0000000d;
   --radius: 0.5rem;
   font-family:
-    "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
-    "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "Microsoft YaHei",
+    "Segoe UI",
+    sans-serif;
   color-scheme: light;
 }
 .dark {
@@ -219,9 +226,13 @@
   [data-organization-row]:hover {
     background-color: var(--row-hover);
   }
-  [data-task-surface]:not(.board-card *):not([data-variant="card"]):hover::after,
+  [data-task-surface]:not(.board-card *):not(
+      [data-variant="card"]
+    ):hover::after,
   .board-card[data-compact="true"]:hover::after,
-  .board-card[data-compact="true"]:has(+ .board-card[data-compact="true"]:hover)::after,
+  .board-card[data-compact="true"]:has(
+      + .board-card[data-compact="true"]:hover
+    )::after,
   .project-manager-row:hover::after,
   .project-manager-row:has(+ .project-manager-row:hover)::after,
   [data-organization-row]:hover::after,

@@ -92,9 +92,15 @@ type requestError struct {
 }
 
 func (e *requestError) Error() string { return e.message }
-func quote(s string) string           { return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'" }
+
+func quote(
+	s string,
+) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\"'\"'") + "'"
+}
 func (c Client) validate() error {
-	if !regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.@:\[\]-]*$`).MatchString(c.Host) {
+	if !regexp.MustCompile(`^[a-zA-Z0-9_][a-zA-Z0-9_.@:\[\]-]*$`).
+		MatchString(c.Host) {
 		return fmt.Errorf("invalid SSH target")
 	}
 	for _, p := range []string{c.TaskCommand, c.Node, c.Socket} {
@@ -102,7 +108,8 @@ func (c Client) validate() error {
 			return fmt.Errorf("command and socket paths must be absolute")
 		}
 	}
-	if c.Taskrc != "" && (!strings.HasPrefix(c.Taskrc, "/") || strings.ContainsAny(c.Taskrc, "\x00\r\n")) {
+	if c.Taskrc != "" &&
+		(!strings.HasPrefix(c.Taskrc, "/") || strings.ContainsAny(c.Taskrc, "\x00\r\n")) {
 		return fmt.Errorf("taskrc must be absolute")
 	}
 	return nil
@@ -115,16 +122,31 @@ func (c Client) identity() string {
 func (c Client) run(command string, write bool) ([]byte, error) {
 	return c.runInput(command, write, nil)
 }
-func (c Client) runInput(command string, write bool, input []byte) ([]byte, error) {
+
+func (c Client) runInput(
+	command string,
+	write bool,
+	input []byte,
+) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "ssh", "-oBatchMode=yes", "-oConnectTimeout=8", c.Host, command)
+	cmd := exec.CommandContext(
+		ctx,
+		"ssh",
+		"-oBatchMode=yes",
+		"-oConnectTimeout=8",
+		c.Host,
+		command,
+	)
 	cmd.Stdin = bytes.NewReader(input)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	b, err := cmd.Output()
 	if err != nil {
-		return nil, &requestError{message: fmt.Sprintf("SSH failed: %v %s", err, stderr.String()), uncertain: write}
+		return nil, &requestError{
+			message:   fmt.Sprintf("SSH failed: %v %s", err, stderr.String()),
+			uncertain: write,
+		}
 	}
 	return b, nil
 }
@@ -132,7 +154,14 @@ func (c Client) runInput(command string, write bool, input []byte) ([]byte, erro
 const bridge = `const http=require('node:http');const p=JSON.parse(require('node:fs').readFileSync(0,'utf8'));const b=p.data?JSON.stringify(p.data):'';const q=http.request({socketPath:p.socket,path:p.route,method:b?'POST':'GET',headers:{'Content-Type':'application/json','X-Aster-Source':p.identity}},r=>{let s='';r.on('data',c=>s+=c);r.on('end',()=>console.log(JSON.stringify({status:r.statusCode,body:JSON.parse(s)})))});q.setTimeout(20000,()=>q.destroy(new Error('Workspace timeout')));q.on('error',e=>{console.error(e.message);process.exitCode=1});q.end(b);`
 
 func (c Client) request(route string, data any, out any) error {
-	p, _ := json.Marshal(map[string]any{"socket": c.Socket, "identity": c.identity(), "route": route, "data": data})
+	p, _ := json.Marshal(
+		map[string]any{
+			"socket":   c.Socket,
+			"identity": c.identity(),
+			"route":    route,
+			"data":     data,
+		},
+	)
 	b, err := c.runInput(quote(c.Node)+" -e "+quote(bridge), data != nil, p)
 	if err != nil {
 		return err
@@ -142,7 +171,10 @@ func (c Client) request(route string, data any, out any) error {
 		Body   json.RawMessage `json:"body"`
 	}
 	if err = json.Unmarshal(b, &reply); err != nil {
-		return &requestError{message: "Invalid workspace response", uncertain: data != nil}
+		return &requestError{
+			message:   "Invalid workspace response",
+			uncertain: data != nil,
+		}
 	}
 	if reply.Status != 200 {
 		var failure struct {
@@ -150,11 +182,23 @@ func (c Client) request(route string, data any, out any) error {
 			Outcome string
 		}
 		_ = json.Unmarshal(reply.Body, &failure)
-		return &requestError{message: fmt.Sprintf("Workspace: %s (%d)", failure.Error, reply.Status), uncertain: failure.Outcome == "unknown" || data != nil && reply.Status >= 500, code: reply.Status}
+		return &requestError{
+			message: fmt.Sprintf(
+				"Workspace: %s (%d)",
+				failure.Error,
+				reply.Status,
+			),
+			uncertain: failure.Outcome == "unknown" ||
+				data != nil && reply.Status >= 500,
+			code: reply.Status,
+		}
 	}
 	if out != nil {
 		if err = json.Unmarshal(reply.Body, out); err != nil {
-			return &requestError{message: "Invalid workspace payload", uncertain: data != nil}
+			return &requestError{
+				message:   "Invalid workspace payload",
+				uncertain: data != nil,
+			}
 		}
 	}
 	return nil
@@ -166,7 +210,9 @@ func (c Client) workspace() (Organization, error) {
 	}
 	err := c.request("/api/workspace", nil, &snap)
 	if err == nil && snap.Identity != c.identity() {
-		err = fmt.Errorf("Taskwarrior source mismatch; check --task and --taskrc")
+		err = fmt.Errorf(
+			"Taskwarrior source mismatch; check --task and --taskrc",
+		)
 	}
 	return snap.Organization, err
 }
@@ -177,7 +223,9 @@ func (c Client) tasks() ([]Task, error) {
 	err := c.request("/api/tasks", nil, &result)
 	if err == nil {
 		if result.Tasks == nil {
-			return nil, fmt.Errorf("Invalid task list response; update the workspace service")
+			return nil, fmt.Errorf(
+				"Invalid task list response; update the workspace service",
+			)
 		}
 		return result.Tasks, nil
 	}
@@ -191,7 +239,22 @@ func (c Client) legacyTasks() ([]Task, error) {
 	if c.Taskrc != "" {
 		args = append(args, "rc:"+c.Taskrc)
 	}
-	args = append(args, "rc.json.array=on", "rc.color=off", "rc.verbose=nothing", "rc.gc=off", "rc.hooks=off", "(", "status:pending", "or", "status:waiting", "or", "status:completed", ")", "export")
+	args = append(
+		args,
+		"rc.json.array=on",
+		"rc.color=off",
+		"rc.verbose=nothing",
+		"rc.gc=off",
+		"rc.hooks=off",
+		"(",
+		"status:pending",
+		"or",
+		"status:waiting",
+		"or",
+		"status:completed",
+		")",
+		"export",
+	)
 	for i := range args {
 		args[i] = quote(args[i])
 	}

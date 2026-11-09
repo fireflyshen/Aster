@@ -16,20 +16,48 @@ func fakeSSH(t *testing.T, reply string) (Client, string) {
 	t.Helper()
 	dir := t.TempDir()
 	log := filepath.Join(dir, "calls")
-	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + quote(log) + "\ncat > " + quote(log+".payload") + "\nprintf '%s' " + quote(reply) + "\n"
-	if e := os.WriteFile(filepath.Join(dir, "ssh"), []byte(script), 0700); e != nil {
+	script := "#!/bin/sh\nprintf '%s\\n' \"$*\" >> " + quote(
+		log,
+	) + "\ncat > " + quote(
+		log+".payload",
+	) + "\nprintf '%s' " + quote(
+		reply,
+	) + "\n"
+	if e := os.WriteFile(
+		filepath.Join(dir, "ssh"),
+		[]byte(script),
+		0700,
+	); e != nil {
 		t.Fatal(e)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	return Client{"rn", "/usr/local/bin/task", "/etc/taskwarrior/taskrc", "/opt/aster/runtime/node", "/opt/aster/data/workspace.sock"}, log
+	return Client{
+		"rn",
+		"/usr/local/bin/task",
+		"/etc/taskwarrior/taskrc",
+		"/opt/aster/runtime/node",
+		"/opt/aster/data/workspace.sock",
+	}, log
 }
 func validClient(t *testing.T) (Client, string) {
 	c, _ := fakeSSH(t, "")
-	return fakeSSH(t, fmt.Sprintf(`{"status":200,"body":{"identity":%q,"organization":{"revision":3}}}`, c.identity()))
+	return fakeSSH(
+		t,
+		fmt.Sprintf(
+			`{"status":200,"body":{"identity":%q,"organization":{"revision":3}}}`,
+			c.identity(),
+		),
+	)
 }
 func TestSourceMismatchNeverWrites(t *testing.T) {
-	c, log := fakeSSH(t, `{"status":200,"body":{"identity":"wrong","organization":{"revision":0}}}`)
-	if c.mutate("/api/action", map[string]any{"action": "complete", "uuid": "test"}) == nil {
+	c, log := fakeSSH(
+		t,
+		`{"status":200,"body":{"identity":"wrong","organization":{"revision":0}}}`,
+	)
+	if c.mutate(
+		"/api/action",
+		map[string]any{"action": "complete", "uuid": "test"},
+	) == nil {
 		t.Fatal("expected source error")
 	}
 	b, _ := os.ReadFile(log)
@@ -56,7 +84,11 @@ func TestUnknownWriteLocksAndIsNeverRetried(t *testing.T) {
 func TestSSHArgumentsAndLargePayloadStayOutOfCommand(t *testing.T) {
 	c, log := fakeSSH(t, `{"status":200,"body":{}}`)
 	payload := strings.Repeat("中文 ' $(touch /tmp/never); ", 20000)
-	if e := c.request("/api/backup/preview", map[string]any{"text": payload}, nil); e != nil {
+	if e := c.request(
+		"/api/backup/preview",
+		map[string]any{"text": payload},
+		nil,
+	); e != nil {
 		t.Fatal(e)
 	}
 	b, _ := os.ReadFile(log)
@@ -78,11 +110,38 @@ func sampleModel() model {
 	m.ready = true
 	m.view = "all"
 	m.org.Revision = 3
-	m.org.Projects = []Project{{Name: "Work", Status: "active", Description: "保留描述", Outcome: "发布可用版本"}}
-	m.org.Board.Columns = []Column{{"todo", "待办"}, {"doing", "进行中"}, {"done", "已交付"}}
-	m.org.Board.Placements = []Placement{{"parent", "doing"}, {"b", "todo"}, {"done", "done"}}
+	m.org.Projects = []Project{
+		{
+			Name:        "Work",
+			Status:      "active",
+			Description: "保留描述",
+			Outcome:     "发布可用版本",
+		},
+	}
+	m.org.Board.Columns = []Column{
+		{"todo", "待办"},
+		{"doing", "进行中"},
+		{"done", "已交付"},
+	}
+	m.org.Board.Placements = []Placement{
+		{"parent", "doing"},
+		{"b", "todo"},
+		{"done", "done"},
+	}
 	m.org.Board.Order = []string{"b", "child", "a", "done"}
-	m.tasks = []Task{{UUID: "a", Description: "未分组任务", Project: "Work", Status: "pending"}, {UUID: "b", Description: "第二个任务", Project: "Other", Status: "pending"}, {UUID: "child", Parent: "parent", Description: "中文任务需要完整显示", Project: "Work.Child", Status: "pending", Due: "20261107T120037Z"}, {UUID: "done", Description: "历史任务", Status: "completed"}}
+	m.tasks = []Task{
+		{UUID: "a", Description: "未分组任务", Project: "Work", Status: "pending"},
+		{UUID: "b", Description: "第二个任务", Project: "Other", Status: "pending"},
+		{
+			UUID:        "child",
+			Parent:      "parent",
+			Description: "中文任务需要完整显示",
+			Project:     "Work.Child",
+			Status:      "pending",
+			Due:         "20261107T120037Z",
+		},
+		{UUID: "done", Description: "历史任务", Status: "completed"},
+	}
 	return m
 }
 func TestGroupsAndBoardShareColumnsOrderAndInheritance(t *testing.T) {
@@ -150,7 +209,12 @@ func TestFormUsesSelectorsAndPreservesDateAndRevision(t *testing.T) {
 	}
 	m.mode = ""
 	m.selected = row{project: m.org.Projects[0], kind: "project", id: "Work"}
-	m.openForm("project.next", "next", "", selectField("task", "child", m.taskChoices(m.org.Projects[0])))
+	m.openForm(
+		"project.next",
+		"next",
+		"",
+		selectField("task", "child", m.taskChoices(m.org.Projects[0])),
+	)
 	m.org.Revision = 100
 	cmd, e = m.submit()
 	if e != nil {
@@ -189,11 +253,21 @@ func TestResponsiveViewsStayWithinTerminal(t *testing.T) {
 			}
 			view := m.View()
 			if lipgloss.Height(view) > size[1] {
-				t.Fatalf("%v %s exceeds height: %d", size, mode, lipgloss.Height(view))
+				t.Fatalf(
+					"%v %s exceeds height: %d",
+					size,
+					mode,
+					lipgloss.Height(view),
+				)
 			}
 			for _, line := range strings.Split(view, "\n") {
 				if lipgloss.Width(line) > size[0] {
-					t.Fatalf("%v %s exceeds width: %d", size, mode, lipgloss.Width(line))
+					t.Fatalf(
+						"%v %s exceeds width: %d",
+						size,
+						mode,
+						lipgloss.Width(line),
+					)
 				}
 			}
 		}
@@ -253,7 +327,16 @@ func TestEditingOccurrenceDoesNotRewriteSeries(t *testing.T) {
 	m := sampleModel()
 	m.selected = row{task: m.tasks[2]}
 	m.formKind = "task.edit"
-	values := []string{"新名称", m.tasks[2].Project, shownDate(m.tasks[2].Due), "", "", "", "", ""}
+	values := []string{
+		"新名称",
+		m.tasks[2].Project,
+		shownDate(m.tasks[2].Due),
+		"",
+		"",
+		"",
+		"",
+		"",
+	}
 	input, err := m.taskInput(values)
 	if err != nil {
 		t.Fatal(err)

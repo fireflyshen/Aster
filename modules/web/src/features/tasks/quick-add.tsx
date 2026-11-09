@@ -154,8 +154,7 @@ export function QuickAdd({
     if (!trailingMatch) return;
     const prefixLen =
       trailingMatch[0].length - (1 + (trailingMatch[2]?.length || 0));
-    const replaceStart =
-      text.length - trailingMatch[0].length + prefixLen;
+    const replaceStart = text.length - trailingMatch[0].length + prefixLen;
     const next = text.slice(0, replaceStart) + tokenText + " ";
     change(next);
     requestAnimationFrame(() => input.current?.focus());
@@ -484,11 +483,8 @@ export function QuickAdd({
                   )}
                 </div>
                 {(() => {
-                  const currentPriorityVal = (parsed.task.priority || "none") as
-                    | "H"
-                    | "M"
-                    | "L"
-                    | "none";
+                  const currentPriorityVal = (parsed.task.priority ||
+                    "none") as "H" | "M" | "L" | "none";
                   const activePriority =
                     PRIORITIES.find((p) => p.value === currentPriorityVal) ||
                     PRIORITIES[3];
@@ -521,9 +517,7 @@ export function QuickAdd({
                         <Flag
                           className={cn("size-3.5", activePriority.iconClass)}
                         />
-                        <SelectValue>
-                          {activePriority.short}
-                        </SelectValue>
+                        <SelectValue>{activePriority.short}</SelectValue>
                       </SelectTrigger>
                       <SelectContent onCloseAutoFocus={restoreInput}>
                         {PRIORITIES.map((p) => (
@@ -546,10 +540,7 @@ export function QuickAdd({
                   disabled={locked}
                   returnFocus={() => input.current?.focus()}
                   onChange={(tags) =>
-                    setField(
-                      "tag",
-                      tags.map((t) => "@" + t).join(" "),
-                    )
+                    setField("tag", tags.map((t) => "@" + t).join(" "))
                   }
                 />
                 <Button

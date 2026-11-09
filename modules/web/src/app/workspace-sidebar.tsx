@@ -127,9 +127,7 @@ export function WorkspaceSidebar({
   const laterProjects = projects.filter((name) => {
     const record = organization.projects?.find((p) => p.name === name);
     const status = projectStatus(record);
-    return (
-      !focusProject(name, organization.projects) && status !== "completed"
-    );
+    return !focusProject(name, organization.projects) && status !== "completed";
   });
 
   return (

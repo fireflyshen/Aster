@@ -19,14 +19,17 @@ export function taskDate(date: Date): string {
 }
 
 function dateValue(word: string, now: Date): Date | undefined {
-  const clock = /^(.+?)\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?(am|pm)?$/i.exec(word);
+  const clock = /^(.+?)\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?(am|pm)?$/i.exec(
+    word,
+  );
   if (clock) {
     const date = dateValue(clock[1], now);
     let hour = Number(clock[2]);
     const minute = Number(clock[3] || 0);
     if (!date || minute > 59 || (clock[4] ? hour < 1 || hour > 12 : hour > 23))
       return;
-    if (clock[4]) hour = (hour % 12) + (clock[4].toLowerCase() === "pm" ? 12 : 0);
+    if (clock[4])
+      hour = (hour % 12) + (clock[4].toLowerCase() === "pm" ? 12 : 0);
     date.setHours(hour, minute, 0, 0);
     return date;
   }

@@ -24,11 +24,13 @@ pnpm run deploy
 ```
 
 Or with custom tag / target:
+
 ```bash
 SSH_TARGET=dmit bash deploy/deploy.sh [suffix]
 ```
 
 ### What `pnpm run deploy` does:
+
 1. **Local Build**: Runs `npm run build:web` / `pnpm run build:web`, generating `dist/web/server.mjs` and `dist/web/client/`. (No git push or CI waiting required).
 2. **Metadata & DB Backup**: Connects to the target server (`dmit`), creates an atomic backup directory under `/opt/aster/backups/before-${RELEASE_ID}`, copies metadata JSONs, and executes an online SQLite backup of `taskchampion.sqlite3`.
 3. **Artifact Upload**: Streams clean release artifacts to `/opt/aster/releases/${RELEASE_ID}` via SSH tar (with macOS extended attributes stripped).

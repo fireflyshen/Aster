@@ -202,7 +202,12 @@ func (m model) overlayKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if k == "enter" && !m.blocked {
-			return m, m.openForm("restore.confirm", "确认替换工作区", "当前任务、组织资料与计时将被替换，恢复前副本由服务器保留。", textField("输入 RESTORE 确认", "", "先确认预览中的范围与警告"))
+			return m, m.openForm(
+				"restore.confirm",
+				"确认替换工作区",
+				"当前任务、组织资料与计时将被替换，恢复前副本由服务器保留。",
+				textField("输入 RESTORE 确认", "", "先确认预览中的范围与警告"),
+			)
 		}
 		return m, nil
 	}
@@ -342,7 +347,8 @@ func (m model) projectChoices() []choice {
 func (m model) taskChoices(p Project) []choice {
 	out := []choice{{"", "暂不指定", ""}}
 	for _, t := range m.tasks {
-		if inProject(t.Project, p.Name) && (t.Status == "pending" || t.Status == "waiting") {
+		if inProject(t.Project, p.Name) &&
+			(t.Status == "pending" || t.Status == "waiting") {
 			out = append(out, choice{t.UUID, t.Description, t.Project})
 		}
 	}
@@ -352,7 +358,10 @@ func (m model) positionChoices(column string) []choice {
 	out := []choice{{"", "放到末尾", ""}}
 	for _, t := range m.grouped(m.visible(), column) {
 		if t.UUID != m.selected.task.UUID {
-			out = append(out, choice{t.UUID, "放在前面：" + t.Description, t.Project})
+			out = append(
+				out,
+				choice{t.UUID, "放在前面：" + t.Description, t.Project},
+			)
 		}
 	}
 	return out
@@ -363,20 +372,69 @@ func (m *model) openTaskForm(kind string, t Task) tea.Cmd {
 	for _, tag := range m.org.Tags {
 		tags.options = append(tags.options, choice{tag.Name, tag.Name, ""})
 	}
-	return m.openForm(kind, "任务详情", "Ctrl+S 保存；Tab 切换；日期使用本机时区。未修改日期保留原时间。", textField("任务名称", t.Description, "必填"), selectField("项目", t.Project, m.projectChoices()), textField("截止日期", shownDate(t.Due), "YYYY-MM-DD HH:MM；也支持今天、明天、YYYY-MM-DD"), selectField("优先级", t.Priority, []choice{{"", "无", ""}, {"H", "高 / p1", ""}, {"M", "中 / p2", ""}, {"L", "低 / p3", ""}}), tags, selectField("重复规则", t.Recur, []choice{{"", "不重复", ""}, {"daily", "每天", ""}, {"weekly", "每周", ""}, {"monthly", "每月", ""}, {"yearly", "每年", ""}}), textField("重复截止", shownDate(t.Until), "留空表示持续重复；也可输入自定义 Taskwarrior 规则"), areaField("追加备注", "", "已有备注保留，可在操作菜单中移除"))
+	return m.openForm(
+		kind,
+		"任务详情",
+		"Ctrl+S 保存；Tab 切换；日期使用本机时区。未修改日期保留原时间。",
+		textField("任务名称", t.Description, "必填"),
+		selectField("项目", t.Project, m.projectChoices()),
+		textField(
+			"截止日期",
+			shownDate(t.Due),
+			"YYYY-MM-DD HH:MM；也支持今天、明天、YYYY-MM-DD",
+		),
+		selectField(
+			"优先级",
+			t.Priority,
+			[]choice{
+				{"", "无", ""},
+				{"H", "高 / p1", ""},
+				{"M", "中 / p2", ""},
+				{"L", "低 / p3", ""},
+			},
+		),
+		tags,
+		selectField(
+			"重复规则",
+			t.Recur,
+			[]choice{
+				{"", "不重复", ""},
+				{"daily", "每天", ""},
+				{"weekly", "每周", ""},
+				{"monthly", "每月", ""},
+				{"yearly", "每年", ""},
+			},
+		),
+		textField(
+			"重复截止",
+			shownDate(t.Until),
+			"留空表示持续重复；也可输入自定义 Taskwarrior 规则",
+		),
+		areaField("追加备注", "", "已有备注保留，可在操作菜单中移除"),
+	)
 }
 func (m *model) openRepeatForm(t Task) tea.Cmd {
-	return m.openForm("repeat", "重复系列", "修改规则，或停止生成新任务。已有任务保留，停止的系列可在删除恢复中恢复。",
+	return m.openForm(
+		"repeat",
+		"重复系列",
+		"修改规则，或停止生成新任务。已有任务保留，停止的系列可在删除恢复中恢复。",
 		textField("重复规则", t.Recur, "daily / weekly / monthly / 2weeks"),
 		textField("重复截止", shownDate(t.Until), "留空为持续重复"),
-		selectField("操作", "update", []choice{{"update", "保存规则", ""}, {"stop", "停止系列", "保留已有任务"}}),
-		textField("停止时输入 STOP 确认", "", "保存规则时不需要填写"))
+		selectField(
+			"操作",
+			"update",
+			[]choice{{"update", "保存规则", ""}, {"stop", "停止系列", "保留已有任务"}},
+		),
+		textField("停止时输入 STOP 确认", "", "保存规则时不需要填写"),
+	)
 }
 
 func (m *model) action(a string) tea.Cmd {
 	r := m.current()
 	m.selected = r
-	readOnly := a == "expression" || a == "export" || a == "point.export" || a == "import" || a == "quick"
+	readOnly := a == "expression" || a == "export" || a == "point.export" ||
+		a == "import" ||
+		a == "quick"
 	if m.blocked && !readOnly {
 		m.message = "连接或写入状态待核对，请按 r 刷新"
 		return nil
@@ -400,9 +458,19 @@ func (m *model) action(a string) tea.Cmd {
 		return m.openTaskForm(a, t)
 	case "quick":
 		m.selected = row{}
-		return m.openForm("quick", "一句话捕捉", "解析后进入完整表单核对日期、项目和标签。", areaField("表达式", "", "明天 交报告 #工作 @专注 p1"))
+		return m.openForm(
+			"quick",
+			"一句话捕捉",
+			"解析后进入完整表单核对日期、项目和标签。",
+			areaField("表达式", "", "明天 交报告 #工作 @专注 p1"),
+		)
 	case "expression":
-		return m.openForm("expression", "原生筛选", "仅支持 Taskwarrior 过滤条件，不执行操作命令。", textField("筛选表达式", "status:pending", "例如 project:Work +READY"))
+		return m.openForm(
+			"expression",
+			"原生筛选",
+			"仅支持 Taskwarrior 过滤条件，不执行操作命令。",
+			textField("筛选表达式", "status:pending", "例如 project:Work +READY"),
+		)
 	case "task.toggle", "task.timer":
 		if r.kind != "task" {
 			m.message = "请先选择任务"
@@ -418,14 +486,23 @@ func (m *model) action(a string) tea.Cmd {
 				act, reverse = "stop", "start"
 			}
 		}
-		m.undo = &undoChange{"/api/action", map[string]any{"action": reverse, "uuid": r.id}, r.title}
+		m.undo = &undoChange{
+			"/api/action",
+			map[string]any{"action": reverse, "uuid": r.id},
+			r.title,
+		}
 		m.busy = true
 		return m.taskAction(act, r.task)
 	case "task.wait":
 		if r.kind != "task" {
 			return nil
 		}
-		return m.openForm(a, "等待日期", "清空日期恢复待办。", textField("等到", shownDate(r.task.Wait), "YYYY-MM-DD HH:MM"))
+		return m.openForm(
+			a,
+			"等待日期",
+			"清空日期恢复待办。",
+			textField("等到", shownDate(r.task.Wait), "YYYY-MM-DD HH:MM"),
+		)
 	case "task.move":
 		if r.kind != "task" {
 			return nil
@@ -435,10 +512,21 @@ func (m *model) action(a string) tea.Cmd {
 			cs = append(cs, choice{c.ID, c.Name, ""})
 		}
 		col := m.columnID(r.task)
-		return m.openForm(a, "移动任务 / 调整顺序", "栏目位置与完成状态独立。", selectField("目标分组", col, cs), selectField("插入位置", "", m.positionChoices(col)))
+		return m.openForm(
+			a,
+			"移动任务 / 调整顺序",
+			"栏目位置与完成状态独立。",
+			selectField("目标分组", col, cs),
+			selectField("插入位置", "", m.positionChoices(col)),
+		)
 	case "column.new":
 		m.selected = row{}
-		return m.openForm(a, "新增分组", "每个分组对应一列看板，所有客户端共享。", textField("分组名称", "", "必填，最多 60 字符"))
+		return m.openForm(
+			a,
+			"新增分组",
+			"每个分组对应一列看板，所有客户端共享。",
+			textField("分组名称", "", "必填，最多 60 字符"),
+		)
 	case "column.left", "column.right":
 		if r.kind != "column" && r.kind != "group" {
 			return nil
@@ -448,7 +536,14 @@ func (m *model) action(a string) tea.Cmd {
 			direction = "right"
 		}
 		m.busy = true
-		return m.orgChange(map[string]any{"kind": "board", "action": "column.move", "columnId": r.id, "direction": direction})
+		return m.orgChange(
+			map[string]any{
+				"kind":      "board",
+				"action":    "column.move",
+				"columnId":  r.id,
+				"direction": direction,
+			},
+		)
 	case "project.new", "project.child":
 		name := ""
 		if a == "project.child" {
@@ -482,7 +577,12 @@ func (m *model) action(a string) tea.Cmd {
 			return nil
 		}
 		m.selected = row{kind: "project", id: p.Name, project: p}
-		return m.openForm("project.next", "选择下一步", p.Name, selectField("下一步任务", p.NextTask, m.taskChoices(p)))
+		return m.openForm(
+			"project.next",
+			"选择下一步",
+			p.Name,
+			selectField("下一步任务", p.NextTask, m.taskChoices(p)),
+		)
 	case "note.add":
 		if r.kind != "task" {
 			return nil
@@ -507,7 +607,10 @@ func (m *model) action(a string) tea.Cmd {
 		}
 		if r.task.Parent != "" {
 			m.busy = true
-			return m.read("series", "/api/recurrence?uuid="+url.QueryEscape(r.task.Parent))
+			return m.read(
+				"series",
+				"/api/recurrence?uuid="+url.QueryEscape(r.task.Parent),
+			)
 		}
 		return m.openTaskForm("task.edit", r.task)
 	case "edit":
@@ -520,7 +623,12 @@ func (m *model) action(a string) tea.Cmd {
 			return m.openItemForm(r.kind, r.item)
 		case "group", "column":
 			if r.id != "unsectioned" {
-				return m.openForm("column.edit", "重命名分组", "列表与看板同步。", textField("名称", r.title, ""))
+				return m.openForm(
+					"column.edit",
+					"重命名分组",
+					"列表与看板同步。",
+					textField("名称", r.title, ""),
+				)
 			}
 		}
 	case "filter.new", "tag.new":
@@ -544,10 +652,20 @@ func (m *model) action(a string) tea.Cmd {
 		if r.kind == "filter" || r.kind == "tag" {
 			hint = "仅移除该过滤器或标签，不删除任务。"
 		}
-		return m.openForm("delete", "删除「"+r.title+"」", hint, textField("输入 DELETE 确认", "", "操作对象请核对上方标题"))
+		return m.openForm(
+			"delete",
+			"删除「"+r.title+"」",
+			hint,
+			textField("输入 DELETE 确认", "", "操作对象请核对上方标题"),
+		)
 	case "restore":
 		if r.kind == "deleted" {
-			return m.openForm(a, "恢复任务", r.title, selectField("确认恢复", "false", yesNo()))
+			return m.openForm(
+				a,
+				"恢复任务",
+				r.title,
+				selectField("确认恢复", "false", yesNo()),
+			)
 		}
 	case "undo":
 		if m.undo == nil {
@@ -563,16 +681,49 @@ func (m *model) action(a string) tea.Cmd {
 		m.undo = nil
 		return cmd
 	case "energy":
-		return m.openForm(a, "使用 Elixir", "恢复 +30 精力；遵循服务端每日规则。", selectField("确认使用", "false", yesNo()))
+		return m.openForm(
+			a,
+			"使用 Elixir",
+			"恢复 +30 精力；遵循服务端每日规则。",
+			selectField("确认使用", "false", yesNo()),
+		)
 	case "export", "point.export":
-		return m.openForm(a, "导出备份", "仅创建新文件，权限 0600，不覆盖已有文件。", textField("本地文件路径", filepath.Join(os.TempDir(), "aster-backup-"+time.Now().Format("20060102-150405")+".json"), "可输入绝对路径"))
+		return m.openForm(
+			a,
+			"导出备份",
+			"仅创建新文件，权限 0600，不覆盖已有文件。",
+			textField(
+				"本地文件路径",
+				filepath.Join(
+					os.TempDir(),
+					"aster-backup-"+time.Now().
+						Format("20060102-150405")+
+						".json",
+				),
+				"可输入绝对路径",
+			),
+		)
 	case "import":
-		return m.openForm(a, "预览备份恢复", "读取本地 JSON，最多 8 MiB。下一步显示替换范围，不立即恢复。", textField("备份文件路径", "", "先导出当前备份以便核对"))
+		return m.openForm(
+			a,
+			"预览备份恢复",
+			"读取本地 JSON，最多 8 MiB。下一步显示替换范围，不立即恢复。",
+			textField("备份文件路径", "", "先导出当前备份以便核对"),
+		)
 	}
 	return nil
 }
 func (m *model) openProjectForm(p Project) tea.Cmd {
-	return m.openForm("project.edit", "项目资料", "名称使用点路径表示层级。修改名称会迁移整个分支，任务状态保持。", textField("项目名称", p.Name, "如 工作.Aster"), areaField("描述", p.Description, "支持多行"), selectField("颜色", p.Color, colors()), areaField("完成目标", p.Outcome, "聚焦项目必须填写具体结果"), selectField("下一步任务", p.NextTask, m.taskChoices(p)))
+	return m.openForm(
+		"project.edit",
+		"项目资料",
+		"名称使用点路径表示层级。修改名称会迁移整个分支，任务状态保持。",
+		textField("项目名称", p.Name, "如 工作.Aster"),
+		areaField("描述", p.Description, "支持多行"),
+		selectField("颜色", p.Color, colors()),
+		areaField("完成目标", p.Outcome, "聚焦项目必须填写具体结果"),
+		selectField("下一步任务", p.NextTask, m.taskChoices(p)),
+	)
 }
 func (m *model) openStatus(p Project, status string) tea.Cmd {
 	if status == "" {
@@ -586,11 +737,32 @@ func (m *model) openStatus(p Project, status string) tea.Cmd {
 	}
 	chosen := ""
 	for _, a := range m.activeProjects() {
-		if a.Name != p.Name && (inProject(a.Name, p.Name) || inProject(p.Name, a.Name)) {
+		if a.Name != p.Name &&
+			(inProject(a.Name, p.Name) || inProject(p.Name, a.Name)) {
 			chosen = a.Name
 		}
 	}
-	return m.openForm("project.status", "Focus / 项目状态", fmt.Sprintf("%s · %d / 3 聚焦项目；完成项目只改变组织状态，不完成任务。", p.Name, len(m.activeProjects())), selectField("状态", status, []choice{{"active", "聚焦 / Active", ""}, {"later", "暂缓 / Later", ""}, {"completed", "项目已完成", ""}}), areaField("完成目标", p.Outcome, "激活时必填"), selectField("暂停哪个项目以替换", chosen, replace), selectField("完成时保留未完成任务", "false", yesNo()))
+	return m.openForm(
+		"project.status",
+		"Focus / 项目状态",
+		fmt.Sprintf(
+			"%s · %d / 3 聚焦项目；完成项目只改变组织状态，不完成任务。",
+			p.Name,
+			len(m.activeProjects()),
+		),
+		selectField(
+			"状态",
+			status,
+			[]choice{
+				{"active", "聚焦 / Active", ""},
+				{"later", "暂缓 / Later", ""},
+				{"completed", "项目已完成", ""},
+			},
+		),
+		areaField("完成目标", p.Outcome, "激活时必填"),
+		selectField("暂停哪个项目以替换", chosen, replace),
+		selectField("完成时保留未完成任务", "false", yesNo()),
+	)
 }
 func inputDate(s, original string) (string, error) {
 	if s == "" {
@@ -617,9 +789,17 @@ func inputDate(s, original string) (string, error) {
 	return "", fmt.Errorf("日期格式：YYYY-MM-DD HH:MM（本机时区）")
 }
 func (m *model) openItemForm(kind string, i SavedItem) tea.Cmd {
-	fs := []field{textField("名称", i.Name, "必填"), selectField("颜色", i.Color, colors()), selectField("收藏", fmt.Sprint(i.Favorite), yesNo())}
+	fs := []field{
+		textField("名称", i.Name, "必填"),
+		selectField("颜色", i.Color, colors()),
+		selectField("收藏", fmt.Sprint(i.Favorite), yesNo()),
+	}
 	if kind == "filter" {
-		fs = append(fs, textField("过滤表达式", i.Expression, "status:pending +READY"), areaField("描述", i.Description, "可选"))
+		fs = append(
+			fs,
+			textField("过滤表达式", i.Expression, "status:pending +READY"),
+			areaField("描述", i.Description, "可选"),
+		)
 	}
 	return m.openForm(kind+".edit", "编辑 "+kind, "所有客户端共享，修改带版本校验。", fs...)
 }
@@ -639,9 +819,18 @@ func (m model) taskInput(values []string) (map[string]any, error) {
 	if priority != "" && priority != "H" && priority != "M" && priority != "L" {
 		return nil, fmt.Errorf("优先级请选择高、中、低或无")
 	}
-	p := map[string]any{"description": strings.TrimSpace(values[0]), "project": values[1], "due": due, "priority": priority, "tags": splitTags(values[4]), "recur": values[5], "until": until}
+	p := map[string]any{
+		"description": strings.TrimSpace(values[0]),
+		"project":     values[1],
+		"due":         due,
+		"priority":    priority,
+		"tags":        splitTags(values[4]),
+		"recur":       values[5],
+		"until":       until,
+	}
 	if m.formKind == "task.edit" && m.selected.task.Parent != "" {
-		if values[5] != m.selected.task.Recur || values[6] != shownDate(m.selected.task.Until) {
+		if values[5] != m.selected.task.Recur ||
+			values[6] != shownDate(m.selected.task.Until) {
 			return nil, fmt.Errorf("此任务属于重复系列，请从操作菜单使用编辑重复系列")
 		}
 		delete(p, "recur")
@@ -680,7 +869,11 @@ func (m *model) submit() (tea.Cmd, error) {
 		}
 		return func() tea.Msg {
 			var b json.RawMessage
-			e := m.client.request("/api/quick/preview", map[string]any{"text": v[0]}, &b)
+			e := m.client.request(
+				"/api/quick/preview",
+				map[string]any{"text": v[0]},
+				&b,
+			)
 			return result{"quick", b, e}
 		}, nil
 	case "expression":
@@ -693,7 +886,15 @@ func (m *model) submit() (tea.Cmd, error) {
 		if e != nil {
 			return nil, e
 		}
-		m.undo = &undoChange{"/api/action", map[string]any{"uuid": r.id, "action": "wait", "wait": compact(r.task.Wait)}, r.title}
+		m.undo = &undoChange{
+			"/api/action",
+			map[string]any{
+				"uuid":   r.id,
+				"action": "wait",
+				"wait":   compact(r.task.Wait),
+			},
+			r.title,
+		}
 		return action("wait", map[string]any{"wait": d}), nil
 	case "task.move":
 		if v[0] == "" {
@@ -711,18 +912,48 @@ func (m *model) submit() (tea.Cmd, error) {
 				oldBefore = old[i+1].UUID
 			}
 		}
-		m.undo = &undoChange{"/api/organization", map[string]any{"kind": "board", "action": "task.move", "uuid": r.id, "columnId": oldCol, "beforeUuid": oldBefore}, r.title}
-		return org(map[string]any{"kind": "board", "action": "task.move", "uuid": r.id, "columnId": v[0], "beforeUuid": before}), nil
+		m.undo = &undoChange{
+			"/api/organization",
+			map[string]any{
+				"kind":       "board",
+				"action":     "task.move",
+				"uuid":       r.id,
+				"columnId":   oldCol,
+				"beforeUuid": oldBefore,
+			},
+			r.title,
+		}
+		return org(
+			map[string]any{
+				"kind":       "board",
+				"action":     "task.move",
+				"uuid":       r.id,
+				"columnId":   v[0],
+				"beforeUuid": before,
+			},
+		), nil
 	case "column.new", "column.edit":
 		if v[0] == "" {
 			return nil, errRequired("分组名称")
 		}
-		return org(map[string]any{"kind": "board", "action": "column.save", "column": map[string]string{"id": r.id, "name": v[0]}}), nil
+		return org(
+			map[string]any{
+				"kind":   "board",
+				"action": "column.save",
+				"column": map[string]string{"id": r.id, "name": v[0]},
+			},
+		), nil
 	case "project.edit":
 		if v[0] == "" {
 			return nil, errRequired("项目名称")
 		}
-		item := map[string]any{"name": v[0], "description": v[1], "color": v[2], "outcome": v[3], "nextTask": v[4]}
+		item := map[string]any{
+			"name":        v[0],
+			"description": v[1],
+			"color":       v[2],
+			"outcome":     v[3],
+			"nextTask":    v[4],
+		}
 		if v[2] == "" {
 			delete(item, "color")
 		}
@@ -733,7 +964,17 @@ func (m *model) submit() (tea.Cmd, error) {
 		return org(d), nil
 	case "project.next":
 		p := r.project
-		return org(map[string]any{"kind": "project", "action": "save", "item": map[string]any{"name": p.Name, "description": p.Description, "nextTask": v[0]}}), nil
+		return org(
+			map[string]any{
+				"kind":   "project",
+				"action": "save",
+				"item": map[string]any{
+					"name":        p.Name,
+					"description": p.Description,
+					"nextTask":    v[0],
+				},
+			},
+		), nil
 	case "project.status":
 		if v[0] == "active" && v[1] == "" {
 			return nil, errRequired("完成目标")
@@ -741,7 +982,8 @@ func (m *model) submit() (tea.Cmd, error) {
 		if v[0] == "completed" && v[3] != "true" {
 			unfinished := 0
 			for _, t := range m.tasks {
-				if inProject(t.Project, r.project.Name) && (t.Status == "pending" || t.Status == "waiting") {
+				if inProject(t.Project, r.project.Name) &&
+					(t.Status == "pending" || t.Status == "waiting") {
 					unfinished++
 				}
 			}
@@ -749,7 +991,12 @@ func (m *model) submit() (tea.Cmd, error) {
 				return nil, fmt.Errorf("请确认保留 %d 条未完成任务", unfinished)
 			}
 		}
-		d := map[string]any{"kind": "project", "action": "status", "name": r.project.Name, "status": v[0]}
+		d := map[string]any{
+			"kind":   "project",
+			"action": "status",
+			"name":   r.project.Name,
+			"status": v[0],
+		}
 		if v[0] == "active" {
 			d["outcome"] = v[1]
 			if v[2] != "" {
@@ -766,7 +1013,12 @@ func (m *model) submit() (tea.Cmd, error) {
 		}
 		kind := strings.TrimSuffix(m.formKind, ".edit")
 		id := r.item.ID
-		item := map[string]any{"id": id, "name": v[0], "color": v[1], "favorite": v[2] == "true"}
+		item := map[string]any{
+			"id":       id,
+			"name":     v[0],
+			"color":    v[1],
+			"favorite": v[2] == "true",
+		}
 		if v[1] == "" {
 			item["color"] = "gray"
 		}
@@ -774,21 +1026,37 @@ func (m *model) submit() (tea.Cmd, error) {
 			item["expression"] = v[3]
 			item["description"] = v[4]
 		}
-		return org(map[string]any{"kind": kind, "action": "save", "item": item}), nil
+		return org(
+			map[string]any{"kind": kind, "action": "save", "item": item},
+		), nil
 	case "note.add":
 		if v[0] == "" {
 			return nil, errRequired("备注")
 		}
 		t := r.task
-		p := map[string]any{"description": t.Description, "project": t.Project, "due": compact(t.Due), "priority": t.Priority, "tags": append([]string{}, t.Tags...), "note": v[0]}
+		p := map[string]any{
+			"description": t.Description,
+			"project":     t.Project,
+			"due":         compact(t.Due),
+			"priority":    t.Priority,
+			"tags":        append([]string{}, t.Tags...),
+			"note":        v[0],
+		}
 		return action("edit", map[string]any{"task": p}), nil
 	case "note.remove":
 		var index int
-		if _, e := fmt.Sscan(v[0], &index); e != nil || index < 0 || index >= len(r.task.Annotations) {
+		if _, e := fmt.Sscan(
+			v[0],
+			&index,
+		); e != nil || index < 0 ||
+			index >= len(r.task.Annotations) {
 			return nil, errRequired("要移除的备注")
 		}
 		n := r.task.Annotations[index]
-		return action("note.remove", map[string]any{"entry": n.Entry, "description": n.Description}), nil
+		return action(
+			"note.remove",
+			map[string]any{"entry": n.Entry, "description": n.Description},
+		), nil
 	case "repeat":
 		if v[2] == "stop" {
 			if v[3] != "STOP" {
@@ -803,7 +1071,10 @@ func (m *model) submit() (tea.Cmd, error) {
 		if e != nil {
 			return nil, e
 		}
-		return action("recurrence.edit", map[string]any{"recur": v[0], "until": until}), nil
+		return action(
+			"recurrence.edit",
+			map[string]any{"recur": v[0], "until": until},
+		), nil
 	case "delete":
 		if v[0] != "DELETE" {
 			return nil, fmt.Errorf("请输入 DELETE 确认")
@@ -812,11 +1083,29 @@ func (m *model) submit() (tea.Cmd, error) {
 		case "task":
 			return m.taskAction("delete", r.task), nil
 		case "project":
-			return org(map[string]any{"kind": "project", "action": "delete", "item": r.project}), nil
+			return org(
+				map[string]any{
+					"kind":   "project",
+					"action": "delete",
+					"item":   r.project,
+				},
+			), nil
 		case "filter", "tag":
-			return org(map[string]any{"kind": r.kind, "action": "delete", "item": r.item}), nil
+			return org(
+				map[string]any{
+					"kind":   r.kind,
+					"action": "delete",
+					"item":   r.item,
+				},
+			), nil
 		case "group", "column":
-			return org(map[string]any{"kind": "board", "action": "column.delete", "columnId": r.id}), nil
+			return org(
+				map[string]any{
+					"kind":     "board",
+					"action":   "column.delete",
+					"columnId": r.id,
+				},
+			), nil
 		}
 	case "restore":
 		if v[0] != "true" {
@@ -869,7 +1158,11 @@ func (m *model) submit() (tea.Cmd, error) {
 				return result{err: fmt.Errorf("备份不是有效 JSON")}
 			}
 			var out json.RawMessage
-			e = m.client.request("/api/backup/preview", json.RawMessage(b), &out)
+			e = m.client.request(
+				"/api/backup/preview",
+				json.RawMessage(b),
+				&out,
+			)
 			return result{"preview", out, e}
 		}, nil
 	case "restore.confirm":
@@ -879,7 +1172,10 @@ func (m *model) submit() (tea.Cmd, error) {
 		if m.previewToken == "" {
 			return nil, fmt.Errorf("请先重新预览备份")
 		}
-		return m.write("/api/backup/restore", map[string]any{"token": m.previewToken}), nil
+		return m.write(
+			"/api/backup/restore",
+			map[string]any{"token": m.previewToken},
+		), nil
 	}
 	return nil, fmt.Errorf("未选择有效操作")
 }

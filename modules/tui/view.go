@@ -26,7 +26,10 @@ func clip(s string, w int) string { return ansi.Truncate(s, max(1, w), "…") }
 func wrap(s string, w int) string {
 	var out []string
 	for _, part := range strings.Split(s, "\n") {
-		out = append(out, lipgloss.NewStyle().Width(max(1, w)).Render(clean(part)))
+		out = append(
+			out,
+			lipgloss.NewStyle().Width(max(1, w)).Render(clean(part)),
+		)
 	}
 	return strings.Join(out, "\n")
 }
@@ -36,8 +39,17 @@ func panel(title, body string, width, height int, focused bool) string {
 		color = brand
 	}
 	heading := accent.Render(title)
-	content := heading + "\n" + dim.Render(strings.Repeat("─", max(1, width-4))) + "\n" + body
-	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(color).Padding(0, 1).Width(max(1, width-2)).Height(max(1, height-2)).MaxHeight(height).Render(content)
+	content := heading + "\n" + dim.Render(
+		strings.Repeat("─", max(1, width-4)),
+	) + "\n" + body
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(color).
+		Padding(0, 1).
+		Width(max(1, width-2)).
+		Height(max(1, height-2)).
+		MaxHeight(height).
+		Render(content)
 }
 func window(lines []string, offset, height int) string {
 	offset = max(0, min(offset, max(0, len(lines)-height)))
@@ -100,7 +112,10 @@ func (m model) list(w, h int) string {
 	var lines []string
 	if m.view == "focus" {
 		active := m.activeProjects()
-		lines = append(lines, dim.Render(fmt.Sprintf("%d / 3 聚焦项目", len(active))))
+		lines = append(
+			lines,
+			dim.Render(fmt.Sprintf("%d / 3 聚焦项目", len(active))),
+		)
 		for _, p := range active {
 			lines = append(lines, accent.Render(clip("◎ "+p.Name, w-5)))
 			if p.Outcome != "" {
@@ -140,7 +155,10 @@ func (m model) list(w, h int) string {
 			if m.collapsed[r.id] && !m.board {
 				arrow = "▸"
 			}
-			ls = []string{style.Bold(true).Render(clip(fmt.Sprintf("%s%s %s  %d", marker, arrow, r.title, r.count), w-4))}
+			ls = []string{
+				style.Bold(true).
+					Render(clip(fmt.Sprintf("%s%s %s  %d", marker, arrow, r.title, r.count), w-4)),
+			}
 		case "task":
 			icon := "○"
 			if r.task.Status == "completed" {
@@ -152,12 +170,20 @@ func (m model) list(w, h int) string {
 			title := clip(marker+icon+" "+clean(r.title), w-4)
 			ls = []string{style.Render(title)}
 			if meta := m.taskMeta(r.task); meta != "" {
-				ls = append(ls, style.Foreground(muted).Render(clip("    "+meta, w-4)))
+				ls = append(
+					ls,
+					style.Foreground(muted).Render(clip("    "+meta, w-4)),
+				)
 			}
 		default:
-			ls = []string{style.Bold(true).Render(clip(marker+clean(r.title), w-4))}
+			ls = []string{
+				style.Bold(true).Render(clip(marker+clean(r.title), w-4)),
+			}
 			if sub := clean(r.subtitle); sub != "" {
-				ls = append(ls, style.Foreground(muted).Render(clip("  "+sub, w-4)))
+				ls = append(
+					ls,
+					style.Foreground(muted).Render(clip("  "+sub, w-4)),
+				)
 			}
 		}
 		blocks = append(blocks, block{i, ls})
@@ -179,18 +205,38 @@ func (m model) list(w, h int) string {
 	}
 	if len(rs) == 0 || len(m.visible()) == 0 && m.taskView() {
 		content = append(content, "")
-		content = append(content, strings.Split(wrap(m.emptyMessage(), w-6), "\n")...)
+		content = append(
+			content,
+			strings.Split(wrap(m.emptyMessage(), w-6), "\n")...)
 	}
-	lines = append(lines, strings.Split(window(content, offset, available), "\n")...)
+	lines = append(
+		lines,
+		strings.Split(window(content, offset, available), "\n")...)
 	mode := "分组列表"
 	if m.board {
-		mode = fmt.Sprintf("看板 · %d / %d · ← → 切换列", m.boardColumn+1, len(m.columns()))
+		mode = fmt.Sprintf(
+			"看板 · %d / %d · ← → 切换列",
+			m.boardColumn+1,
+			len(m.columns()),
+		)
 	}
-	return panel(clip(m.title(), w-5)+"  "+dim.Render(mode), strings.Join(lines, "\n"), w, h, !m.navFocus)
+	return panel(
+		clip(m.title(), w-5)+"  "+dim.Render(mode),
+		strings.Join(lines, "\n"),
+		w,
+		h,
+		!m.navFocus,
+	)
 }
 func (m model) taskView() bool {
 	switch m.view {
-	case "projects", "later", "filters", "tags", "columns", "backup", "recovery":
+	case "projects",
+		"later",
+		"filters",
+		"tags",
+		"columns",
+		"backup",
+		"recovery":
 		return false
 	}
 	return true
@@ -218,7 +264,11 @@ func (m model) emptyMessage() string {
 		}
 	}
 	if m.taskView() {
-		return fmt.Sprintf("此视图暂无任务。工作区有 %d 条已完成、%d 条等待任务。Tab 打开导航；a 添加任务。", complete, waiting)
+		return fmt.Sprintf(
+			"此视图暂无任务。工作区有 %d 条已完成、%d 条等待任务。Tab 打开导航；a 添加任务。",
+			complete,
+			waiting,
+		)
 	}
 	return "暂无条目。按 : 打开操作菜单以创建或管理。"
 }
@@ -309,7 +359,13 @@ func (m model) inspector(w, h int) string {
 		add("Tab 切换导航与内容。")
 		add("? 打开帮助。")
 	}
-	return panel("详情  ·  PgUp / PgDn 滚动", window(lines, m.detailScroll, max(1, h-5)), w, h, false)
+	return panel(
+		"详情  ·  PgUp / PgDn 滚动",
+		window(lines, m.detailScroll, max(1, h-5)),
+		w,
+		h,
+		false,
+	)
 }
 func (m model) overlay(w, h int) string {
 	width := min(80, w-4)
@@ -354,7 +410,10 @@ func (m model) overlay(w, h int) string {
 			}
 			lines = append(lines, style.Render(clip(marker+label, bodyWidth)))
 			if o.hint != "" && len(opts) < 6 {
-				lines = append(lines, dim.Render(clip("  "+clean(o.hint), bodyWidth)))
+				lines = append(
+					lines,
+					dim.Render(clip("  "+clean(o.hint), bodyWidth)),
+				)
 			}
 		}
 		if len(opts) == 0 {
@@ -363,7 +422,9 @@ func (m model) overlay(w, h int) string {
 	case "form":
 		title = m.formTitle
 		hint = "Tab 切换 · Enter 选择 / 换行 · Ctrl+S 保存 · Esc 保留草稿"
-		lines = append(lines, strings.Split(wrap(m.formHint, bodyWidth), "\n")...)
+		lines = append(
+			lines,
+			strings.Split(wrap(m.formHint, bodyWidth), "\n")...)
 		lines = append(lines, "")
 		type block struct {
 			index int
@@ -413,7 +474,9 @@ func (m model) overlay(w, h int) string {
 		for _, b := range bs {
 			content = append(content, b.lines...)
 		}
-		lines = append(lines, strings.Split(window(content, offset, limit), "\n")...)
+		lines = append(
+			lines,
+			strings.Split(window(content, offset, limit), "\n")...)
 	case "preview":
 		title = "恢复范围预览"
 		hint = "Enter 进入最终确认 · Esc 取消"
@@ -425,24 +488,58 @@ func (m model) overlay(w, h int) string {
 			Warnings           []string
 		}
 		_ = json.Unmarshal(m.preview, &p)
-		lines = append(lines, "备份时间："+p.ExportedAt, "", "内容             当前 → 备份")
+		lines = append(
+			lines,
+			"备份时间："+p.ExportedAt,
+			"",
+			"内容             当前 → 备份",
+		)
 		for _, k := range []string{"tasks", "projects", "labels", "filters", "columns", "intervals"} {
-			lines = append(lines, fmt.Sprintf("%-12s  %d → %d", k, p.Current[k], p.Incoming[k]))
+			lines = append(
+				lines,
+				fmt.Sprintf("%-12s  %d → %d", k, p.Current[k], p.Incoming[k]),
+			)
 		}
 		for _, warning := range p.Warnings {
-			lines = append(lines, strings.Split(wrap("• "+warning, bodyWidth), "\n")...)
+			lines = append(
+				lines,
+				strings.Split(wrap("• "+warning, bodyWidth), "\n")...)
 		}
 		lines = append(lines, fmt.Sprintf("恢复时停止的计时：%d", p.StoppedOccurrences))
 	}
-	body := strings.Join(lines, "\n") + "\n" + dim.Render(strings.Repeat("─", bodyWidth)) + "\n" + wrap(hint, bodyWidth)
-	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, panel(title, body, width, min(h, lipgloss.Height(body)+5), true))
+	body := strings.Join(
+		lines,
+		"\n",
+	) + "\n" + dim.Render(
+		strings.Repeat("─", bodyWidth),
+	) + "\n" + wrap(
+		hint,
+		bodyWidth,
+	)
+	return lipgloss.Place(
+		w,
+		h,
+		lipgloss.Center,
+		lipgloss.Center,
+		panel(title, body, width, min(h, lipgloss.Height(body)+5), true),
+	)
 }
 func (m model) View() string {
 	w, h := max(30, m.width), max(12, m.height)
-	header := lipgloss.NewStyle().Foreground(ink).Bold(true).Render("  ASTER") + dim.Render("   /   "+clean(m.title()))
+	header := lipgloss.NewStyle().
+		Foreground(ink).
+		Bold(true).
+		Render("  ASTER") +
+		dim.Render(
+			"   /   "+clean(m.title()),
+		)
 	right := "SSH · " + m.client.Host
 	if m.org.Energy != nil {
-		right += fmt.Sprintf("   精力 %.0f/%.0f", m.org.Energy.Remaining, m.org.Energy.Max)
+		right += fmt.Sprintf(
+			"   精力 %.0f/%.0f",
+			m.org.Energy.Remaining,
+			m.org.Energy.Max,
+		)
 	} else if m.org.Timing != nil && !m.org.Timing.Available {
 		right += "   计时不可用"
 	}
@@ -451,7 +548,42 @@ func (m model) View() string {
 	contentHeight := h - 5
 	var body string
 	if m.help {
-		body = lipgloss.Place(w, contentHeight, lipgloss.Center, lipgloss.Center, panel("键盘帮助", strings.Join([]string{"Tab              导航 / 内容", "↑ ↓ / j k        选择条目", "Enter            查看详情 / 打开项目 / 折叠分组", ": / Ctrl+K       可搜索的操作菜单", "a / A            添加任务 / 一句话捕捉", "e / x / s        编辑 / 完成重开 / 开始停止", "m / d / u        移动排序 / 删除 / 撤销", "b / ← →          列表看板切换 / 切换栏目", "p / n / g        聚焦项目 / 下一步 / 新增分组", "/                搜索当前视图", "PgUp / PgDn      详情滚动", "r                刷新核对", "表单 Tab         切换字段", "表单 Enter       打开选择器 / 多行换行", "表单 Ctrl+S      保存", "Esc              返回并保留本次会话草稿", "q / Ctrl+C       退出", "", "? / Esc 关闭帮助"}, "\n"), min(74, w-2), min(24, contentHeight), true))
+		body = lipgloss.Place(
+			w,
+			contentHeight,
+			lipgloss.Center,
+			lipgloss.Center,
+			panel(
+				"键盘帮助",
+				strings.Join(
+					[]string{
+						"Tab              导航 / 内容",
+						"↑ ↓ / j k        选择条目",
+						"Enter            查看详情 / 打开项目 / 折叠分组",
+						": / Ctrl+K       可搜索的操作菜单",
+						"a / A            添加任务 / 一句话捕捉",
+						"e / x / s        编辑 / 完成重开 / 开始停止",
+						"m / d / u        移动排序 / 删除 / 撤销",
+						"b / ← →          列表看板切换 / 切换栏目",
+						"p / n / g        聚焦项目 / 下一步 / 新增分组",
+						"/                搜索当前视图",
+						"PgUp / PgDn      详情滚动",
+						"r                刷新核对",
+						"表单 Tab         切换字段",
+						"表单 Enter       打开选择器 / 多行换行",
+						"表单 Ctrl+S      保存",
+						"Esc              返回并保留本次会话草稿",
+						"q / Ctrl+C       退出",
+						"",
+						"? / Esc 关闭帮助",
+					},
+					"\n",
+				),
+				min(74, w-2),
+				min(24, contentHeight),
+				true,
+			),
+		)
 	} else if m.mode != "" {
 		body = m.overlay(w, contentHeight)
 	} else if w < 76 {
@@ -469,7 +601,10 @@ func (m model) View() string {
 			detailW = min(38, w/3)
 		}
 		centerW := w - navW - detailW
-		panes := []string{m.sidebar(navW, contentHeight), m.list(centerW, contentHeight)}
+		panes := []string{
+			m.sidebar(navW, contentHeight),
+			m.list(centerW, contentHeight),
+		}
 		if detailW > 0 {
 			panes = append(panes, m.inspector(detailW, contentHeight))
 		}
@@ -484,7 +619,9 @@ func (m model) View() string {
 	}
 	footer := dim.Render("  Tab 导航   : 操作   / 搜索   a 添加   b 列表/看板   ? 帮助")
 	message := clip("  "+state+clean(m.message), w)
-	output := header + "\n" + dim.Render(strings.Repeat("─", w)) + "\n" + body + "\n" + footer + "\n" + message
+	output := header + "\n" + dim.Render(
+		strings.Repeat("─", w),
+	) + "\n" + body + "\n" + footer + "\n" + message
 	lines := strings.Split(output, "\n")
 	for i := range lines {
 		lines[i] = clip(lines[i], w)
@@ -532,8 +669,21 @@ func (m model) boardView(w, h int) string {
 			lines = append(lines, dim.Render("暂无任务"))
 		}
 		offset = max(0, selectedLine-(h-9))
-		panes = append(panes, panel(fmt.Sprintf("%s · %d", c.Name, len(ts)), window(lines, offset, h-7), colW, h-3, i == m.boardColumn && !m.navFocus))
+		panes = append(
+			panes,
+			panel(
+				fmt.Sprintf("%s · %d", c.Name, len(ts)),
+				window(lines, offset, h-7),
+				colW,
+				h-3,
+				i == m.boardColumn && !m.navFocus,
+			),
+		)
 	}
-	content := lipgloss.JoinHorizontal(lipgloss.Top, panes...) + "\n" + dim.Render(" ← → 选择栏目 · ↑↓ 选择任务 · m 移动排序 · b 列表")
+	content := lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		panes...) + "\n" + dim.Render(
+		" ← → 选择栏目 · ↑↓ 选择任务 · m 移动排序 · b 列表",
+	)
 	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(content)
 }

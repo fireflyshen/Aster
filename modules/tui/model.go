@@ -77,7 +77,17 @@ func newModel(c Client) model {
 	s := textinput.New()
 	s.Placeholder = "输入关键词…"
 	s.Width = 64
-	return model{client: c, view: "focus", width: 120, height: 32, busy: true, collapsed: map[string]bool{}, draft: map[string][]string{}, search: s, choiceField: -1}
+	return model{
+		client:      c,
+		view:        "focus",
+		width:       120,
+		height:      32,
+		busy:        true,
+		collapsed:   map[string]bool{},
+		draft:       map[string][]string{},
+		search:      s,
+		choiceField: -1,
+	}
 }
 func clean(s string) string {
 	return strings.Map(func(r rune) rune {
@@ -87,7 +97,12 @@ func clean(s string) string {
 		return r
 	}, s)
 }
-func inProject(name, root string) bool { return name == root || strings.HasPrefix(name, root+".") }
+
+func inProject(
+	name, root string,
+) bool {
+	return name == root || strings.HasPrefix(name, root+".")
+}
 func date(s string) time.Time {
 	for _, f := range []string{"20060102T150405Z", time.RFC3339Nano} {
 		if t, e := time.Parse(f, s); e == nil {
@@ -114,7 +129,10 @@ func shownDate(s string) string {
 	return t.Local().Format("2006-01-02 15:04")
 }
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.refresh(), tea.Tick(time.Second, func(t time.Time) tea.Msg { return tick(t) }))
+	return tea.Batch(
+		m.refresh(),
+		tea.Tick(time.Second, func(t time.Time) tea.Msg { return tick(t) }),
+	)
 }
 func (m model) refresh() tea.Cmd {
 	return func() tea.Msg {
@@ -133,9 +151,32 @@ func (m model) read(kind, route string) tea.Cmd {
 	return func() tea.Msg { var b json.RawMessage; e := m.client.read(route, &b); return result{kind, b, e} }
 }
 func (m model) nav() []entry {
-	es := []entry{{"focus", "◎  Focus"}, {"inbox", "▣  收件箱"}, {"today", "◷  今天与逾期"}, {"all", "≡  全部任务"}, {"waiting", "◴  等待中"}, {"completed", "✓  已完成"}, {"later", "◌  Later"}, {"projects", "▦  项目管理"}, {"filters", "⌕  过滤器"}, {"tags", "#  标签"}, {"columns", "▤  分组 / 栏目"}, {"recovery", "↶  删除恢复"}, {"backup", "⇩  备份与恢复"}}
+	es := []entry{
+		{"focus", "◎  Focus"},
+		{"inbox", "▣  收件箱"},
+		{"today", "◷  今天与逾期"},
+		{"all", "≡  全部任务"},
+		{"waiting", "◴  等待中"},
+		{"completed", "✓  已完成"},
+		{"later", "◌  Later"},
+		{"projects", "▦  项目管理"},
+		{"filters", "⌕  过滤器"},
+		{"tags", "#  标签"},
+		{"columns", "▤  分组 / 栏目"},
+		{"recovery", "↶  删除恢复"},
+		{"backup", "⇩  备份与恢复"},
+	}
 	for _, p := range m.org.Projects {
-		es = append(es, entry{"project:" + p.Name, strings.Repeat("  ", min(strings.Count(p.Name, "."), 3)) + "· " + p.Name})
+		es = append(
+			es,
+			entry{
+				"project:" + p.Name,
+				strings.Repeat(
+					"  ",
+					min(strings.Count(p.Name, "."), 3),
+				) + "· " + p.Name,
+			},
+		)
 	}
 	for _, f := range m.org.Filters {
 		if f.Favorite {
@@ -182,9 +223,12 @@ func (m model) visible() []Task {
 			now := time.Now()
 			y, mo, d := now.Date()
 			end := time.Date(y, mo, d+1, 0, 0, 0, 0, now.Location())
-			match = unfinished && !date(t.Due).IsZero() && date(t.Due).Before(end) && !date(t.Wait).After(now)
+			match = unfinished && !date(t.Due).IsZero() &&
+				date(t.Due).Before(end) &&
+				!date(t.Wait).After(now)
 		case m.view == "waiting":
-			match = t.Status == "waiting" || unfinished && date(t.Wait).After(time.Now())
+			match = t.Status == "waiting" ||
+				unfinished && date(t.Wait).After(time.Now())
 		case m.view == "completed":
 			match = t.Status == "completed"
 		case strings.HasPrefix(m.view, "project:"):
@@ -198,14 +242,23 @@ func (m model) visible() []Task {
 		case m.view == "all":
 			match = unfinished || t.Status == "completed"
 		}
-		if match && strings.Contains(strings.ToLower(t.Description+" "+t.Project+" "+strings.Join(t.Tags, " ")), strings.ToLower(m.query)) {
+		if match &&
+			strings.Contains(
+				strings.ToLower(
+					t.Description+" "+t.Project+" "+strings.Join(t.Tags, " "),
+				),
+				strings.ToLower(m.query),
+			) {
 			out = append(out, t)
 		}
 	}
 	if strings.HasPrefix(m.view, "filter:") || m.view == "expression" {
 		out = nil
 		for _, r := range m.extra {
-			if strings.Contains(strings.ToLower(r.task.Description+" "+r.task.Project), strings.ToLower(m.query)) {
+			if strings.Contains(
+				strings.ToLower(r.task.Description+" "+r.task.Project),
+				strings.ToLower(m.query),
+			) {
 				out = append(out, r.task)
 			}
 		}
@@ -279,12 +332,24 @@ func (m model) rows() []row {
 					continue
 				}
 			}
-			if strings.Contains(strings.ToLower(p.Name+" "+p.Description), strings.ToLower(m.query)) {
+			if strings.Contains(
+				strings.ToLower(p.Name+" "+p.Description),
+				strings.ToLower(m.query),
+			) {
 				status := p.Status
 				if status == "" {
 					status = "later"
 				}
-				out = append(out, row{kind: "project", id: p.Name, title: p.Name, subtitle: status + " · " + p.Outcome, project: p})
+				out = append(
+					out,
+					row{
+						kind:     "project",
+						id:       p.Name,
+						title:    p.Name,
+						subtitle: status + " · " + p.Outcome,
+						project:  p,
+					},
+				)
 			}
 		}
 		return out
@@ -296,18 +361,39 @@ func (m model) rows() []row {
 			kind = "tag"
 		}
 		for _, i := range items {
-			if strings.Contains(strings.ToLower(i.Name+" "+i.Expression), strings.ToLower(m.query)) {
+			if strings.Contains(
+				strings.ToLower(i.Name+" "+i.Expression),
+				strings.ToLower(m.query),
+			) {
 				star := ""
 				if i.Favorite {
 					star = "★ "
 				}
-				out = append(out, row{kind: kind, id: i.ID, title: star + i.Name, subtitle: i.Expression, item: i})
+				out = append(
+					out,
+					row{
+						kind:     kind,
+						id:       i.ID,
+						title:    star + i.Name,
+						subtitle: i.Expression,
+						item:     i,
+					},
+				)
 			}
 		}
 		return out
 	case "columns":
 		for _, c := range m.org.Board.Columns {
-			out = append(out, row{kind: "column", id: c.ID, title: c.Name, subtitle: "列表分组 ↔ 看板栏目", column: c})
+			out = append(
+				out,
+				row{
+					kind:     "column",
+					id:       c.ID,
+					title:    c.Name,
+					subtitle: "列表分组 ↔ 看板栏目",
+					column:   c,
+				},
+			)
 		}
 		return out
 	case "recovery", "backup":
@@ -321,12 +407,30 @@ func (m model) rows() []row {
 	}
 	for _, c := range cols {
 		items := m.grouped(ts, c.ID)
-		out = append(out, row{kind: "group", id: c.ID, title: c.Name, count: len(items), column: c})
+		out = append(
+			out,
+			row{
+				kind:   "group",
+				id:     c.ID,
+				title:  c.Name,
+				count:  len(items),
+				column: c,
+			},
+		)
 		if m.collapsed[c.ID] && !m.board {
 			continue
 		}
 		for _, t := range items {
-			out = append(out, row{kind: "task", id: t.UUID, title: t.Description, subtitle: t.Project, task: t})
+			out = append(
+				out,
+				row{
+					kind:     "task",
+					id:       t.UUID,
+					title:    t.Description,
+					subtitle: t.Project,
+					task:     t,
+				},
+			)
 		}
 	}
 	return out
@@ -370,7 +474,10 @@ func (m *model) navigate(view string) tea.Cmd {
 			if f.ID == strings.TrimPrefix(view, "filter:") {
 				m.expression = f.Expression
 				m.busy = true
-				return m.read("filter", "/api/tasks?filter="+url.QueryEscape(f.Expression))
+				return m.read(
+					"filter",
+					"/api/tasks?filter="+url.QueryEscape(f.Expression),
+				)
 			}
 		}
 	}
@@ -392,8 +499,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tick:
-		nextTick := tea.Tick(time.Second, func(t time.Time) tea.Msg { return tick(t) })
-		if m.ready && !m.busy && !m.blocked && m.mode == "" && !m.navFocus && time.Since(m.lastRefresh) > 30*time.Second {
+		nextTick := tea.Tick(
+			time.Second,
+			func(t time.Time) tea.Msg { return tick(t) },
+		)
+		if m.ready && !m.busy && !m.blocked && m.mode == "" && !m.navFocus &&
+			time.Since(m.lastRefresh) > 30*time.Second {
 			m.busy = true
 			return m, tea.Batch(nextTick, m.refresh())
 		}
@@ -422,7 +533,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode == "form" {
 			m.message = "已刷新；草稿保留。请关闭后重新打开表单以使用新版本。"
 		}
-		if (strings.HasPrefix(m.view, "filter:") || m.view == "expression") && m.mode == "" {
+		if (strings.HasPrefix(m.view, "filter:") || m.view == "expression") &&
+			m.mode == "" {
 			if strings.HasPrefix(m.view, "filter:") {
 				for _, f := range m.org.Filters {
 					if "filter:"+f.ID == m.view {
@@ -431,7 +543,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			m.busy = true
-			return m, m.read("filter", "/api/tasks?filter="+url.QueryEscape(m.expression))
+			return m, m.read(
+				"filter",
+				"/api/tasks?filter="+url.QueryEscape(m.expression),
+			)
 		}
 		return m, nil
 	case saved:
@@ -440,7 +555,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = msg.err.Error()
 			m.undo = nil
 			var e *requestError
-			if errors.As(msg.err, &e) && (e.uncertain || e.code == 409 || e.code == 423) {
+			if errors.As(msg.err, &e) &&
+				(e.uncertain || e.code == 409 || e.code == 423) {
 				m.blocked = true
 				m.message += " · 请刷新核对，保留草稿"
 			}
@@ -452,10 +568,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.busy = true
 		m.message = msg.message
 		if m.view == "recovery" {
-			return m, tea.Batch(m.refresh(), m.read("recovery", "/api/recovery"))
+			return m, tea.Batch(
+				m.refresh(),
+				m.read("recovery", "/api/recovery"),
+			)
 		}
 		if m.view == "backup" {
-			return m, tea.Batch(m.refresh(), m.read("points", "/api/backup/points"))
+			return m, tea.Batch(
+				m.refresh(),
+				m.read("points", "/api/backup/points"),
+			)
 		}
 		return m, m.refresh()
 	case result:
@@ -598,7 +720,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.collapsed[m.current().id] = !m.collapsed[m.current().id]
 			return m, nil
 		}
-		actions := map[string]string{"a": "task.new", "A": "quick", "e": "edit", "x": "task.toggle", "s": "task.timer", "m": "task.move", "d": "delete", "u": "undo", "p": "focus.choose", "n": "project.next", "g": "column.new"}
+		actions := map[string]string{
+			"a": "task.new",
+			"A": "quick",
+			"e": "edit",
+			"x": "task.toggle",
+			"s": "task.timer",
+			"m": "task.move",
+			"d": "delete",
+			"u": "undo",
+			"p": "focus.choose",
+			"n": "project.next",
+			"g": "column.new",
+		}
 		if a, ok := actions[k]; ok {
 			return m, m.action(a)
 		}
@@ -625,7 +759,10 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 		}
 		m.extra = nil
 		for _, t := range p.Tasks {
-			m.extra = append(m.extra, row{kind: "task", id: t.UUID, title: t.Description, task: t})
+			m.extra = append(
+				m.extra,
+				row{kind: "task", id: t.UUID, title: t.Description, task: t},
+			)
 		}
 		m.selectFirstTask()
 	case "recovery":
@@ -638,7 +775,15 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 		}
 		m.extra = nil
 		for _, t := range p.Tasks {
-			m.extra = append(m.extra, row{kind: "deleted", id: t.UUID, title: t.Description, subtitle: t.Project + " · " + t.RestoreStatus})
+			m.extra = append(
+				m.extra,
+				row{
+					kind:     "deleted",
+					id:       t.UUID,
+					title:    t.Description,
+					subtitle: t.Project + " · " + t.RestoreStatus,
+				},
+			)
 		}
 	case "points":
 		var p struct {
@@ -648,9 +793,30 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 			m.message = e.Error()
 			return m, nil
 		}
-		m.extra = []row{{kind: "backup", id: "export", title: "导出完整备份", subtitle: "保存任务、组织资料及计时历史到本地文件"}, {kind: "backup", id: "import", title: "从文件恢复", subtitle: "先预览范围，再明确确认替换"}}
+		m.extra = []row{
+			{
+				kind:     "backup",
+				id:       "export",
+				title:    "导出完整备份",
+				subtitle: "保存任务、组织资料及计时历史到本地文件",
+			},
+			{
+				kind:     "backup",
+				id:       "import",
+				title:    "从文件恢复",
+				subtitle: "先预览范围，再明确确认替换",
+			},
+		}
 		for _, p := range p.Points {
-			m.extra = append(m.extra, row{kind: "point", id: p.ID, title: p.CreatedAt, subtitle: p.State})
+			m.extra = append(
+				m.extra,
+				row{
+					kind:     "point",
+					id:       p.ID,
+					title:    p.CreatedAt,
+					subtitle: p.State,
+				},
+			)
 		}
 	case "quick":
 		var p struct {
@@ -711,12 +877,21 @@ func (m model) selectedProject() Project {
 	}
 	return Project{}
 }
-func marshal(v any) json.RawMessage { b, _ := json.MarshalIndent(v, "", "  "); return b }
+
+func marshal(
+	v any,
+) json.RawMessage {
+	b, _ := json.MarshalIndent(v, "", "  ")
+	return b
+}
 func (m model) orgChange(data map[string]any) tea.Cmd {
 	data["revision"] = m.org.Revision
 	return m.write("/api/organization", data)
 }
 func (m model) taskAction(action string, t Task) tea.Cmd {
-	return m.write("/api/action", map[string]any{"uuid": t.UUID, "action": action})
+	return m.write(
+		"/api/action",
+		map[string]any{"uuid": t.UUID, "action": action},
+	)
 }
 func errRequired(s string) error { return fmt.Errorf("请填写%s", s) }

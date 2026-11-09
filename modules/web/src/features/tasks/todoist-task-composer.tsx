@@ -31,13 +31,12 @@ import {
 import { useMemo, useRef, useState, type FormEvent } from "react";
 
 const isoDate = (value: string) =>
-  value.replace(
-    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z$/,
-    "$1-$2-$3T$4:$5:00Z",
-  ).replace(
-    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
-    "$1-$2-$3T$4:$5:$6Z",
-  );
+  value
+    .replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z$/, "$1-$2-$3T$4:$5:00Z")
+    .replace(
+      /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+      "$1-$2-$3T$4:$5:$6Z",
+    );
 
 const toDayString = (raw: string | undefined): string => {
   if (!raw) return "";
@@ -153,9 +152,7 @@ export function TodoistTaskComposer({
   const projectToken = parsed.tokens.find(
     (t) => t.kind === "project" && !t.ignored,
   );
-  const tagTokens = parsed.tokens.filter(
-    (t) => t.kind === "tag" && !t.ignored,
-  );
+  const tagTokens = parsed.tokens.filter((t) => t.kind === "tag" && !t.ignored);
 
   // Active resolved values:
   // Natural language tokens typed in the input take immediate precedence over defaults
@@ -222,7 +219,8 @@ export function TodoistTaskComposer({
 
   function applySuggestion(tokenValue: string, kind: "#" | "@") {
     if (!triggerMatch) return;
-    const matchIndex = triggerMatch.index + (triggerMatch[0].startsWith(" ") ? 1 : 0);
+    const matchIndex =
+      triggerMatch.index + (triggerMatch[0].startsWith(" ") ? 1 : 0);
     const replacement = `${kind}${tokenValue.includes(" ") ? `"${tokenValue}"` : tokenValue} `;
     const next = title.slice(0, matchIndex) + replacement;
     setTitle(next);
@@ -233,9 +231,9 @@ export function TodoistTaskComposer({
   }
 
   function removeToken(token: QuickToken) {
-    const next = (
-      title.slice(0, token.start) + title.slice(token.end)
-    ).replace(/\s{2,}/g, " ").trim();
+    const next = (title.slice(0, token.start) + title.slice(token.end))
+      .replace(/\s{2,}/g, " ")
+      .trim();
     setTitle(next);
     if (token.kind === "due") setManualDue(null);
     if (token.kind === "priority") setManualPriority("");
@@ -250,7 +248,9 @@ export function TodoistTaskComposer({
       value = value.slice(0, token.start) + value.slice(token.end);
     }
     const clean = value.replace(/\s{2,}/g, " ").trimEnd();
-    setTitle(clean ? (expression ? `${clean} ${expression}` : clean) : expression);
+    setTitle(
+      clean ? (expression ? `${clean} ${expression}` : clean) : expression,
+    );
   }
 
   function buildTaskInput(): { task: TaskInput; error?: string } {
