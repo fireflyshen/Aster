@@ -19,14 +19,14 @@ export function taskDate(date: Date): string {
 }
 
 function dateValue(word: string, now: Date): Date | undefined {
-  const clock = /^(.+?)\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?(am|pm)?$/.exec(word);
+  const clock = /^(.+?)\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?(am|pm)?$/i.exec(word);
   if (clock) {
     const date = dateValue(clock[1], now);
     let hour = Number(clock[2]);
     const minute = Number(clock[3] || 0);
     if (!date || minute > 59 || (clock[4] ? hour < 1 || hour > 12 : hour > 23))
       return;
-    if (clock[4]) hour = (hour % 12) + (clock[4] === "pm" ? 12 : 0);
+    if (clock[4]) hour = (hour % 12) + (clock[4].toLowerCase() === "pm" ? 12 : 0);
     date.setHours(hour, minute, 0, 0);
     return date;
   }
@@ -49,7 +49,12 @@ function dateValue(word: string, now: Date): Date | undefined {
     date.setDate(date.getDate() + Number(days[1]));
     return date;
   }
-  if (word === "下周") {
+  const inDays = /^in\s+(\d{1,3})\s+days?$/i.exec(word);
+  if (inDays) {
+    date.setDate(date.getDate() + Number(inDays[1]));
+    return date;
+  }
+  if (word === "下周" || word === "next week") {
     date.setDate(date.getDate() + ((8 - date.getDay()) % 7 || 7));
     return date;
   }
@@ -62,6 +67,34 @@ function dateValue(word: string, now: Date): Date | undefined {
     let delta = ((target + 6) % 7) - mondayOffset;
     if (weekday[1] === "下周" || (weekday[1] !== "本周" && delta < 0))
       delta += 7;
+    date.setDate(date.getDate() + delta);
+    return date;
+  }
+  const enWeekdayMap: Record<string, number> = {
+    mon: 1,
+    monday: 1,
+    tue: 2,
+    tuesday: 2,
+    wed: 3,
+    wednesday: 3,
+    thu: 4,
+    thursday: 4,
+    fri: 5,
+    friday: 5,
+    sat: 6,
+    saturday: 6,
+    sun: 0,
+    sunday: 0,
+  };
+  const enWeekday =
+    /^(?:(next)\s+)?(mon|monday|tue|tuesday|wed|wednesday|thu|thursday|fri|friday|sat|saturday|sun|sunday)$/i.exec(
+      word,
+    );
+  if (enWeekday) {
+    const target = enWeekdayMap[enWeekday[2].toLowerCase()];
+    const current = date.getDay();
+    let delta = (target - current + 7) % 7;
+    if (delta === 0 || enWeekday[1]) delta += 7;
     date.setDate(date.getDate() + delta);
     return date;
   }
@@ -94,7 +127,7 @@ export function parseQuickTask(
   const words: string[] = [];
   const occurrences = new Map<string, number>();
   for (const match of text.matchAll(
-    /(?:today|tomorrow|今天|明天|后天|大后天|(?:下周|本周|周|星期)[一二三四五六日天]|(?:due:)?\d{4}-\d{2}-\d{2})(?:\s+(?:at\s+)?\d{1,2}(?::\d{2})?(?:am|pm)?)(?=\s|$)|[#@%](?:"[^"]*"|'[^']*'|[^\s]+)|"[^"]*"|'[^']*'|[^\s]+/gi,
+    /(?:today|tomorrow|今天|明天|后天|大后天|(?:下周|本周|周|星期)[一二三四五六日天]|(?:next\s+)?(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)|in\s+\d{1,3}\s+days?|(?:due:)?\d{4}-\d{2}-\d{2})(?:\s+(?:at\s+)?\d{1,2}(?::\d{2})?(?:am|pm)?)(?=\s|$)|(?:今天|明天|后天|大后天|(?:下周|本周|周|星期)[一二三四五六日天])(?=\s|[^\w\s]|$|[\u4e00-\u9fa5])|[#@%](?:"[^"]*"|'[^']*'|[^\s]+)|"[^"]*"|'[^']*'|[^\s]+/gi,
   )) {
     const raw = match[0];
     const count = occurrences.get(raw) || 0;
@@ -111,10 +144,11 @@ export function parseQuickTask(
     } else if (/^[@%].+/.test(raw)) {
       const value = unquote(raw.slice(1));
       token = { kind: "tag", value, label: value };
-    } else if (/^p[1-4]$/.test(word)) {
+    } else if (/^(?:p|[!！])[1-4]$/i.test(word)) {
+      const pNum = word.slice(1);
       const value = (
-        { p1: "H", p2: "M", p3: "L", p4: "" } as Record<string, string>
-      )[word];
+        { "1": "H", "2": "M", "3": "L", "4": "" } as Record<string, string>
+      )[pNum];
       token = {
         kind: "priority",
         value,

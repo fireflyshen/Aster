@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
+import { taskDate } from "@core/tasks/quick-task";
 import {
   columnTasks,
   placeCard,
@@ -63,6 +64,7 @@ import {
   FolderPlus,
   GripVertical,
   Pencil,
+  Plus,
   Trash2,
   X,
 } from "lucide-react";
@@ -159,24 +161,42 @@ function InlineColumnCreator({
 
   if (!editing) {
     return (
-      <div className={layout === "list" ? "pt-2" : ""}>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={disabled}
-          onClick={() => {
-            setEditing(true);
-            requestAnimationFrame(() => inputRef.current?.focus());
-          }}
-          className={
-            layout === "list"
-              ? "-ml-2.5 h-8 gap-2 rounded-lg px-2.5 text-xs font-normal text-muted-foreground/80 hover:bg-(--row-hover) hover:text-foreground has-[>svg]:px-2.5"
-              : "h-11 w-full justify-start gap-2.5 self-start rounded-xl border border-dashed border-border/80 px-3.5 text-sm font-normal text-muted-foreground hover:border-ring/40 hover:bg-(--row-hover) hover:text-foreground md:h-10"
-          }
-        >
-          <FolderPlus className="size-4" strokeWidth={1.5} />
-          {layout === "list" ? "Add section" : "Add column"}
-        </Button>
+      <div className={layout === "list" ? "group/add-section my-3" : ""}>
+        {layout === "list" ? (
+          <div className="relative flex items-center justify-center py-2">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-dashed border-border/80 transition-colors group-hover/add-section:border-ring/40" />
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              disabled={disabled}
+              onClick={() => {
+                setEditing(true);
+                requestAnimationFrame(() => inputRef.current?.focus());
+              }}
+              className="relative h-7 gap-1.5 rounded-full border border-border/80 bg-background px-3 text-xs font-normal text-muted-foreground shadow-xs transition-colors hover:border-ring/40 hover:bg-background hover:text-foreground"
+            >
+              <Plus className="size-3.5" />
+              Add section
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={disabled}
+            onClick={() => {
+              setEditing(true);
+              requestAnimationFrame(() => inputRef.current?.focus());
+            }}
+            className="h-11 w-full justify-start gap-2.5 self-start rounded-xl border border-dashed border-border/80 px-3.5 text-sm font-normal text-muted-foreground hover:border-ring/40 hover:bg-(--row-hover) hover:text-foreground md:h-10"
+          >
+            <FolderPlus className="size-4" strokeWidth={1.5} />
+            Add column
+          </Button>
+        )}
       </div>
     );
   }
@@ -207,7 +227,7 @@ function InlineColumnCreator({
       onSubmit={submit}
       className={
         layout === "list"
-          ? "mt-2 flex max-w-sm items-center gap-1.5 rounded-lg border border-ring/40 bg-background px-2.5 py-1"
+          ? "my-2 flex max-w-sm items-center gap-1.5 rounded-xl border border-ring/40 bg-card p-2 shadow-sm"
           : "flex h-10 w-full items-center gap-1.5 self-start rounded-xl border border-ring/40 bg-background px-3"
       }
     >
@@ -217,7 +237,7 @@ function InlineColumnCreator({
         value={name}
         maxLength={40}
         disabled={disabled || saving}
-        placeholder={layout === "list" ? "Section name…" : "Column name…"}
+        placeholder={layout === "list" ? "Name this section…" : "Column name…"}
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -237,29 +257,33 @@ function InlineColumnCreator({
             setEditing(false);
           }
         }}
-        className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground"
+        className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:font-normal placeholder:text-muted-foreground/60"
       />
       <Button
         type="submit"
         size="xs"
         disabled={disabled || saving || !name.trim()}
-        className="h-6 rounded-md px-2 text-xs shadow-none"
+        className="h-7 rounded-md px-2.5 text-xs font-medium shadow-none"
       >
-        {saving ? <Spinner className="size-3" /> : "Add"}
+        {saving ? (
+          <Spinner className="size-3" />
+        ) : layout === "list" ? (
+          "Add section"
+        ) : (
+          "Add"
+        )}
       </Button>
       <Button
         type="button"
         variant="ghost"
-        size="icon-xs"
-        disabled={saving}
-        aria-label="Cancel"
+        size="xs"
         onClick={() => {
           setEditing(false);
           setName("");
         }}
-        className="size-6 text-muted-foreground hover:text-foreground"
+        className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground"
       >
-        <X className="size-3.5" />
+        Cancel
       </Button>
     </form>
   );
@@ -448,26 +472,29 @@ function BoardColumn({
           )}
         >
           {compact ? (
-            <button
-              type="button"
-              aria-label={`${collapsed ? "Expand" : "Collapse"} group: ${column.name}`}
-              aria-expanded={!collapsed}
-              onClick={() => setCollapsed(!collapsed)}
-              className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
-            >
-              <ChevronRight
-                className={cn(
-                  "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-                  !collapsed && "rotate-90",
-                )}
-              />
-              <h2 className="min-w-0 truncate text-sm font-semibold">
-                {column.name}
-              </h2>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {count}
-              </span>
-            </button>
+            <div className="flex w-full items-center justify-between gap-2">
+              <button
+                type="button"
+                aria-label={`${collapsed ? "Expand" : "Collapse"} group: ${column.name}`}
+                aria-expanded={!collapsed}
+                onClick={() => setCollapsed(!collapsed)}
+                className="-ml-1.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
+              >
+                <ChevronRight
+                  className={cn(
+                    "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+                    !collapsed && "rotate-90",
+                  )}
+                />
+                <h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
+                  {column.name}
+                </h2>
+                <span className="text-xs tabular-nums text-muted-foreground/80">
+                  {count}
+                </span>
+              </button>
+              <div className="flex-1 h-px bg-border/40 hidden sm:block" />
+            </div>
           ) : (
             <>
               <h2 className="min-w-0 truncate text-sm font-semibold">
@@ -950,6 +977,26 @@ export function TaskBoard({
                             {renderTask(task)}
                           </BoardCard>
                         ))}
+                        {canAddTask && (
+                          <TodoistTaskComposer
+                            mode="add"
+                            compact
+                            disabled={disabled}
+                            ariaLabel="Add task to Today"
+                            placeholder="Task name (try #project, @label, tomorrow, p1)"
+                            defaultProject={defaultProject}
+                            defaultDue={defaultDue || taskDate(new Date())}
+                            projects={projects}
+                            availableLabels={availableLabels}
+                            onSubmitTask={
+                              onCreateTask
+                                ? (task) =>
+                                    onCreateTask(task, unsectionedColumn.id)
+                                : undefined
+                            }
+                            onOpenFullEditor={onAdd}
+                          />
+                        )}
                       </div>
                     </section>
                   </div>
@@ -958,24 +1005,19 @@ export function TaskBoard({
             ) : (
               columns.map((column, index) => {
                 const items = columnTasks(tasks, displayBoard, column.id);
-                const nonEmptyColumns = columns.filter(
-                  (col) => columnTasks(tasks, displayBoard, col.id).length > 0,
-                );
                 if (
                   layout === "list" &&
                   items.length === 0 &&
                   !active &&
-                  (column.id !== UNSECTIONED || nonEmptyColumns.length > 0)
+                  column.id === UNSECTIONED &&
+                  hasCustomColumns
                 ) {
                   return null;
                 }
                 const showColumnHeader =
                   layout === "board" ||
                   (hasCustomColumns &&
-                    (nonEmptyColumns.length > 1 ||
-                      (nonEmptyColumns.length === 1 &&
-                        column.id !== UNSECTIONED)) &&
-                    (items.length > 0 || !!active));
+                    (columns.length > 1 || column.id !== UNSECTIONED));
                 return (
                   <BoardColumn
                     key={column.id}
@@ -1029,10 +1071,10 @@ export function TaskBoard({
                         {renderTask(task)}
                       </BoardCard>
                     ))}
-                    {canAddTask && layout === "board" && (
+                    {canAddTask && (
                       <TodoistTaskComposer
                         mode="add"
-                        compact={false}
+                        compact={layout === "list"}
                         disabled={disabled}
                         ariaLabel={`Add task${column.id !== UNSECTIONED ? ` to ${column.name}` : ""}`}
                         placeholder={
@@ -1056,26 +1098,7 @@ export function TaskBoard({
                 );
               })
             )}
-            {canAddTask && layout === "list" && (
-              <TodoistTaskComposer
-                mode="add"
-                compact
-                disabled={disabled}
-                ariaLabel="Add task"
-                placeholder="Task name (try #project, @label, tomorrow, p1)"
-                defaultProject={defaultProject}
-                defaultDue={defaultDue}
-                projects={projects}
-                availableLabels={availableLabels}
-                onSubmitTask={
-                  onCreateTask
-                    ? (task) => onCreateTask(task, unsectionedColumn.id)
-                    : undefined
-                }
-                onOpenFullEditor={onAdd}
-              />
-            )}
-            {canAddTask && layout === "board" && (
+            {canAddTask && (
               <InlineColumnCreator
                 layout={layout}
                 revision={revision}

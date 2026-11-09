@@ -1321,7 +1321,12 @@ export default function App() {
             </div>
           </div>
         </header>
-        <main className="workspace-frame min-w-0 pt-6 pb-24 md:pb-16">
+        <main
+          className={cn(
+            "workspace-frame min-w-0 pt-6 pb-24 md:pb-16",
+            layout === "list" && "max-w-4xl",
+          )}
+        >
           <Tabs
             value={layout}
             onValueChange={(value) => {

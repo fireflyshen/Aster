@@ -8,26 +8,46 @@ import { Spinner } from "@/components/ui/spinner";
 import { DatePicker } from "@/features/tasks/date-picker";
 import { LabelsPicker } from "@/features/tasks/labels-picker";
 import { ProjectPicker } from "@/features/tasks/project-picker";
-import { parseQuickTask, taskDate } from "@core/tasks/quick-task";
+import {
+  parseQuickTask,
+  taskDate,
+  type QuickToken,
+} from "@core/tasks/quick-task";
 import type { SavedTag } from "@core/workspace/organization";
 import type { TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { format } from "date-fns";
 import {
+  CalendarDays,
   Check,
   CornerDownLeft,
   Flag,
+  Hash,
   ListPlus,
   Plus,
+  Tag,
   X,
 } from "lucide-react";
-import { useRef, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 
 const isoDate = (value: string) =>
   value.replace(
+    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z$/,
+    "$1-$2-$3T$4:$5:00Z",
+  ).replace(
     /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
     "$1-$2-$3T$4:$5:$6Z",
   );
+
+const toDayString = (raw: string | undefined): string => {
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  try {
+    return format(new Date(isoDate(raw)), "yyyy-MM-dd");
+  } catch {
+    return "";
+  }
+};
 
 const PRIORITIES: {
   value: "H" | "M" | "L" | "";
@@ -103,130 +123,183 @@ export function TodoistTaskComposer({
   const [editing, setEditing] = useState(mode === "edit");
   const [title, setTitle] = useState(initialValue?.description || "");
   const [note, setNote] = useState(initialValue?.note || "");
-  const [dueDay, setDueDay] = useState(() => {
-    const raw = initialValue?.due || defaultDue;
-    if (!raw) return "";
-    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-    try {
-      return format(new Date(isoDate(raw)), "yyyy-MM-dd");
-    } catch {
-      return "";
-    }
-  });
-  const [priority, setPriority] = useState<"H" | "M" | "L" | "">(
-    initialValue?.priority === "H" ||
-      initialValue?.priority === "M" ||
-      initialValue?.priority === "L"
-      ? initialValue.priority
-      : "",
+
+  // Manual overrides set explicitly via the buttons/chips
+  const [manualDue, setManualDue] = useState<string | null | undefined>(
+    undefined,
   );
-  const [project, setProject] = useState(
-    initialValue?.project ?? defaultProject,
+  const [manualPriority, setManualPriority] = useState<
+    "H" | "M" | "L" | "" | undefined
+  >(undefined);
+  const [manualProject, setManualProject] = useState<string | undefined>(
+    undefined,
   );
-  const [tags, setTags] = useState<string[]>(initialValue?.tags || []);
+  const [manualTags, setManualTags] = useState<string[] | undefined>(
+    initialValue?.tags,
+  );
+
   const [priorityOpen, setPriorityOpen] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  if (!editing && mode === "add") {
-    return (
-      <Button
-        type="button"
-        variant="ghost"
-        disabled={disabled}
-        onClick={() => {
-          if (!onSubmitTask) {
-            onOpenFullEditor?.();
-            return;
-          }
-          setError("");
-          setProject(defaultProject);
-          setDueDay(
-            defaultDue && /^\d{4}-\d{2}-\d{2}$/.test(defaultDue)
-              ? defaultDue
-              : defaultDue
-                ? format(new Date(isoDate(defaultDue)), "yyyy-MM-dd")
-                : "",
-          );
-          setEditing(true);
-          requestAnimationFrame(() => titleRef.current?.focus());
-        }}
-        className={
-          compact
-            ? "task-add-button group/add"
-            : "mt-1 flex h-9 w-full items-center justify-start gap-2 rounded-lg px-2.5 text-xs font-normal text-muted-foreground transition-colors hover:bg-(--row-hover) hover:text-foreground has-[>svg]:px-2.5"
-        }
-      >
-        <Plus
-          className={cn(
-            compact ? "size-[18px]" : "size-4",
-            "text-primary/85 transition-transform duration-150 group-hover/add:scale-110",
-          )}
-          strokeWidth={1.75}
-        />
-        Add task
-      </Button>
-    );
+  // Parse natural language expressions in real time
+  const parsed = useMemo(() => parseQuickTask(title), [title]);
+
+  const dueToken = parsed.tokens.find((t) => t.kind === "due" && !t.ignored);
+  const priorityToken = parsed.tokens.find(
+    (t) => t.kind === "priority" && !t.ignored,
+  );
+  const projectToken = parsed.tokens.find(
+    (t) => t.kind === "project" && !t.ignored,
+  );
+  const tagTokens = parsed.tokens.filter(
+    (t) => t.kind === "tag" && !t.ignored,
+  );
+
+  // Active resolved values:
+  // Natural language tokens typed in the input take immediate precedence over defaults
+  const activeDueDay: string = useMemo(() => {
+    if (dueToken) {
+      return toDayString(dueToken.value);
+    }
+    if (manualDue !== undefined) {
+      return manualDue || "";
+    }
+    if (initialValue?.due) {
+      return toDayString(initialValue.due);
+    }
+    if (defaultDue) {
+      return toDayString(defaultDue);
+    }
+    return "";
+  }, [dueToken, manualDue, initialValue?.due, defaultDue]);
+
+  const activePriority: "H" | "M" | "L" | "" = useMemo(() => {
+    if (priorityToken) {
+      return (priorityToken.value as "H" | "M" | "L" | "") || "";
+    }
+    if (manualPriority !== undefined) {
+      return manualPriority;
+    }
+    return (initialValue?.priority as "H" | "M" | "L" | "") || "";
+  }, [priorityToken, manualPriority, initialValue?.priority]);
+
+  const activeProject: string = useMemo(() => {
+    if (projectToken) {
+      return projectToken.value;
+    }
+    if (manualProject !== undefined) {
+      return manualProject;
+    }
+    return initialValue?.project ?? defaultProject ?? "";
+  }, [projectToken, manualProject, initialValue?.project, defaultProject]);
+
+  const activeTags: string[] = useMemo(() => {
+    const base = manualTags ?? initialValue?.tags ?? [];
+    const fromTitle = tagTokens.map((t) => t.value);
+    return Array.from(new Set([...base, ...fromTitle]));
+  }, [manualTags, initialValue?.tags, tagTokens]);
+
+  // Autocomplete matching for '#' and '@'
+  const triggerMatch = /(?:^|\s)(#|@)([^\s]*)$/.exec(title);
+  const triggerKind = triggerMatch ? triggerMatch[1] : null;
+  const triggerQuery = triggerMatch ? triggerMatch[2].toLowerCase() : "";
+
+  const projectSuggestions = useMemo(() => {
+    if (triggerKind !== "#") return [];
+    return projects
+      .filter((p) => p.toLowerCase().includes(triggerQuery))
+      .slice(0, 6);
+  }, [triggerKind, projects, triggerQuery]);
+
+  const labelSuggestions = useMemo(() => {
+    if (triggerKind !== "@") return [];
+    return availableLabels
+      .filter((l) => l.name.toLowerCase().includes(triggerQuery))
+      .slice(0, 6);
+  }, [triggerKind, availableLabels, triggerQuery]);
+
+  function applySuggestion(tokenValue: string, kind: "#" | "@") {
+    if (!triggerMatch) return;
+    const matchIndex = triggerMatch.index + (triggerMatch[0].startsWith(" ") ? 1 : 0);
+    const replacement = `${kind}${tokenValue.includes(" ") ? `"${tokenValue}"` : tokenValue} `;
+    const next = title.slice(0, matchIndex) + replacement;
+    setTitle(next);
+    if (kind === "#") {
+      setManualProject(tokenValue);
+    }
+    requestAnimationFrame(() => titleRef.current?.focus());
+  }
+
+  function removeToken(token: QuickToken) {
+    const next = (
+      title.slice(0, token.start) + title.slice(token.end)
+    ).replace(/\s{2,}/g, " ").trim();
+    setTitle(next);
+    if (token.kind === "due") setManualDue(null);
+    if (token.kind === "priority") setManualPriority("");
+    if (token.kind === "project") setManualProject("");
+    requestAnimationFrame(() => titleRef.current?.focus());
+  }
+
+  function setField(kind: QuickToken["kind"], expression: string) {
+    const matches = parsed.tokens.filter((t) => t.kind === kind && !t.ignored);
+    let value = title;
+    for (const token of [...matches].reverse()) {
+      value = value.slice(0, token.start) + value.slice(token.end);
+    }
+    const clean = value.replace(/\s{2,}/g, " ").trimEnd();
+    setTitle(clean ? (expression ? `${clean} ${expression}` : clean) : expression);
   }
 
   function buildTaskInput(): { task: TaskInput; error?: string } {
-    if (mode === "edit") {
-      const cleanTitle = title.replace(/[\r\n]+/g, " ").trim();
-      if (!cleanTitle) {
-        return {
-          task: {
-            description: "",
-            project,
-            priority,
-            tags,
-            due: "",
-            note: note.trim(),
-          },
-          error: "Enter a task name.",
-        };
-      }
-      const existingIso = initialValue?.due ? isoDate(initialValue.due) : "";
-      const existingDay = existingIso
-        ? format(new Date(existingIso), "yyyy-MM-dd")
-        : "";
-      const resolvedDue = dueDay
-        ? existingDay === dueDay && existingIso
-          ? taskDate(new Date(existingIso))
-          : taskDate(new Date(`${dueDay}T00:00:00`))
-        : "";
-      return {
-        task: {
-          description: cleanTitle,
-          project,
-          priority,
-          tags,
-          due: resolvedDue,
-          recur: initialValue?.recur,
-          until: initialValue?.until,
-          note: note.trim(),
-        },
-      };
-    }
-
-    const parsed = parseQuickTask(title);
     if (parsed.errors.length) {
       return { task: parsed.task, error: parsed.errors[0] };
     }
-    const resolvedDue = dueDay
-      ? taskDate(new Date(`${dueDay}T00:00:00`))
-      : parsed.task.due || "";
-    const mergedTags = [
-      ...new Set([...tags, ...(parsed.task.tags || [])]),
-    ];
+
+    const cleanTitle = (
+      parsed.tokens.length > 0 ? parsed.task.description : title
+    )
+      .replace(/[\r\n]+/g, " ")
+      .trim();
+
+    if (!cleanTitle) {
+      return {
+        task: {
+          description: "",
+          project: activeProject,
+          priority: activePriority,
+          tags: activeTags,
+          due: "",
+          note: note.trim(),
+        },
+        error: "Enter a task name.",
+      };
+    }
+
+    let resolvedDue = "";
+    if (dueToken) {
+      resolvedDue = dueToken.value;
+    } else if (activeDueDay) {
+      const existingIso = initialValue?.due ? isoDate(initialValue.due) : "";
+      const existingDay = existingIso ? toDayString(existingIso) : "";
+      if (existingDay === activeDueDay && existingIso) {
+        resolvedDue = taskDate(new Date(existingIso));
+      } else {
+        resolvedDue = taskDate(new Date(`${activeDueDay}T00:00:00`));
+      }
+    }
+
     return {
       task: {
-        ...parsed.task,
-        description: parsed.task.description.trim(),
-        project: parsed.task.project || project || defaultProject,
-        priority: parsed.task.priority || priority,
+        description: cleanTitle,
+        project: activeProject,
+        priority: activePriority,
+        tags: activeTags,
         due: resolvedDue,
-        tags: mergedTags,
+        recur: initialValue?.recur,
+        until: initialValue?.until,
         note: note.trim() || undefined,
       },
     };
@@ -235,16 +308,10 @@ export function TodoistTaskComposer({
   function resetOrClose() {
     setTitle("");
     setNote("");
-    setPriority("");
-    setTags([]);
-    setDueDay(
-      defaultDue && /^\d{4}-\d{2}-\d{2}$/.test(defaultDue)
-        ? defaultDue
-        : defaultDue
-          ? format(new Date(isoDate(defaultDue)), "yyyy-MM-dd")
-          : "",
-    );
-    setProject(defaultProject);
+    setManualDue(undefined);
+    setManualPriority(undefined);
+    setManualProject(undefined);
+    setManualTags(undefined);
     setError("");
     setEditing(false);
     onCancel?.();
@@ -278,6 +345,10 @@ export function TodoistTaskComposer({
         } else {
           setTitle("");
           setNote("");
+          setManualDue(undefined);
+          setManualPriority(undefined);
+          setManualProject(undefined);
+          setManualTags(undefined);
           setError("");
           requestAnimationFrame(() => titleRef.current?.focus());
         }
@@ -287,8 +358,45 @@ export function TodoistTaskComposer({
     }
   }
 
-  const activePriority =
-    PRIORITIES.find((item) => item.value === priority) || PRIORITIES[3];
+  const activePriorityItem =
+    PRIORITIES.find((item) => item.value === activePriority) || PRIORITIES[3];
+
+  if (!editing && mode === "add") {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        disabled={disabled}
+        onClick={() => {
+          if (!onSubmitTask) {
+            onOpenFullEditor?.();
+            return;
+          }
+          setError("");
+          setManualDue(undefined);
+          setManualPriority(undefined);
+          setManualProject(undefined);
+          setManualTags(undefined);
+          setEditing(true);
+          requestAnimationFrame(() => titleRef.current?.focus());
+        }}
+        className={
+          compact
+            ? "task-add-button group/add"
+            : "mt-1 flex h-9 w-full items-center justify-start gap-2 rounded-lg px-2.5 text-xs font-normal text-muted-foreground transition-colors hover:bg-(--row-hover) hover:text-foreground has-[>svg]:px-2.5"
+        }
+      >
+        <Plus
+          className={cn(
+            compact ? "size-[18px]" : "size-4",
+            "text-primary/85 transition-transform duration-150 group-hover/add:scale-110",
+          )}
+          strokeWidth={1.75}
+        />
+        Add task
+      </Button>
+    );
+  }
 
   return (
     <form
@@ -296,8 +404,8 @@ export function TodoistTaskComposer({
       data-todoist-composer={mode}
       className={cn(compact ? "my-1.5" : "mt-1.5")}
     >
-      <div className="rounded-xl border border-ring/40 bg-card p-3 shadow-[0_2px_10px_rgb(0_0_0/0.04)] transition-colors">
-        <div className="space-y-1">
+      <div className="rounded-xl border border-border/80 bg-card p-3 shadow-[0_2px_12px_rgb(0_0_0/0.05)] transition-colors focus-within:border-ring/50">
+        <div className="relative space-y-1">
           <input
             ref={titleRef}
             type="text"
@@ -327,8 +435,37 @@ export function TodoistTaskComposer({
                 onOpenFullEditor(built.task);
               }
             }}
-            className="w-full bg-transparent text-sm leading-5 font-medium text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground/70"
+            className="w-full bg-transparent text-sm leading-5 font-medium text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground/60"
           />
+
+          {/* Autocomplete suggestion popup for # and @ */}
+          {(projectSuggestions.length > 0 || labelSuggestions.length > 0) && (
+            <div className="absolute top-7 left-0 z-30 min-w-44 rounded-lg border border-border/70 bg-popover p-1 shadow-md">
+              {projectSuggestions.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => applySuggestion(p, "#")}
+                  className="flex h-7 w-full items-center gap-2 rounded px-2 text-left text-xs text-foreground hover:bg-accent"
+                >
+                  <Hash className="size-3 text-muted-foreground" />
+                  <span className="truncate">{p}</span>
+                </button>
+              ))}
+              {labelSuggestions.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => applySuggestion(l.name, "@")}
+                  className="flex h-7 w-full items-center gap-2 rounded px-2 text-left text-xs text-foreground hover:bg-accent"
+                >
+                  <Tag className="size-3 text-muted-foreground" />
+                  <span className="truncate">{l.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <input
             type="text"
             value={note}
@@ -357,19 +494,64 @@ export function TodoistTaskComposer({
                 event.currentTarget.form?.requestSubmit();
               }
             }}
-            className="w-full bg-transparent text-xs leading-5 text-muted-foreground outline-none placeholder:text-muted-foreground/60"
+            className="w-full bg-transparent text-xs leading-5 text-muted-foreground outline-none placeholder:text-muted-foreground/50"
           />
         </div>
 
+        {/* Real-time recognized tokens badges */}
+        {parsed.tokens.length > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/40 pt-2 text-[11px]">
+            <span className="text-muted-foreground/80">Recognized:</span>
+            {parsed.tokens.map((token) => (
+              <span
+                key={token.id}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-medium transition-colors",
+                  token.kind === "due" &&
+                    "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                  token.kind === "priority" &&
+                    "bg-red-500/10 text-red-600 dark:text-red-400",
+                  token.kind === "project" &&
+                    "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+                  token.kind === "tag" &&
+                    "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+                )}
+              >
+                {token.kind === "due" && <CalendarDays className="size-3" />}
+                {token.kind === "priority" && <Flag className="size-3" />}
+                {token.kind === "project" && <Hash className="size-3" />}
+                {token.kind === "tag" && <Tag className="size-3" />}
+                <span>{token.label}</span>
+                <button
+                  type="button"
+                  onClick={() => removeToken(token)}
+                  title={`Remove ${token.label}`}
+                  className="hover:text-destructive"
+                >
+                  <X className="size-2.5" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Action Toolbar */}
         <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
             <DatePicker
               id={`composer-due-${mode}`}
               compact
-              value={dueDay}
+              value={activeDueDay}
               disabled={disabled || submitting}
               returnFocus={() => titleRef.current?.focus()}
-              onChange={setDueDay}
+              onChange={(nextDay) => {
+                setManualDue(nextDay || null);
+                if (!nextDay && dueToken) {
+                  removeToken(dueToken);
+                } else if (nextDay) {
+                  setField("due", nextDay);
+                }
+              }}
             />
 
             <Popover open={priorityOpen} onOpenChange={setPriorityOpen}>
@@ -381,13 +563,16 @@ export function TodoistTaskComposer({
                   aria-label="Priority"
                   className={cn(
                     "h-8 gap-1.5 rounded-[5px] px-2 py-0 text-[13px] font-normal shadow-none has-[>svg]:px-2 md:h-7",
-                    activePriority.chipClass,
+                    activePriorityItem.chipClass,
                   )}
                 >
                   <Flag
-                    className={cn("size-3.5 shrink-0", activePriority.iconClass)}
+                    className={cn(
+                      "size-3.5 shrink-0",
+                      activePriorityItem.iconClass,
+                    )}
                   />
-                  <span>{activePriority.short}</span>
+                  <span>{activePriorityItem.short}</span>
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -405,15 +590,19 @@ export function TodoistTaskComposer({
                     variant="navigation"
                     className="h-8 justify-between px-2 text-xs font-normal"
                     onClick={() => {
-                      setPriority(item.value);
+                      setManualPriority(item.value);
                       setPriorityOpen(false);
+                      const pWord = item.value
+                        ? { H: "p1", M: "p2", L: "p3" }[item.value] || ""
+                        : "";
+                      setField("priority", pWord);
                     }}
                   >
                     <span className="flex items-center gap-2">
                       <Flag className={cn("size-3.5", item.iconClass)} />
                       <span>{item.label}</span>
                     </span>
-                    {priority === item.value && (
+                    {activePriority === item.value && (
                       <Check className="size-3.5 text-foreground" />
                     )}
                   </Button>
@@ -425,11 +614,13 @@ export function TodoistTaskComposer({
               <LabelsPicker
                 id={`composer-tags-${mode}`}
                 compact
-                value={tags}
+                value={activeTags}
                 choices={availableLabels}
                 disabled={disabled || submitting}
                 returnFocus={() => titleRef.current?.focus()}
-                onChange={setTags}
+                onChange={(nextTags) => {
+                  setManualTags(nextTags);
+                }}
               />
             )}
 
@@ -437,11 +628,14 @@ export function TodoistTaskComposer({
               <ProjectPicker
                 id={`composer-project-${mode}`}
                 compact
-                value={project}
+                value={activeProject}
                 projects={projects}
                 disabled={disabled || submitting}
                 returnFocus={() => titleRef.current?.focus()}
-                onChange={setProject}
+                onChange={(nextProject) => {
+                  setManualProject(nextProject);
+                  setField("project", nextProject ? `#${nextProject}` : "");
+                }}
               />
             )}
 
