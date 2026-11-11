@@ -47,6 +47,27 @@ const recovery = createRecoveryService(
     ),
 );
 const taskAction = createTaskActions(service, organization, recovery);
+const handleAddTask = async (input: Record<string, unknown>) => {
+  const output = await service.addTask(taskInput(input));
+  const createdUuid = output.match(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
+  )?.[0];
+  if (
+    typeof input.parentUuid === "string" &&
+    input.parentUuid &&
+    createdUuid
+  ) {
+    const org = await organization.load();
+    await organization.change({
+      revision: org.revision,
+      kind: "subtask",
+      action: "link",
+      childUuid: createdUuid,
+      parentUuid: input.parentUuid,
+    });
+  }
+  return { ok: true as const, uuid: createdUuid };
+};
 const gate = createWorkspaceGate();
 const backupRestore = createBackupRestore(
   service,
@@ -230,8 +251,11 @@ const server = createServer(async (req, res) => {
             send(200, await organization.change(input));
             return;
           }
-          if (route === "api/tasks") await service.addTask(taskInput(input));
-          else if (route === "api/action") {
+          if (route === "api/tasks") {
+            send(200, await handleAddTask(input));
+            return;
+          }
+          if (route === "api/action") {
             await taskAction(input);
           } else {
             send(404, {});
@@ -298,7 +322,7 @@ if (process.env.WORKSPACE_SOCKET) {
       ...organization,
       enter: gate.enter,
       action: taskAction,
-      addTask: (input) => service.addTask(taskInput(input)),
+      addTask: (input) => handleAddTask(input as Record<string, unknown>),
       deleted: recovery.list,
       tasks: async (filter) => ({
         tasks:

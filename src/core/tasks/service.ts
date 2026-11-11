@@ -430,7 +430,7 @@ export function createTaskService(
       const note = input.note?.trim() ? noteText(input.note) : "";
       return serializeWrite(connection, async () => {
         const output = await run(
-          [...args, ...(note ? ["rc.verbose=new-uuid"] : [])],
+          [...args, "rc.verbose=new-uuid"],
           true,
         );
         try {

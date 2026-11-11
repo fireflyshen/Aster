@@ -1,5 +1,6 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -13,8 +14,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { recurrenceLabel } from "@core/tasks/recurrence";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
-import { Trash2 } from "lucide-react";
-import type { FormEvent } from "react";
+import { cn } from "cn";
+import { ArrowUpRight, Trash2 } from "lucide-react";
+import { useState, type FormEvent } from "react";
 import { DatePicker } from "./date-picker";
 import { LabelsPicker } from "./labels-picker";
 import { ProjectPicker } from "./project-picker";
@@ -30,6 +32,11 @@ type TaskFormProps = {
   editing?: Task;
   busy: boolean;
   needsCheck: boolean;
+  subtasks?: Task[];
+  onAddSubtask?: (input: TaskInput) => Promise<boolean>;
+  onToggleSubtask?: (subtask: Task, completed: boolean) => void;
+  onDeleteSubtask?: (subtaskUuid: string) => void;
+  onUnlinkSubtask?: (subtaskUuid: string) => void;
   onDraftChange: (draft: TaskInput) => void;
   onDueChange: (due: string) => void;
   onTagsChange: (tags: string) => void;
@@ -51,6 +58,11 @@ export function TaskForm({
   editing,
   busy,
   needsCheck,
+  subtasks = [],
+  onAddSubtask,
+  onToggleSubtask,
+  onDeleteSubtask,
+  onUnlinkSubtask,
   onDraftChange,
   onDueChange,
   onTagsChange,
@@ -61,6 +73,27 @@ export function TaskForm({
   onRemoveNote,
   onSubmit,
 }: TaskFormProps) {
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [addingSubtask, setAddingSubtask] = useState(false);
+
+  async function handleCreateSubtask(e?: FormEvent) {
+    if (e) e.preventDefault();
+    const trimmed = newSubtaskTitle.trim();
+    if (!trimmed || !onAddSubtask) return;
+    setAddingSubtask(true);
+    try {
+      const ok = await onAddSubtask({
+        description: trimmed,
+        project: draft.project,
+        tags: [],
+      });
+      if (ok) {
+        setNewSubtaskTitle("");
+      }
+    } finally {
+      setAddingSubtask(false);
+    }
+  }
   return (
     <form
       noValidate
@@ -307,6 +340,126 @@ export function TaskForm({
             className="min-h-16 resize-y md:text-sm"
           />
         </div>
+        {editing && (
+          <div className="mt-4 space-y-2.5 border-t border-border/70 pt-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-normal text-muted-foreground">
+                Subtasks{" "}
+                {subtasks && subtasks.length > 0 && (
+                  <span className="tabular-nums">
+                    ({subtasks.filter((s) => s.status === "completed").length}/
+                    {subtasks.length})
+                  </span>
+                )}
+              </Label>
+            </div>
+            {subtasks && subtasks.length > 0 && (
+              <div className="divide-y rounded-lg border border-border/70 px-3">
+                {subtasks.map((subtask) => (
+                  <div
+                    key={subtask.uuid}
+                    className="group/subtask flex items-center justify-between gap-3 py-2.5"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <Checkbox
+                        id={`form-sub-${subtask.uuid}`}
+                        checked={subtask.status === "completed"}
+                        disabled={busy || needsCheck}
+                        onCheckedChange={() =>
+                          onToggleSubtask?.(
+                            subtask,
+                            subtask.status !== "completed",
+                          )
+                        }
+                        className={cn(
+                          "size-4 rounded-full border-muted-foreground/60 shadow-none cursor-pointer",
+                          subtask.priority === "H" &&
+                            "border-red-500 bg-red-500/10",
+                          subtask.priority === "M" &&
+                            "border-amber-500 bg-amber-500/10",
+                          subtask.priority === "L" &&
+                            "border-blue-500 bg-blue-500/10",
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          "text-sm font-normal truncate",
+                          subtask.status === "completed" &&
+                            "line-through text-muted-foreground/60",
+                        )}
+                      >
+                        {subtask.description}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-80 md:opacity-0 md:group-hover/subtask:opacity-100 transition-opacity">
+                      {onUnlinkSubtask && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="size-7 text-muted-foreground hover:text-foreground"
+                          title="Turn into top-level task"
+                          aria-label="Turn into top-level task"
+                          disabled={busy || needsCheck}
+                          onClick={() => onUnlinkSubtask(subtask.uuid)}
+                        >
+                          <ArrowUpRight className="size-3.5" />
+                        </Button>
+                      )}
+                      {onDeleteSubtask && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="size-7 text-muted-foreground hover:text-destructive"
+                          title="Delete subtask"
+                          aria-label="Delete subtask"
+                          disabled={busy || needsCheck}
+                          onClick={() => onDeleteSubtask(subtask.uuid)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {onAddSubtask && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Add a subtask…"
+                  value={newSubtaskTitle}
+                  disabled={busy || needsCheck || addingSubtask}
+                  onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      void handleCreateSubtask();
+                    }
+                  }}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="h-9 shrink-0 px-3 text-xs"
+                  disabled={
+                    !newSubtaskTitle.trim() ||
+                    busy ||
+                    needsCheck ||
+                    addingSubtask
+                  }
+                  onClick={() => void handleCreateSubtask()}
+                >
+                  {addingSubtask ? <Spinner className="size-3.5" /> : "Add"}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
         {formError && (
           <Alert id="editor-error" variant="destructive" className="mt-4">
             <AlertDescription>

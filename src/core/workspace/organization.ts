@@ -41,6 +41,14 @@ export type SavedProject = {
   outcome?: string;
   nextTask?: string;
 };
+export type SubtaskChange = {
+  revision: number;
+  kind: "subtask";
+} & (
+  | { action: "link"; childUuid: string; parentUuid: string }
+  | { action: "unlink"; childUuid: string }
+);
+
 export type Organization = {
   revision: number;
   filters: SavedFilter[];
@@ -48,6 +56,7 @@ export type Organization = {
   projectCounts?: Record<string, number>;
   projects?: SavedProject[];
   board?: BoardState;
+  subtasks?: Record<string, string>;
   energyState?: EnergyState;
   energy?: EnergySummary;
   timing?: { available: boolean; error?: string };
@@ -56,6 +65,7 @@ export type OrganizationChange =
   | BoardChange
   | ProjectFocusChange
   | EnergyChange
+  | SubtaskChange
   | {
       revision: number;
       kind: "project";

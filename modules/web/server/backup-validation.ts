@@ -246,6 +246,17 @@ export function validateBackup(value: unknown): AsterBackup {
     )
       throw new Error("Invalid energy metadata.");
   }
+  if (org.subtasks !== undefined) {
+    record(org.subtasks);
+    if (Object.keys(org.subtasks).length > 50000)
+      throw new Error("Too many subtasks in backup.");
+    for (const [child, parent] of Object.entries(org.subtasks)) {
+      text(child, 36);
+      requireUuid(child);
+      text(parent, 36);
+      requireUuid(parent);
+    }
+  }
   record(value.recovery);
   if (value.recovery.version !== 1)
     throw new Error("Invalid recovery journal.");

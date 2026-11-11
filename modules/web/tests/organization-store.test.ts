@@ -402,3 +402,77 @@ test("projects can be created empty, renamed with filter references, and removed
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("subtask links persist atomically, reject cycles and self-parenting", async () => {
+  const directory = await mkdtemp(tmpdir() + "/aster-subtask-");
+  try {
+    const store = createOrganizationStore(directory + "/organization.json");
+    const parentUuid = "11111111-1111-4111-8111-111111111111";
+    const childUuid = "22222222-2222-4222-8222-222222222222";
+    const grandchildUuid = "33333333-3333-4333-8333-333333333333";
+
+    // Link child to parent
+    const linked = await store.change({
+      revision: 0,
+      kind: "subtask",
+      action: "link",
+      childUuid,
+      parentUuid,
+    });
+    assert.equal(linked.revision, 1);
+    assert.equal(linked.subtasks?.[childUuid], parentUuid);
+
+    // Read from disk to verify persistence
+    const reloaded = await createOrganizationStore(directory + "/organization.json").read();
+    assert.equal(reloaded.subtasks?.[childUuid], parentUuid);
+
+    // Link grandchild to child
+    const linked2 = await store.change({
+      revision: 1,
+      kind: "subtask",
+      action: "link",
+      childUuid: grandchildUuid,
+      parentUuid: childUuid,
+    });
+    assert.equal(linked2.revision, 2);
+    assert.equal(linked2.subtasks?.[grandchildUuid], childUuid);
+
+    // Reject self-parenting
+    await assert.rejects(
+      store.change({
+        revision: 2,
+        kind: "subtask",
+        action: "link",
+        childUuid: parentUuid,
+        parentUuid: parentUuid,
+      }),
+      /cannot be a subtask of itself/,
+    );
+
+    // Reject cycle: parent -> child -> grandchild -> parent
+    await assert.rejects(
+      store.change({
+        revision: 2,
+        kind: "subtask",
+        action: "link",
+        childUuid: parentUuid,
+        parentUuid: grandchildUuid,
+      }),
+      /Circular subtask dependency/,
+    );
+
+    // Unlink child
+    const unlinked = await store.change({
+      revision: 2,
+      kind: "subtask",
+      action: "unlink",
+      childUuid,
+    });
+    assert.equal(unlinked.revision, 3);
+    assert.equal(unlinked.subtasks?.[childUuid], undefined);
+    assert.equal(unlinked.subtasks?.[grandchildUuid], childUuid);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+

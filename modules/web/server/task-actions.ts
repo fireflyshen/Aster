@@ -44,9 +44,28 @@ export function createTaskActions(
           throw new Error("Choose a valid waiting date.");
         await service.setTaskWait(input.uuid, input.wait);
         break;
-      case "delete":
+      case "delete": {
         await recovery.delete(input.uuid);
+        const org = await organization.load();
+        if (org.subtasks) {
+          const toDelete = Object.entries(org.subtasks).filter(
+            ([child, parent]) => child === input.uuid || parent === input.uuid,
+          );
+          if (toDelete.length > 0) {
+            let rev = org.revision;
+            for (const [child] of toDelete) {
+              const updated = await organization.change({
+                revision: rev,
+                kind: "subtask",
+                action: "unlink",
+                childUuid: child,
+              });
+              rev = updated.revision;
+            }
+          }
+        }
         break;
+      }
       case "restore":
         await recovery.restore(input.uuid);
         break;

@@ -19,15 +19,20 @@ import { addDays, format, nextMonday, nextSaturday } from "date-fns";
 import {
   Armchair,
   ArrowRight,
+  ArrowUpRight,
   CalendarDays,
   Check,
+  ChevronDown,
+  ChevronRight,
   Clock3,
+  CornerDownRight,
   Ellipsis,
   Flag,
   ListPlus,
   MessageSquare,
   Pencil,
   Play,
+  Plus,
   Repeat2,
   Square,
   Sun,
@@ -121,6 +126,13 @@ export function TaskRow({
   showProject = true,
   transition,
   variant = "list",
+  subtasks = [],
+  isSubtask = false,
+  onAddSubtask,
+  onUnlinkSubtask,
+  onToggleSubtask,
+  onEditSubtask,
+  renderSubtask,
 }: {
   task: Task;
   completed: boolean;
@@ -141,6 +153,13 @@ export function TaskRow({
   showProject?: boolean;
   variant?: "list" | "card";
   transition?: { checked: boolean; phase: "checking" | "leaving" };
+  subtasks?: Task[];
+  isSubtask?: boolean;
+  onAddSubtask?: (input: TaskInput) => Promise<boolean>;
+  onUnlinkSubtask?: () => void;
+  onToggleSubtask?: (subtask: Task, completed: boolean) => void;
+  onEditSubtask?: (subtask: Task) => void;
+  renderSubtask?: (subtask: Task) => ReactNode;
 }) {
   const checked = transition?.checked ?? completed;
   const started = !!task.start && !checked;
@@ -165,12 +184,19 @@ export function TaskRow({
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
   const [priorityChipOpen, setPriorityChipOpen] = useState(false);
   const [drawerPinned, setDrawerPinned] = useState(false);
+  const [subtasksExpanded, setSubtasksExpanded] = useState(true);
+  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const rowRef = useRef<HTMLElement>(null);
 
+  const totalSubtasks = subtasks.length;
+  const completedSubtasks = subtasks.filter(
+    (s) => s.status === "completed",
+  ).length;
+
   const hasMoreMenu = Boolean(
-    !completed && (onDueChange || onPriorityChange || onSaveInline)
+    !completed && (onDueChange || onPriorityChange || onSaveInline || onAddSubtask)
       ? true
-      : onDelete,
+      : isSubtask || onDelete,
   );
   const hasRightActions = Boolean(
     (!completed && (onSaveInline || onToggleStart || onDueChange || onPriorityChange)) ||
@@ -186,7 +212,8 @@ export function TaskRow({
     task.priority ||
     task.wait ||
     started ||
-    (trackedSeconds ?? 0) > 0
+    (trackedSeconds ?? 0) > 0 ||
+    totalSubtasks > 0
   );
 
   useEffect(() => {
@@ -383,14 +410,36 @@ export function TaskRow({
                 : "grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[1.75rem_minmax(0,1fr)]",
             )}
           >
-            <Label
-              htmlFor={`complete-${task.uuid}`}
-              className={cn(
-                "task-check-target group/check relative flex size-8 shrink-0 items-center justify-start self-start pt-2.5 md:size-7 md:pt-1.5",
-                disabled ? "cursor-default" : "cursor-pointer",
+            <div className="relative flex items-center justify-start self-start pt-2.5 md:pt-1.5">
+              {variant === "list" && totalSubtasks > 0 && (
+                <button
+                  type="button"
+                  data-no-drag
+                  tabIndex={-1}
+                  aria-label={subtasksExpanded ? "Collapse subtasks" : "Expand subtasks"}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSubtasksExpanded(!subtasksExpanded);
+                  }}
+                  className="absolute -left-4 md:-left-4.5 size-4 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-all cursor-pointer rounded-xs"
+                >
+                  <ChevronRight
+                    className={cn(
+                      "size-3.5 transition-transform duration-150",
+                      subtasksExpanded && "rotate-90",
+                    )}
+                  />
+                </button>
               )}
-            >
-              <div className="relative flex size-[18px] items-center justify-center">
+              <Label
+                htmlFor={`complete-${task.uuid}`}
+                className={cn(
+                  "task-check-target group/check relative flex size-8 shrink-0 items-center justify-start md:size-7",
+                  disabled ? "cursor-default" : "cursor-pointer",
+                )}
+              >
+                <div className="relative flex size-[18px] items-center justify-center">
                 <Checkbox
                   id={`complete-${task.uuid}`}
                   checked={checked}
@@ -436,6 +485,7 @@ export function TaskRow({
                 )}
               </div>
             </Label>
+          </div>
             <div
               data-task-drag-surface=""
               tabIndex={0}
@@ -497,6 +547,23 @@ export function TaskRow({
                       />
                       <span className="truncate">{task.project}</span>
                     </span>
+                  )}
+                  {totalSubtasks > 0 && (
+                    <button
+                      type="button"
+                      data-no-drag
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSubtasksExpanded(!subtasksExpanded);
+                      }}
+                      title={subtasksExpanded ? "Collapse subtasks" : "Expand subtasks"}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded-sm bg-muted/60 hover:bg-muted transition-colors cursor-pointer"
+                    >
+                      <CornerDownRight className="size-3 text-muted-foreground/80 shrink-0" />
+                      <span className="tabular-nums">
+                        {completedSubtasks}/{totalSubtasks}
+                      </span>
+                    </button>
                   )}
                   {(started || (trackedSeconds ?? 0) > 0) && (
                     <span
@@ -986,6 +1053,35 @@ export function TaskRow({
                         </div>
                       )}
                       <div className="pt-1">
+                        {!completed && onAddSubtask && (
+                          <Button
+                            type="button"
+                            variant="navigation"
+                            className="h-8 text-xs font-normal"
+                            onClick={() => {
+                              setMoreOpen(false);
+                              setSubtasksExpanded(true);
+                              setIsAddingSubtask(true);
+                            }}
+                          >
+                            <CornerDownRight className="size-3.5" />
+                            Add subtask
+                          </Button>
+                        )}
+                        {isSubtask && onUnlinkSubtask && (
+                          <Button
+                            type="button"
+                            variant="navigation"
+                            className="h-8 text-xs font-normal"
+                            onClick={() => {
+                              setMoreOpen(false);
+                              onUnlinkSubtask();
+                            }}
+                          >
+                            <ArrowUpRight className="size-3.5" />
+                            Turn into top-level task
+                          </Button>
+                        )}
                         {!completed && onSaveInline && (
                           <Button
                             type="button"
@@ -1035,6 +1131,157 @@ export function TaskRow({
             )}
           </div>
         </div>
+        {variant === "list" && (totalSubtasks > 0 || isAddingSubtask) && subtasksExpanded && (
+          <div className="ml-5 pl-3.5 border-l border-border/50 mt-0.5 mb-1 flex flex-col space-y-0.5">
+            {subtasks.map((child) => (
+              <div key={child.uuid} className="relative">
+                {renderSubtask ? (
+                  renderSubtask(child)
+                ) : null}
+              </div>
+            ))}
+            {onAddSubtask && !completed && (
+              <div className="pt-1">
+                {isAddingSubtask ? (
+                  <TodoistTaskComposer
+                    mode="add"
+                    compact
+                    disabled={disabled}
+                    ariaLabel={`Add subtask to ${task.description}`}
+                    placeholder="Subtask name (try @label, tomorrow, p1)"
+                    defaultProject={task.project}
+                    projects={projects}
+                    availableLabels={availableLabels}
+                    onSubmitTask={async (subtaskInput) => {
+                      const ok = await onAddSubtask({
+                        ...subtaskInput,
+                        project: subtaskInput.project || task.project,
+                      });
+                      return ok;
+                    }}
+                    onCancel={() => setIsAddingSubtask(false)}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingSubtask(true)}
+                    className="flex items-center gap-1.5 py-1 px-2 text-xs font-normal text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors cursor-pointer w-full text-left"
+                  >
+                    <Plus className="size-3.5" />
+                    <span>Add subtask</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {variant === "card" && (totalSubtasks > 0 || isAddingSubtask) && (
+          <div className="mt-2 pt-2 border-t border-border/40 w-full" data-no-drag>
+            {totalSubtasks > 0 && (
+              <button
+                type="button"
+                onClick={() => setSubtasksExpanded(!subtasksExpanded)}
+                className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground py-0.5 group/sub-toggle cursor-pointer"
+              >
+                <span className="inline-flex items-center gap-1.5 font-medium text-[11px]">
+                  <CornerDownRight className="size-3 text-muted-foreground" />
+                  <span>Subtasks</span>
+                  <span className="text-[10px] tabular-nums px-1.5 py-0.2 rounded-full bg-muted font-normal">
+                    {completedSubtasks}/{totalSubtasks}
+                  </span>
+                </span>
+                <ChevronDown
+                  className={cn(
+                    "size-3.5 text-muted-foreground transition-transform duration-150",
+                    !subtasksExpanded && "-rotate-90",
+                  )}
+                />
+              </button>
+            )}
+            {(subtasksExpanded || totalSubtasks === 0) && (
+              <div className="mt-1 flex flex-col divide-y divide-border/20">
+                {subtasks.map((child) => (
+                  <div
+                    key={child.uuid}
+                    className="py-1 flex items-center justify-between gap-2 group/card-sub"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Checkbox
+                        id={`subtask-${child.uuid}`}
+                        checked={child.status === "completed"}
+                        disabled={disabled}
+                        onCheckedChange={() => {
+                          onToggleSubtask?.(child, child.status !== "completed");
+                        }}
+                        className={cn(
+                          "size-3.5 rounded-full border-muted-foreground/60 shadow-none cursor-pointer",
+                          child.priority === "H" && "border-red-500 bg-red-500/10",
+                          child.priority === "M" && "border-amber-500 bg-amber-500/10",
+                          child.priority === "L" && "border-blue-500 bg-blue-500/10",
+                        )}
+                      />
+                      <span
+                        role="button"
+                        tabIndex={-1}
+                        onClick={() => onEditSubtask?.(child)}
+                        className={cn(
+                          "text-xs truncate font-normal leading-tight cursor-pointer hover:text-foreground",
+                          child.status === "completed" &&
+                            "line-through text-muted-foreground/60",
+                        )}
+                      >
+                        {child.description}
+                      </span>
+                    </div>
+                    {child.priority && (
+                      <span
+                        className={cn(
+                          "text-[10px] font-semibold shrink-0",
+                          child.priority === "H" && "text-red-600 dark:text-red-400",
+                          child.priority === "M" && "text-amber-600 dark:text-amber-400",
+                          child.priority === "L" && "text-blue-600 dark:text-blue-400",
+                        )}
+                      >
+                        P{child.priority === "H" ? 1 : child.priority === "M" ? 2 : 3}
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {onAddSubtask && !completed && (
+                  <div className="pt-1">
+                    {isAddingSubtask ? (
+                      <TodoistTaskComposer
+                        mode="add"
+                        compact
+                        disabled={disabled}
+                        placeholder="Subtask name"
+                        defaultProject={task.project}
+                        projects={projects}
+                        availableLabels={availableLabels}
+                        onSubmitTask={async (subtaskInput) => {
+                          return onAddSubtask({
+                            ...subtaskInput,
+                            project: subtaskInput.project || task.project,
+                          });
+                        }}
+                        onCancel={() => setIsAddingSubtask(false)}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingSubtask(true)}
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground py-1 px-1.5 rounded hover:bg-muted/50 mt-0.5 cursor-pointer"
+                      >
+                        <Plus className="size-3" />
+                        <span>Add subtask</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </article>
   );

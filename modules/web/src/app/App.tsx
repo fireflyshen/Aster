@@ -105,6 +105,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -904,6 +905,61 @@ export default function App() {
         .includes(query.trim().toLocaleLowerCase())
     );
   });
+
+  const subtasksMap = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    const taskByUuid = new Map(tasks.map((t) => [t.uuid, t]));
+    const links = organization.subtasks || {};
+    for (const [childUuid, parentUuid] of Object.entries(links)) {
+      const child = taskByUuid.get(childUuid);
+      const parent = taskByUuid.get(parentUuid);
+      if (child && parent) {
+        if (!map.has(parentUuid)) map.set(parentUuid, []);
+        map.get(parentUuid)!.push(child);
+      }
+    }
+    return map;
+  }, [tasks, organization.subtasks]);
+
+  const isSubtask = useCallback(
+    (uuid: string) => {
+      const parentUuid = organization.subtasks?.[uuid];
+      if (!parentUuid) return false;
+      return tasks.some((t) => t.uuid === parentUuid);
+    },
+    [tasks, organization.subtasks],
+  );
+
+  async function createSubtask(parentUuid: string, input: TaskInput) {
+    if (writeLock.current || needsCheck) return false;
+    const prepared = withViewDefaults(input);
+    const saved = await mutate("tasks", {
+      ...prepared,
+      parentUuid,
+    });
+    return Boolean(saved);
+  }
+
+  async function unlinkSubtask(childUuid: string) {
+    return changeOrganization({
+      revision: organization.revision,
+      kind: "subtask",
+      action: "unlink",
+      childUuid,
+    });
+  }
+
+  const topLevelVisible = useMemo(() => {
+    return visible.filter(
+      (task) =>
+        !isSubtask(task.uuid) ||
+        (query.trim() &&
+          !visible.some(
+            (t) => t.uuid === organization.subtasks?.[task.uuid],
+          )),
+    );
+  }, [visible, isSubtask, query, organization.subtasks]);
+
   const connectionLabel = loading
     ? "RN · Connecting"
     : needsCheck
@@ -1013,6 +1069,13 @@ export default function App() {
       transition={completion?.uuid === task.uuid ? completion : undefined}
       trackedSeconds={taskTrackedSeconds(task)}
       timingUnavailable={organization.timing?.available === false}
+      subtasks={subtasksMap.get(task.uuid) || []}
+      isSubtask={isSubtask(task.uuid)}
+      onAddSubtask={(subtaskInput) => createSubtask(task.uuid, subtaskInput)}
+      onUnlinkSubtask={() => unlinkSubtask(task.uuid)}
+      onToggleSubtask={(child, completed) => void toggleTask(child, completed)}
+      onEditSubtask={(child) => openEditor(child)}
+      renderSubtask={(child) => renderTask(child)}
       onToggleStart={
         task.status !== "completed"
           ? () => void toggleStartTask(task)
@@ -2182,7 +2245,7 @@ export default function App() {
                       onScrollPositionChange={(position) => {
                         boardScroll.current = position;
                       }}
-                      tasks={visible}
+                      tasks={topLevelVisible}
                       board={organization.board || defaultBoard()}
                       revision={organization.revision}
                       saving={organizationSaving}
@@ -2247,7 +2310,7 @@ export default function App() {
                       onScrollPositionChange={(position) => {
                         boardScroll.current = position;
                       }}
-                      tasks={visible}
+                      tasks={topLevelVisible}
                       board={organization.board || defaultBoard()}
                       revision={organization.revision}
                       saving={organizationSaving}
@@ -2726,6 +2789,19 @@ export default function App() {
             editing={editing}
             busy={busy}
             needsCheck={needsCheck}
+            subtasks={editing ? subtasksMap.get(editing.uuid) || [] : []}
+            onAddSubtask={
+              editing
+                ? (input) => createSubtask(editing.uuid, input)
+                : undefined
+            }
+            onToggleSubtask={(child, completed) =>
+              void toggleTask(child, completed)
+            }
+            onDeleteSubtask={(childUuid) =>
+              void mutate("action", { uuid: childUuid, action: "delete" })
+            }
+            onUnlinkSubtask={(childUuid) => void unlinkSubtask(childUuid)}
             onDraftChange={setDraft}
             onDueChange={setDue}
             onTagsChange={setTags}

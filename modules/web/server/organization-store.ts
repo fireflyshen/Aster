@@ -70,7 +70,18 @@ export function createOrganizationStore(path: string) {
                 typeof item.uuid !== "string" ||
                 typeof item.columnId !== "string",
             ) ||
-            data.board.order.some((uuid: unknown) => typeof uuid !== "string")))
+            data.board.order.some((uuid: unknown) => typeof uuid !== "string"))) ||
+        (data.subtasks !== undefined &&
+          (!data.subtasks ||
+            typeof data.subtasks !== "object" ||
+            Array.isArray(data.subtasks) ||
+            Object.entries(data.subtasks).some(
+              ([child, parent]) =>
+                typeof child !== "string" ||
+                typeof parent !== "string" ||
+                !child ||
+                !parent,
+            )))
       )
         throw new Error(
           "The filters and labels file is invalid. Check the data file.",
@@ -149,6 +160,38 @@ export function createOrganizationStore(path: string) {
           if (!boardContext) throw new Error("Board changes are unavailable.");
           const board = changeBoardState(data.board, input, boardContext.tasks);
           data.board = board;
+          await persist(data);
+          return data;
+        }
+        if (input.kind === "subtask") {
+          data.subtasks = data.subtasks ? { ...data.subtasks } : {};
+          if (input.action === "link") {
+            if (
+              typeof input.childUuid !== "string" ||
+              typeof input.parentUuid !== "string" ||
+              !input.childUuid ||
+              !input.parentUuid
+            ) {
+              throw new Error("Invalid subtask link parameters.");
+            }
+            if (input.childUuid === input.parentUuid) {
+              throw new Error("A task cannot be a subtask of itself.");
+            }
+            // Cycle detection
+            let cur: string | undefined = input.parentUuid;
+            while (cur) {
+              if (cur === input.childUuid) {
+                throw new Error("Circular subtask dependency is not allowed.");
+              }
+              cur = data.subtasks[cur];
+            }
+            data.subtasks[input.childUuid] = input.parentUuid;
+          } else if (input.action === "unlink") {
+            if (typeof input.childUuid !== "string" || !input.childUuid) {
+              throw new Error("Invalid subtask unlink parameters.");
+            }
+            delete data.subtasks[input.childUuid];
+          }
           await persist(data);
           return data;
         }
