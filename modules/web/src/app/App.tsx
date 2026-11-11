@@ -1799,7 +1799,7 @@ export default function App() {
             ) : (
               <>
                 {!!currentProject && !activeItem && (
-                  <div className="mb-6 space-y-2.5 rounded-xl border border-border/70 bg-card/60 p-4 shadow-2xs backdrop-blur-xs transition-colors hover:border-border">
+                  <div className="-mt-3 mb-6 space-y-1.5">
                     {/* Finish Line / Target */}
                     {(projectOutcome ||
                       focusProject(currentProject, organization.projects) ||
@@ -1833,12 +1833,12 @@ export default function App() {
                               },
                             });
                           }}
-                          className="space-y-2 rounded-lg border border-amber-500/30 bg-background p-3 shadow-xs"
+                          className="flex items-center gap-2 rounded-lg border border-border/80 bg-background px-2.5 py-1 shadow-2xs focus-within:border-primary/60"
                         >
-                          <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
-                            <Target className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-                            <span>Finish Line (Target)</span>
-                          </div>
+                          <Target
+                            className="size-3.5 shrink-0 text-muted-foreground"
+                            strokeWidth={1.8}
+                          />
                           <input
                             type="text"
                             autoFocus
@@ -1857,37 +1857,41 @@ export default function App() {
                                 setEditingHeaderOutcome(false);
                               }
                             }}
-                            className="w-full rounded-md border border-border/80 bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-amber-500/80"
+                            className="min-w-0 flex-1 bg-transparent text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/60"
                           />
-                          <div className="flex justify-end gap-1.5 pt-1">
+                          <div className="flex shrink-0 items-center gap-1">
                             <Button
                               type="button"
                               variant="ghost"
                               size="xs"
                               onClick={() => setEditingHeaderOutcome(false)}
+                              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
                             >
                               Cancel
                             </Button>
-                            <Button type="submit" size="xs">
+                            <Button type="submit" size="xs" className="h-6 px-2.5 text-xs">
                               Save
                             </Button>
                           </div>
                         </form>
                       ) : (
-                        <div className="group/target flex items-start justify-between gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs transition-colors hover:bg-amber-500/10 dark:bg-amber-500/10 dark:hover:bg-amber-500/15">
-                          <div className="flex min-w-0 items-start gap-2 text-foreground/90">
-                            <Target
-                              className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
-                              strokeWidth={1.8}
-                            />
-                            <div className="min-w-0 flex-1 leading-5">
-                              <span className="font-semibold text-amber-800 dark:text-amber-300">
-                                Target:{" "}
+                        <div className="group/target -ml-2.5 flex items-start gap-1.5 rounded-lg px-2.5 py-0.5 text-sm leading-6 text-foreground/85 transition-colors hover:bg-(--row-hover)">
+                          <Target
+                            className="mt-1 size-3.5 shrink-0 text-muted-foreground"
+                            strokeWidth={1.8}
+                          />
+                          <div
+                            onClick={() => {
+                              setHeaderOutcomeDraft(projectOutcome || "");
+                              setEditingHeaderOutcome(true);
+                            }}
+                            className="min-w-0 flex-1 cursor-pointer transition-colors hover:text-foreground [overflow-wrap:anywhere] whitespace-pre-wrap select-text"
+                          >
+                            {projectOutcome || (
+                              <span className="italic text-muted-foreground/60">
+                                Set finish line
                               </span>
-                              <span className="[overflow-wrap:anywhere] whitespace-pre-wrap">
-                                {projectOutcome || "No finish line set"}
-                              </span>
-                            </div>
+                            )}
                           </div>
                           <Button
                             type="button"
@@ -1900,11 +1904,11 @@ export default function App() {
                               setHeaderOutcomeDraft(projectOutcome || "");
                               setEditingHeaderOutcome(true);
                             }}
-                            className="size-6 shrink-0 opacity-0 transition-opacity group-hover/target:opacity-100 hover:bg-amber-500/20"
+                            className="size-6 shrink-0 opacity-0 transition-opacity group-hover/target:opacity-100 hover:bg-muted"
                             aria-label="Edit finish line"
                             title="Edit finish line"
                           >
-                            <Pencil className="size-3 text-amber-700 dark:text-amber-300" />
+                            <Pencil className="size-3 text-muted-foreground" />
                           </Button>
                         </div>
                       ))}
@@ -1932,19 +1936,11 @@ export default function App() {
                             },
                           });
                         }}
-                        className="space-y-2 rounded-lg border border-ring/40 bg-background p-3 shadow-xs"
+                        className="space-y-1.5 rounded-lg border border-border/80 bg-background p-2.5 shadow-2xs focus-within:border-primary/60"
                       >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-foreground">
-                            Project Description
-                          </span>
-                          <span className="text-[11px] text-muted-foreground">
-                            ⌘ Enter to save · Esc to cancel
-                          </span>
-                        </div>
                         <textarea
                           autoFocus
-                          rows={4}
+                          rows={3}
                           value={headerDescDraft}
                           maxLength={2000}
                           disabled={
@@ -1966,30 +1962,36 @@ export default function App() {
                               event.currentTarget.form?.requestSubmit();
                             }
                           }}
-                          className="w-full resize-y rounded-md border border-border/80 bg-background p-2.5 text-sm leading-relaxed text-foreground outline-none focus:border-ring placeholder:text-muted-foreground"
+                          className="w-full resize-y bg-transparent text-sm leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
                         />
-                        <div className="flex justify-end gap-1.5 pt-1">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => setEditingHeaderDesc(false)}
-                          >
-                            Cancel
-                          </Button>
-                          <Button type="submit" size="xs">
-                            Save
-                          </Button>
+                        <div className="flex items-center justify-between pt-0.5">
+                          <span className="text-[11px] text-muted-foreground/60">
+                            ⌘ Enter to save · Esc to cancel
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => setEditingHeaderDesc(false)}
+                              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit" size="xs" className="h-6 px-2.5 text-xs">
+                              Save
+                            </Button>
+                          </div>
                         </div>
                       </form>
                     ) : (
-                      <div className="group/desc flex items-start justify-between gap-2 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-(--row-hover)">
+                      <div className="group/desc -ml-2.5 flex items-start gap-2 rounded-lg px-2.5 py-0.5 transition-colors hover:bg-(--row-hover)">
                         <div
                           onClick={() => {
                             setHeaderDescDraft(projectDescription || "");
                             setEditingHeaderDesc(true);
                           }}
-                          className="min-w-0 flex-1 cursor-pointer text-sm leading-relaxed text-muted-foreground hover:text-foreground/90 whitespace-pre-wrap break-words select-text"
+                          className="min-w-0 flex-1 cursor-pointer text-sm leading-relaxed text-muted-foreground transition-colors hover:text-foreground/90 [overflow-wrap:anywhere] whitespace-pre-wrap select-text"
                         >
                           {projectDescription || (
                             <span className="italic text-muted-foreground/60">
