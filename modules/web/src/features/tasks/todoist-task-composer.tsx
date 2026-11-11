@@ -466,8 +466,14 @@ export function TodoistTaskComposer({
             </div>
           )}
 
-          <input
-            type="text"
+          <textarea
+            rows={1}
+            ref={(el) => {
+              if (el) {
+                el.style.height = "auto";
+                el.style.height = `${Math.max(26, el.scrollHeight)}px`;
+              }
+            }}
             value={note}
             disabled={disabled || submitting}
             aria-label={
@@ -478,10 +484,15 @@ export function TodoistTaskComposer({
             placeholder={
               mode === "edit"
                 ? initialNotePreview
-                  ? `Note: ${initialNotePreview} (type to add new note…)`
+                  ? `Note: ${initialNotePreview}`
                   : "Add a note or description…"
                 : "Description"
             }
+            onInput={(event) => {
+              const el = event.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${Math.max(26, el.scrollHeight)}px`;
+            }}
             onChange={(event) => setNote(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
@@ -489,12 +500,15 @@ export function TodoistTaskComposer({
                 resetOrClose();
                 return;
               }
-              if (event.key === "Enter" && !event.shiftKey) {
+              if (
+                (event.key === "Enter" && (event.metaKey || event.ctrlKey)) ||
+                (event.key === "Enter" && !event.shiftKey && !note.includes("\n"))
+              ) {
                 event.preventDefault();
                 event.currentTarget.form?.requestSubmit();
               }
             }}
-            className="w-full bg-transparent text-xs leading-5 text-muted-foreground outline-none placeholder:text-muted-foreground/50"
+            className="w-full resize-none bg-transparent text-xs leading-relaxed text-muted-foreground outline-none placeholder:text-muted-foreground/50"
           />
         </div>
 

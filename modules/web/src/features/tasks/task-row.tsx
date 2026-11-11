@@ -331,7 +331,7 @@ export function TaskRow({
             due: task.due ? isoDue(task.due) : "",
             recur: task.recur,
             until: task.until ? taskDate(new Date(task.until)) : undefined,
-            note: "",
+            note: fullNotes || "",
           }}
           projects={projects}
           availableLabels={availableLabels}
@@ -583,15 +583,6 @@ export function TaskRow({
                       {task.recur}
                     </span>
                   )}
-                  {!!task.annotations.length && (
-                    <span
-                      className="inline-flex items-center gap-1 text-[12px] leading-none text-muted-foreground"
-                      aria-label={`${task.annotations.length} notes`}
-                    >
-                      <MessageSquare className="size-3.5 shrink-0" strokeWidth={1.5} />
-                      {task.annotations.length}
-                    </span>
-                  )}
                   {task.priority &&
                     (!checked && onPriorityChange ? (
                       <div
@@ -713,12 +704,7 @@ export function TaskRow({
                     aria-label={`Edit task inline: ${task.description}`}
                     title="Edit inline (E)"
                     onClick={() => setEditingInline(true)}
-                    className={cn(
-                      "size-7 text-muted-foreground transition-opacity hover:text-foreground",
-                      actionsVisible
-                        ? "opacity-100"
-                        : "opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
-                    )}
+                    className="size-7 rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
                   >
                     <Pencil className="size-3.5" strokeWidth={1.6} />
                   </Button>
@@ -743,12 +729,7 @@ export function TaskRow({
                             ? `Due ${dueLabel(task.due)} — click to change`
                             : "Choose due date"
                         }
-                        className={cn(
-                          "size-7 text-muted-foreground transition-opacity hover:text-foreground",
-                          actionsVisible
-                            ? "opacity-100"
-                            : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100 data-[state=open]:opacity-100",
-                        )}
+                        className="size-7 rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
                       >
                         <CalendarDays className="size-3.5" strokeWidth={1.6} />
                       </Button>
@@ -769,12 +750,7 @@ export function TaskRow({
                             ? `Priority ${task.priority === "H" ? "1" : task.priority === "M" ? "2" : "3"}`
                             : "Set priority"
                         }
-                        className={cn(
-                          "size-7 text-muted-foreground transition-opacity hover:text-foreground",
-                          actionsVisible
-                            ? "opacity-100"
-                            : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100 data-[state=open]:opacity-100",
-                        )}
+                        className="size-7 rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
                       >
                         <Flag
                           className={cn(
@@ -831,10 +807,8 @@ export function TaskRow({
                     }
                     onClick={onToggleStart}
                     className={cn(
-                      "size-7 text-muted-foreground transition-opacity hover:text-foreground",
-                      started || actionsVisible
-                        ? "text-foreground opacity-100"
-                        : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
+                      "size-7 rounded-md transition-colors hover:bg-muted/80",
+                      started ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     {started ? (
@@ -854,12 +828,7 @@ export function TaskRow({
                         disabled={disabled}
                         aria-label={`More actions: ${task.description}`}
                         title="More actions"
-                        className={cn(
-                          "size-7 text-muted-foreground transition-opacity hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground",
-                          actionsVisible
-                            ? "opacity-100"
-                            : "opacity-70 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100 data-[state=open]:opacity-100",
-                        )}
+                        className="size-7 rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
                       >
                         <Ellipsis className="size-4" />
                       </Button>
