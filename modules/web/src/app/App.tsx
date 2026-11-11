@@ -591,6 +591,7 @@ export default function App() {
     ];
     const index = checkboxes.findIndex((item) => item === current);
     const neighbor = checkboxes[index + 1] || checkboxes[index - 1];
+    const isSub = isSubtask(task.uuid);
     const saved = await mutate(
       "action",
       { uuid: task.uuid, action: completed ? "reopen" : "complete" },
@@ -600,20 +601,22 @@ export default function App() {
         await new Promise((resolve) =>
           setTimeout(resolve, Math.max(0, 320 - (performance.now() - started))),
         );
-        const staysVisible = fresh.some(
-          (item) =>
-            item.uuid === task.uuid &&
-            (view === "completed"
-              ? item.status === "completed"
-              : item.status !== "completed"),
-        );
-        if (!staysVisible) {
-          setCompletion({
-            uuid: task.uuid,
-            checked: !completed,
-            phase: "leaving",
-          });
-          await new Promise((resolve) => setTimeout(resolve, 210));
+        if (!isSub) {
+          const staysVisible = fresh.some(
+            (item) =>
+              item.uuid === task.uuid &&
+              (view === "completed"
+                ? item.status === "completed"
+                : item.status !== "completed"),
+          );
+          if (!staysVisible) {
+            setCompletion({
+              uuid: task.uuid,
+              checked: !completed,
+              phase: "leaving",
+            });
+            await new Promise((resolve) => setTimeout(resolve, 210));
+          }
         }
       },
     );
@@ -628,7 +631,13 @@ export default function App() {
                   : item,
               )
           : !completed
-            ? prev.filter((item) => item.uuid !== task.uuid)
+            ? isSub
+              ? prev.map((item) =>
+                  item.uuid === task.uuid
+                    ? { ...item, status: "completed" }
+                    : item,
+                )
+              : prev.filter((item) => item.uuid !== task.uuid)
             : prev.map((item) =>
                 item.uuid === task.uuid ? { ...item, status: "pending" } : item,
               ),

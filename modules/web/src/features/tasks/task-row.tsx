@@ -30,6 +30,7 @@ import {
   Flag,
   GripVertical,
   ListPlus,
+  ListTree,
   MessageSquare,
   Pencil,
   Play,
@@ -453,25 +454,31 @@ export function TaskRow({
                   aria-label={`${completed ? "Reopen" : "Complete"}: ${task.description}`}
                   onCheckedChange={onComplete}
                   className={cn(
-                    "task-complete size-[18px] rounded-full border-muted-foreground/60 bg-transparent shadow-none transition-all duration-150 focus-visible:ring-1 disabled:opacity-100 enabled:hover:border-foreground data-[state=checked]:border-muted-foreground data-[state=checked]:bg-muted-foreground",
+                    "task-complete size-[18px] rounded-full shadow-none transition-all duration-150 focus-visible:ring-1 disabled:opacity-100 enabled:hover:border-foreground cursor-pointer",
+                    !checked &&
+                      !task.priority &&
+                      "border-[1.5px] border-muted-foreground/60 bg-transparent enabled:hover:border-foreground",
                     !checked &&
                       task.priority === "H" &&
-                      "border-red-500 bg-red-500/10 enabled:hover:border-red-600 enabled:hover:bg-red-500/20 dark:border-red-400",
+                      "border-[1.5px] border-red-500 bg-red-500/10 enabled:hover:border-red-600 enabled:hover:bg-red-500/20 dark:border-red-400 dark:bg-red-400/10",
                     !checked &&
                       task.priority === "M" &&
-                      "border-amber-500 bg-amber-500/10 enabled:hover:border-amber-600 enabled:hover:bg-amber-500/20 dark:border-amber-400",
+                      "border-[1.5px] border-amber-500 bg-amber-500/10 enabled:hover:border-amber-600 enabled:hover:bg-amber-500/20 dark:border-amber-400 dark:bg-amber-400/10",
                     !checked &&
                       task.priority === "L" &&
-                      "border-blue-500 bg-blue-500/10 enabled:hover:border-blue-600 enabled:hover:bg-blue-500/20 dark:border-blue-400",
+                      "border-[1.5px] border-blue-500 bg-blue-500/10 enabled:hover:border-blue-600 enabled:hover:bg-blue-500/20 dark:border-blue-400 dark:bg-blue-400/10",
                     checked &&
                       task.priority === "H" &&
-                      "data-[state=checked]:border-red-500 data-[state=checked]:bg-red-500 data-[state=checked]:text-white",
+                      "border-red-500 bg-red-500 text-white data-[state=checked]:border-red-500 data-[state=checked]:bg-red-500 dark:border-red-500 dark:bg-red-500 dark:data-[state=checked]:border-red-500 dark:data-[state=checked]:bg-red-500 dark:data-[state=checked]:text-white",
                     checked &&
                       task.priority === "M" &&
-                      "data-[state=checked]:border-amber-500 data-[state=checked]:bg-amber-500 data-[state=checked]:text-white",
+                      "border-amber-500 bg-amber-500 text-white data-[state=checked]:border-amber-500 data-[state=checked]:bg-amber-500 dark:border-amber-500 dark:bg-amber-500 dark:data-[state=checked]:border-amber-500 dark:data-[state=checked]:bg-amber-500 dark:data-[state=checked]:text-white",
                     checked &&
                       task.priority === "L" &&
-                      "data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500 data-[state=checked]:text-white",
+                      "border-blue-500 bg-blue-500 text-white data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500 dark:border-blue-500 dark:bg-blue-500 dark:data-[state=checked]:border-blue-500 dark:data-[state=checked]:bg-blue-500 dark:data-[state=checked]:text-white",
+                    checked &&
+                      !task.priority &&
+                      "border-muted-foreground/70 bg-muted-foreground/70 text-white data-[state=checked]:border-muted-foreground/70 data-[state=checked]:bg-muted-foreground/70 dark:border-muted-foreground/70 dark:bg-muted-foreground/70 dark:data-[state=checked]:border-muted-foreground/70 dark:data-[state=checked]:bg-muted-foreground/70 dark:data-[state=checked]:text-white",
                   )}
                 />
                 {!checked && !disabled && (
@@ -563,9 +570,14 @@ export function TaskRow({
                         setSubtasksExpanded(!subtasksExpanded);
                       }}
                       title={subtasksExpanded ? "Collapse subtasks" : "Expand subtasks"}
-                      className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded-sm bg-muted/60 hover:bg-muted transition-colors cursor-pointer"
+                      className={cn(
+                        "inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer",
+                        completedSubtasks === totalSubtasks
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25"
+                          : "text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted",
+                      )}
                     >
-                      <CornerDownRight className="size-3 text-muted-foreground/80 shrink-0" />
+                      <ListTree className="size-3 shrink-0" strokeWidth={1.8} />
                       <span className="tabular-nums">
                         {completedSubtasks}/{totalSubtasks}
                       </span>

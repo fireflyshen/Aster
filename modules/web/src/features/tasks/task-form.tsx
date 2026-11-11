@@ -388,13 +388,25 @@ export function TaskForm({
                           )
                         }
                         className={cn(
-                          "size-4 rounded-full border-muted-foreground/60 shadow-none cursor-pointer",
-                          subtask.priority === "H" &&
-                            "border-red-500 bg-red-500/10",
-                          subtask.priority === "M" &&
-                            "border-amber-500 bg-amber-500/10",
-                          subtask.priority === "L" &&
-                            "border-blue-500 bg-blue-500/10",
+                          "size-4 rounded-full shadow-none cursor-pointer",
+                          subtask.status !== "completed"
+                            ? cn(
+                                "border border-muted-foreground/60 bg-transparent",
+                                subtask.priority === "H" && "border-red-500 bg-red-500/10",
+                                subtask.priority === "M" && "border-amber-500 bg-amber-500/10",
+                                subtask.priority === "L" && "border-blue-500 bg-blue-500/10",
+                              )
+                            : cn(
+                                "text-white",
+                                subtask.priority === "H" &&
+                                  "border-red-500 bg-red-500 data-[state=checked]:border-red-500 data-[state=checked]:bg-red-500 dark:border-red-500 dark:bg-red-500 dark:data-[state=checked]:border-red-500 dark:data-[state=checked]:bg-red-500 dark:data-[state=checked]:text-white",
+                                subtask.priority === "M" &&
+                                  "border-amber-500 bg-amber-500 data-[state=checked]:border-amber-500 data-[state=checked]:bg-amber-500 dark:border-amber-500 dark:bg-amber-500 dark:data-[state=checked]:border-amber-500 dark:data-[state=checked]:bg-amber-500 dark:data-[state=checked]:text-white",
+                                subtask.priority === "L" &&
+                                  "border-blue-500 bg-blue-500 data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500 dark:border-blue-500 dark:bg-blue-500 dark:data-[state=checked]:border-blue-500 dark:data-[state=checked]:bg-blue-500 dark:data-[state=checked]:text-white",
+                                !subtask.priority &&
+                                  "border-muted-foreground/70 bg-muted-foreground/70 data-[state=checked]:border-muted-foreground/70 data-[state=checked]:bg-muted-foreground/70 dark:border-muted-foreground/70 dark:bg-muted-foreground/70 dark:data-[state=checked]:border-muted-foreground/70 dark:data-[state=checked]:bg-muted-foreground/70 dark:data-[state=checked]:text-white",
+                              ),
                         )}
                       />
                       {onOpenSubtask ? (

@@ -174,22 +174,48 @@ const server = createServer(async (req, res) => {
         }
         if (req.method === "GET" && route === "api/tasks") {
           const parameters = new URL(req.url!, origin).searchParams;
-          const [tasks, projects, workspace] = await Promise.all([
-            parameters.has("filter")
-              ? service.filterTasks(parameters.get("filter")!)
-              : parameters.get("scope") === "board"
-                ? Promise.all([
-                    service.loadTasks(),
-                    service.loadTasks("completed"),
-                  ]).then((groups) => groups.flat())
-                : service.loadTasks(
-                    parameters.get("scope") === "completed"
-                      ? "completed"
-                      : "pending",
-                  ),
-            service.loadProjects(),
+          const [workspace, projects] = await Promise.all([
             organization.snapshot(),
+            service.loadProjects(),
           ]);
+
+          let tasks: Awaited<ReturnType<typeof service.loadTasks>> = [];
+          if (parameters.has("filter")) {
+            tasks = await service.filterTasks(parameters.get("filter")!);
+          } else if (parameters.get("scope") === "completed") {
+            tasks = await service.loadTasks("completed");
+          } else if (parameters.get("scope") === "board") {
+            const [pending, completed] = await Promise.all([
+              service.loadTasks("pending"),
+              service.loadTasks("completed"),
+            ]);
+            tasks = [...pending, ...completed];
+          } else {
+            // scope === "pending" or default:
+            // Load pending tasks PLUS completed tasks that are subtasks of pending tasks,
+            // so subtask checklists maintain their completed items (1/3, 2/3) exactly like Todoist!
+            const [pending, completed] = await Promise.all([
+              service.loadTasks("pending"),
+              service.loadTasks("completed"),
+            ]);
+            const subtaskLinks = workspace.subtasks || {};
+            const pendingUuids = new Set(pending.map((t) => t.uuid));
+            const isAncestorPending = (childUuid: string): boolean => {
+              let current = subtaskLinks[childUuid];
+              const visited = new Set<string>();
+              while (current && !visited.has(current)) {
+                if (pendingUuids.has(current)) return true;
+                visited.add(current);
+                current = subtaskLinks[current];
+              }
+              return false;
+            };
+            const completedSubtasks = completed.filter((t) =>
+              isAncestorPending(t.uuid),
+            );
+            tasks = [...pending, ...completedSubtasks];
+          }
+
           send(200, {
             tasks,
             projects: [
