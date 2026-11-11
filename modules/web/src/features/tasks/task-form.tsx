@@ -15,7 +15,7 @@ import { recurrenceLabel } from "@core/tasks/recurrence";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
-import { ArrowUpRight, Trash2 } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, Trash2 } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { DatePicker } from "./date-picker";
 import { LabelsPicker } from "./labels-picker";
@@ -30,6 +30,7 @@ type TaskFormProps = {
   availableLabels: SavedTag[];
   formError: string;
   editing?: Task;
+  parentTask?: Task;
   busy: boolean;
   needsCheck: boolean;
   subtasks?: Task[];
@@ -37,6 +38,8 @@ type TaskFormProps = {
   onToggleSubtask?: (subtask: Task, completed: boolean) => void;
   onDeleteSubtask?: (subtaskUuid: string) => void;
   onUnlinkSubtask?: (subtaskUuid: string) => void;
+  onNavigateToParent?: () => void;
+  onOpenSubtask?: (subtask: Task) => void;
   onDraftChange: (draft: TaskInput) => void;
   onDueChange: (due: string) => void;
   onTagsChange: (tags: string) => void;
@@ -56,6 +59,7 @@ export function TaskForm({
   availableLabels,
   formError,
   editing,
+  parentTask,
   busy,
   needsCheck,
   subtasks = [],
@@ -63,6 +67,8 @@ export function TaskForm({
   onToggleSubtask,
   onDeleteSubtask,
   onUnlinkSubtask,
+  onNavigateToParent,
+  onOpenSubtask,
   onDraftChange,
   onDueChange,
   onTagsChange,
@@ -115,6 +121,16 @@ export function TaskForm({
         data-editor-body
         className="min-h-0 overflow-y-auto overscroll-contain px-5 pt-4 pb-5"
       >
+        {parentTask && onNavigateToParent && (
+          <button
+            type="button"
+            onClick={onNavigateToParent}
+            className="group/parent mb-3 -mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          >
+            <ChevronLeft className="size-3.5 transition-transform group-hover/parent:-translate-x-0.5" />
+            <span className="truncate max-w-[280px]">Back to: {parentTask.description}</span>
+          </button>
+        )}
         <Label htmlFor="description" className="sr-only">
           Task name
         </Label>
@@ -381,15 +397,30 @@ export function TaskForm({
                             "border-blue-500 bg-blue-500/10",
                         )}
                       />
-                      <span
-                        className={cn(
-                          "text-sm font-normal truncate",
-                          subtask.status === "completed" &&
-                            "line-through text-muted-foreground/60",
-                        )}
-                      >
-                        {subtask.description}
-                      </span>
+                      {onOpenSubtask ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenSubtask(subtask)}
+                          className={cn(
+                            "text-sm font-normal truncate text-left hover:underline cursor-pointer flex-1",
+                            subtask.status === "completed" &&
+                              "line-through text-muted-foreground/60",
+                          )}
+                          title={`Open subtask: ${subtask.description}`}
+                        >
+                          {subtask.description}
+                        </button>
+                      ) : (
+                        <span
+                          className={cn(
+                            "text-sm font-normal truncate",
+                            subtask.status === "completed" &&
+                              "line-through text-muted-foreground/60",
+                          )}
+                        >
+                          {subtask.description}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 opacity-80 md:opacity-0 md:group-hover/subtask:opacity-100 transition-opacity">
                       {onUnlinkSubtask && (

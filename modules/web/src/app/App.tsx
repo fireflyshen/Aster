@@ -918,8 +918,23 @@ export default function App() {
         map.get(parentUuid)!.push(child);
       }
     }
+    const orderIndex = new Map(
+      (organization.board?.order || []).map((id, index) => [id, index]),
+    );
+    for (const [, list] of map.entries()) {
+      list.sort((a, b) => {
+        if (a.status === "completed" && b.status !== "completed") return 1;
+        if (a.status !== "completed" && b.status === "completed") return -1;
+        const aOrder = orderIndex.get(a.uuid);
+        const bOrder = orderIndex.get(b.uuid);
+        if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder;
+        if (aOrder !== undefined) return -1;
+        if (bOrder !== undefined) return 1;
+        return (b.urgency ?? 0) - (a.urgency ?? 0);
+      });
+    }
     return map;
-  }, [tasks, organization.subtasks]);
+  }, [tasks, organization.subtasks, organization.board?.order]);
 
   const isSubtask = useCallback(
     (uuid: string) => {
@@ -950,15 +965,21 @@ export default function App() {
   }
 
   const topLevelVisible = useMemo(() => {
-    return visible.filter(
-      (task) =>
-        !isSubtask(task.uuid) ||
-        (query.trim() &&
-          !visible.some(
-            (t) => t.uuid === organization.subtasks?.[task.uuid],
-          )),
-    );
-  }, [visible, isSubtask, query, organization.subtasks]);
+    return visible.filter((task) => {
+      const parentUuid = organization.subtasks?.[task.uuid];
+      if (!parentUuid) return true;
+      // If the parent is not in visible (e.g. completed, in another view, or filtered out),
+      // keep this task visible at top level so it is never hidden or lost.
+      return !visible.some((t) => t.uuid === parentUuid);
+    });
+  }, [visible, organization.subtasks]);
+
+  const editingParent = useMemo(() => {
+    if (!editing) return undefined;
+    const parentUuid = organization.subtasks?.[editing.uuid];
+    if (!parentUuid) return undefined;
+    return tasks.find((t) => t.uuid === parentUuid);
+  }, [editing, tasks, organization.subtasks]);
 
   const connectionLabel = loading
     ? "dmit · Connecting"
@@ -1056,6 +1077,7 @@ export default function App() {
     task: Task,
     extraActions?: ReactNode,
     variantOverride?: "list" | "card",
+    depth = 0,
   ) => {
     const variant: "list" | "card" =
       variantOverride ??
@@ -1064,6 +1086,7 @@ export default function App() {
       <TaskRow
         key={task.uuid}
         task={task}
+        depth={depth}
         extraActions={extraActions}
         variant={variant}
         showProject={!currentProject && !specialPage}
@@ -1083,7 +1106,7 @@ export default function App() {
         onUnlinkSubtask={() => unlinkSubtask(task.uuid)}
         onToggleSubtask={(child, completed) => void toggleTask(child, completed)}
         onEditSubtask={(child) => openEditor(child)}
-        renderSubtask={(child) => renderTask(child, undefined, variant)}
+        renderSubtask={(child) => renderTask(child, undefined, variant, depth + 1)}
         onToggleStart={
         task.status !== "completed"
           ? () => void toggleStartTask(task)
@@ -2796,6 +2819,7 @@ export default function App() {
             availableLabels={organization.tags}
             formError={formError}
             editing={editing}
+            parentTask={editingParent}
             busy={busy}
             needsCheck={needsCheck}
             subtasks={editing ? subtasksMap.get(editing.uuid) || [] : []}
@@ -2811,6 +2835,10 @@ export default function App() {
               void mutate("action", { uuid: childUuid, action: "delete" })
             }
             onUnlinkSubtask={(childUuid) => void unlinkSubtask(childUuid)}
+            onNavigateToParent={
+              editingParent ? () => openEditor(editingParent) : undefined
+            }
+            onOpenSubtask={(child) => openEditor(child)}
             onDraftChange={setDraft}
             onDueChange={setDue}
             onTagsChange={setTags}
