@@ -1,5 +1,14 @@
 # Aster
 
+## AI 调用接口（MCP）
+
+独立模块 [`modules/mcp`](modules/mcp/README.md) 为支持 MCP 的 AI 客户端提供任务、项目与 Focus、标签、过滤器、栏目排序、计时与精力、恢复及备份工具。复用现有 SSH 私有工作区，支持本地 Unix socket；不新增公网端口。设计与功能覆盖见 [AI 接口设计](modules/mcp/DESIGN.md)。
+
+```sh
+npm ci --prefix modules/mcp
+ASTER_SSH_TARGET=dmit npm run start:mcp
+```
+
 ## 终端客户端（Go TUI）
 
 独立模块 [`modules/tui`](modules/tui/README.md) 提供 Focus、任务列表与编辑、项目聚焦、计时和栏目移动，沿用 RN 的 SSH 连接和共享工作区。

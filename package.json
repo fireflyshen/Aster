@@ -124,7 +124,10 @@
     "build:web": "npm --prefix modules/web run build",
     "check:web": "npm --prefix modules/web run check",
     "test:web": "npm --prefix modules/web run test",
-    "deploy": "bash deploy/deploy.sh"
+    "deploy": "bash deploy/deploy.sh",
+    "start:mcp": "npm --prefix modules/mcp start",
+    "check:mcp": "npm --prefix modules/mcp run check",
+    "test:mcp": "npm --prefix modules/mcp test"
   },
   "dependencies": {
     "@raycast/api": "^1.104.19",

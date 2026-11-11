@@ -1,0 +1,19 @@
+{
+  "name": "@aster/mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts",
+    "check": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.8.2"
+  }
+}
