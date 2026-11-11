@@ -28,6 +28,7 @@ import {
   CornerDownRight,
   Ellipsis,
   Flag,
+  GripVertical,
   ListPlus,
   MessageSquare,
   Pencil,
@@ -402,44 +403,47 @@ export function TaskRow({
             actionsVisible && "bg-(--row-hover)",
           )}
         >
-          <div
-            className={cn(
-              "grid items-start",
-              hasRightActions
-                ? "grid-cols-[2rem_minmax(0,1fr)_auto] md:grid-cols-[1.75rem_minmax(0,1fr)_auto]"
-                : "grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[1.75rem_minmax(0,1fr)]",
+          <div className="flex items-start gap-1.5 md:gap-2 w-full min-w-0">
+            {/* Left Gutter: Only in list view for top-level tasks */}
+            {variant === "list" && !isSubtask && (
+              <div className="flex size-5 shrink-0 items-center justify-center self-start pt-2.5 md:pt-1.5 mt-[1px]">
+                {totalSubtasks > 0 ? (
+                  <button
+                    type="button"
+                    data-no-drag
+                    tabIndex={-1}
+                    aria-label={subtasksExpanded ? "Collapse subtasks" : "Expand subtasks"}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setSubtasksExpanded(!subtasksExpanded);
+                    }}
+                    className="size-5 flex items-center justify-center rounded-sm text-muted-foreground/60 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 transition-transform duration-150",
+                        subtasksExpanded && "rotate-90",
+                      )}
+                    />
+                  </button>
+                ) : (
+                  <div className="size-5 flex items-center justify-center opacity-0 md:group-hover/row:opacity-40 transition-opacity">
+                    <GripVertical className="size-3 text-muted-foreground" />
+                  </div>
+                )}
+              </div>
             )}
-          >
-            <div className="relative flex items-center justify-start self-start pt-2.5 md:pt-1.5">
-              {variant === "list" && totalSubtasks > 0 && (
-                <button
-                  type="button"
-                  data-no-drag
-                  tabIndex={-1}
-                  aria-label={subtasksExpanded ? "Collapse subtasks" : "Expand subtasks"}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setSubtasksExpanded(!subtasksExpanded);
-                  }}
-                  className="absolute -left-4 md:-left-4.5 size-4 flex items-center justify-center text-muted-foreground/70 hover:text-foreground transition-all cursor-pointer rounded-xs"
-                >
-                  <ChevronRight
-                    className={cn(
-                      "size-3.5 transition-transform duration-150",
-                      subtasksExpanded && "rotate-90",
-                    )}
-                  />
-                </button>
-              )}
+
+            {/* Checkbox */}
+            <div className="flex size-5 shrink-0 items-center justify-center self-start pt-2.5 md:pt-1.5 mt-[1px]">
               <Label
                 htmlFor={`complete-${task.uuid}`}
                 className={cn(
-                  "task-check-target group/check relative flex size-8 shrink-0 items-center justify-start md:size-7",
+                  "task-check-target group/check relative flex size-[18px] items-center justify-center",
                   disabled ? "cursor-default" : "cursor-pointer",
                 )}
               >
-                <div className="relative flex size-[18px] items-center justify-center">
                 <Checkbox
                   id={`complete-${task.uuid}`}
                   checked={checked}
@@ -483,9 +487,8 @@ export function TaskRow({
                     )}
                   />
                 )}
-              </div>
-            </Label>
-          </div>
+              </Label>
+            </div>
             <div
               data-task-drag-surface=""
               tabIndex={0}
@@ -498,7 +501,7 @@ export function TaskRow({
                   else onEdit();
                 }
               }}
-              className="flex h-auto min-h-11 min-w-0 w-full flex-col items-start justify-start gap-0 self-start px-0 py-2.5 text-left font-normal outline-none focus-visible:ring-1 focus-visible:ring-ring/50 md:min-h-8 md:py-1.5"
+              className="flex h-auto min-h-11 min-w-0 flex-1 flex-col items-start justify-start gap-0 self-start px-0 py-2.5 text-left font-normal outline-none focus-visible:ring-1 focus-visible:ring-ring/50 md:min-h-8 md:py-1.5"
             >
               <div
                 role="button"
@@ -755,7 +758,7 @@ export function TaskRow({
               <div
                 data-no-drag
                 className={cn(
-                  "flex h-8 items-center gap-0.5 self-start transition-opacity duration-150 md:mt-0.5",
+                  "flex h-8 shrink-0 items-center gap-0.5 self-start transition-opacity duration-150 md:mt-0.5",
                   actionsVisible
                     ? "opacity-100"
                     : "opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",

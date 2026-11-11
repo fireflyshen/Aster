@@ -99,7 +99,11 @@ type Props = {
   blocked: boolean;
   error: string;
   moving?: { uuid: string; columnId: string; beforeUuid: string | null };
-  renderTask: (task: Task) => ReactNode;
+  renderTask: (
+    task: Task,
+    extraActions?: ReactNode,
+    variant?: "list" | "card",
+  ) => ReactNode;
   onMove: (
     task: Task,
     columnId: string,
@@ -1007,7 +1011,7 @@ export function TaskBoard({
                                   void move(t, { columnId, beforeUuid: null })
                                 }
                               >
-                                {renderTask(task)}
+                                {renderTask(task, undefined, "list")}
                               </BoardCard>
                             ))}
                           </div>
@@ -1056,7 +1060,7 @@ export function TaskBoard({
                                   void move(t, { columnId, beforeUuid: null })
                                 }
                               >
-                                {renderTask(task)}
+                                {renderTask(task, undefined, "list")}
                               </BoardCard>
                             ))
                           )}
@@ -1163,7 +1167,11 @@ export function TaskBoard({
                             })
                           }
                         >
-                          {renderTask(task)}
+                          {renderTask(
+                            task,
+                            undefined,
+                            layout === "board" ? "card" : "list",
+                          )}
                         </BoardCard>
                       ))}
                       {canAddTask && (

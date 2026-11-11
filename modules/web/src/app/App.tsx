@@ -1052,31 +1052,39 @@ export default function App() {
       setBusy(false);
     }
   }
-  const renderTask = (task: Task, extraActions?: ReactNode) => (
-    <TaskRow
-      key={task.uuid}
-      task={task}
-      extraActions={extraActions}
-      variant={!specialPage && layout === "board" ? "card" : "list"}
-      showProject={!currentProject && !specialPage}
-      projects={filterProjects}
-      availableLabels={organization.tags}
-      completed={task.status === "completed"}
-      overdue={taskGroup(task) === "overdue"}
-      disabled={
-        busy || organizationSaving || needsCheck || (loading && !loaded)
-      }
-      transition={completion?.uuid === task.uuid ? completion : undefined}
-      trackedSeconds={taskTrackedSeconds(task)}
-      timingUnavailable={organization.timing?.available === false}
-      subtasks={subtasksMap.get(task.uuid) || []}
-      isSubtask={isSubtask(task.uuid)}
-      onAddSubtask={(subtaskInput) => createSubtask(task.uuid, subtaskInput)}
-      onUnlinkSubtask={() => unlinkSubtask(task.uuid)}
-      onToggleSubtask={(child, completed) => void toggleTask(child, completed)}
-      onEditSubtask={(child) => openEditor(child)}
-      renderSubtask={(child) => renderTask(child)}
-      onToggleStart={
+  const renderTask = (
+    task: Task,
+    extraActions?: ReactNode,
+    variantOverride?: "list" | "card",
+  ) => {
+    const variant: "list" | "card" =
+      variantOverride ??
+      (!specialPage && layout === "board" ? "card" : "list");
+    return (
+      <TaskRow
+        key={task.uuid}
+        task={task}
+        extraActions={extraActions}
+        variant={variant}
+        showProject={!currentProject && !specialPage}
+        projects={filterProjects}
+        availableLabels={organization.tags}
+        completed={task.status === "completed"}
+        overdue={taskGroup(task) === "overdue"}
+        disabled={
+          busy || organizationSaving || needsCheck || (loading && !loaded)
+        }
+        transition={completion?.uuid === task.uuid ? completion : undefined}
+        trackedSeconds={taskTrackedSeconds(task)}
+        timingUnavailable={organization.timing?.available === false}
+        subtasks={subtasksMap.get(task.uuid) || []}
+        isSubtask={isSubtask(task.uuid)}
+        onAddSubtask={(subtaskInput) => createSubtask(task.uuid, subtaskInput)}
+        onUnlinkSubtask={() => unlinkSubtask(task.uuid)}
+        onToggleSubtask={(child, completed) => void toggleTask(child, completed)}
+        onEditSubtask={(child) => openEditor(child)}
+        renderSubtask={(child) => renderTask(child, undefined, variant)}
+        onToggleStart={
         task.status !== "completed"
           ? () => void toggleStartTask(task)
           : undefined
@@ -1168,6 +1176,7 @@ export default function App() {
       onComplete={() => void toggleTask(task, task.status === "completed")}
     />
   );
+};
 
   const currentProjectRecord = organization.projects?.find(
     (item) => item.name === currentProject,
