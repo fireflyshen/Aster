@@ -491,7 +491,7 @@ function BoardColumn({
                 <h2 className="min-w-0 truncate text-sm font-semibold tracking-tight text-foreground">
                   {column.name}
                 </h2>
-                <span className="rounded-full bg-muted/80 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+                <span className="text-xs font-normal tabular-nums text-muted-foreground/75 ml-0.5">
                   {count}
                 </span>
               </button>
@@ -565,7 +565,7 @@ function BoardColumn({
               <h2 className="min-w-0 truncate text-sm font-semibold">
                 {column.name}
               </h2>
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+              <span className="text-xs font-normal tabular-nums text-muted-foreground/75 ml-0.5">
                 {count}
               </span>
               {column.id !== UNSECTIONED && (

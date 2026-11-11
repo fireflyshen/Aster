@@ -86,6 +86,7 @@ import {
   Check,
   Columns3,
   Ellipsis,
+  FileText,
   List,
   PanelLeft,
   Pause,
@@ -1560,6 +1561,40 @@ export default function App() {
                             }
                             onClick={() => {
                               setViewMenuOpen(false);
+                              setHeaderDescDraft(projectDescription || "");
+                              setEditingHeaderDesc(true);
+                            }}
+                          >
+                            <FileText className="size-3.5" />
+                            {projectDescription
+                              ? "Edit description"
+                              : "Add description"}
+                          </Button>
+                          <Button
+                            variant="navigation"
+                            className="h-8 text-xs"
+                            disabled={
+                              busy || organizationSaving || !organizationReady
+                            }
+                            onClick={() => {
+                              setViewMenuOpen(false);
+                              setHeaderOutcomeDraft(projectOutcome || "");
+                              setEditingHeaderOutcome(true);
+                            }}
+                          >
+                            <Target className="size-3.5" />
+                            {projectOutcome
+                              ? "Edit finish line"
+                              : "Set finish line"}
+                          </Button>
+                          <Button
+                            variant="navigation"
+                            className="h-8 text-xs"
+                            disabled={
+                              busy || organizationSaving || !organizationReady
+                            }
+                            onClick={() => {
+                              setViewMenuOpen(false);
                               editProject(currentProject);
                             }}
                           >
@@ -1941,12 +1976,23 @@ export default function App() {
                         <textarea
                           autoFocus
                           rows={3}
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = "auto";
+                              el.style.height = `${Math.max(72, el.scrollHeight)}px`;
+                            }
+                          }}
                           value={headerDescDraft}
                           maxLength={2000}
                           disabled={
                             busy || organizationSaving || !organizationReady
                           }
                           placeholder="Add project notes, background or description…"
+                          onInput={(event) => {
+                            const el = event.currentTarget;
+                            el.style.height = "auto";
+                            el.style.height = `${Math.max(72, el.scrollHeight)}px`;
+                          }}
                           onChange={(event) =>
                             setHeaderDescDraft(event.target.value)
                           }

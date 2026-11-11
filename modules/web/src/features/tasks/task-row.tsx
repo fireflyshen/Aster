@@ -163,6 +163,7 @@ export function TaskRow({
   const [editingInline, setEditingInline] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
+  const [priorityChipOpen, setPriorityChipOpen] = useState(false);
   const [drawerPinned, setDrawerPinned] = useState(false);
   const rowRef = useRef<HTMLElement>(null);
 
@@ -345,7 +346,8 @@ export function TaskRow({
     );
   }
 
-  const actionsVisible = drawerPinned || moreOpen || priorityPopoverOpen;
+  const actionsVisible =
+    drawerPinned || moreOpen || priorityPopoverOpen || priorityChipOpen;
 
   return (
     <article
@@ -384,7 +386,7 @@ export function TaskRow({
             <Label
               htmlFor={`complete-${task.uuid}`}
               className={cn(
-                "task-check-target group/check relative flex size-8 shrink-0 items-center justify-start self-start pt-3 md:size-7 md:pt-2",
+                "task-check-target group/check relative flex size-8 shrink-0 items-center justify-start self-start pt-2.5 md:size-7 md:pt-1.5",
                 disabled ? "cursor-default" : "cursor-pointer",
               )}
             >
@@ -408,13 +410,13 @@ export function TaskRow({
                       "border-blue-500 bg-blue-500/10 enabled:hover:border-blue-600 enabled:hover:bg-blue-500/20 dark:border-blue-400",
                     checked &&
                       task.priority === "H" &&
-                      "data-[state=checked]:border-red-500 data-[state=checked]:bg-red-500",
+                      "data-[state=checked]:border-red-500 data-[state=checked]:bg-red-500 data-[state=checked]:text-white",
                     checked &&
                       task.priority === "M" &&
-                      "data-[state=checked]:border-amber-500 data-[state=checked]:bg-amber-500",
+                      "data-[state=checked]:border-amber-500 data-[state=checked]:bg-amber-500 data-[state=checked]:text-white",
                     checked &&
                       task.priority === "L" &&
-                      "data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500",
+                      "data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500 data-[state=checked]:text-white",
                   )}
                 />
                 {!checked && !disabled && (
@@ -434,34 +436,56 @@ export function TaskRow({
                 )}
               </div>
             </Label>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={disabled}
+            <div
               data-task-drag-surface=""
-              onClick={!completed && onSaveInline ? () => setEditingInline(true) : onEdit}
-              className="flex h-auto min-h-11 min-w-0 w-full flex-col items-start justify-start gap-0 self-start rounded-sm px-0 py-3 text-left font-normal whitespace-normal hover:bg-transparent focus-visible:ring-1 disabled:opacity-100 md:min-h-8 md:py-1.5 dark:hover:bg-transparent"
+              tabIndex={0}
+              role="group"
+              aria-label={`Task: ${task.description}`}
+              onKeyDown={(e) => {
+                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  if (!completed && onSaveInline) setEditingInline(true);
+                  else onEdit();
+                }
+              }}
+              className="flex h-auto min-h-11 min-w-0 w-full flex-col items-start justify-start gap-0 self-start px-0 py-2.5 text-left font-normal outline-none focus-visible:ring-1 focus-visible:ring-ring/50 md:min-h-8 md:py-1.5"
             >
-              <span
+              <div
+                role="button"
+                tabIndex={-1}
                 data-task-title
+                onClick={!completed && onSaveInline ? () => setEditingInline(true) : onEdit}
                 className={cn(
-                  "block min-w-0 w-full text-sm leading-5 transition-colors duration-150 [overflow-wrap:anywhere]",
-                  checked &&
-                    "text-muted-foreground line-through decoration-muted-foreground/60",
+                  "block min-w-0 w-full text-[14px] leading-5 font-normal transition-colors duration-150 [overflow-wrap:anywhere] cursor-pointer outline-none hover:text-foreground",
+                  checked
+                    ? "text-muted-foreground/60 line-through decoration-muted-foreground/50"
+                    : "text-foreground",
                 )}
               >
                 {task.description}
-              </span>
+              </div>
               {fullNotes && (
                 <div
                   data-task-note-preview
-                  className="mt-0.5 block min-w-0 w-full text-xs leading-relaxed text-muted-foreground/80 whitespace-pre-wrap break-words select-text"
+                  onClick={(e) => {
+                    if (window.getSelection()?.toString().length) {
+                      e.stopPropagation();
+                      return;
+                    }
+                    if (!completed && onSaveInline) setEditingInline(true);
+                  }}
+                  className={cn(
+                    "mt-0.5 block min-w-0 w-full text-xs leading-relaxed select-text [overflow-wrap:anywhere] whitespace-pre-wrap break-words cursor-pointer transition-colors",
+                    checked
+                      ? "text-muted-foreground/50 line-through decoration-muted-foreground/40"
+                      : "text-muted-foreground/80 hover:text-foreground/85",
+                  )}
                 >
                   {fullNotes}
                 </div>
               )}
               {hasDetails && (
-                <span
+                <div
                   data-task-details
                   className="mt-1 flex min-w-0 w-full flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]"
                 >
@@ -489,26 +513,59 @@ export function TaskRow({
                         : formatDuration(trackedSeconds || 0)}
                     </span>
                   )}
-                  {task.due && (
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 text-[12px] leading-none transition-colors",
-                        !checked &&
-                          (overdue
-                            ? "font-medium text-red-600 dark:text-red-400"
-                            : isDueToday
-                              ? "font-medium text-emerald-600 dark:text-emerald-400"
-                              : isDueTomorrow
-                                ? "font-medium text-amber-600 dark:text-amber-400"
-                                : "text-violet-600 dark:text-violet-400"),
-                        checked && "text-muted-foreground",
-                      )}
-                    >
-                      <CalendarDays className="size-3.5 shrink-0" strokeWidth={1.6} />
-                      {overdue && !checked && "Overdue · "}
-                      {dueLabel(task.due)}
-                    </span>
-                  )}
+                  {task.due &&
+                    (!checked && onDueChange ? (
+                      <div
+                        data-no-drag
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center"
+                      >
+                        <DatePicker
+                          id={`due-chip-${task.uuid}`}
+                          value={dueDay}
+                          disabled={disabled}
+                          align="start"
+                          ariaLabel={`Due date: ${task.description}`}
+                          onChange={onDueChange}
+                          trigger={
+                            <button
+                              type="button"
+                              className={cn(
+                                "group/due inline-flex items-center gap-1 text-[12px] leading-none transition-opacity hover:opacity-75 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                                overdue
+                                  ? "font-medium text-red-600 dark:text-red-400"
+                                  : isDueToday
+                                    ? "font-medium text-emerald-600 dark:text-emerald-400"
+                                    : isDueTomorrow
+                                      ? "font-medium text-amber-600 dark:text-amber-400"
+                                      : "text-violet-600 dark:text-violet-400",
+                              )}
+                            >
+                              <CalendarDays
+                                className="size-3.5 shrink-0"
+                                strokeWidth={1.6}
+                              />
+                              {overdue && "Overdue · "}
+                              {dueLabel(task.due)}
+                            </button>
+                          }
+                        />
+                      </div>
+                    ) : (
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[12px] leading-none transition-colors",
+                          checked && "text-muted-foreground",
+                        )}
+                      >
+                        <CalendarDays
+                          className="size-3.5 shrink-0"
+                          strokeWidth={1.6}
+                        />
+                        {overdue && !checked && "Overdue · "}
+                        {dueLabel(task.due)}
+                      </span>
+                    ))}
                   {!!task.wait &&
                     new Date(task.wait) > new Date() &&
                     !checked && (
@@ -535,31 +592,92 @@ export function TaskRow({
                       {task.annotations.length}
                     </span>
                   )}
-                  {task.priority && (
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 text-[12px] font-medium leading-none transition-colors",
-                        !checked &&
-                          (task.priority === "H"
-                            ? "text-red-600 dark:text-red-400"
-                            : task.priority === "M"
-                              ? "text-amber-600 dark:text-amber-400"
-                              : "text-blue-600 dark:text-blue-400"),
-                        checked && "text-muted-foreground",
-                      )}
-                    >
-                      <Flag className="size-3.5 shrink-0 fill-current" strokeWidth={1.6} />
-                      {
-                        (
-                          {
-                            H: "P1",
-                            M: "P2",
-                            L: "P3",
-                          } as Record<string, string>
-                        )[task.priority]
-                      }
-                    </span>
-                  )}
+                  {task.priority &&
+                    (!checked && onPriorityChange ? (
+                      <div
+                        data-no-drag
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center"
+                      >
+                        <Popover
+                          open={priorityChipOpen}
+                          onOpenChange={setPriorityChipOpen}
+                        >
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className={cn(
+                                "inline-flex items-center gap-1 text-[12px] font-medium leading-none transition-opacity hover:opacity-75 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                                task.priority === "H"
+                                  ? "text-red-600 dark:text-red-400"
+                                  : task.priority === "M"
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : "text-blue-600 dark:text-blue-400",
+                              )}
+                            >
+                              <Flag
+                                className="size-3.5 shrink-0 fill-current"
+                                strokeWidth={1.6}
+                              />
+                              {
+                                (
+                                  {
+                                    H: "P1",
+                                    M: "P2",
+                                    L: "P3",
+                                  } as Record<string, string>
+                                )[task.priority]
+                              }
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" className="w-36 p-1">
+                            {PRIORITIES.map((item) => (
+                              <Button
+                                key={item.label}
+                                type="button"
+                                variant="navigation"
+                                className="h-8 w-full justify-between px-2 text-xs font-normal"
+                                onClick={() => {
+                                  setPriorityChipOpen(false);
+                                  onPriorityChange(item.value);
+                                }}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <Flag
+                                    className={cn("size-3.5", item.iconClass)}
+                                  />
+                                  <span>{item.label}</span>
+                                </span>
+                                {(task.priority || "") === item.value && (
+                                  <Check className="size-3 text-foreground" />
+                                )}
+                              </Button>
+                            ))}
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    ) : (
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[12px] font-medium leading-none transition-colors",
+                          checked && "text-muted-foreground",
+                        )}
+                      >
+                        <Flag
+                          className="size-3.5 shrink-0 fill-current"
+                          strokeWidth={1.6}
+                        />
+                        {
+                          (
+                            {
+                              H: "P1",
+                              M: "P2",
+                              L: "P3",
+                            } as Record<string, string>
+                          )[task.priority]
+                        }
+                      </span>
+                    ))}
                   {task.tags.map((tag) => (
                     <span
                       key={tag}
@@ -572,9 +690,9 @@ export function TaskRow({
                       <span className="truncate">{tag}</span>
                     </span>
                   ))}
-                </span>
+                </div>
               )}
-            </Button>
+            </div>
             {hasRightActions && (
               <div
                 data-no-drag
