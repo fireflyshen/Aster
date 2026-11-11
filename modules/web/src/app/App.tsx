@@ -1298,7 +1298,7 @@ export default function App() {
                     setQuery("");
                   } else setSearchOpen(true);
                 }}
-                className="text-muted-foreground hover:text-foreground"
+                className="sm:hidden text-muted-foreground hover:text-foreground"
               >
                 <Search className="size-[18px]" strokeWidth={1.5} />
               </Button>

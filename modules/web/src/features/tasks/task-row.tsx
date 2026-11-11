@@ -453,12 +453,12 @@ export function TaskRow({
                 {task.description}
               </span>
               {fullNotes && (
-                <span
+                <div
                   data-task-note-preview
-                  className="mt-1 block min-w-0 w-full text-xs leading-relaxed text-muted-foreground/80 whitespace-pre-wrap break-words"
+                  className="mt-1.5 block min-w-0 w-full rounded-md border-l-2 border-border/90 bg-muted/25 px-2.5 py-1 text-xs leading-relaxed text-muted-foreground/85 whitespace-pre-wrap break-words select-text transition-colors hover:border-primary/40 hover:bg-muted/35"
                 >
                   {fullNotes}
-                </span>
+                </div>
               )}
               {hasDetails && (
                 <span
@@ -492,15 +492,16 @@ export function TaskRow({
                   {task.due && (
                     <span
                       className={cn(
-                        "flex items-center gap-1",
+                        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-none transition-colors",
                         !checked &&
                           (overdue
-                            ? "font-medium text-red-600 dark:text-red-400"
+                            ? "border border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-400"
                             : isDueToday
-                              ? "font-medium text-emerald-600 dark:text-emerald-400"
+                              ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold"
                               : isDueTomorrow
-                                ? "text-amber-600 dark:text-amber-400"
-                                : "text-violet-600 dark:text-violet-400"),
+                                ? "border border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                : "border border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-400"),
+                        checked && "text-muted-foreground",
                       )}
                     >
                       <CalendarDays className="size-3" strokeWidth={1.6} />
@@ -511,23 +512,23 @@ export function TaskRow({
                   {!!task.wait &&
                     new Date(task.wait) > new Date() &&
                     !checked && (
-                      <span className="flex items-center gap-1">
+                      <span className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">
                         <Clock3 className="size-3" strokeWidth={1.5} />
                         Waiting · {dueLabel(task.wait)}
                       </span>
                     )}
                   {!!task.recur && (
                     <span
-                      className="flex items-center gap-1"
+                      className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
                       aria-label={`Repeats ${task.recur}`}
                     >
                       <Repeat2 className="size-3" strokeWidth={1.5} />
                       {task.recur}
                     </span>
                   )}
-                  {!!task.annotations.length && (
+                  {!!task.annotations.length && task.annotations.length > 1 && (
                     <span
-                      className="flex items-center gap-1"
+                      className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground"
                       aria-label={`${task.annotations.length} notes`}
                     >
                       <MessageSquare className="size-3" strokeWidth={1.5} />
@@ -537,16 +538,17 @@ export function TaskRow({
                   {task.priority && (
                     <span
                       className={cn(
-                        "flex items-center gap-1",
+                        "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-none transition-colors",
                         !checked &&
                           (task.priority === "H"
-                            ? "text-red-600 dark:text-red-400"
+                            ? "border border-red-500/25 bg-red-500/10 text-red-600 dark:text-red-400"
                             : task.priority === "M"
-                              ? "text-amber-600 dark:text-amber-400"
-                              : "text-blue-600 dark:text-blue-400"),
+                              ? "border border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                              : "border border-blue-500/25 bg-blue-500/10 text-blue-600 dark:text-blue-400"),
+                        checked && "text-muted-foreground",
                       )}
                     >
-                      <Flag className="size-3" strokeWidth={1.6} />
+                      <Flag className="size-3 fill-current" strokeWidth={1.6} />
                       {
                         (
                           {
@@ -561,7 +563,7 @@ export function TaskRow({
                   {task.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex min-w-0 items-center gap-1 rounded-[4px] bg-muted/60 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      className="inline-flex min-w-0 items-center gap-1 rounded-md bg-muted/70 px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       <LabelIcon
                         className="size-2.5 shrink-0 opacity-70"
@@ -576,7 +578,12 @@ export function TaskRow({
             {hasRightActions && (
               <div
                 data-no-drag
-                className="flex h-11 items-center gap-0.5 pl-1 md:h-8"
+                className={cn(
+                  "flex h-8 items-center gap-0.5 self-start rounded-lg border border-border/70 bg-background/95 px-1 shadow-2xs backdrop-blur-xs transition-opacity duration-150 md:mt-1",
+                  actionsVisible
+                    ? "opacity-100"
+                    : "opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
+                )}
               >
                 {extraActions}
                 {!completed && onSaveInline && (

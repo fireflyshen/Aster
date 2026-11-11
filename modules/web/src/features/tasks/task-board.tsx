@@ -171,9 +171,9 @@ function InlineColumnCreator({
     return (
       <div className={layout === "list" ? "group/add-section my-3" : ""}>
         {layout === "list" ? (
-          <div className="relative flex items-center justify-center py-2">
+          <div className="relative flex items-center justify-center py-2.5">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-dashed border-border/80 transition-colors group-hover/add-section:border-ring/40" />
+              <span className="w-full border-t border-dashed border-border/70 transition-colors duration-200 group-hover/add-section:border-ring/50" />
             </div>
             <Button
               type="button"
@@ -184,7 +184,7 @@ function InlineColumnCreator({
                 setEditing(true);
                 requestAnimationFrame(() => inputRef.current?.focus());
               }}
-              className="relative h-7 gap-1.5 rounded-full border border-border/80 bg-background px-3 text-xs font-normal text-muted-foreground shadow-xs transition-colors hover:border-ring/40 hover:bg-background hover:text-foreground"
+              className="relative h-7 gap-1.5 rounded-full border border-border/80 bg-background px-3 text-xs font-normal text-muted-foreground shadow-2xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-background hover:text-foreground"
             >
               <Plus className="size-3.5" />
               Add section
@@ -484,18 +484,18 @@ function BoardColumn({
               >
                 <ChevronRight
                   className={cn(
-                    "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
+                    "size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ease-out",
                     !collapsed && "rotate-90",
                   )}
                 />
-                <h2 className="min-w-0 truncate text-sm font-semibold text-foreground">
+                <h2 className="min-w-0 truncate text-sm font-semibold tracking-tight text-foreground">
                   {column.name}
                 </h2>
-                <span className="text-xs tabular-nums text-muted-foreground/80">
+                <span className="rounded-full bg-muted/80 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
                   {count}
                 </span>
               </button>
-              <div className="flex-1 h-px bg-border/40 hidden sm:block" />
+              <div className="flex-1 h-px bg-border/60 hidden sm:block transition-colors group-hover/column:bg-border/90" />
               {column.id !== UNSECTIONED && (
                 <Popover open={menu} onOpenChange={setMenu}>
                   <PopoverTrigger asChild>
@@ -504,7 +504,7 @@ function BoardColumn({
                       size="icon-sm"
                       aria-label={`Section options: ${column.name}`}
                       disabled={disabled}
-                      className="text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100"
+                      className="size-7 text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100 hover:text-foreground"
                     >
                       <Ellipsis className="size-4" />
                     </Button>
