@@ -101,7 +101,7 @@ test("organization persists empty tags and filters, rejects concurrent overwrite
     await rm(directory, { recursive: true, force: true });
   }
 });
-test("failed RN changes leave metadata untouched; duplicate names and reserved tags are rejected", async () => {
+test("failed remote changes leave metadata untouched; duplicate names and reserved tags are rejected", async () => {
   const directory = await mkdtemp(tmpdir() + "/aster-organization-");
   try {
     const store = createOrganizationStore(directory + "/organization.json");

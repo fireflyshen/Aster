@@ -11,7 +11,7 @@ ASTER_SSH_TARGET=dmit npm run start:mcp
 
 ## 终端客户端（Go TUI）
 
-独立模块 [`modules/tui`](modules/tui/README.md) 提供 Focus、任务列表与编辑、项目聚焦、计时和栏目移动，沿用 RN 的 SSH 连接和共享工作区。
+独立模块 [`modules/tui`](modules/tui/README.md) 提供 Focus、任务列表与编辑、项目聚焦、计时和栏目移动，沿用 dmit 的 SSH 连接和共享工作区。
 
 ```sh
 cd modules/tui
@@ -21,18 +21,18 @@ go build -o ../../dist/tui/aster .
 
 ## Web 客户端（桌面与手机）
 
-网页客户端是本仓库的独立模块 [`modules/web`](modules/web/README.md)，界面使用 React + shadcn/ui，继续连接 RN 的同一份 Taskwarrior 数据。
+网页客户端是本仓库的独立模块 [`modules/web`](modules/web/README.md)，界面使用 React + shadcn/ui，继续连接 dmit 的同一份 Taskwarrior 数据。
 
 ```sh
 npm ci --prefix modules/web
 npm run dev:web
 ```
 
-本地入口为 **http://localhost:4180/**。正式入口为 **https://task.caten.top/**，已独立部署到 RN，使用 Cloudflare Access 登录保护。模块拥有独立依赖与构建配置，不挂载在其他应用中。
+本地入口为 **http://localhost:4180/**。正式入口为 **https://task.caten.top/**，已独立部署到 dmit，使用 Cloudflare Access 登录保护。模块拥有独立依赖与构建配置，不挂载在其他应用中。
 
 ## 桌面客户端
 
-Aster 是运行在本机的 Taskwarrior 3 客户端，通过 TinyCast（兼容 Raycast 扩展）查看和管理任务。默认连接 VPS `rn`，本机无需安装 Taskwarrior。也支持已有的本地 Taskwarrior 3，以及 Windows 上的 WSL。
+Aster 是运行在本机的 Taskwarrior 3 客户端，通过 TinyCast（兼容 Raycast 扩展）查看和管理任务。默认连接 VPS `dmit`，本机无需安装 Taskwarrior。也支持已有的本地 Taskwarrior 3，以及 Windows 上的 WSL。
 
 ## 日常使用
 
@@ -63,14 +63,14 @@ Aster 是运行在本机的 Taskwarrior 3 客户端，通过 TinyCast（兼容 R
 | 配置                | 默认值                    |
 | ------------------- | ------------------------- |
 | Connection Mode     | SSH                       |
-| SSH Target          | `rn`                      |
+| SSH Target          | `dmit`                    |
 | Remote Task Command | `/usr/local/bin/task`     |
 | Remote Taskrc       | `/etc/taskwarrior/taskrc` |
 
 使用系统 OpenSSH 的配置、密钥、agent 和 known_hosts，不保存凭据。端口及跳板机写在 SSH config 中。首次连接先在终端验证服务器指纹并完成密钥登录：
 
 ```sh
-ssh rn 'task --version'
+ssh dmit 'task --version'
 ```
 
 Windows 远端模式使用 Windows OpenSSH，无需 WSL。更换服务器时调整 SSH Target 和远端路径；清空 Remote Taskrc 表示使用远端默认配置。修改设置后关闭并重新打开命令，已打开的列表和编辑页始终使用原连接。

@@ -961,14 +961,14 @@ export default function App() {
   }, [visible, isSubtask, query, organization.subtasks]);
 
   const connectionLabel = loading
-    ? "RN · Connecting"
+    ? "dmit · Connecting"
     : needsCheck
-      ? "RN · Check required"
+      ? "dmit · Check required"
       : connectionError
-        ? "RN · Connection error"
+        ? "dmit · Connection error"
         : loaded
-          ? "RN · Connected"
-          : "RN · Not connected";
+          ? "dmit · Connected"
+          : "dmit · Not connected";
 
   async function toggleStartTask(task: Task) {
     if (writeLock.current || needsCheck || loading || organizationSaving)

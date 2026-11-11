@@ -1,10 +1,10 @@
 # Aster TUI 工作台
 
-独立 Go 模块，采用 Bubble Tea、Bubbles 和 Lip Gloss；通过系统 OpenSSH 连接 RN，与 Web 和 TinyCast 使用同一份 Taskwarrior 与工作区。设计、功能映射及边界见 [设计说明](../../docs/tui-design.md)。
+独立 Go 模块，采用 Bubble Tea、Bubbles 和 Lip Gloss；通过系统 OpenSSH 连接 dmit，与 Web 和 TinyCast 使用同一份 Taskwarrior 与工作区。设计、功能映射及边界见 [设计说明](../../docs/tui-design.md)。
 
 ## 构建与连接
 
-需要 Go 1.24+。先在终端运行 `ssh rn`，确认指纹并完成密钥登录。本机不需要 Taskwarrior、Node 或新的服务端口。
+需要 Go 1.24+。先在终端运行 `ssh dmit`，确认指纹并完成密钥登录。本机不需要 Taskwarrior、Node 或新的服务端口。
 
 ```sh
 cd modules/tui
@@ -13,7 +13,7 @@ go build -o ../../dist/tui/aster .
 ```
 
 ```sh
-aster --ssh rn --task /usr/local/bin/task \
+aster --ssh dmit --task /usr/local/bin/task \
   --taskrc /etc/taskwarrior/taskrc \
   --node /opt/aster/runtime/node \
   --socket /opt/aster/data/workspace.sock
@@ -68,4 +68,4 @@ go vet ./...
 
 测试覆盖来源不匹配、未知写入、不重试、大载荷通过 stdin、栏目继承和排序、过滤保留隐藏位置、实体选择器、精确日期、revision 冲突、备份确认、中文与宽窄屏尺寸。
 
-可用 `ASTER_PREVIEW_DIR=/absolute/path go test -run TestPreviewArtifacts` 从同一个视图渲染器输出示例 ANSI 屏幕；示例不连接 RN。
+可用 `ASTER_PREVIEW_DIR=/absolute/path go test -run TestPreviewArtifacts` 从同一个视图渲染器输出示例 ANSI 屏幕；示例不连接远端。

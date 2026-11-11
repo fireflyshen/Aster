@@ -1,6 +1,6 @@
 # Aster · Web
 
-Aster 的独立网页模块，支持桌面与手机。React + shadcn/ui，使用自己的依赖与构建配置；服务端复用仓库的 `src/core/tasks` 和 `src/core/connection`，默认通过 SSH 连接 RN 的 Taskwarrior。代码按应用、功能、基础控件、服务端和共享契约分组，详见 [架构说明](../../docs/architecture.md)。
+Aster 的独立网页模块，支持桌面与手机。React + shadcn/ui，使用自己的依赖与构建配置；服务端复用仓库的 `src/core/tasks` 和 `src/core/connection`，默认通过 SSH 连接 dmit 的 Taskwarrior。代码按应用、功能、基础控件、服务端和共享契约分组，详见 [架构说明](../../docs/architecture.md)。
 
 ## 本地运行
 
@@ -11,7 +11,7 @@ npm ci --prefix modules/web
 npm run dev:web
 ```
 
-打开 **http://localhost:4180/**。开发服务仅监听本机；正式入口为 **https://task.caten.top/**，独立运行在 RN。首次连接先确保终端能运行 `ssh rn 'task --version'`。不要用文件浏览方式直接打开 HTML，界面需要本地服务提供模块和任务接口。
+打开 **http://localhost:4180/**。开发服务仅监听本机；正式入口为 **https://task.caten.top/**，独立运行在 dmit。首次连接先确保终端能运行 `ssh dmit 'task --version'`。不要用文件浏览方式直接打开 HTML，界面需要本地服务提供模块和任务接口。
 
 ```sh
 npm run check:web
@@ -55,7 +55,7 @@ Meet with Ada tomorrow at 14
 
 - 收件箱、今天、等待、已完成；搜索与项目筛选。
 - 新建、编辑、完成、重新打开，以及确认后删除。
-- 手机与桌面客户端操作同一份 RN Taskwarrior 数据；任务数据不另建数据库。
+- 手机与桌面客户端操作同一份 dmit Taskwarrior 数据；任务数据不另建数据库。
 - 联网使用，不缓存私人任务，不自动重试写入。结果无法确认时先刷新检查。
 - 模块独立运行，不引用其他 Flowspace 应用的域名、登录配置或部署文件。
 
@@ -65,7 +65,7 @@ Meet with Ada tomorrow at 14
 
 侧栏的「过滤器与标签」集中管理保存的查询和真实任务标签；收藏的条目显示在侧栏。列表、颜色菜单、收藏开关和编辑弹框均使用 shadcn/ui；水滴、标签和管理入口使用与参考图一致的独立 SVG 轮廓。
 
-过滤器直接由 RN 的 Taskwarrior 执行，支持属性与修饰符、`+标签` / `-标签`、`and` / `or` / `xor`、括号和引号。兼容 `@标签`，会转换为 `+标签`。只接受筛选条件，不接受 Taskwarrior 操作命令、配置覆盖或 shell 指令。结果排除已删除任务；需要只看待办时请写 `status:pending`，也可以明确筛选已完成任务。
+过滤器直接由 dmit 的 Taskwarrior 执行，支持属性与修饰符、`+标签` / `-标签`、`and` / `or` / `xor`、括号和引号。兼容 `@标签`，会转换为 `+标签`。只接受筛选条件，不接受 Taskwarrior 操作命令、配置覆盖或 shell 指令。结果排除已删除任务；需要只看待办时请写 `status:pending`，也可以明确筛选已完成任务。
 
 ```text
 status:pending and (@Todo or priority:H)
@@ -75,13 +75,13 @@ project:"video to audio" due.before:tomorrow
 status:completed +Work
 ```
 
-普通 `Ready` 与虚拟标签 `READY` 不同；系统虚拟标签不会混入可编辑标签列表。新建标签可以暂不分配任务；改名同步更新 RN 上非删除任务及已保存过滤器中的直接标签条件，删除仅移除标签，保留任务。计数显示未完成任务数量。
+普通 `Ready` 与虚拟标签 `READY` 不同；系统虚拟标签不会混入可编辑标签列表。新建标签可以暂不分配任务；改名同步更新 dmit 上非删除任务及已保存过滤器中的直接标签条件，删除仅移除标签，保留任务。计数显示未完成任务数量。
 
 Taskwarrior 保存任务及实际标签。过滤器定义、颜色和收藏作为本网页模块的元数据，保存在服务进程工作目录的 `data/organization.json`（用上述命令运行时为 `modules/web/data/organization.json`）；可通过 `ORGANIZATION_FILE` 指定绝对路径，生产运行应将它放在持久化目录。文件采用原子替换和版本号检查；冲突保留草稿，用户显式重新加载后再保存。线上文件为 `/opt/aster/data/organization.json`，与代码发布分开保存。
 
 ## 完成反馈与项目描述
 
-勾选后立即显示完成状态，RN 确认并刷新成功后任务平滑收起，通知中的 **Undo** 可以撤销完成或重新打开。明确失败会恢复原状态；结果未知时要求先刷新核对，不会自动重试。系统开启减少动态效果时跳过动画。
+勾选后立即显示完成状态，dmit 确认并刷新成功后任务平滑收起，通知中的 **Undo** 可以撤销完成或重新打开。明确失败会恢复原状态；结果未知时要求先刷新核对，不会自动重试。系统开启减少动态效果时跳过动画。
 
 打开项目，在标题下点击 **Add description**，或在项目的 **… → Edit project** 中编辑描述。支持换行，最多 2,000 个字符。描述与过滤器、颜色、收藏一起保存在网页模块的 `data/organization.json`，刷新或重启后保留；它是 Aster 的项目资料，不写入 Taskwarrior 任务正文。版本冲突时保留草稿，选择 **Reload and keep draft** 后再保存。
 
@@ -116,7 +116,7 @@ Each project can reference one existing unfinished task as its next step. Comple
 
 Project details and All projects support finish lines, next-step selection, activation, pause, completion and reopening. The project limit is enforced inside the organization store's serialized revision queue; clients cannot activate a project through ordinary project saves. Existing metadata edits preserve goal fields when older clients omit them.
 
-TinyCast uses the existing RN SSH connection to reach the same server process over `/opt/aster/data/workspace.sock` (0600). Enable `WORKSPACE_SOCKET` in the server environment. The socket has no TCP listener; it checks Taskwarrior source identity, uses the same revision queue as web, and exposes metadata operations only. The public web API still requires Cloudflare Access. `Shared Workspace: auto` uses this connection for SSH, or localhost web for a local Taskwarrior client. Existing localhost defaults migrate to shared SSH when using RN.
+TinyCast uses the existing SSH connection to reach the same server process over `/opt/aster/data/workspace.sock` (0600). Enable `WORKSPACE_SOCKET` in the server environment. The socket has no TCP listener; it checks Taskwarrior source identity, uses the same revision queue as web, and exposes metadata operations only. The public web API still requires Cloudflare Access. `Shared Workspace: auto` uses this connection for SSH, or localhost web for a local Taskwarrior client. Existing localhost defaults migrate to shared SSH when using dmit.
 
 ### Nested projects
 

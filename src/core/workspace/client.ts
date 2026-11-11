@@ -182,7 +182,7 @@ export function createSshWorkspaceClient(
       throw new WorkspaceError(
         change || data
           ? "Change unconfirmed. Refresh Focus before trying again."
-          : "Shared Focus unavailable. Check the RN connection and refresh.",
+          : "Shared Focus unavailable. Check the remote connection and refresh.",
         !!(change || data),
       );
     }

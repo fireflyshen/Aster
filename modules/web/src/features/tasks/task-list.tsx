@@ -56,7 +56,7 @@ export function TaskList({
     <section aria-label="Tasks" aria-busy={loading}>
       {loading && !loaded && (
         <div className="flex h-12 items-center gap-2 text-xs text-muted-foreground">
-          <Spinner className="size-4" aria-label="Connecting to RN" />
+          <Spinner className="size-4" aria-label="Connecting to dmit" />
           Loading…
         </div>
       )}
