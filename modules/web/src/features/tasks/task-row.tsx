@@ -154,7 +154,11 @@ export function TaskRow({
   const nextWeekStr = format(nextMonday(now), "yyyy-MM-dd");
   const isDueToday = dueDay === todayStr;
   const isDueTomorrow = dueDay === tomorrowStr;
-  const firstNote = task.annotations[0]?.description?.trim() || "";
+  const fullNotes =
+    task.annotations
+      ?.map((a) => a.description?.trim())
+      .filter(Boolean)
+      .join("\n") || "";
 
   const [editingInline, setEditingInline] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -317,7 +321,7 @@ export function TaskRow({
           disabled={disabled}
           ariaLabel={`Edit task: ${task.description}`}
           placeholder="Task name"
-          initialNotePreview={firstNote}
+          initialNotePreview={fullNotes}
           initialValue={{
             description: task.description,
             project: task.project || "",
@@ -448,12 +452,12 @@ export function TaskRow({
               >
                 {task.description}
               </span>
-              {firstNote && (
+              {fullNotes && (
                 <span
                   data-task-note-preview
-                  className="mt-0.5 block min-w-0 w-full truncate text-xs leading-4 text-muted-foreground/80"
+                  className="mt-1 block min-w-0 w-full text-xs leading-relaxed text-muted-foreground/80 whitespace-pre-wrap break-words"
                 >
-                  {firstNote}
+                  {fullNotes}
                 </span>
               )}
               {hasDetails && (

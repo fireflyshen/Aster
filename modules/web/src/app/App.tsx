@@ -1799,7 +1799,8 @@ export default function App() {
             ) : (
               <>
                 {!!currentProject && !activeItem && (
-                  <div className="-mt-3 mb-6 space-y-1">
+                  <div className="mb-6 space-y-2.5 rounded-xl border border-border/70 bg-card/60 p-4 shadow-2xs backdrop-blur-xs transition-colors hover:border-border">
+                    {/* Finish Line / Target */}
                     {(projectOutcome ||
                       focusProject(currentProject, organization.projects) ||
                       editingHeaderOutcome) &&
@@ -1832,12 +1833,12 @@ export default function App() {
                               },
                             });
                           }}
-                          className="-mx-2.5 flex items-center gap-1.5 rounded-lg bg-(--row-hover) px-2.5 py-1"
+                          className="space-y-2 rounded-lg border border-amber-500/30 bg-background p-3 shadow-xs"
                         >
-                          <Target
-                            className="size-3.5 shrink-0 text-muted-foreground"
-                            strokeWidth={1.6}
-                          />
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+                            <Target className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                            <span>Finish Line (Target)</span>
+                          </div>
                           <input
                             type="text"
                             autoFocus
@@ -1856,34 +1857,59 @@ export default function App() {
                                 setEditingHeaderOutcome(false);
                               }
                             }}
-                            onBlur={(event) =>
-                              event.currentTarget.form?.requestSubmit()
-                            }
-                            className="min-w-0 flex-1 bg-transparent text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+                            className="w-full rounded-md border border-border/80 bg-background px-2.5 py-1.5 text-sm text-foreground outline-none focus:border-amber-500/80"
                           />
+                          <div className="flex justify-end gap-1.5 pt-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="xs"
+                              onClick={() => setEditingHeaderOutcome(false)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button type="submit" size="xs">
+                              Save
+                            </Button>
+                          </div>
                         </form>
                       ) : (
-                        <Button
-                          variant="ghost"
-                          disabled={
-                            busy || organizationSaving || !organizationReady
-                          }
-                          onClick={() => {
-                            setHeaderOutcomeDraft(projectOutcome || "");
-                            setEditingHeaderOutcome(true);
-                          }}
-                          className="group -ml-2.5 h-auto min-h-7 max-w-full justify-start gap-1.5 rounded-lg px-2.5 py-0.5 text-left text-sm leading-6 font-normal whitespace-pre-wrap text-foreground/85 hover:bg-(--row-hover) hover:text-foreground disabled:opacity-100 has-[>svg]:px-2.5"
-                        >
-                          <Target
-                            className="size-3.5 shrink-0 text-muted-foreground"
-                            strokeWidth={1.6}
-                          />
-                          <span className="min-w-0 [overflow-wrap:anywhere]">
-                            {projectOutcome || "Set finish line"}
-                          </span>
-                          <Pencil className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60 group-focus-visible:opacity-60" />
-                        </Button>
+                        <div className="group/target flex items-start justify-between gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs transition-colors hover:bg-amber-500/10 dark:bg-amber-500/10 dark:hover:bg-amber-500/15">
+                          <div className="flex min-w-0 items-start gap-2 text-foreground/90">
+                            <Target
+                              className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400"
+                              strokeWidth={1.8}
+                            />
+                            <div className="min-w-0 flex-1 leading-5">
+                              <span className="font-semibold text-amber-800 dark:text-amber-300">
+                                Target:{" "}
+                              </span>
+                              <span className="[overflow-wrap:anywhere] whitespace-pre-wrap">
+                                {projectOutcome || "No finish line set"}
+                              </span>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            disabled={
+                              busy || organizationSaving || !organizationReady
+                            }
+                            onClick={() => {
+                              setHeaderOutcomeDraft(projectOutcome || "");
+                              setEditingHeaderOutcome(true);
+                            }}
+                            className="size-6 shrink-0 opacity-0 transition-opacity group-hover/target:opacity-100 hover:bg-amber-500/20"
+                            aria-label="Edit finish line"
+                            title="Edit finish line"
+                          >
+                            <Pencil className="size-3 text-amber-700 dark:text-amber-300" />
+                          </Button>
+                        </div>
                       ))}
+
+                    {/* Project Description */}
                     {editingHeaderDesc ? (
                       <form
                         onSubmit={(event) => {
@@ -1906,17 +1932,25 @@ export default function App() {
                             },
                           });
                         }}
-                        className="-mx-2.5 flex items-center gap-2 rounded-lg bg-(--row-hover) px-2.5 py-1"
+                        className="space-y-2 rounded-lg border border-ring/40 bg-background p-3 shadow-xs"
                       >
-                        <input
-                          type="text"
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-foreground">
+                            Project Description
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            ⌘ Enter to save · Esc to cancel
+                          </span>
+                        </div>
+                        <textarea
                           autoFocus
+                          rows={4}
                           value={headerDescDraft}
                           maxLength={2000}
                           disabled={
                             busy || organizationSaving || !organizationReady
                           }
-                          placeholder="Add project notes or description…"
+                          placeholder="Add project notes, background or description…"
                           onChange={(event) =>
                             setHeaderDescDraft(event.target.value)
                           }
@@ -1924,31 +1958,63 @@ export default function App() {
                             if (event.key === "Escape") {
                               event.preventDefault();
                               setEditingHeaderDesc(false);
+                            } else if (
+                              event.key === "Enter" &&
+                              (event.metaKey || event.ctrlKey)
+                            ) {
+                              event.preventDefault();
+                              event.currentTarget.form?.requestSubmit();
                             }
                           }}
-                          onBlur={(event) =>
-                            event.currentTarget.form?.requestSubmit()
-                          }
-                          className="min-w-0 flex-1 bg-transparent text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground"
+                          className="w-full resize-y rounded-md border border-border/80 bg-background p-2.5 text-sm leading-relaxed text-foreground outline-none focus:border-ring placeholder:text-muted-foreground"
                         />
+                        <div className="flex justify-end gap-1.5 pt-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => setEditingHeaderDesc(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit" size="xs">
+                            Save
+                          </Button>
+                        </div>
                       </form>
                     ) : (
-                      <Button
-                        variant="ghost"
-                        disabled={
-                          busy || organizationSaving || !organizationReady
-                        }
-                        onClick={() => {
-                          setHeaderDescDraft(projectDescription || "");
-                          setEditingHeaderDesc(true);
-                        }}
-                        className="group -ml-2.5 h-auto min-h-7 max-w-full justify-start gap-2 rounded-lg px-2.5 py-0.5 text-left text-sm leading-6 font-normal whitespace-pre-wrap text-muted-foreground hover:bg-(--row-hover) hover:text-foreground disabled:opacity-100 has-[>svg]:px-2.5"
-                      >
-                        <span className="min-w-0 [overflow-wrap:anywhere]">
-                          {projectDescription || "Add description"}
-                        </span>
-                        <Pencil className="size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-60 group-focus-visible:opacity-60" />
-                      </Button>
+                      <div className="group/desc flex items-start justify-between gap-2 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-(--row-hover)">
+                        <div
+                          onClick={() => {
+                            setHeaderDescDraft(projectDescription || "");
+                            setEditingHeaderDesc(true);
+                          }}
+                          className="min-w-0 flex-1 cursor-pointer text-sm leading-relaxed text-muted-foreground hover:text-foreground/90 whitespace-pre-wrap break-words select-text"
+                        >
+                          {projectDescription || (
+                            <span className="italic text-muted-foreground/60">
+                              + Add project notes or description…
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={
+                            busy || organizationSaving || !organizationReady
+                          }
+                          onClick={() => {
+                            setHeaderDescDraft(projectDescription || "");
+                            setEditingHeaderDesc(true);
+                          }}
+                          className="size-6 shrink-0 opacity-0 transition-opacity group-hover/desc:opacity-100 hover:bg-muted"
+                          aria-label="Edit description"
+                          title="Edit description"
+                        >
+                          <Pencil className="size-3 text-muted-foreground" />
+                        </Button>
+                      </div>
                     )}
                   </div>
                 )}
@@ -2095,6 +2161,7 @@ export default function App() {
                       onCreateTask={createTaskInView}
                       projects={filterProjects}
                       availableLabels={organization.tags}
+                      project={currentProject}
                       defaultProject={currentProject}
                       defaultDue={view === "today" ? taskDate(new Date()) : ""}
                       todaySplit={
@@ -2107,6 +2174,9 @@ export default function App() {
                           : openQuickAdd()
                       }
                       canAddTask={view !== "completed"}
+                      canAddSection={
+                        !!currentProject || (!specialPage && view === "pending")
+                      }
                       hasSearch={!!query.trim()}
                       onClearSearch={() => {
                         setQuery("");
@@ -2156,6 +2226,7 @@ export default function App() {
                       onCreateTask={createTaskInView}
                       projects={filterProjects}
                       availableLabels={organization.tags}
+                      project={currentProject}
                       defaultProject={currentProject}
                       defaultDue={view === "today" ? taskDate(new Date()) : ""}
                       onAdd={(initial) =>
@@ -2164,6 +2235,9 @@ export default function App() {
                           : openQuickAdd()
                       }
                       canAddTask={view !== "completed"}
+                      canAddSection={
+                        !!currentProject || (!specialPage && view === "pending")
+                      }
                       hasSearch={!!query.trim()}
                       onClearSearch={() => {
                         setQuery("");

@@ -205,13 +205,16 @@ export function validateBackup(value: unknown): AsterBackup {
   }
   if (org.board !== undefined) {
     record(org.board);
-    list(org.board.columns, 30);
+    list(org.board.columns, 300);
     list(org.board.order, 50000);
     list(org.board.placements, 50000);
     for (const item of org.board.columns) {
       record(item);
       text(item.id, 160);
       text(item.name, 60);
+      if (item.project !== undefined && item.project !== null) {
+        text(item.project, 200);
+      }
       if (!item.id || item.id === "unsectioned" || !item.name.trim())
         throw new Error("Invalid board column.");
     }

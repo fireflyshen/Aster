@@ -109,11 +109,13 @@ type Props = {
   onCreateTask?: (task: TaskInput, columnId?: string) => Promise<boolean>;
   projects?: string[];
   availableLabels?: SavedTag[];
+  project?: string;
   defaultProject?: string;
   defaultDue?: string;
   todaySplit?: boolean;
   onRescheduleOverdue?: (overdueTasks: Task[]) => Promise<void>;
   canAddTask?: boolean;
+  canAddSection?: boolean;
   hasSearch?: boolean;
   onClearSearch?: () => void;
   onChange: (change: BoardChange) => Promise<boolean>;
@@ -149,12 +151,14 @@ function isTaskOverdue(task: Task): boolean {
 function InlineColumnCreator({
   layout,
   revision,
+  project,
   disabled,
   saving,
   onSave,
 }: {
   layout: "list" | "board";
   revision: number;
+  project?: string;
   disabled: boolean;
   saving: boolean;
   onSave: (change: BoardChange) => Promise<boolean>;
@@ -218,7 +222,7 @@ function InlineColumnCreator({
       kind: "board",
       action: "column.save",
       revision,
-      column: { id: "", name: trimmed },
+      column: { id: "", name: trimmed, project: project || "" },
     });
     if (ok) {
       setName("");
@@ -668,11 +672,13 @@ export function TaskBoard({
   onCreateTask,
   projects = [],
   availableLabels = [],
+  project,
   defaultProject = "",
   defaultDue = "",
   todaySplit = false,
   onRescheduleOverdue,
   canAddTask = true,
+  canAddSection,
   hasSearch = false,
   onClearSearch,
   onChange,
@@ -693,11 +699,15 @@ export function TaskBoard({
     revision: number;
   }>();
   const scrollArea = useRef<HTMLDivElement>(null);
+  const currentProj = project ?? defaultProject ?? "";
+  const projectColumns = board.columns.filter(
+    (item) => (item.project || "") === currentProj,
+  );
+  const columns = [unsectionedColumn, ...projectColumns];
+  const hasCustomColumns = projectColumns.length > 0;
   useLayoutEffect(() => {
     if (scrollArea.current) scrollArea.current.scrollLeft = initialScrollLeft;
-  }, [initialScrollLeft, board.columns.length]);
-  const columns = [unsectionedColumn, ...board.columns];
-  const hasCustomColumns = board.columns.length > 0;
+  }, [initialScrollLeft, projectColumns.length]);
 
   const keyboardCoordinates: KeyboardCoordinateGetter = (
     event,
@@ -1096,7 +1106,7 @@ export function TaskBoard({
                       column={column}
                       count={items.length}
                       index={index - 1}
-                      total={board.columns.length}
+                      total={projectColumns.length}
                       disabled={disabled}
                       showHeader={showColumnHeader}
                       onEdit={() => openEditor(column)}
@@ -1182,18 +1192,21 @@ export function TaskBoard({
                     </BoardColumn>
                   );
                 })}
-            {canAddTask && (
-              <InlineColumnCreator
-                layout={layout}
-                revision={revision}
-                disabled={disabled}
-                saving={saving}
-                onSave={(change) => {
-                  onClearError();
-                  return onChange(change);
-                }}
-              />
-            )}
+            {canAddTask &&
+              (canAddSection ??
+                (!!currentProj || (!todaySplit && layout === "list"))) && (
+                <InlineColumnCreator
+                  layout={layout}
+                  revision={revision}
+                  project={currentProj}
+                  disabled={disabled}
+                  saving={saving}
+                  onSave={(change) => {
+                    onClearError();
+                    return onChange(change);
+                  }}
+                />
+              )}
           </div>
         </div>
         <DragOverlay

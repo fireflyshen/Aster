@@ -52,12 +52,14 @@ export function createOrganizationStore(path: string) {
             !Array.isArray(data.board.placements) ||
             !Array.isArray(data.board.order) ||
             data.board.columns.some(
-              (column: { id: string; name: string }) =>
+              (column: { id: string; name: string; project?: string }) =>
                 !column ||
                 typeof column.id !== "string" ||
                 !column.id ||
                 column.id === "unsectioned" ||
-                typeof column.name !== "string",
+                typeof column.name !== "string" ||
+                (column.project !== undefined &&
+                  typeof column.project !== "string"),
             ) ||
             new Set(
               data.board.columns.map((column: { id: string }) => column.id),
@@ -75,9 +77,18 @@ export function createOrganizationStore(path: string) {
         );
       if (data.board)
         data.board.columns = data.board.columns.map(
-          ({ id, name }: { id: string; name: string }) => ({
+          ({
             id,
             name,
+            project,
+          }: {
+            id: string;
+            name: string;
+            project?: string;
+          }) => ({
+            id,
+            name,
+            ...(project?.trim() ? { project: project.trim() } : {}),
           }),
         );
       return data;
@@ -342,6 +353,29 @@ export function createOrganizationStore(path: string) {
               original,
               removing ? undefined : name,
             );
+            if (data.board) {
+              if (renaming) {
+                for (const col of data.board.columns) {
+                  if (col.project && inProject(col.project, original)) {
+                    col.project = remapProject(col.project, original, name);
+                  }
+                }
+              } else if (removing) {
+                const removedIds = new Set(
+                  data.board.columns
+                    .filter((col) => col.project && inProject(col.project, original))
+                    .map((col) => col.id),
+                );
+                if (removedIds.size > 0) {
+                  data.board.columns = data.board.columns.filter(
+                    (col) => !removedIds.has(col.id),
+                  );
+                  data.board.placements = data.board.placements.filter(
+                    (p) => !removedIds.has(p.columnId),
+                  );
+                }
+              }
+            }
           }
           data.projects = projects;
           data.filters = filters;

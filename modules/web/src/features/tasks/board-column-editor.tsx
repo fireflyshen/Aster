@@ -44,7 +44,7 @@ export function BoardColumnEditor({
         kind: "board",
         action: "column.save",
         revision: version,
-        column: { id: column.id, name },
+        column: { id: column.id, name, project: column.project },
       })
     )
       onClose();

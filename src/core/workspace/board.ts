@@ -1,4 +1,4 @@
-export type BoardColumn = { id: string; name: string };
+export type BoardColumn = { id: string; name: string; project?: string };
 export type BoardState = {
   columns: BoardColumn[];
   placements: { uuid: string; columnId: string }[];

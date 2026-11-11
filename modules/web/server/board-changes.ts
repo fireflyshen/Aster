@@ -28,6 +28,9 @@ export function changeBoardState(
       /[\0\r\n]/.test(item.name)
     )
       throw new Error("Enter a column name of 1–60 characters.");
+    const project = item.project?.trim() || "";
+    if (project.length > 200 || /[\0\r\n]/.test(project))
+      throw new Error("Invalid project for column.");
     const old = board.columns.find((column) => column.id === item.id);
     if (item.id && !old)
       throw new Error("This column no longer exists. Reload to continue.");
@@ -35,16 +38,31 @@ export function changeBoardState(
       board.columns.some(
         (column) =>
           column.id !== item.id &&
+          (column.project || "") === project &&
           column.name.toLocaleLowerCase() ===
             item.name.trim().toLocaleLowerCase(),
       )
     )
-      throw new Error("This column name already exists.");
-    if (old) old.name = item.name.trim();
-    else {
-      if (board.columns.length >= 30)
-        throw new Error("A board can have up to 30 columns.");
-      board.columns.push({ id: randomUUID(), name: item.name.trim() });
+      throw new Error("This column name already exists in this project.");
+    if (old) {
+      old.name = item.name.trim();
+      if (item.project !== undefined) {
+        if (project) old.project = project;
+        else delete old.project;
+      }
+    } else {
+      const projectColumns = board.columns.filter(
+        (column) => (column.project || "") === project,
+      );
+      if (projectColumns.length >= 30)
+        throw new Error("A project can have up to 30 columns.");
+      if (board.columns.length >= 300)
+        throw new Error("A board can have up to 300 columns.");
+      board.columns.push({
+        id: randomUUID(),
+        name: item.name.trim(),
+        ...(project ? { project } : {}),
+      });
     }
   } else if (input.action === "column.delete") {
     const old = board.columns.find((column) => column.id === input.columnId);
@@ -55,17 +73,26 @@ export function changeBoardState(
       (item) => item.columnId !== old.id,
     );
   } else if (input.action === "column.move") {
-    const from = board.columns.findIndex(
-      (column) => column.id === input.columnId,
+    const target = board.columns.find((column) => column.id === input.columnId);
+    if (!target)
+      throw new Error("This column no longer exists. Reload to continue.");
+    const project = target.project || "";
+    const projectIndices = board.columns
+      .map((c, i) => ((c.project || "") === project ? i : -1))
+      .filter((i) => i >= 0);
+    const fromIdx = projectIndices.indexOf(
+      board.columns.findIndex((column) => column.id === input.columnId),
     );
-    if (from < 0 || !["left", "right"].includes(input.direction))
+    if (fromIdx < 0 || !["left", "right"].includes(input.direction))
       throw new Error("Choose a valid column move.");
-    const to = from + (input.direction === "left" ? -1 : 1);
-    if (to < 0 || to >= board.columns.length)
+    const toIdx = fromIdx + (input.direction === "left" ? -1 : 1);
+    if (toIdx < 0 || toIdx >= projectIndices.length)
       throw new Error("The column is already at the edge.");
-    [board.columns[from], board.columns[to]] = [
-      board.columns[to],
-      board.columns[from],
+    const actualFrom = projectIndices[fromIdx];
+    const actualTo = projectIndices[toIdx];
+    [board.columns[actualFrom], board.columns[actualTo]] = [
+      board.columns[actualTo],
+      board.columns[actualFrom],
     ];
   } else if (input.action === "task.move") {
     if (typeof input.uuid !== "string" || !uuidPattern.test(input.uuid))

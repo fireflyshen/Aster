@@ -219,3 +219,84 @@ test("legacy state columns become ordinary removable columns without losing plac
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("columns are scoped to project and update when project is renamed or removed", async () => {
+  const dir = await mkdtemp(tmpdir() + "/aster-board-project-");
+  try {
+    const path = dir + "/organization.json",
+      store = createOrganizationStore(path);
+    let revision = 0;
+    const change = async (input: any, currentProjects: string[] = ["ProjectA", "ProjectB"]) => {
+      const result = await store.change(
+        { ...input, revision } as any,
+        [],
+        noTaskWrite,
+        {
+          tasks,
+          projects: currentProjects,
+          changeProject: async () => {},
+        },
+      );
+      revision = result.revision;
+      return result;
+    };
+    // Create column for Project A
+    let saved = await change({
+      kind: "board",
+      action: "column.save",
+      column: { id: "", name: "Review", project: "ProjectA" },
+    });
+    const colA = saved.board!.columns.find((c: any) => c.project === "ProjectA");
+    assert(colA);
+    assert.equal(colA.name, "Review");
+    assert.equal(colA.project, "ProjectA");
+
+    // Create column with same name for Project B (should succeed since different projects)
+    saved = await change({
+      kind: "board",
+      action: "column.save",
+      column: { id: "", name: "Review", project: "ProjectB" },
+    });
+    const colB = saved.board!.columns.find((c: any) => c.project === "ProjectB");
+    assert(colB);
+    assert.notEqual(colA.id, colB.id);
+
+    // Duplicate name in same project should fail
+    await assert.rejects(
+      () =>
+        change({
+          kind: "board",
+          action: "column.save",
+          column: { id: "", name: "Review", project: "ProjectA" },
+        }),
+      /already exists/,
+    );
+
+    // Renaming ProjectA to ProjectA-Renamed updates column's project
+    saved = await change({
+      kind: "project",
+      action: "save",
+      originalName: "ProjectA",
+      item: { name: "ProjectA-Renamed", description: "" },
+    });
+    const colARenamed = saved.board!.columns.find((c: any) => c.id === colA.id);
+    assert.equal(colARenamed.project, "ProjectA-Renamed");
+
+    // Deleting ProjectB removes its columns
+    saved = await change(
+      {
+        kind: "project",
+        action: "delete",
+        originalName: "ProjectB",
+        item: { name: "ProjectB", description: "" },
+      },
+      ["ProjectA-Renamed", "ProjectB"],
+    );
+    assert.equal(
+      saved.board!.columns.some((c: any) => c.project === "ProjectB"),
+      false,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
