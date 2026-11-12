@@ -12,6 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Inbox, ChevronRight } from "lucide-react";
 import { useSyncExternalStore, type ReactNode } from "react";
 
 const desktopQuery = "(min-width: 768px)";
@@ -28,12 +29,16 @@ export function TaskEditor({
   busy,
   title,
   children,
+  detail = false,
+  location = "Inbox",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   busy: boolean;
   title: string;
   children: ReactNode;
+  detail?: boolean;
+  location?: string;
 }) {
   const desktop = useSyncExternalStore(subscribe, desktopSnapshot, () => false);
   const Header = desktop ? DialogHeader : SheetHeader;
@@ -41,9 +46,18 @@ export function TaskEditor({
   const Description = desktop ? DialogDescription : SheetDescription;
   const body = (
     <>
-      <Header className="shrink-0 border-b border-border/70 px-5 py-3.5 pr-12 text-left">
-        <Title className="text-xs font-medium tracking-wide text-muted-foreground">
-          {title}
+      <Header className="task-detail-header shrink-0 border-b border-border/70 px-5 py-3.5 pr-12 text-left">
+        <Title className="flex items-center gap-2 text-[13px] font-normal text-muted-foreground">
+          {detail ? (
+            <>
+              <Inbox className="size-4" strokeWidth={1.5} />
+              <span>{location}</span>
+              <ChevronRight className="size-3" />
+              <span>Task</span>
+            </>
+          ) : (
+            title
+          )}
         </Title>
         <Description className="sr-only">
           Edit the task and its properties.
@@ -59,8 +73,9 @@ export function TaskEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-editor-layout="desktop"
+        data-task-detail={detail}
         showCloseButton={!busy}
-        className="flex max-h-[calc(100dvh-3rem)] w-[calc(100vw-3rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[540px]"
+        className="task-editor-dialog flex max-h-[calc(100dvh-3rem)] w-[calc(100vw-3rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[680px]"
         onEscapeKeyDown={preventClose}
         onPointerDownOutside={preventClose}
       >
@@ -71,6 +86,7 @@ export function TaskEditor({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         data-editor-layout="mobile"
+        data-task-detail={detail}
         side="bottom"
         showCloseButton={!busy}
         className="mx-auto max-h-[calc(100dvh-0.75rem)] max-w-xl gap-0 overflow-hidden rounded-t-xl p-0"

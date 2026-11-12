@@ -1,4 +1,9 @@
-import { FilterIcon, LabelIcon, OrganizationIcon, TodayCalendarIcon } from "@/components/icons";
+import {
+  FilterIcon,
+  LabelIcon,
+  OrganizationIcon,
+  TodayCalendarIcon,
+} from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { ProjectTree } from "@/features/projects/project-tree";
 import { formatDuration, type EnergySummary } from "@core/workspace/energy";
@@ -20,7 +25,9 @@ import {
   Archive,
   Asterisk,
   CalendarDays,
+  ChevronDown,
   ChevronRight,
+  Search,
   CircleCheck,
   Clock3,
   DatabaseBackup,
@@ -104,6 +111,7 @@ type WorkspaceSidebarProps = {
   onElixir?: () => void;
   timingUnavailable?: boolean;
   onRetryTiming?: () => void;
+  onSearch: () => void;
   onAdd: () => void;
   onAddProject: () => void;
   onAddSubproject: (name: string) => void;
@@ -141,6 +149,7 @@ export function WorkspaceSidebar({
   onElixir,
   timingUnavailable,
   onRetryTiming,
+  onSearch,
   onAdd,
   onAddProject,
   onAddSubproject,
@@ -166,10 +175,15 @@ export function WorkspaceSidebar({
 
   return (
     <WorkspaceNavigation open={navOpen} onOpenChange={onOpenChange}>
-      <div className="mb-3 flex h-10 items-center justify-between px-1 md:px-2">
+      <div className="sidebar-account flex h-14 items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <Asterisk className="size-5 text-primary" strokeWidth={1.8} />
-          <span className="text-sm font-semibold tracking-tight text-foreground">Aster</span>
+          <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <Asterisk className="size-[18px]" strokeWidth={1.8} />
+          </span>
+          <span className="text-sm font-semibold tracking-tight text-foreground">
+            Aster
+          </span>
+          <ChevronDown className="size-3 text-muted-foreground" />
         </div>
         <Button
           id="sidebar-close"
@@ -188,13 +202,25 @@ export function WorkspaceSidebar({
         onClick={onAdd}
         disabled={busy || needsCheck}
         aria-keyshortcuts="Q"
-        className="mb-3 h-9 w-full justify-start gap-2.5 px-2.5 font-medium text-primary hover:bg-navigation-hover has-[>svg]:px-2.5"
+        className="sidebar-add h-9 w-full justify-start gap-2.5 px-2 font-semibold text-primary hover:bg-navigation-hover has-[>svg]:px-2"
       >
-        <Plus className="size-5" />
+        <span className="flex size-[18px] items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <Plus className="size-3.5" strokeWidth={2} />
+        </span>
         Add task
         <kbd className="ml-auto rounded border border-border/80 bg-background/80 px-1.5 py-0.5 font-sans text-[11px] leading-none text-muted-foreground">
           Q
         </kbd>
+      </Button>
+      <Button
+        variant="navigation"
+        onClick={onSearch}
+        aria-keyshortcuts="Meta+K Control+K"
+        className="sidebar-search"
+      >
+        <Search className="size-[18px]" strokeWidth={1.5} />
+        Search
+        <kbd className="ml-auto text-[11px] text-muted-foreground">⌘K</kbd>
       </Button>
       <nav aria-label="Task views" className="space-y-0.5">
         {viewOrder.map((value) => {

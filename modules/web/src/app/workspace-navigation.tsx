@@ -28,7 +28,7 @@ export function WorkspaceNavigation({
         data-state={open ? "open" : "closed"}
         aria-hidden={!open}
         inert={!open}
-        className={`workspace-sidebar fixed inset-y-0 left-0 z-30 w-60 ${contentClass}`}
+        className={`workspace-sidebar fixed inset-y-0 left-0 z-30 w-(--sidebar-width) ${contentClass}`}
       >
         {children}
       </aside>
@@ -41,7 +41,7 @@ export function WorkspaceNavigation({
         side="left"
         aria-describedby={undefined}
         showCloseButton={false}
-        className={`${contentClass} w-60 gap-0 border-0 pt-[env(safe-area-inset-top)] pb-[max(0.75rem,env(safe-area-inset-bottom))] data-[state=open]:duration-200 data-[state=closed]:duration-200`}
+        className={`${contentClass} w-[280px] gap-0 border-0 pt-[env(safe-area-inset-top)] pb-[max(0.75rem,env(safe-area-inset-bottom))] data-[state=open]:duration-200 data-[state=closed]:duration-200`}
       >
         <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
         {children}

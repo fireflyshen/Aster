@@ -198,12 +198,14 @@ export function TaskRow({
   ).length;
 
   const hasMoreMenu = Boolean(
-    !completed && (onDueChange || onPriorityChange || onSaveInline || onAddSubtask)
+    !completed &&
+      (onDueChange || onPriorityChange || onSaveInline || onAddSubtask)
       ? true
       : isSubtask || onDelete,
   );
   const hasRightActions = Boolean(
-    (!completed && (onSaveInline || onToggleStart || onDueChange || onPriorityChange)) ||
+    (!completed &&
+      (onSaveInline || onToggleStart || onDueChange || onPriorityChange)) ||
     hasMoreMenu ||
     extraActions,
   );
@@ -362,7 +364,7 @@ export function TaskRow({
             due: task.due ? isoDue(task.due) : "",
             recur: task.recur,
             until: task.until ? taskDate(new Date(task.until)) : undefined,
-            note: fullNotes || "",
+            note: "",
           }}
           projects={projects}
           availableLabels={availableLabels}
@@ -373,6 +375,13 @@ export function TaskRow({
           }}
           onCancel={() => setEditingInline(false)}
         />
+        {variant === "list" && subtasksExpanded && subtasks.length > 0 && (
+          <div className="task-subtree">
+            {subtasks.map((child) => (
+              <div key={child.uuid}>{renderSubtask?.(child)}</div>
+            ))}
+          </div>
+        )}
       </article>
     );
   }
@@ -409,13 +418,15 @@ export function TaskRow({
           <div className="flex items-start gap-2 md:gap-2.5 w-full min-w-0">
             {/* Left Gutter: Chevrons for tasks with subtasks; drag handles in list view */}
             {(variant === "list" || totalSubtasks > 0) && (
-              <div className="flex size-5 shrink-0 items-center justify-center self-start mt-2 md:mt-1.5">
+              <div className="task-row-gutter flex size-5 shrink-0 items-center justify-center self-start mt-2 md:mt-1.5">
                 {totalSubtasks > 0 ? (
                   <button
                     type="button"
                     data-no-drag
                     tabIndex={-1}
-                    aria-label={subtasksExpanded ? "Collapse subtasks" : "Expand subtasks"}
+                    aria-label={
+                      subtasksExpanded ? "Collapse subtasks" : "Expand subtasks"
+                    }
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -439,7 +450,7 @@ export function TaskRow({
             )}
 
             {/* Checkbox */}
-            <div className="flex size-5 shrink-0 items-center justify-center self-start mt-2 md:mt-1.5">
+            <div className="task-row-check flex size-5 shrink-0 items-center justify-center self-start mt-2 md:mt-1.5">
               <Label
                 htmlFor={`complete-${task.uuid}`}
                 className={cn(
@@ -504,10 +515,12 @@ export function TaskRow({
               role="group"
               aria-label={`Task: ${task.description}`}
               onKeyDown={(e) => {
-                if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                if (
+                  e.target === e.currentTarget &&
+                  (e.key === "Enter" || e.key === " ")
+                ) {
                   e.preventDefault();
-                  if (!completed && onSaveInline) setEditingInline(true);
-                  else onEdit();
+                  onEdit();
                 }
               }}
               className="flex h-auto min-h-11 min-w-0 flex-1 flex-col items-start justify-start gap-0 self-start px-0 py-2 md:py-1.5 text-left font-normal outline-none focus-visible:ring-1 focus-visible:ring-ring/50 md:min-h-8"
@@ -516,7 +529,7 @@ export function TaskRow({
                 role="button"
                 tabIndex={-1}
                 data-task-title
-                onClick={!completed && onSaveInline ? () => setEditingInline(true) : onEdit}
+                onClick={onEdit}
                 className={cn(
                   "block min-w-0 w-full text-[14px] leading-5 font-normal transition-colors duration-150 [overflow-wrap:anywhere] cursor-pointer outline-none hover:text-foreground",
                   checked
@@ -534,7 +547,7 @@ export function TaskRow({
                       e.stopPropagation();
                       return;
                     }
-                    if (!completed && onSaveInline) setEditingInline(true);
+                    onEdit();
                   }}
                   className={cn(
                     "mt-0.5 block min-w-0 w-full text-xs leading-relaxed line-clamp-2 select-text [overflow-wrap:anywhere] whitespace-pre-wrap break-words cursor-pointer transition-colors",
@@ -569,7 +582,11 @@ export function TaskRow({
                         e.stopPropagation();
                         setSubtasksExpanded(!subtasksExpanded);
                       }}
-                      title={subtasksExpanded ? "Collapse subtasks" : "Expand subtasks"}
+                      title={
+                        subtasksExpanded
+                          ? "Collapse subtasks"
+                          : "Expand subtasks"
+                      }
                       className={cn(
                         "inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer",
                         completedSubtasks === totalSubtasks
@@ -588,8 +605,13 @@ export function TaskRow({
                       className="inline-flex items-center gap-1 text-[11px] leading-none text-muted-foreground"
                       title={`${task.annotations.length} note(s)`}
                     >
-                      <MessageSquare className="size-3.5 shrink-0" strokeWidth={1.5} />
-                      <span className="tabular-nums">{task.annotations.length}</span>
+                      <MessageSquare
+                        className="size-3.5 shrink-0"
+                        strokeWidth={1.5}
+                      />
+                      <span className="tabular-nums">
+                        {task.annotations.length}
+                      </span>
                     </span>
                   )}
                   {(started || (trackedSeconds ?? 0) > 0) && (
@@ -664,7 +686,10 @@ export function TaskRow({
                     new Date(task.wait) > new Date() &&
                     !checked && (
                       <span className="inline-flex items-center gap-1 text-[12px] leading-none text-muted-foreground">
-                        <Clock3 className="size-3.5 shrink-0" strokeWidth={1.5} />
+                        <Clock3
+                          className="size-3.5 shrink-0"
+                          strokeWidth={1.5}
+                        />
                         Waiting · {dueLabel(task.wait)}
                       </span>
                     )}
@@ -673,7 +698,10 @@ export function TaskRow({
                       className="inline-flex items-center gap-1 text-[12px] leading-none text-muted-foreground"
                       aria-label={`Repeats ${task.recur}`}
                     >
-                      <Repeat2 className="size-3.5 shrink-0" strokeWidth={1.5} />
+                      <Repeat2
+                        className="size-3.5 shrink-0"
+                        strokeWidth={1.5}
+                      />
                       {task.recur}
                     </span>
                   )}
@@ -781,6 +809,8 @@ export function TaskRow({
             {hasRightActions && (
               <div
                 data-no-drag
+                data-row-actions
+                data-actions-open={actionsVisible}
                 className={cn(
                   "flex h-8 shrink-0 items-center gap-0.5 self-start transition-opacity duration-150 md:mt-0.5",
                   actionsVisible
@@ -831,7 +861,10 @@ export function TaskRow({
                   />
                 )}
                 {!completed && onPriorityChange && (
-                  <Popover open={priorityPopoverOpen} onOpenChange={setPriorityPopoverOpen}>
+                  <Popover
+                    open={priorityPopoverOpen}
+                    onOpenChange={setPriorityPopoverOpen}
+                  >
                     <PopoverTrigger asChild>
                       <Button
                         type="button"
@@ -902,7 +935,9 @@ export function TaskRow({
                     onClick={onToggleStart}
                     className={cn(
                       "size-7 rounded-md transition-colors hover:bg-muted/80",
-                      started ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground",
+                      started
+                        ? "text-foreground font-semibold"
+                        : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     {started ? (
@@ -930,8 +965,26 @@ export function TaskRow({
                     <PopoverContent
                       align="end"
                       collisionPadding={12}
-                      className="w-56 p-1.5"
+                      data-task-menu
+                      className="w-60 p-1"
                     >
+                      {!completed && onSaveInline && (
+                        <Button
+                          type="button"
+                          variant="navigation"
+                          className="h-8 text-xs font-normal"
+                          onClick={() => {
+                            setMoreOpen(false);
+                            setEditingInline(true);
+                          }}
+                        >
+                          <Pencil className="size-3.5" />
+                          Edit task{" "}
+                          <kbd className="ml-auto text-[11px] text-muted-foreground">
+                            E
+                          </kbd>
+                        </Button>
+                      )}
                       {!completed && onDueChange && (
                         <div className="border-b border-border/60 px-1.5 pt-1 pb-2">
                           <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
@@ -1109,20 +1162,6 @@ export function TaskRow({
                             Turn into top-level task
                           </Button>
                         )}
-                        {!completed && onSaveInline && (
-                          <Button
-                            type="button"
-                            variant="navigation"
-                            className="h-8 text-xs font-normal"
-                            onClick={() => {
-                              setMoreOpen(false);
-                              setEditingInline(true);
-                            }}
-                          >
-                            <Pencil className="size-3.5" />
-                            Edit task inline
-                          </Button>
-                        )}
                         <Button
                           type="button"
                           variant="navigation"
@@ -1158,56 +1197,59 @@ export function TaskRow({
             )}
           </div>
         </div>
-        {(totalSubtasks > 0 || isAddingSubtask) && subtasksExpanded && (
-          <div className="ml-2.5 pl-3.5 border-l border-border/40 mt-0.5 mb-1 flex flex-col space-y-0.5">
-            {subtasks.map((child) => (
-              <div key={child.uuid} className="relative">
-                {renderSubtask ? (
-                  renderSubtask(child)
-                ) : null}
-              </div>
-            ))}
-            {onAddSubtask && !completed && depth < 4 && (
-              <div className="pt-1">
-                {isAddingSubtask ? (
-                  <TodoistTaskComposer
-                    mode="add"
-                    compact
-                    disabled={disabled}
-                    ariaLabel={`Add subtask to ${task.description}`}
-                    placeholder="Subtask name (try @label, tomorrow, p1)"
-                    defaultProject={task.project}
-                    projects={projects}
-                    availableLabels={availableLabels}
-                    onSubmitTask={async (subtaskInput) => {
-                      const ok = await onAddSubtask({
-                        ...subtaskInput,
-                        project: subtaskInput.project || task.project,
-                      });
-                      return ok;
-                    }}
-                    onCancel={() => setIsAddingSubtask(false)}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    data-no-drag
-                    onClick={() => {
-                      setIsAddingSubtask(true);
-                      setSubtasksExpanded(true);
-                    }}
-                    className="flex items-center gap-1.5 py-1 px-2 text-xs font-normal text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors cursor-pointer w-full text-left"
-                  >
-                    <Plus className="size-3.5" />
-                    <span>Add subtask</span>
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+        {variant === "list" &&
+          (totalSubtasks > 0 || isAddingSubtask) &&
+          subtasksExpanded && (
+            <div className="task-subtree">
+              {subtasks.map((child) => (
+                <div key={child.uuid} className="relative">
+                  {renderSubtask ? renderSubtask(child) : null}
+                </div>
+              ))}
+              {onAddSubtask && !completed && isAddingSubtask && (
+                <div className="pt-1">
+                  {isAddingSubtask ? (
+                    <TodoistTaskComposer
+                      mode="add"
+                      compact
+                      disabled={disabled}
+                      ariaLabel={`Add subtask to ${task.description}`}
+                      placeholder="Subtask name (try @label, tomorrow, p1)"
+                      defaultProject={task.project}
+                      projects={projects}
+                      availableLabels={availableLabels}
+                      onSubmitTask={async (subtaskInput) => {
+                        const ok = await onAddSubtask({
+                          ...subtaskInput,
+                          project: subtaskInput.project || task.project,
+                        });
+                        return ok;
+                      }}
+                      onCancel={() => setIsAddingSubtask(false)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      data-no-drag
+                      onClick={() => {
+                        setIsAddingSubtask(true);
+                        setSubtasksExpanded(true);
+                      }}
+                      className="flex items-center gap-1.5 py-1 px-2 text-xs font-normal text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors cursor-pointer w-full text-left"
+                    >
+                      <Plus className="size-3.5" />
+                      <span>Add subtask</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         {variant === "card" && (totalSubtasks > 0 || isAddingSubtask) && (
-          <div className="mt-2 pt-2 border-t border-border/40 w-full" data-no-drag>
+          <div
+            className="mt-2 pt-2 border-t border-border/40 w-full"
+            data-no-drag
+          >
             {totalSubtasks > 0 && (
               <button
                 type="button"
@@ -1242,13 +1284,19 @@ export function TaskRow({
                         checked={child.status === "completed"}
                         disabled={disabled}
                         onCheckedChange={() => {
-                          onToggleSubtask?.(child, child.status !== "completed");
+                          onToggleSubtask?.(
+                            child,
+                            child.status !== "completed",
+                          );
                         }}
                         className={cn(
                           "size-3.5 rounded-full border-muted-foreground/60 shadow-none cursor-pointer",
-                          child.priority === "H" && "border-red-500 bg-red-500/10",
-                          child.priority === "M" && "border-amber-500 bg-amber-500/10",
-                          child.priority === "L" && "border-blue-500 bg-blue-500/10",
+                          child.priority === "H" &&
+                            "border-red-500 bg-red-500/10",
+                          child.priority === "M" &&
+                            "border-amber-500 bg-amber-500/10",
+                          child.priority === "L" &&
+                            "border-blue-500 bg-blue-500/10",
                         )}
                       />
                       <span
@@ -1268,12 +1316,20 @@ export function TaskRow({
                       <span
                         className={cn(
                           "text-[10px] font-semibold shrink-0",
-                          child.priority === "H" && "text-red-600 dark:text-red-400",
-                          child.priority === "M" && "text-amber-600 dark:text-amber-400",
-                          child.priority === "L" && "text-blue-600 dark:text-blue-400",
+                          child.priority === "H" &&
+                            "text-red-600 dark:text-red-400",
+                          child.priority === "M" &&
+                            "text-amber-600 dark:text-amber-400",
+                          child.priority === "L" &&
+                            "text-blue-600 dark:text-blue-400",
                         )}
                       >
-                        P{child.priority === "H" ? 1 : child.priority === "M" ? 2 : 3}
+                        P
+                        {child.priority === "H"
+                          ? 1
+                          : child.priority === "M"
+                            ? 2
+                            : 3}
                       </span>
                     )}
                   </div>

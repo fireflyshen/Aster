@@ -402,9 +402,10 @@ export function TodoistTaskComposer({
     <form
       onSubmit={submit}
       data-todoist-composer={mode}
+      data-compact={compact}
       className={cn(compact ? "my-1.5" : "mt-1.5")}
     >
-      <div className="rounded-xl border border-border/80 bg-card p-3 shadow-[0_2px_12px_rgb(0_0_0/0.05)] transition-colors focus-within:border-ring/50">
+      <div className="task-composer-shell rounded-lg border border-input bg-card p-3 transition-colors focus-within:border-ring">
         <div className="relative space-y-1">
           <input
             ref={titleRef}
@@ -467,6 +468,7 @@ export function TodoistTaskComposer({
           )}
 
           <textarea
+            data-composer-note
             rows={1}
             ref={(el) => {
               if (el) {
@@ -502,7 +504,9 @@ export function TodoistTaskComposer({
               }
               if (
                 (event.key === "Enter" && (event.metaKey || event.ctrlKey)) ||
-                (event.key === "Enter" && !event.shiftKey && !note.includes("\n"))
+                (event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !note.includes("\n"))
               ) {
                 event.preventDefault();
                 event.currentTarget.form?.requestSubmit();
@@ -515,7 +519,6 @@ export function TodoistTaskComposer({
         {/* Real-time recognized tokens badges */}
         {parsed.tokens.length > 0 && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/40 pt-2 text-[11px]">
-            <span className="text-muted-foreground/80">Recognized:</span>
             {parsed.tokens.map((token) => (
               <span
                 key={token.id}
@@ -550,7 +553,7 @@ export function TodoistTaskComposer({
         )}
 
         {/* Action Toolbar */}
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2.5">
+        <div className="task-composer-toolbar mt-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <DatePicker
               id={`composer-due-${mode}`}
@@ -673,7 +676,7 @@ export function TodoistTaskComposer({
             )}
           </div>
 
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          <div className="task-composer-actions ml-auto flex shrink-0 items-center gap-1.5">
             <Button
               type="button"
               variant="ghost"
@@ -685,19 +688,22 @@ export function TodoistTaskComposer({
               onClick={resetOrClose}
               className="h-7 rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
             >
-              <X className="size-3.5 sm:hidden" />
-              <span className="hidden sm:inline">Cancel</span>
+              <X className={cn("size-3.5", mode !== "edit" && "sm:hidden")} />
+              {mode !== "edit" && (
+                <span className="hidden sm:inline">Cancel</span>
+              )}
             </Button>
             <Button
               type="submit"
               size="xs"
               disabled={disabled || submitting || !title.trim()}
+              aria-label={mode === "edit" ? "Save task" : "Add task"}
               className="h-7 gap-1 rounded-md px-2.5 text-xs font-medium shadow-none"
             >
               {submitting ? (
                 <Spinner className="size-3" />
               ) : mode === "edit" ? (
-                "Save"
+                <Check className="size-4" />
               ) : (
                 <>
                   Add task

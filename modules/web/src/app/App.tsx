@@ -150,7 +150,9 @@ function taskGroup(task: Task): TaskGroup {
 }
 
 export default function App() {
-  const [navOpen, setNavOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(
+    () => window.matchMedia("(min-width: 768px)").matches,
+  );
   const [searchOpen, setSearchOpen] = useState(false);
   const [layout, setLayout] = useState<"list" | "board">(() => {
     try {
@@ -936,7 +938,8 @@ export default function App() {
         if (a.status !== "completed" && b.status === "completed") return -1;
         const aOrder = orderIndex.get(a.uuid);
         const bOrder = orderIndex.get(b.uuid);
-        if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder;
+        if (aOrder !== undefined && bOrder !== undefined)
+          return aOrder - bOrder;
         if (aOrder !== undefined) return -1;
         if (bOrder !== undefined) return 1;
         return (b.urgency ?? 0) - (a.urgency ?? 0);
@@ -1089,8 +1092,7 @@ export default function App() {
     depth = 0,
   ) => {
     const variant: "list" | "card" =
-      variantOverride ??
-      (!specialPage && layout === "board" ? "card" : "list");
+      variantOverride ?? (!specialPage && layout === "board" ? "card" : "list");
     return (
       <TaskRow
         key={task.uuid}
@@ -1113,102 +1115,106 @@ export default function App() {
         isSubtask={isSubtask(task.uuid)}
         onAddSubtask={(subtaskInput) => createSubtask(task.uuid, subtaskInput)}
         onUnlinkSubtask={() => unlinkSubtask(task.uuid)}
-        onToggleSubtask={(child, completed) => void toggleTask(child, completed)}
+        onToggleSubtask={(child) =>
+          void toggleTask(child, child.status === "completed")
+        }
         onEditSubtask={(child) => openEditor(child)}
-        renderSubtask={(child) => renderTask(child, undefined, variant, depth + 1)}
+        renderSubtask={(child) =>
+          renderTask(child, undefined, variant, depth + 1)
+        }
         onToggleStart={
-        task.status !== "completed"
-          ? () => void toggleStartTask(task)
-          : undefined
-      }
-      onSaveInline={
-        task.status !== "completed"
-          ? (nextTask) =>
-              mutate("action", {
-                uuid: task.uuid,
-                action: "edit",
-                task: nextTask,
-              })
-          : undefined
-      }
-      onDueChange={
-        task.status !== "completed"
-          ? (nextDue) => {
-              const date = nextDue
-                ? new Date(`${nextDue}T00:00:00`)
-                : undefined;
-              void mutate("action", {
-                uuid: task.uuid,
-                action: "edit",
-                task: {
-                  description: task.description,
-                  project: task.project || "",
-                  priority: task.priority || "",
-                  tags: task.tags,
-                  recur: task.recur,
-                  until: task.until
-                    ? taskDate(new Date(task.until))
-                    : undefined,
-                  due: date ? taskDate(date) : "",
-                  note: "",
-                },
-              });
-            }
-          : undefined
-      }
-      onPriorityChange={
-        task.status !== "completed"
-          ? (nextPriority) => {
-              void mutate("action", {
-                uuid: task.uuid,
-                action: "edit",
-                task: {
-                  description: task.description,
-                  project: task.project || "",
-                  priority: nextPriority,
-                  tags: task.tags,
-                  recur: task.recur,
-                  until: task.until
-                    ? taskDate(new Date(task.until))
-                    : undefined,
-                  due: task.due
-                    ? taskDate(
-                        new Date(
-                          task.due.replace(
-                            /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
-                            "$1-$2-$3T$4:$5:$6Z",
+          task.status !== "completed"
+            ? () => void toggleStartTask(task)
+            : undefined
+        }
+        onSaveInline={
+          task.status !== "completed"
+            ? (nextTask) =>
+                mutate("action", {
+                  uuid: task.uuid,
+                  action: "edit",
+                  task: nextTask,
+                })
+            : undefined
+        }
+        onDueChange={
+          task.status !== "completed"
+            ? (nextDue) => {
+                const date = nextDue
+                  ? new Date(`${nextDue}T00:00:00`)
+                  : undefined;
+                void mutate("action", {
+                  uuid: task.uuid,
+                  action: "edit",
+                  task: {
+                    description: task.description,
+                    project: task.project || "",
+                    priority: task.priority || "",
+                    tags: task.tags,
+                    recur: task.recur,
+                    until: task.until
+                      ? taskDate(new Date(task.until))
+                      : undefined,
+                    due: date ? taskDate(date) : "",
+                    note: "",
+                  },
+                });
+              }
+            : undefined
+        }
+        onPriorityChange={
+          task.status !== "completed"
+            ? (nextPriority) => {
+                void mutate("action", {
+                  uuid: task.uuid,
+                  action: "edit",
+                  task: {
+                    description: task.description,
+                    project: task.project || "",
+                    priority: nextPriority,
+                    tags: task.tags,
+                    recur: task.recur,
+                    until: task.until
+                      ? taskDate(new Date(task.until))
+                      : undefined,
+                    due: task.due
+                      ? taskDate(
+                          new Date(
+                            task.due.replace(
+                              /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+                              "$1-$2-$3T$4:$5:$6Z",
+                            ),
                           ),
-                        ),
-                      )
-                    : "",
-                  note: "",
-                },
+                        )
+                      : "",
+                    note: "",
+                  },
+                });
+              }
+            : undefined
+        }
+        onDelete={() => {
+          void mutate("action", {
+            uuid: task.uuid,
+            action: "delete",
+          }).then((saved) => {
+            if (saved) {
+              setUndoTask({
+                task,
+                wasCompleted: task.status === "completed",
+                wasDeleted: true,
+                message: "Task deleted",
               });
+              setToastVersion((value) => value + 1);
+              setToastOpen(true);
             }
-          : undefined
-      }
-      onDelete={() => {
-        void mutate("action", {
-          uuid: task.uuid,
-          action: "delete",
-        }).then((saved) => {
-          if (saved) {
-            setUndoTask({
-              task,
-              wasCompleted: task.status === "completed",
-              wasDeleted: true,
-              message: "Task deleted",
-            });
-            setToastVersion((value) => value + 1);
-            setToastOpen(true);
-          }
-        });
-      }}
-      onEdit={() => openEditor(task)}
-      onComplete={() => void toggleTask(task, task.status === "completed")}
-    />
-  );
-};
+          });
+        }}
+        onEdit={() => openEditor(task)}
+        onComplete={() => void toggleTask(task, task.status === "completed")}
+      />
+    );
+  };
 
   const currentProjectRecord = organization.projects?.find(
     (item) => item.name === currentProject,
@@ -1275,6 +1281,7 @@ export default function App() {
   return (
     <ProjectColorsProvider projects={organization.projects || []}>
       <WorkspaceSidebar
+        onSearch={() => setCommandOpen(true)}
         navOpen={navOpen}
         onOpenChange={setNavigation}
         view={view}
@@ -1337,7 +1344,7 @@ export default function App() {
         }}
       />
       <div className="workspace-main min-h-dvh" data-sidebar-open={navOpen}>
-        <header className="sticky top-0 z-20 bg-background/85 backdrop-blur-md">
+        <header className="workspace-toolbar sticky top-0 z-20 bg-background/85 backdrop-blur-md">
           <div className="workspace-frame flex h-12 items-center justify-between">
             <div className="flex items-center gap-2">
               {!navOpen && (
@@ -1356,34 +1363,17 @@ export default function App() {
               )}
             </div>
             <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                aria-label="Quick find (⌘K)"
-                aria-keyshortcuts="Meta+K Control+K"
-                disabled={busy || organizationSaving}
-                onClick={() => setCommandOpen(true)}
-                className="group/search hidden h-8 w-44 items-center justify-between rounded-lg border border-border/70 bg-muted/40 px-2.5 text-xs text-muted-foreground transition-colors hover:border-ring/40 hover:bg-muted/70 hover:text-foreground sm:inline-flex md:w-52"
-              >
-                <span className="flex items-center gap-2">
-                  <Search className="size-3.5 text-muted-foreground/75 transition-colors group-hover/search:text-foreground" />
-                  <span className="font-normal">Quick find</span>
-                </span>
-                <kbd className="rounded border border-border/70 bg-background/80 px-1.5 py-0.5 font-sans text-[10px] leading-none text-muted-foreground/80 shadow-2xs">
-                  ⌘K
-                </kbd>
-              </button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Quick add task (Q)"
-                title="Quick add task (Q)"
-                disabled={busy || needsCheck}
-                onClick={openQuickAdd}
-                className="size-8 text-primary hover:bg-accent"
-              >
-                <Plus className="size-5" strokeWidth={1.75} />
-              </Button>
+              {!navOpen && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Quick find (⌘K)"
+                  className="hidden sm:inline-flex"
+                  onClick={() => setCommandOpen(true)}
+                >
+                  <Search className="size-[18px]" strokeWidth={1.5} />
+                </Button>
+              )}
               <ThemeSwitcher />
               <Button
                 variant="ghost"
@@ -1427,10 +1417,8 @@ export default function App() {
           </div>
         </header>
         <main
-          className={cn(
-            "workspace-frame min-w-0 pt-6 pb-24 md:pb-16",
-            layout === "list" && "max-w-4xl",
-          )}
+          data-layout={layout}
+          className="workspace-frame workspace-content min-w-0 pb-24 md:pb-16"
         >
           <Tabs
             value={layout}
@@ -1472,7 +1460,7 @@ export default function App() {
             )}
             <div
               data-workspace-heading
-              className="mb-6 flex min-h-10 items-center justify-between gap-4"
+              className="mb-5 flex min-h-10 items-center justify-between gap-4"
             >
               <div className="flex min-w-0 flex-col">
                 <div className="flex min-w-0 items-center gap-2.5">
@@ -1499,16 +1487,22 @@ export default function App() {
                           ? projectLeaf(currentProject)
                           : views[view])}
                   </h1>
-                  {view === "today" && !currentProject && !organizationPage && !activeItem && (
-                    <span className="text-xs font-semibold text-muted-foreground/80 tabular-nums">
-                      {viewCounts?.today ?? 0}
-                    </span>
-                  )}
-                  {view === "pending" && !currentProject && !organizationPage && !activeItem && (
-                    <span className="text-xs font-semibold text-muted-foreground/80 tabular-nums">
-                      {viewCounts?.pending ?? 0}
-                    </span>
-                  )}
+                  {view === "today" &&
+                    !currentProject &&
+                    !organizationPage &&
+                    !activeItem && (
+                      <span className="text-xs font-semibold text-muted-foreground/80 tabular-nums">
+                        {viewCounts?.today ?? 0}
+                      </span>
+                    )}
+                  {view === "pending" &&
+                    !currentProject &&
+                    !organizationPage &&
+                    !activeItem && (
+                      <span className="text-xs font-semibold text-muted-foreground/80 tabular-nums">
+                        {viewCounts?.pending ?? 0}
+                      </span>
+                    )}
                   {currentProject && !organizationPage && !activeItem && (
                     <Button
                       type="button"
@@ -1542,14 +1536,17 @@ export default function App() {
                     </Button>
                   )}
                 </div>
-                {view === "today" && !currentProject && !organizationPage && !activeItem && (
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    {format(now, "EEE, MMM d")}
-                  </p>
-                )}
+                {view === "today" &&
+                  !currentProject &&
+                  !organizationPage &&
+                  !activeItem && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {format(now, "EEE, MMM d")}
+                    </p>
+                  )}
               </div>
               {!organizationPage && !specialPage && (
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="workspace-view-controls flex shrink-0 items-center gap-1">
                   <TabsList
                     aria-label="Task layout"
                     className="h-8 group-data-[orientation=horizontal]/tabs:h-8"
@@ -2008,7 +2005,11 @@ export default function App() {
                             >
                               Cancel
                             </Button>
-                            <Button type="submit" size="xs" className="h-6 px-2.5 text-xs">
+                            <Button
+                              type="submit"
+                              size="xs"
+                              className="h-6 px-2.5 text-xs"
+                            >
                               Save
                             </Button>
                           </div>
@@ -2128,7 +2129,11 @@ export default function App() {
                             >
                               Cancel
                             </Button>
-                            <Button type="submit" size="xs" className="h-6 px-2.5 text-xs">
+                            <Button
+                              type="submit"
+                              size="xs"
+                              className="h-6 px-2.5 text-xs"
+                            >
                               Save
                             </Button>
                           </div>
@@ -2782,6 +2787,8 @@ export default function App() {
       <TaskEditor
         open={open}
         busy={busy}
+        detail={!!editing && !seriesUuid}
+        location={editing?.project || "Inbox"}
         title={
           seriesUuid
             ? "Edit repeating series"
@@ -2821,6 +2828,26 @@ export default function App() {
           />
         ) : (
           <TaskForm
+            key={editing?.uuid || "new-task"}
+            onToggleTask={
+              editing
+                ? () => {
+                    const target = editing;
+                    void toggleTask(target, target.status === "completed").then(
+                      (saved) => {
+                        if (saved)
+                          setEditing({
+                            ...target,
+                            status:
+                              target.status === "completed"
+                                ? "pending"
+                                : "completed",
+                          });
+                      },
+                    );
+                  }
+                : undefined
+            }
             draft={draft}
             projects={filterProjects}
             due={due}
@@ -2837,11 +2864,14 @@ export default function App() {
                 ? (input) => createSubtask(editing.uuid, input)
                 : undefined
             }
-            onToggleSubtask={(child, completed) =>
-              void toggleTask(child, completed)
+            onToggleSubtask={(child) =>
+              void toggleTask(child, child.status === "completed")
             }
             onDeleteSubtask={(childUuid) =>
-              void mutate("action", { uuid: childUuid, action: "delete" })
+              void mutate("action", {
+                uuid: childUuid,
+                action: "delete",
+              })
             }
             onUnlinkSubtask={(childUuid) => void unlinkSubtask(childUuid)}
             onNavigateToParent={

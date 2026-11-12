@@ -173,7 +173,11 @@ function InlineColumnCreator({
 
   if (!editing) {
     return (
-      <div className={layout === "list" ? "group/add-section my-3" : ""}>
+      <div
+        className={
+          layout === "list" ? "task-add-section group/add-section my-3" : ""
+        }
+      >
         {layout === "list" ? (
           <div className="relative flex items-center justify-center py-2.5">
             <div className="absolute inset-0 flex items-center">
@@ -188,7 +192,7 @@ function InlineColumnCreator({
                 setEditing(true);
                 requestAnimationFrame(() => inputRef.current?.focus());
               }}
-              className="relative h-7 gap-1.5 rounded-full border border-border/80 bg-background px-3 text-xs font-normal text-muted-foreground shadow-2xs transition-all duration-200 hover:scale-105 hover:border-primary/40 hover:bg-background hover:text-foreground"
+              className="relative h-7 gap-1.5 rounded bg-background px-3 text-xs font-normal text-muted-foreground hover:text-foreground"
             >
               <Plus className="size-3.5" />
               Add section
@@ -472,6 +476,7 @@ function BoardColumn({
     >
       {showHeader && (
         <div
+          data-list-section={compact}
           className={cn(
             "mb-3 flex h-11 items-center gap-1.5 md:h-10",
             compact && "mb-0.5 border-b border-border/80",
@@ -484,7 +489,7 @@ function BoardColumn({
                 aria-label={`${collapsed ? "Expand" : "Collapse"} group: ${column.name}`}
                 aria-expanded={!collapsed}
                 onClick={() => setCollapsed(!collapsed)}
-                className="-ml-1.5 flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
+                className="task-section-toggle flex min-w-0 items-center gap-1.5 rounded-md py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
               >
                 <ChevronRight
                   className={cn(
@@ -499,7 +504,7 @@ function BoardColumn({
                   {count}
                 </span>
               </button>
-              <div className="flex-1 h-px bg-border/60 hidden sm:block transition-colors group-hover/column:bg-border/90" />
+              <div className="flex-1" />
               {column.id !== UNSECTIONED && (
                 <Popover open={menu} onOpenChange={setMenu}>
                   <PopoverTrigger asChild>
@@ -1008,7 +1013,10 @@ export function TaskBoard({
                                   !!active && position?.beforeUuid === task.uuid
                                 }
                                 onMove={(t, columnId) =>
-                                  void move(t, { columnId, beforeUuid: null })
+                                  void move(t, {
+                                    columnId,
+                                    beforeUuid: null,
+                                  })
                                 }
                               >
                                 {renderTask(task, undefined, "list")}
@@ -1033,13 +1041,17 @@ export function TaskBoard({
                           {todayEntries.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-10 text-center">
                               <div className="relative mb-3 flex size-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
-                                <CheckCircle2 className="size-7" strokeWidth={1.75} />
+                                <CheckCircle2
+                                  className="size-7"
+                                  strokeWidth={1.75}
+                                />
                               </div>
                               <h3 className="text-sm font-semibold text-foreground">
                                 All tasks completed!
                               </h3>
                               <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                                Everything scheduled for today is done. Enjoy your day!
+                                Everything scheduled for today is done. Enjoy
+                                your day!
                               </p>
                             </div>
                           ) : (
@@ -1057,7 +1069,10 @@ export function TaskBoard({
                                   !!active && position?.beforeUuid === task.uuid
                                 }
                                 onMove={(t, columnId) =>
-                                  void move(t, { columnId, beforeUuid: null })
+                                  void move(t, {
+                                    columnId,
+                                    beforeUuid: null,
+                                  })
                                 }
                               >
                                 {renderTask(task, undefined, "list")}
@@ -1100,8 +1115,7 @@ export function TaskBoard({
                   ) {
                     return null;
                   }
-                  const showColumnHeader =
-                    layout === "board" || !isUnsectioned;
+                  const showColumnHeader = layout === "board" || !isUnsectioned;
                   return (
                     <BoardColumn
                       key={column.id}
