@@ -81,6 +81,16 @@ export function createOrganizationStore(path: string) {
                 typeof parent !== "string" ||
                 !child ||
                 !parent,
+            ))) ||
+        (data.descriptions !== undefined &&
+          (!data.descriptions ||
+            typeof data.descriptions !== "object" ||
+            Array.isArray(data.descriptions) ||
+            Object.entries(data.descriptions).some(
+              ([uuid, desc]) =>
+                typeof uuid !== "string" ||
+                typeof desc !== "string" ||
+                !uuid,
             )))
       )
         throw new Error(
@@ -191,6 +201,33 @@ export function createOrganizationStore(path: string) {
               throw new Error("Invalid subtask unlink parameters.");
             }
             delete data.subtasks[input.childUuid];
+          }
+          await persist(data);
+          return data;
+        }
+        if (input.kind === "description") {
+          data.descriptions = data.descriptions ? { ...data.descriptions } : {};
+          if (input.action === "set") {
+            if (
+              typeof input.uuid !== "string" ||
+              !input.uuid ||
+              typeof input.description !== "string"
+            ) {
+              throw new Error("Invalid description parameters.");
+            }
+            const trimmed = input.description.trim();
+            if (trimmed) {
+              data.descriptions[input.uuid] = input.description;
+            } else {
+              delete data.descriptions[input.uuid];
+            }
+          } else if (input.action === "delete") {
+            if (typeof input.uuid !== "string" || !input.uuid) {
+              throw new Error("Invalid description parameters.");
+            }
+            delete data.descriptions[input.uuid];
+          } else {
+            throw new Error("Unsupported description action.");
           }
           await persist(data);
           return data;

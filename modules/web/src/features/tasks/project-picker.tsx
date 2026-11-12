@@ -27,8 +27,8 @@ export function ProjectPicker({
   id = "edit-project",
   returnFocus,
   allowCreate = true,
-  emptyLabel = "No project",
-  label = "Project",
+  emptyLabel = "收件箱",
+  label = "项目",
 }: {
   allowCreate?: boolean;
   emptyLabel?: string;
@@ -94,7 +94,7 @@ export function ProjectPicker({
               !value && !compact && "text-muted-foreground",
             )}
           >
-            {value ? projectPath(value) : compact ? "Inbox" : emptyLabel}
+            {value ? projectPath(value) : compact ? "收件箱" : emptyLabel}
           </span>
           {!compact && (
             <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
@@ -117,17 +117,17 @@ export function ProjectPicker({
         <Command shouldFilter={false}>
           <CommandInput
             aria-label={
-              allowCreate ? "Search or create a project" : "Search projects"
+              allowCreate ? "搜索或创建项目" : "搜索项目"
             }
             placeholder={
-              allowCreate ? "Search or create a project…" : "Search projects…"
+              allowCreate ? "搜索或创建项目…" : "搜索项目…"
             }
             value={query}
             maxLength={200}
             onValueChange={setQuery}
           />
-          <CommandList aria-label="Project suggestions">
-            <CommandEmpty>No projects found</CommandEmpty>
+          <CommandList aria-label="项目建议列表">
+            <CommandEmpty>未找到项目</CommandEmpty>
             <CommandGroup>
               {!name && (
                 <CommandItem value="none" onSelect={() => select("")}>
@@ -163,7 +163,7 @@ export function ProjectPicker({
               {create && (
                 <CommandItem value={name} onSelect={() => select(name)}>
                   <Plus className="size-4" />
-                  <span className="break-all">Create “{name}”</span>
+                  <span className="break-all">创建“{name}”</span>
                 </CommandItem>
               )}
             </CommandGroup>

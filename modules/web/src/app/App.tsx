@@ -327,7 +327,12 @@ export default function App() {
   async function changeOrganization(change: OrganizationChange) {
     if (writeLock.current || organizationBlocked || needsCheck) return false;
     writeLock.current = true;
-    setOrganizationSaving(true);
+    const isBackgroundBoardMove =
+      (change.kind === "board" && change.action === "task.move") ||
+      (change.kind === "subtask" && change.action === "unlink");
+    if (!isBackgroundBoardMove) {
+      setOrganizationSaving(true);
+    }
     setOrganizationError("");
     organizationGeneration.current++;
     try {
@@ -361,7 +366,9 @@ export default function App() {
       return false;
     } finally {
       writeLock.current = false;
-      setOrganizationSaving(false);
+      if (!isBackgroundBoardMove) {
+        setOrganizationSaving(false);
+      }
     }
   }
   useLayoutEffect(() => {
@@ -682,7 +689,6 @@ export default function App() {
       writeLock.current ||
       needsCheck ||
       loading ||
-      organizationSaving ||
       organizationBlocked ||
       !organizationReady
     )
@@ -702,9 +708,16 @@ export default function App() {
       (beforeUuid === next || beforeUuid === task.uuid)
     )
       return true;
+
+    // Check if subtask is being dragged out of its parent to become a top-level task:
+    const isSub = Boolean(organization.subtasks?.[task.uuid]);
+    const targetParent = beforeUuid ? organization.subtasks?.[beforeUuid] : undefined;
+    if (isSub && (!targetParent || targetParent !== organization.subtasks?.[task.uuid])) {
+      void unlinkSubtask(task.uuid);
+    }
+
     setToastOpen(false);
     setUndoTask(undefined);
-    setBoardMove({ uuid: task.uuid, columnId, beforeUuid });
     try {
       const saved = await changeOrganization({
         kind: "board",
@@ -725,13 +738,8 @@ export default function App() {
         setToastOpen(true);
       }
       return saved;
-    } finally {
-      setBoardMove(undefined);
-      requestAnimationFrame(() =>
-        document
-          .getElementById(`complete-${task.uuid}`)
-          ?.focus({ preventScroll: true }),
-      );
+    } catch {
+      return false;
     }
   }
   function changeBoard(change: BoardChange) {
@@ -858,34 +866,48 @@ export default function App() {
       tags: mergedTags,
     };
   }
-  async function createTaskInView(input: TaskInput, columnId?: string) {
+  async function createTaskInView(
+    input: TaskInput & { taskDescription?: string },
+    columnId?: string,
+  ) {
     if (writeLock.current || needsCheck) return false;
     const knownUuids = new Set(tasks.map((item) => item.uuid));
     const prepared = withViewDefaults(input);
-    const saved = await mutate(
-      "tasks",
-      prepared,
-      undefined,
-      columnId && columnId !== UNSECTIONED
-        ? async (fresh) => {
-            const created = fresh.find((item) => !knownUuids.has(item.uuid));
-            if (!created) return;
-            try {
-              const latest = await api<Organization>("organization", {
-                kind: "board",
-                action: "task.move",
-                revision: organization.revision,
-                uuid: created.uuid,
-                columnId,
-                beforeUuid: null,
-              });
-              setOrganization(latest);
-            } catch {
-              /* Task is already saved; board placement will sync on next load. */
-            }
-          }
-        : undefined,
-    );
+    const saved = await mutate("tasks", prepared, undefined, async (fresh) => {
+      const created = fresh.find((item) => !knownUuids.has(item.uuid));
+      if (!created) return;
+      let rev = organization.revision;
+      if (input.taskDescription?.trim()) {
+        try {
+          const latest = await api<Organization>("organization", {
+            revision: rev,
+            kind: "description",
+            action: "set",
+            uuid: created.uuid,
+            description: input.taskDescription.trim(),
+          });
+          setOrganization(latest);
+          rev = latest.revision;
+        } catch {
+          /* Task is already saved; description will sync on next load. */
+        }
+      }
+      if (columnId && columnId !== UNSECTIONED) {
+        try {
+          const latest = await api<Organization>("organization", {
+            kind: "board",
+            action: "task.move",
+            revision: rev,
+            uuid: created.uuid,
+            columnId,
+            beforeUuid: null,
+          });
+          setOrganization(latest);
+        } catch {
+          /* Task is already saved; board placement will sync on next load. */
+        }
+      }
+    });
     return Boolean(saved);
   }
   const visible = tasks.filter((task) => {
@@ -1090,6 +1112,10 @@ export default function App() {
     extraActions?: ReactNode,
     variantOverride?: "list" | "card",
     depth = 0,
+    renderSubtaskWrapper?: (
+      child: Task,
+      defaultRender: (child: Task) => ReactNode,
+    ) => ReactNode,
   ) => {
     const variant: "list" | "card" =
       variantOverride ?? (!specialPage && layout === "board" ? "card" : "list");
@@ -1113,6 +1139,7 @@ export default function App() {
         timingUnavailable={organization.timing?.available === false}
         subtasks={subtasksMap.get(task.uuid) || []}
         isSubtask={isSubtask(task.uuid)}
+        description={organization.descriptions?.[task.uuid] || ""}
         onAddSubtask={(subtaskInput) => createSubtask(task.uuid, subtaskInput)}
         onUnlinkSubtask={() => unlinkSubtask(task.uuid)}
         onToggleSubtask={(child) =>
@@ -1120,7 +1147,17 @@ export default function App() {
         }
         onEditSubtask={(child) => openEditor(child)}
         renderSubtask={(child) =>
-          renderTask(child, undefined, variant, depth + 1)
+          renderSubtaskWrapper
+            ? renderSubtaskWrapper(child, (c) =>
+                renderTask(
+                  c,
+                  undefined,
+                  variant,
+                  depth + 1,
+                  renderSubtaskWrapper,
+                ),
+              )
+            : renderTask(child, undefined, variant, depth + 1)
         }
         onToggleStart={
           task.status !== "completed"
@@ -1129,12 +1166,28 @@ export default function App() {
         }
         onSaveInline={
           task.status !== "completed"
-            ? (nextTask) =>
-                mutate("action", {
+            ? async (nextTask) => {
+                const saved = await mutate("action", {
                   uuid: task.uuid,
                   action: "edit",
                   task: nextTask,
-                })
+                });
+                if (saved && nextTask.taskDescription !== undefined) {
+                  try {
+                    const latest = await api<Organization>("organization", {
+                      revision: organization.revision,
+                      kind: "description",
+                      action: "set",
+                      uuid: task.uuid,
+                      description: nextTask.taskDescription,
+                    });
+                    setOrganization(latest);
+                  } catch {
+                    /* syncs on reload */
+                  }
+                }
+                return Boolean(saved);
+              }
             : undefined
         }
         onDueChange={
@@ -2292,6 +2345,7 @@ export default function App() {
                         boardScroll.current = position;
                       }}
                       tasks={topLevelVisible}
+                      allTasks={visible}
                       board={organization.board || defaultBoard()}
                       revision={organization.revision}
                       saving={organizationSaving}
@@ -2357,6 +2411,7 @@ export default function App() {
                         boardScroll.current = position;
                       }}
                       tasks={topLevelVisible}
+                      allTasks={visible}
                       board={organization.board || defaultBoard()}
                       revision={organization.revision}
                       saving={organizationSaving}
@@ -2516,21 +2571,21 @@ export default function App() {
             undoTask.message ? (
               undoTask.message
             ) : undoTask.wasCompleted ? (
-              "Task reopened"
+              "已重新打开任务"
             ) : (
-              "Task completed"
+              "1 个任务已完成"
             )
           ) : (
             <>
-              Task added to{" "}
+              任务已添加至{" "}
               <span className="underline underline-offset-2">
-                {addedProject || "Inbox"}
+                {addedProject || "收件箱"}
               </span>
             </>
           )
         }
-        actionLabel={undoTask ? "Undo" : "Open"}
-        actionDescription={undoTask ? "Undo task change" : "View task location"}
+        actionLabel={undoTask ? "撤销" : "打开"}
+        actionDescription={undoTask ? "撤销操作" : "查看任务"}
         disabled={busy || needsCheck || organizationSaving || loading}
         onAction={() => {
           if (undoTask) {
@@ -2788,13 +2843,13 @@ export default function App() {
         open={open}
         busy={busy}
         detail={!!editing && !seriesUuid}
-        location={editing?.project || "Inbox"}
+        location={editing?.project ? `收件箱 / ${editing.project}` : "收件箱"}
         title={
           seriesUuid
-            ? "Edit repeating series"
+            ? "编辑重复任务"
             : editing
-              ? "Edit task"
-              : "Add task"
+              ? "编辑任务"
+              : "添加任务"
         }
         onOpenChange={(value) => {
           if (!writeLock.current) {
@@ -2849,6 +2904,66 @@ export default function App() {
                 : undefined
             }
             draft={draft}
+            taskDescription={
+              editing ? organization.descriptions?.[editing.uuid] || "" : ""
+            }
+            onDescriptionChange={
+              editing
+                ? async (nextDescription) => {
+                    const saved = await api<Organization>("organization", {
+                      revision: organization.revision,
+                      kind: "description",
+                      action: "set",
+                      uuid: editing.uuid,
+                      description: nextDescription,
+                    });
+                    setOrganization(saved);
+                  }
+                : undefined
+            }
+            onAddComment={
+              editing
+                ? async (commentText) => {
+                    const saved = await mutate(
+                      "action",
+                      {
+                        uuid: editing.uuid,
+                        action: "edit",
+                        task: {
+                          description: editing.description,
+                          project: editing.project || "",
+                          priority: editing.priority || "",
+                          tags: editing.tags,
+                          recur: editing.recur,
+                          until: editing.until
+                            ? taskDate(new Date(editing.until))
+                            : undefined,
+                          due: editing.due || "",
+                          note: commentText,
+                        },
+                      },
+                      "notes",
+                    );
+                    if (saved) {
+                      setEditing({
+                        ...editing,
+                        annotations: [
+                          ...editing.annotations,
+                          {
+                            entry: new Date()
+                              .toISOString()
+                              .replace(/[-:]/g, "")
+                              .replace(/\.\d{3}/, ""),
+                            description: commentText,
+                          },
+                        ],
+                      });
+                      return true;
+                    }
+                    return false;
+                  }
+                : undefined
+            }
             projects={filterProjects}
             due={due}
             tags={tags}

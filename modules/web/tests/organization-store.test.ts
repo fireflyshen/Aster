@@ -476,3 +476,67 @@ test("subtask links persist atomically, reject cycles and self-parenting", async
   }
 });
 
+test("task descriptions persist atomically, update and remove cleanly", async () => {
+  const directory = await mkdtemp(tmpdir() + "/aster-desc-");
+  try {
+    const store = createOrganizationStore(directory + "/organization.json");
+    const taskUuid = "11111111-1111-4111-8111-111111111111";
+
+    // Set description
+    const saved = await store.change({
+      revision: 0,
+      kind: "description",
+      action: "set",
+      uuid: taskUuid,
+      description: "My task description details",
+    });
+    assert.equal(saved.revision, 1);
+    assert.equal(saved.descriptions?.[taskUuid], "My task description details");
+
+    // Verify persistence across store reloads
+    const reloaded = await createOrganizationStore(directory + "/organization.json").read();
+    assert.equal(reloaded.descriptions?.[taskUuid], "My task description details");
+
+    // Update description
+    const updated = await store.change({
+      revision: 1,
+      kind: "description",
+      action: "set",
+      uuid: taskUuid,
+      description: "Updated description text",
+    });
+    assert.equal(updated.revision, 2);
+    assert.equal(updated.descriptions?.[taskUuid], "Updated description text");
+
+    // Setting empty description deletes it
+    const cleared = await store.change({
+      revision: 2,
+      kind: "description",
+      action: "set",
+      uuid: taskUuid,
+      description: "   ",
+    });
+    assert.equal(cleared.revision, 3);
+    assert.equal(cleared.descriptions?.[taskUuid], undefined);
+
+    // Delete description explicitly
+    await store.change({
+      revision: 3,
+      kind: "description",
+      action: "set",
+      uuid: taskUuid,
+      description: "Temporary",
+    });
+    const deleted = await store.change({
+      revision: 4,
+      kind: "description",
+      action: "delete",
+      uuid: taskUuid,
+    });
+    assert.equal(deleted.revision, 5);
+    assert.equal(deleted.descriptions?.[taskUuid], undefined);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+

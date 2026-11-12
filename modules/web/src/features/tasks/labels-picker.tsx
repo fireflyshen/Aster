@@ -96,8 +96,8 @@ export function LabelsPicker({
             {value.length
               ? value.join(", ")
               : compact
-                ? "Labels"
-                : "Choose labels"}
+                ? "标签"
+                : "选择标签"}
           </span>
           {!compact && (
             <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
@@ -120,8 +120,8 @@ export function LabelsPicker({
         <Command shouldFilter={false}>
           <CommandInput
             className="text-base md:text-sm"
-            aria-label="Search or create a label"
-            placeholder="Search or create a label…"
+            aria-label="搜索或创建标签"
+            placeholder="搜索或创建标签…"
             value={query}
             onValueChange={setQuery}
           />
@@ -129,8 +129,8 @@ export function LabelsPicker({
             {!filtered.length && !create && (
               <CommandEmpty>
                 {query
-                  ? "No matching labels"
-                  : "Type to create your first label"}
+                  ? "未找到匹配标签"
+                  : "输入以创建标签"}
               </CommandEmpty>
             )}
             {filtered.map((tag) => (
@@ -138,7 +138,7 @@ export function LabelsPicker({
                 key={tag}
                 value={tag}
                 aria-selected={value.includes(tag)}
-                aria-label={`${tag}${value.includes(tag) ? ", selected" : ""}`}
+                aria-label={`${tag}${value.includes(tag) ? ", 已选择" : ""}`}
                 onSelect={() => toggle(tag)}
                 disabled={!value.includes(tag) && value.length >= 30}
                 className="min-h-11 gap-2.5 px-2 text-base md:min-h-9 md:text-sm"
@@ -167,13 +167,13 @@ export function LabelsPicker({
                 className="min-h-11 gap-2.5 px-2 text-base md:min-h-9 md:text-sm"
               >
                 <Plus className="size-4" />
-                <span className="truncate">Create “{candidate}”</span>
+                <span className="truncate">创建“{candidate}”</span>
               </CommandItem>
             )}
           </CommandList>
         </Command>
         <div className="flex items-center justify-between gap-2 border-t px-3 py-2 text-xs text-muted-foreground">
-          <span aria-live="polite">{value.length} / 30 selected</span>
+          <span aria-live="polite">已选择 {value.length} / 30</span>
           <div className="flex gap-1">
             <Button
               type="button"
@@ -183,7 +183,7 @@ export function LabelsPicker({
               disabled={!value.length}
               onClick={() => onChange([])}
             >
-              Clear
+              清除
             </Button>
             <Button
               type="button"
@@ -195,7 +195,7 @@ export function LabelsPicker({
                 setQuery("");
               }}
             >
-              Done
+              完成
             </Button>
           </div>
         </div>

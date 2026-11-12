@@ -257,6 +257,16 @@ export function validateBackup(value: unknown): AsterBackup {
       requireUuid(parent);
     }
   }
+  if (org.descriptions !== undefined) {
+    record(org.descriptions);
+    if (Object.keys(org.descriptions).length > 50000)
+      throw new Error("Too many descriptions in backup.");
+    for (const [uuid, desc] of Object.entries(org.descriptions)) {
+      text(uuid, 36);
+      requireUuid(uuid);
+      text(desc, 10000);
+    }
+  }
   record(value.recovery);
   if (value.recovery.version !== 1)
     throw new Error("Invalid recovery journal.");
@@ -301,7 +311,7 @@ export function validateBackup(value: unknown): AsterBackup {
   }
   const backup = structuredClone(value) as unknown as AsterBackup;
   // Only persisted fields enter organization storage; derived figures are recalculated.
-  const { revision, filters, tags, projects, board, energyState } =
+  const { revision, filters, tags, projects, board, energyState, subtasks, descriptions } =
     backup.organization;
   backup.organization = {
     revision,
@@ -310,6 +320,8 @@ export function validateBackup(value: unknown): AsterBackup {
     ...(projects ? { projects } : {}),
     ...(board ? { board } : {}),
     ...(energyState ? { energyState } : {}),
+    ...(subtasks ? { subtasks } : {}),
+    ...(descriptions ? { descriptions } : {}),
   };
   return backup;
 }

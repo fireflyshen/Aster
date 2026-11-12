@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { Inbox, ChevronRight } from "lucide-react";
 import { useSyncExternalStore, type ReactNode } from "react";
+import { cn } from "cn";
 
 const desktopQuery = "(min-width: 768px)";
 function subscribe(callback: () => void) {
@@ -50,10 +51,8 @@ export function TaskEditor({
         <Title className="flex items-center gap-2 text-[13px] font-normal text-muted-foreground">
           {detail ? (
             <>
-              <Inbox className="size-4" strokeWidth={1.5} />
+              <Inbox className="size-4 shrink-0" strokeWidth={1.5} />
               <span>{location}</span>
-              <ChevronRight className="size-3" />
-              <span>Task</span>
             </>
           ) : (
             title
@@ -75,7 +74,10 @@ export function TaskEditor({
         data-editor-layout="desktop"
         data-task-detail={detail}
         showCloseButton={!busy}
-        className="task-editor-dialog flex max-h-[calc(100dvh-3rem)] w-[calc(100vw-3rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[680px]"
+        className={cn(
+          "task-editor-dialog flex max-h-[calc(100dvh-3rem)] w-[calc(100vw-3rem)] flex-col gap-0 overflow-hidden rounded-xl p-0",
+          detail ? "sm:max-w-[864px]" : "sm:max-w-[680px]",
+        )}
         onEscapeKeyDown={preventClose}
         onPointerDownOutside={preventClose}
       >

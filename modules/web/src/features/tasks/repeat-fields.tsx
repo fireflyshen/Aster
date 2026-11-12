@@ -11,6 +11,15 @@ import { taskDate } from "@core/tasks/quick-task";
 import { parseTaskwarriorDate } from "@core/tasks/model";
 import { DatePicker } from "./date-picker";
 
+const REPEAT_LABELS: Record<string, string> = {
+  daily: "每天",
+  weekdays: "每个工作日",
+  weekly: "每周",
+  biweekly: "每两周",
+  monthly: "每月",
+  yearly: "每年",
+};
+
 export function RepeatSelect({
   value,
   onChange,
@@ -31,19 +40,21 @@ export function RepeatSelect({
       <SelectTrigger
         id="repeat"
         className="h-11 min-h-11 w-full text-base data-[size=default]:h-11 md:min-h-9 md:text-sm md:data-[size=default]:h-9"
-        aria-label="Repeat"
+        aria-label="重复"
       >
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {allowNone && <SelectItem value="none">Does not repeat</SelectItem>}
+        {allowNone && <SelectItem value="none">不重复</SelectItem>}
         {value &&
           !recurrenceOptions.some((option) => option.value === value) && (
-            <SelectItem value={value}>{recurrenceLabel(value)}</SelectItem>
+            <SelectItem value={value}>
+              {REPEAT_LABELS[value] || recurrenceLabel(value)}
+            </SelectItem>
           )}
         {recurrenceOptions.map((option) => (
           <SelectItem key={option.value} value={option.value}>
-            {option.label}
+            {REPEAT_LABELS[option.value] || option.label}
           </SelectItem>
         ))}
       </SelectContent>
@@ -69,12 +80,12 @@ export function RepeatEnd({
         htmlFor="repeat-until"
         className="text-xs leading-4 font-normal text-muted-foreground"
       >
-        Ends
+        结束日期
       </Label>
       <DatePicker
         id="repeat-until"
-        ariaLabel="Repeat end date"
-        emptyLabel="Never"
+        ariaLabel="重复结束日期"
+        emptyLabel="从不"
         value={local}
         disabled={disabled}
         onChange={(day) =>

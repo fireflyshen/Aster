@@ -40,9 +40,8 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  MouseSensor,
+  PointerSensor,
   pointerWithin,
-  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
@@ -55,6 +54,20 @@ import {
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { format } from "date-fns";
+import { zhCN } from "date-fns/locale";
+
+export function columnDisplayName(col?: { id?: string; name?: string }) {
+  if (
+    !col ||
+    col.id === UNSECTIONED ||
+    col.name === "No section" ||
+    col.name === "未分区" ||
+    col.name === "(没有版块)"
+  ) {
+    return "(没有版块)";
+  }
+  return col.name;
+}
 import {
   ArrowDown,
   ArrowLeft,
@@ -74,7 +87,9 @@ import {
 } from "lucide-react";
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -90,6 +105,7 @@ type Props = {
   initialScrollLeft: number;
   onScrollPositionChange: (position: number) => void;
   tasks: Task[];
+  allTasks?: Task[];
   board: BoardState;
   revision: number;
   loading: boolean;
@@ -103,6 +119,11 @@ type Props = {
     task: Task,
     extraActions?: ReactNode,
     variant?: "list" | "card",
+    depth?: number,
+    renderSubtaskWrapper?: (
+      child: Task,
+      defaultRender: (child: Task) => ReactNode,
+    ) => ReactNode,
   ) => ReactNode;
   onMove: (
     task: Task,
@@ -127,18 +148,30 @@ type Props = {
   onClearError: () => void;
 };
 
-function canDrag(target: EventTarget, card: HTMLDivElement) {
-  // Portal menus bubble through React's card tree, but are not drag surfaces.
-  if (!(target instanceof Element) || !card.contains(target)) return false;
-  if (target.closest("[data-drag-handle]")) return true;
-  if (
-    target.closest(
-      '[data-no-drag],label,input,textarea,select,[role="checkbox"],[role="combobox"],[contenteditable="true"]',
-    )
-  )
-    return false;
-  const control = target.closest("button,a");
-  return !control || control.hasAttribute("data-task-drag-surface");
+export class SmartPointerSensor extends PointerSensor {
+  static activators = [
+    {
+      eventName: "onPointerDown" as const,
+      handler: ({ nativeEvent: event }: { nativeEvent: PointerEvent }) => {
+        if (!event.isPrimary || event.button !== 0) return false;
+        const target = event.target as Element | null;
+        if (!target) return true;
+        if (
+          target.closest(
+            '[data-no-drag], button, a, input, textarea, select, [role="checkbox"], [role="combobox"], [contenteditable="true"]',
+          )
+        ) {
+          return false;
+        }
+        if (target.closest("[data-drag-handle]")) return true;
+        const isList = Boolean(target.closest("[data-compact='true']"));
+        if (isList) {
+          return Boolean(target.closest("[data-drag-handle]"));
+        }
+        return true;
+      },
+    },
+  ];
 }
 
 function isTaskOverdue(task: Task): boolean {
@@ -195,7 +228,7 @@ function InlineColumnCreator({
               className="relative h-7 gap-1.5 rounded bg-background px-3 text-xs font-normal text-muted-foreground hover:text-foreground"
             >
               <Plus className="size-3.5" />
-              Add section
+              添加分区
             </Button>
           </div>
         ) : (
@@ -207,10 +240,10 @@ function InlineColumnCreator({
               setEditing(true);
               requestAnimationFrame(() => inputRef.current?.focus());
             }}
-            className="h-11 w-full justify-start gap-2.5 self-start rounded-xl border border-dashed border-border/80 px-3.5 text-sm font-normal text-muted-foreground hover:border-ring/40 hover:bg-(--row-hover) hover:text-foreground md:h-10"
+            className="h-10 w-[260px] justify-start gap-2 self-start rounded-lg border border-dashed border-border/80 px-3 text-sm font-normal text-muted-foreground hover:border-ring/40 hover:bg-muted/40 hover:text-foreground"
           >
-            <Plus className="size-4" strokeWidth={1.5} />
-            Add section
+            <Plus className="size-4 text-[#de4c4a]" strokeWidth={1.75} />
+            添加版块
           </Button>
         )}
       </div>
@@ -244,7 +277,7 @@ function InlineColumnCreator({
       className={
         layout === "list"
           ? "my-2 flex max-w-sm items-center gap-1.5 rounded-xl border border-ring/40 bg-card p-2 shadow-sm"
-          : "flex h-10 w-full items-center gap-1.5 self-start rounded-xl border border-ring/40 bg-background px-3"
+          : "flex h-10 w-[260px] items-center gap-1.5 self-start rounded-lg border border-ring/40 bg-card px-3"
       }
     >
       <input
@@ -253,7 +286,7 @@ function InlineColumnCreator({
         value={name}
         maxLength={40}
         disabled={disabled || saving}
-        placeholder="Name this section…"
+        placeholder="为此分区命名…"
         onChange={(event) => setName(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
@@ -281,7 +314,7 @@ function InlineColumnCreator({
         disabled={disabled || saving || !name.trim()}
         className="h-7 rounded-md px-2.5 text-xs font-medium shadow-none"
       >
-        {saving ? <Spinner className="size-3" /> : "Add section"}
+        {saving ? <Spinner className="size-3" /> : "添加分区"}
       </Button>
       <Button
         type="button"
@@ -293,7 +326,7 @@ function InlineColumnCreator({
         }}
         className="h-7 rounded-md px-2 text-xs text-muted-foreground hover:text-foreground"
       >
-        Cancel
+        取消
       </Button>
     </form>
   );
@@ -309,120 +342,85 @@ function BoardCard({
   children,
   onMove,
   compact,
+  isSubtask = false,
   interactive = true,
 }: {
   task: Task;
   column: Column;
-  columns: Column[];
+  columns?: Column[];
   disabled: boolean;
-  saving: boolean;
+  saving?: boolean;
   before: boolean;
   compact?: boolean;
+  isSubtask?: boolean;
   interactive?: boolean;
   children: ReactNode;
-  onMove: (task: Task, columnId: string) => void;
+  onMove?: (task: Task, columnId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } =
     useDraggable({
       id: task.uuid,
-      data: { columnId: column.id, name: task.description },
+      data: { columnId: column.id, name: task.description, isSubtask },
       disabled: disabled || !interactive,
     });
   const { setNodeRef: setDropRef } = useDroppable({
     id: `card:${task.uuid}`,
-    data: { kind: "card", columnId: column.id, uuid: task.uuid },
+    data: { kind: isSubtask ? "subtask" : "card", columnId: column.id, uuid: task.uuid },
     disabled: disabled || !interactive,
   });
   const setRefs = useCallback(
     (node: HTMLDivElement | null) => {
       setNodeRef(node);
       setDropRef(node);
+      setActivatorNodeRef(node);
     },
-    [setNodeRef, setDropRef],
+    [setNodeRef, setDropRef, setActivatorNodeRef],
   );
-  const canMoveColumn = columns.length > 1;
   return (
     <div
       ref={setRefs}
       data-task-card={task.uuid}
+      data-subtask={isSubtask ? "true" : undefined}
       data-compact={compact ? "true" : undefined}
       aria-busy={saving}
-      onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
-        if (interactive && canDrag(event.target, event.currentTarget))
-          listeners?.onMouseDown?.(event);
-      }}
-      onTouchStart={(event: TouchEvent<HTMLDivElement>) => {
-        if (interactive && canDrag(event.target, event.currentTarget))
-          listeners?.onTouchStart?.(event);
+      {...attributes}
+      {...listeners}
+      onPointerDown={(e) => {
+        // Prevent child subtask drag from triggering parent task!
+        const target = e.target as Element | null;
+        if (!target) return;
+        const nearestCard = target.closest("[data-task-card]");
+        if (nearestCard && nearestCard !== e.currentTarget) {
+          return;
+        }
+        listeners?.onPointerDown?.(e);
       }}
       className={cn(
         "board-card group/card relative select-none [&:has(:focus-visible)]:bg-(--row-hover)",
         compact
-          ? "-mx-2.5 flex min-w-0 items-start px-2.5 shadow-none md:-mx-3 md:px-3"
-          : "cursor-grab rounded-xl border border-border/80 bg-card px-3.5 pt-1.5 pb-1.5 shadow-[0_1px_2px_rgb(0_0_0/0.03)] transition-[box-shadow,opacity,border-color,background-color] duration-150 hover:border-ring/40 hover:shadow-[0_3px_10px_rgb(0_0_0/0.05)] active:cursor-grabbing",
-        isDragging && "opacity-30",
-        before &&
-          "before:absolute before:-top-2 before:inset-x-0 before:h-0.5 before:rounded-full before:bg-primary/60",
+          ? (isSubtask
+              ? "flex min-w-0 items-start shadow-none"
+              : "-mx-2.5 flex min-w-0 items-start px-2.5 shadow-none md:-mx-3 md:px-3")
+          : "cursor-grab rounded-[10px] border border-border/70 bg-card px-2.5 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.2)] mb-2 transition-[box-shadow,opacity,border-color,background-color] duration-150 hover:border-foreground/20 hover:shadow-[0_2px_4px_rgba(0,0,0,0.25)] active:cursor-grabbing",
+        isDragging &&
+          (compact
+            ? "bg-white/[0.04] text-transparent [&>*]:invisible shadow-none"
+            : "min-h-[72px] border border-dashed border-white/20 bg-white/[0.04] rounded-[10px] text-transparent [&>*]:invisible shadow-none"),
       )}
     >
-      {children}
-      {interactive && (!compact || saving) && (
-        <div
-          data-no-drag
-          className={cn(
-            "flex items-center text-muted-foreground transition-opacity",
-            compact
-              ? "h-11 shrink-0 gap-0.5 self-start pl-0.5 md:h-8"
-              : "h-9 justify-between pb-0.5 opacity-80 md:h-7 md:opacity-65 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 [&:has([data-state=open])]:opacity-100",
-          )}
-        >
-          {!compact && (
-            <Button
-              ref={setActivatorNodeRef}
-              {...attributes}
-              onKeyDown={(event) => listeners?.onKeyDown?.(event)}
-              data-drag-handle
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              disabled={disabled}
-              title="Drag to reorder"
-              aria-label={`Drag task: ${task.description}`}
-              className="-ml-1 size-7 cursor-grab touch-none text-muted-foreground opacity-70 transition-opacity hover:opacity-100 active:cursor-grabbing max-md:size-9"
-            >
-              <GripVertical className="size-3.5" />
-            </Button>
-          )}
-          {saving ? (
-            <Spinner className="mr-2 size-3.5" aria-label="Saving task" />
-          ) : (
-            !compact &&
-            canMoveColumn && (
-              <Select
-                value={column.id}
-                disabled={disabled}
-                onValueChange={(id) => {
-                  if (id !== column.id) onMove(task, id);
-                }}
-              >
-                <SelectTrigger
-                  aria-label={`Move task: ${task.description}`}
-                  className="-mr-1 w-auto gap-1 rounded-md border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none hover:bg-accent hover:text-foreground data-[size=default]:h-9 md:data-[size=default]:h-6 dark:bg-transparent dark:hover:bg-accent"
-                >
-                  <SelectValue>{column.name}</SelectValue>
-                </SelectTrigger>
-                <SelectContent position="popper" align="end" sideOffset={4}>
-                  {columns.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )
-          )}
-        </div>
+      {before && (
+        compact ? (
+          <div className="pointer-events-none absolute -top-1 inset-x-0 z-30 flex items-center">
+            <div className="size-2 -ml-1 rounded-full border-2 border-[#dc4c3e] bg-[#dc4c3e] shrink-0" />
+            <div className="h-[2px] w-full bg-[#dc4c3e] shadow-[0_0_6px_rgba(220,76,62,0.5)]" />
+          </div>
+        ) : (
+          <div className="pointer-events-none absolute -top-1.5 inset-x-0 z-30">
+            <div className="h-1 rounded-full bg-[#de4c4a] shadow-[0_0_8px_rgba(222,76,74,0.6)]" />
+          </div>
+        )
       )}
+      {children}
     </div>
   );
 }
@@ -467,11 +465,10 @@ function BoardColumn({
     <section
       ref={setNodeRef}
       data-board-column={column.id}
-      aria-label={`${column.name} column`}
+      aria-label={`${columnDisplayName(column)} 列`}
       className={cn(
         "group/column min-w-0 snap-start rounded-lg transition-colors",
-        compact ? "pb-0" : "pb-4",
-        isOver && "bg-muted/70",
+        compact ? "pb-0" : "w-[260px] min-w-[260px] flex flex-col min-h-[calc(100vh-220px)] pb-4",
       )}
     >
       {showHeader && (
@@ -486,7 +483,7 @@ function BoardColumn({
             <div className="flex w-full items-center justify-between gap-2">
               <button
                 type="button"
-                aria-label={`${collapsed ? "Expand" : "Collapse"} group: ${column.name}`}
+                aria-label={`${collapsed ? "展开" : "收起"}分组: ${columnDisplayName(column)}`}
                 aria-expanded={!collapsed}
                 onClick={() => setCollapsed(!collapsed)}
                 className="task-section-toggle flex min-w-0 items-center gap-1.5 rounded-md py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
@@ -498,7 +495,7 @@ function BoardColumn({
                   )}
                 />
                 <h2 className="min-w-0 truncate text-sm font-semibold tracking-tight text-foreground">
-                  {column.name}
+                  {columnDisplayName(column)}
                 </h2>
                 <span className="text-xs font-normal tabular-nums text-muted-foreground/75 ml-0.5">
                   {count}
@@ -511,7 +508,7 @@ function BoardColumn({
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Section options: ${column.name}`}
+                      aria-label={`分区选项: ${columnDisplayName(column)}`}
                       disabled={disabled}
                       className="size-7 text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100 hover:text-foreground"
                     >
@@ -528,7 +525,7 @@ function BoardColumn({
                       }}
                     >
                       <Pencil className="size-3.5" />
-                      Rename section
+                      重命名分区
                     </Button>
                     <Button
                       variant="navigation"
@@ -540,7 +537,7 @@ function BoardColumn({
                       }}
                     >
                       <ArrowUp className="size-3.5" />
-                      Move up
+                      向上移动
                     </Button>
                     <Button
                       variant="navigation"
@@ -552,7 +549,7 @@ function BoardColumn({
                       }}
                     >
                       <ArrowDown className="size-3.5" />
-                      Move down
+                      向下移动
                     </Button>
                     <Button
                       variant="navigation"
@@ -563,7 +560,7 @@ function BoardColumn({
                       }}
                     >
                       <Trash2 className="size-3.5" />
-                      Delete section
+                      删除分区
                     </Button>
                   </PopoverContent>
                 </Popover>
@@ -572,7 +569,7 @@ function BoardColumn({
           ) : (
             <>
               <h2 className="min-w-0 truncate text-sm font-semibold">
-                {column.name}
+                {columnDisplayName(column)}
               </h2>
               <span className="text-xs font-normal tabular-nums text-muted-foreground/75 ml-0.5">
                 {count}
@@ -583,7 +580,7 @@ function BoardColumn({
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label={`Column options: ${column.name}`}
+                      aria-label={`列选项: ${columnDisplayName(column)}`}
                       disabled={disabled}
                       className="ml-auto text-muted-foreground transition-opacity md:opacity-0 md:group-hover/column:opacity-100 md:group-focus-within/column:opacity-100 data-[state=open]:opacity-100"
                     >
@@ -600,7 +597,7 @@ function BoardColumn({
                       }}
                     >
                       <Pencil className="size-3.5" />
-                      Rename
+                      重命名
                     </Button>
                     <Button
                       variant="navigation"
@@ -612,7 +609,7 @@ function BoardColumn({
                       }}
                     >
                       <ArrowLeft className="size-3.5" />
-                      Move left
+                      向左移动
                     </Button>
                     <Button
                       variant="navigation"
@@ -624,7 +621,7 @@ function BoardColumn({
                       }}
                     >
                       <ArrowRight className="size-3.5" />
-                      Move right
+                      向右移动
                     </Button>
                     <Button
                       variant="navigation"
@@ -635,7 +632,7 @@ function BoardColumn({
                       }}
                     >
                       <Trash2 className="size-3.5" />
-                      Delete column
+                      删除列
                     </Button>
                   </PopoverContent>
                 </Popover>
@@ -651,11 +648,20 @@ function BoardColumn({
             ? activeDrag
               ? "min-h-6"
               : "min-h-0"
-            : "min-h-56 space-y-2.5"
+            : "flex-1 flex flex-col space-y-2 min-h-64"
         }
       >
         {children}
-        {append && <div className="h-0.5 rounded-full bg-primary/60" />}
+        {append && (
+          compact ? (
+            <div className="pointer-events-none relative flex items-center my-1.5">
+              <div className="size-2 -ml-1 rounded-full border-2 border-[#dc4c3e] bg-[#dc4c3e] shrink-0" />
+              <div className="h-[2px] w-full bg-[#dc4c3e] shadow-[0_0_6px_rgba(220,76,62,0.5)]" />
+            </div>
+          ) : (
+            <div className="h-1 rounded-full bg-[#de4c4a] shadow-[0_0_8px_rgba(222,76,74,0.6)] my-1.5" />
+          )
+        )}
       </div>
     </section>
   );
@@ -666,6 +672,7 @@ export function TaskBoard({
   initialScrollLeft,
   onScrollPositionChange,
   tasks,
+  allTasks = tasks,
   board,
   revision,
   loading,
@@ -699,6 +706,18 @@ export function TaskBoard({
   const [announcement, setAnnouncement] = useState("");
   const [overdueCollapsed, setOverdueCollapsed] = useState(false);
   const [reschedulingOverdue, setReschedulingOverdue] = useState(false);
+  const [optimisticBoard, setOptimisticBoard] = useState<BoardState | null>(null);
+
+  useEffect(() => {
+    setOptimisticBoard(null);
+  }, [board, tasks]);
+
+  const allTasksList = allTasks.length ? allTasks : tasks;
+  const allTasksMap = useMemo(
+    () => new Map(allTasksList.map((t) => [t.uuid, t])),
+    [allTasksList],
+  );
+
   const [editor, setEditor] = useState<{
     column: Column;
     revision: number;
@@ -752,42 +771,131 @@ export function TaskBoard({
     };
   };
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 180, tolerance: 6 },
+    useSensor(SmartPointerSensor, {
+      activationConstraint: { distance: 5 },
     }),
     useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates }),
   );
-  const displayBoard = moving
-    ? placeCard(board, tasks, moving.uuid, moving.columnId, moving.beforeUuid)
-    : board;
+  const displayBoard =
+    optimisticBoard ??
+    (moving
+      ? placeCard(board, allTasksList, moving.uuid, moving.columnId, moving.beforeUuid)
+      : board);
+  function findTargetColumn(pointerX: number): string | undefined {
+    const colSections = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-board-column]"),
+    );
+    if (colSections.length === 0) return undefined;
+
+    const colRects = colSections
+      .map((el) => ({
+        id: el.getAttribute("data-board-column") || "",
+        rect: el.getBoundingClientRect(),
+      }))
+      .filter((c) => c.id && c.rect.width > 0);
+
+    if (colRects.length === 0) return undefined;
+
+    colRects.sort((a, b) => a.rect.left - b.rect.left);
+
+    if (pointerX < colRects[0].rect.left) {
+      return colRects[0].id;
+    }
+    if (pointerX > colRects[colRects.length - 1].rect.right) {
+      return colRects[colRects.length - 1].id;
+    }
+
+    for (let i = 0; i < colRects.length; i++) {
+      const current = colRects[i];
+      const prev = colRects[i - 1];
+      const next = colRects[i + 1];
+
+      const leftBound = prev
+        ? (prev.rect.right + current.rect.left) / 2
+        : current.rect.left;
+      const rightBound = next
+        ? (current.rect.right + next.rect.left) / 2
+        : current.rect.right;
+
+      if (pointerX >= leftBound && pointerX <= rightBound) {
+        return current.id;
+      }
+    }
+
+    return colRects[0].id;
+  }
+
   function destination(
     event: DragOverEvent | DragEndEvent | DragMoveEvent,
   ): Position | undefined {
     const { over, active, delta, activatorEvent } = event;
-    if (!over) return;
-    const columnId = over.data.current?.columnId as string | undefined;
-    if (!columnId || !columns.some((item) => item.id === columnId)) return;
-    const targetUuid = over.data.current?.uuid as string | undefined;
-    if (!targetUuid) return { columnId, beforeUuid: null };
-    const items = columnTasks(tasks, board, columnId).filter(
-      (task) => task.uuid !== active.id,
-    );
-    const index = items.findIndex((task) => task.uuid === targetUuid);
-    const eventY =
+
+    const pointerX =
+      "clientX" in activatorEvent
+        ? Number(activatorEvent.clientX) + delta.x
+        : "touches" in activatorEvent
+          ? ((activatorEvent as globalThis.TouchEvent).touches[0]?.clientX ?? 0) + delta.x
+          : null;
+
+    const pointerY =
       "clientY" in activatorEvent
         ? Number(activatorEvent.clientY) + delta.y
         : "touches" in activatorEvent
-          ? ((activatorEvent as globalThis.TouchEvent).touches[0]?.clientY ??
-              0) + delta.y
-          : over.rect.top;
-    return {
-      columnId,
-      beforeUuid:
-        eventY < over.rect.top + over.rect.height / 2
-          ? targetUuid
-          : items[index + 1]?.uuid || null,
-    };
+          ? ((activatorEvent as globalThis.TouchEvent).touches[0]?.clientY ?? 0) + delta.y
+          : null;
+
+    let columnId: string | undefined;
+
+    if (layout === "board") {
+      if (pointerX !== null) {
+        columnId = findTargetColumn(pointerX);
+      }
+      if (!columnId && over) {
+        columnId = over.data.current?.columnId as string | undefined;
+      }
+    } else {
+      columnId = over?.data.current?.columnId as string | undefined;
+      if (!columnId && over) {
+        if (columns.some((col) => col.id === String(over.id))) {
+          columnId = String(over.id);
+        }
+      }
+    }
+
+    if (!columnId || !columns.some((item) => item.id === columnId)) {
+      if (over?.data.current?.columnId) {
+        columnId = over.data.current.columnId;
+      }
+    }
+
+    if (!columnId) return;
+    const resolvedColumnId = columnId;
+
+    const colSection = document.querySelector<HTMLElement>(
+      `[data-board-column="${resolvedColumnId}"]`,
+    );
+    if (!colSection) return { columnId: resolvedColumnId, beforeUuid: null };
+
+    const cardElements = Array.from(
+      colSection.querySelectorAll<HTMLElement>("[data-task-card]"),
+    ).filter((el) => el.getAttribute("data-task-card") !== String(active.id));
+
+    if (cardElements.length === 0 || pointerY === null) {
+      return { columnId: resolvedColumnId, beforeUuid: null };
+    }
+
+    for (const cardEl of cardElements) {
+      const rect = cardEl.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      if (pointerY < midY) {
+        const uuid = cardEl.getAttribute("data-task-card");
+        if (uuid) {
+          return { columnId: resolvedColumnId, beforeUuid: uuid };
+        }
+      }
+    }
+
+    return { columnId: resolvedColumnId, beforeUuid: null };
   }
   async function move(task: Task, target: Position) {
     if (disabled) return;
@@ -857,15 +965,38 @@ export function TaskBoard({
           const available = args.droppableContainers.filter(
             (item) => item.data.current?.uuid !== args.active.id,
           );
+          if (args.pointerCoordinates && layout === "board") {
+            const targetColId = findTargetColumn(args.pointerCoordinates.x);
+            if (targetColId) {
+              const hits = pointerWithin({
+                ...args,
+                droppableContainers: available.filter(
+                  (item) => item.data.current?.columnId === targetColId,
+                ),
+              });
+              const cardHit = hits.find((hit) =>
+                String(hit.id).startsWith("card:"),
+              );
+              if (cardHit) return [cardHit];
+
+              const colContainer = available.find(
+                (item) => item.id === targetColId,
+              );
+              if (colContainer) return [colContainer];
+            }
+          }
           if (args.pointerCoordinates) {
             const hits = pointerWithin({
               ...args,
               droppableContainers: available,
             });
-            const cards = hits.filter((hit) =>
-              String(hit.id).startsWith("card:"),
-            );
-            return cards.length ? cards : hits;
+            if (hits.length > 0) {
+              const cardHit = hits.find((hit) =>
+                String(hit.id).startsWith("card:"),
+              );
+              if (cardHit) return [cardHit];
+              return [hits[0]];
+            }
           }
           return closestCenter({
             ...args,
@@ -892,21 +1023,74 @@ export function TaskBoard({
                 : "Press Space to pick up a task, Left or Right to choose a column, Space to move, or Escape to cancel. Use the Move menu as an alternative.",
           },
         }}
-        onDragStart={({ active }) =>
-          setActive(tasks.find((task) => task.uuid === active.id))
-        }
-        onDragOver={(event) => setPosition(destination(event))}
-        onDragMove={(event) => setPosition(destination(event))}
+        onDragStart={({ active }) => {
+          const task =
+            allTasksMap.get(String(active.id)) ||
+            tasks.find((t) => t.uuid === active.id);
+          setActive(task);
+        }}
+        onDragMove={(event) => {
+          const next = destination(event);
+          if (!next) return;
+          setPosition((prev) => {
+            if (
+              prev?.columnId === next.columnId &&
+              prev?.beforeUuid === next.beforeUuid
+            ) {
+              return prev;
+            }
+            return next;
+          });
+        }}
+        onDragOver={(event) => {
+          const next = destination(event);
+          if (!next) return;
+          setPosition((prev) => {
+            if (
+              prev?.columnId === next.columnId &&
+              prev?.beforeUuid === next.beforeUuid
+            ) {
+              return prev;
+            }
+            return next;
+          });
+        }}
         onDragCancel={() => {
           setActive(undefined);
           setPosition(undefined);
         }}
         onDragEnd={(event) => {
-          const task = tasks.find((task) => task.uuid === event.active.id);
-          const next = destination(event);
+          const task =
+            allTasksMap.get(String(event.active.id)) ||
+            tasks.find((t) => t.uuid === event.active.id);
+          const next = destination(event) ?? position;
           setActive(undefined);
           setPosition(undefined);
-          if (task && next) void move(task, next);
+          if (!task || !next) return;
+          const currentCards = columnTasks(
+            allTasksList,
+            displayBoard,
+            next.columnId,
+          ).map((t) => t.uuid);
+          const currentIndex = currentCards.indexOf(task.uuid);
+          if (currentIndex !== -1) {
+            const currentNextUuid = currentCards[currentIndex + 1] ?? null;
+            if (
+              next.beforeUuid === task.uuid ||
+              next.beforeUuid === currentNextUuid
+            ) {
+              return;
+            }
+          }
+          const nextBoard = placeCard(
+            board,
+            allTasksList,
+            task.uuid,
+            next.columnId,
+            next.beforeUuid,
+          );
+          setOptimisticBoard(nextBoard);
+          void move(task, next);
         }}
       >
         <div
@@ -928,7 +1112,7 @@ export function TaskBoard({
             className={
               layout === "list"
                 ? "space-y-4"
-                : "grid grid-flow-col auto-cols-[18rem] gap-6"
+                : "grid grid-flow-col auto-cols-[260px] gap-4 items-start"
             }
           >
             {todaySplit && layout === "list"
@@ -1019,7 +1203,31 @@ export function TaskBoard({
                                   })
                                 }
                               >
-                                {renderTask(task, undefined, "list")}
+                                {renderTask(
+                                  task,
+                                  undefined,
+                                  "list",
+                                  0,
+                                  (child, defaultRender) => (
+                                    <BoardCard
+                                      key={child.uuid}
+                                      task={child}
+                                      column={column}
+                                      columns={columns}
+                                      compact={true}
+                                      isSubtask={true}
+                                      disabled={disabled}
+                                      interactive={canAddTask}
+                                      saving={moving?.uuid === child.uuid}
+                                      before={
+                                        !!active &&
+                                        position?.beforeUuid === child.uuid
+                                      }
+                                    >
+                                      {defaultRender(child)}
+                                    </BoardCard>
+                                  ),
+                                )}
                               </BoardCard>
                             ))}
                           </div>
@@ -1029,8 +1237,8 @@ export function TaskBoard({
                         {overdueEntries.length > 0 && (
                           <div className="mb-1 flex h-10 items-center gap-2 border-b border-border/80">
                             <h2 className="text-sm font-semibold">
-                              {format(new Date(), "MMM d")} · Today ·{" "}
-                              {format(new Date(), "EEEE")}
+                              {format(new Date(), "M月d日")} · 今天 ·{" "}
+                              {format(new Date(), "EEEE", { locale: zhCN })}
                             </h2>
                             <span className="text-xs tabular-nums text-muted-foreground">
                               {todayEntries.length}
@@ -1047,11 +1255,10 @@ export function TaskBoard({
                                 />
                               </div>
                               <h3 className="text-sm font-semibold text-foreground">
-                                All tasks completed!
+                                所有任务已完成！
                               </h3>
                               <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                                Everything scheduled for today is done. Enjoy
-                                your day!
+                                今天安排的所有任务都已完成。享受美好的一天！
                               </p>
                             </div>
                           ) : (
@@ -1075,7 +1282,31 @@ export function TaskBoard({
                                   })
                                 }
                               >
-                                {renderTask(task, undefined, "list")}
+                                {renderTask(
+                                  task,
+                                  undefined,
+                                  "list",
+                                  0,
+                                  (child, defaultRender) => (
+                                    <BoardCard
+                                      key={child.uuid}
+                                      task={child}
+                                      column={column}
+                                      columns={columns}
+                                      compact={true}
+                                      isSubtask={true}
+                                      disabled={disabled}
+                                      interactive={canAddTask}
+                                      saving={moving?.uuid === child.uuid}
+                                      before={
+                                        !!active &&
+                                        position?.beforeUuid === child.uuid
+                                      }
+                                    >
+                                      {defaultRender(child)}
+                                    </BoardCard>
+                                  ),
+                                )}
                               </BoardCard>
                             ))
                           )}
@@ -1084,8 +1315,8 @@ export function TaskBoard({
                               mode="add"
                               compact
                               disabled={disabled}
-                              ariaLabel="Add task to Today"
-                              placeholder="Task name (try #project, @label, tomorrow, p1)"
+                              ariaLabel="添加任务至今天"
+                              placeholder="添加任务（支持 #项目, @标签, 明天, p1）"
                               defaultProject={defaultProject}
                               defaultDue={defaultDue || taskDate(new Date())}
                               projects={projects}
@@ -1110,8 +1341,7 @@ export function TaskBoard({
                   if (
                     isUnsectioned &&
                     hasCustomColumns &&
-                    items.length === 0 &&
-                    !active
+                    items.length === 0
                   ) {
                     return null;
                   }
@@ -1154,10 +1384,10 @@ export function TaskBoard({
                             <Inbox className="size-6" strokeWidth={1.5} />
                           </div>
                           <h3 className="text-sm font-medium text-foreground">
-                            No tasks here
+                            暂无任务
                           </h3>
                           <p className="mt-0.5 text-xs text-muted-foreground">
-                            Add a task below to get started
+                            在下方添加任务以开始
                           </p>
                         </div>
                       )}
@@ -1185,6 +1415,28 @@ export function TaskBoard({
                             task,
                             undefined,
                             layout === "board" ? "card" : "list",
+                            0,
+                            layout === "list"
+                              ? (child, defaultRender) => (
+                                  <BoardCard
+                                    key={child.uuid}
+                                    task={child}
+                                    column={column}
+                                    columns={columns}
+                                    compact={true}
+                                    isSubtask={true}
+                                    disabled={disabled}
+                                    interactive={canAddTask}
+                                    saving={moving?.uuid === child.uuid}
+                                    before={
+                                      !!active &&
+                                      position?.beforeUuid === child.uuid
+                                    }
+                                  >
+                                    {defaultRender(child)}
+                                  </BoardCard>
+                                )
+                              : undefined,
                           )}
                         </BoardCard>
                       ))}
@@ -1193,11 +1445,11 @@ export function TaskBoard({
                           mode="add"
                           compact={layout === "list"}
                           disabled={disabled}
-                          ariaLabel={`Add task${column.id !== UNSECTIONED ? ` to ${column.name}` : ""}`}
+                          ariaLabel={`在${columnDisplayName(column)}中添加任务`}
                           placeholder={
                             column.id !== UNSECTIONED
-                              ? `Add task to ${column.name}…`
-                              : "Task name (try #project, @label, tomorrow, p1)"
+                              ? `在“${columnDisplayName(column)}”中添加任务…`
+                              : "添加任务（支持 #项目, @标签, 明天, p1）"
                           }
                           defaultProject={defaultProject}
                           defaultDue={defaultDue}
@@ -1231,12 +1483,17 @@ export function TaskBoard({
               )}
           </div>
         </div>
-        <DragOverlay
-          dropAnimation={reduced ? null : { duration: 180, easing: "ease-out" }}
-        >
+        <DragOverlay dropAnimation={null}>
           {active && (
-            <div className="rounded-lg border border-border bg-background p-4 text-sm shadow-lg [overflow-wrap:anywhere]">
-              {active.description}
+            <div
+              className={cn(
+                "cursor-grabbing rounded-[10px] border border-white/20 bg-card px-2.5 py-2 shadow-[0_16px_32px_rgba(0,0,0,0.5),0_0_1px_rgba(255,255,255,0.15)] select-none pointer-events-none opacity-100 rotate-[2.5deg] scale-[1.02] transition-transform duration-100 ease-out",
+                layout === "board"
+                  ? "w-[260px]"
+                  : "w-full max-w-xl rotate-[1.5deg] scale-[1.015]",
+              )}
+            >
+              {renderTask(active, undefined, layout === "board" ? "card" : "list")}
             </div>
           )}
         </DragOverlay>
@@ -1266,9 +1523,9 @@ export function TaskBoard({
           }}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleting?.column.name}?</AlertDialogTitle>
+            <AlertDialogTitle>删除分区“{columnDisplayName(deleting?.column)}”？</AlertDialogTitle>
             <AlertDialogDescription>
-              Tasks will move to No section. Your tasks will be kept.
+              该分区下的任务将移至未分区，任务内容将被保留。
             </AlertDialogDescription>
           </AlertDialogHeader>
           {error && (
@@ -1287,13 +1544,13 @@ export function TaskBoard({
                       });
                   }}
                 >
-                  Reload board
+                  重新加载看板
                 </Button>
               </AlertDescription>
             </Alert>
           )}
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={saving}>取消</AlertDialogCancel>
             <AlertDialogAction
               disabled={saving || blocked}
               className="bg-destructive text-white hover:bg-destructive/90"
@@ -1314,9 +1571,9 @@ export function TaskBoard({
               {saving ? (
                 <Spinner className="size-4" />
               ) : layout === "list" ? (
-                "Delete section"
+                "删除分区"
               ) : (
-                "Delete column"
+                "删除列"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

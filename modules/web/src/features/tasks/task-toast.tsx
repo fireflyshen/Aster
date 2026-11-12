@@ -25,32 +25,30 @@ export function TaskToast({
       <Toast.Root
         open={open}
         onOpenChange={onOpenChange}
-        className="flex items-center gap-3 rounded-lg bg-primary px-3 py-2 text-[13px] text-primary-foreground shadow-lg data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0"
+        className="flex items-center gap-4 rounded-lg border border-white/10 bg-[#202020] px-4 py-2.5 text-[14px] text-white shadow-[0_8px_24px_rgba(0,0,0,0.4)] data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom-4 data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom-2 duration-200"
       >
-        <Toast.Title className="min-w-0 flex-1 truncate">{message}</Toast.Title>
+        <Toast.Title className="min-w-0 flex-1 font-normal text-white">{message}</Toast.Title>
         <Toast.Action altText={actionDescription} asChild>
-          <Button
-            variant="ghost"
-            size="sm"
+          <button
+            type="button"
             onClick={onAction}
             disabled={disabled}
-            className="h-9 px-2 text-xs text-primary-foreground hover:bg-primary-foreground/10 md:h-8"
+            className="text-[13px] font-semibold text-[#ff7066] hover:text-[#ff8a82] transition-colors cursor-pointer px-1 py-0.5 rounded focus:outline-none"
           >
             {actionLabel}
-          </Button>
+          </button>
         </Toast.Action>
         <Toast.Close asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Dismiss notification"
-            className="size-9 p-0 text-primary-foreground/70 hover:bg-primary-foreground/10 hover:text-primary-foreground md:size-8"
+          <button
+            type="button"
+            aria-label="关闭通知"
+            className="size-6 flex items-center justify-center rounded text-white/60 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
-            <X className="size-4" />
-          </Button>
+            <X className="size-3.5" />
+          </button>
         </Toast.Close>
       </Toast.Root>
-      <Toast.Viewport className="fixed bottom-20 left-4 z-[100] m-0 w-auto max-w-[calc(100vw-2rem)] list-none outline-none md:bottom-4" />
+      <Toast.Viewport className="fixed bottom-6 left-6 z-[1000] m-0 w-auto max-w-[calc(100vw-3rem)] list-none outline-none" />
     </Toast.Provider>
   );
 }

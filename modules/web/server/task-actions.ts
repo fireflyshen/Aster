@@ -47,12 +47,12 @@ export function createTaskActions(
       case "delete": {
         await recovery.delete(input.uuid);
         const org = await organization.load();
+        let rev = org.revision;
         if (org.subtasks) {
           const toDelete = Object.entries(org.subtasks).filter(
             ([child, parent]) => child === input.uuid || parent === input.uuid,
           );
           if (toDelete.length > 0) {
-            let rev = org.revision;
             for (const [child] of toDelete) {
               const updated = await organization.change({
                 revision: rev,
@@ -63,6 +63,14 @@ export function createTaskActions(
               rev = updated.revision;
             }
           }
+        }
+        if (org.descriptions && org.descriptions[input.uuid]) {
+          await organization.change({
+            revision: rev,
+            kind: "description",
+            action: "delete",
+            uuid: input.uuid,
+          });
         }
         break;
       }

@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "cn";
 import { addDays, format, nextMonday, nextSaturday } from "date-fns";
-import { enUS } from "date-fns/locale";
+import { zhCN } from "date-fns/locale";
 import {
   Armchair,
   ArrowRight,
@@ -92,11 +92,11 @@ export function DatePicker({
               {date
                 ? label ||
                   (value === todayStr
-                    ? "Today"
+                    ? "今天"
                     : value === tomorrowStr
-                      ? "Tomorrow"
-                      : format(date, compact ? "MMM d" : "MMM d, yyyy"))
-                : emptyLabel || (compact ? "Date" : "No date")}
+                      ? "明天"
+                      : format(date, compact ? "M月d日" : "yyyy年M月d日"))
+                : emptyLabel || (compact ? "日期" : "无日期")}
             </span>
           </Button>
         )}
@@ -105,7 +105,7 @@ export function DatePicker({
         align={align}
         collisionPadding={16}
         className="w-auto p-0"
-        aria-label={`Choose ${ariaLabel.toLowerCase()}`}
+        aria-label={`选择${ariaLabel}`}
         onCloseAutoFocus={
           returnFocus
             ? (event) => {
@@ -128,10 +128,10 @@ export function DatePicker({
           >
             <span className="inline-flex items-center gap-2">
               <Sun className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-              Today
+              今天
             </span>
             <span className="text-muted-foreground">
-              {format(today, "EEE")}
+              {format(today, "EEE", { locale: zhCN })}
             </span>
           </Button>
           <Button
@@ -146,10 +146,10 @@ export function DatePicker({
           >
             <span className="inline-flex items-center gap-2">
               <Sunrise className="size-3.5 text-amber-600 dark:text-amber-400" />
-              Tomorrow
+              明天
             </span>
             <span className="text-muted-foreground">
-              {format(tomorrow, "EEE")}
+              {format(tomorrow, "EEE", { locale: zhCN })}
             </span>
           </Button>
           <Button
@@ -164,10 +164,10 @@ export function DatePicker({
           >
             <span className="inline-flex items-center gap-2">
               <Armchair className="size-3.5 text-blue-600 dark:text-blue-400" />
-              This weekend
+              本周末
             </span>
             <span className="text-muted-foreground">
-              {format(weekend, "EEE")}
+              {format(weekend, "EEE", { locale: zhCN })}
             </span>
           </Button>
           <Button
@@ -182,10 +182,10 @@ export function DatePicker({
           >
             <span className="inline-flex items-center gap-2">
               <ArrowRight className="size-3.5 text-violet-600 dark:text-violet-400" />
-              Next week
+              下周
             </span>
             <span className="text-muted-foreground">
-              {format(nextWeek, "MMM d")}
+              {format(nextWeek, "M月d日")}
             </span>
           </Button>
           {value && (
@@ -197,19 +197,19 @@ export function DatePicker({
               className="h-8 justify-start gap-2 px-2.5 text-xs font-normal text-muted-foreground hover:text-foreground"
             >
               <X className="size-3.5" />
-              No date
+              清除日期
             </Button>
           )}
         </div>
         <Calendar
           mode="single"
-          locale={enUS}
+          locale={zhCN}
           labels={{
-            labelNav: () => "Month navigation",
-            labelPrevious: () => "Previous month",
-            labelNext: () => "Next month",
+            labelNav: () => "月份导航",
+            labelPrevious: () => "上个月",
+            labelNext: () => "下个月",
             labelDayButton: (date, modifiers) =>
-              `${format(date, "EEEE, MMMM d, yyyy", { locale: enUS })}${modifiers.today ? ", today" : ""}${modifiers.selected ? ", selected" : ""}`,
+              `${format(date, "yyyy年M月d日 EEEE", { locale: zhCN })}${modifiers.today ? ", 今天" : ""}${modifiers.selected ? ", 已选择" : ""}`,
           }}
           selected={date}
           defaultMonth={date}

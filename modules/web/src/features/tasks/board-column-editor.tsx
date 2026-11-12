@@ -68,19 +68,19 @@ export function BoardColumnEditor({
       >
         <DialogHeader className="border-b px-5 py-4 pr-14 text-left">
           <DialogTitle className="text-base font-semibold">
-            {column.id ? "Edit section" : "Add section"}
+            {column.id ? "编辑分区" : "添加分区"}
           </DialogTitle>
           <DialogDescription className="sr-only">
-            Name your section.
+            命名您的分区。
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
           <div className="space-y-5 px-5 py-5">
             <div className="space-y-2">
-              <Label htmlFor="column-name">Name</Label>
+              <Label htmlFor="column-name">名称</Label>
               <Input
                 id="column-name"
-                placeholder="e.g. Review"
+                placeholder="例如：审核中"
                 value={name}
                 maxLength={60}
                 required
@@ -107,7 +107,7 @@ export function BoardColumnEditor({
                       }
                     }}
                   >
-                    Reload and keep draft
+                    重新加载并保留草稿
                   </Button>
                 </AlertDescription>
               </Alert>
@@ -120,13 +120,13 @@ export function BoardColumnEditor({
               disabled={busy}
               onClick={onClose}
             >
-              Cancel
+              取消
             </Button>
             <Button
               type="submit"
               disabled={busy || blocked || reloading || !name.trim()}
             >
-              {busy ? <Spinner className="size-4" /> : "Save"}
+              {busy ? <Spinner className="size-4" /> : "保存"}
             </Button>
           </div>
         </form>

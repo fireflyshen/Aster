@@ -52,19 +52,31 @@ const handleAddTask = async (input: Record<string, unknown>) => {
   const createdUuid = output.match(
     /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i,
   )?.[0];
-  if (
-    typeof input.parentUuid === "string" &&
-    input.parentUuid &&
-    createdUuid
-  ) {
-    const org = await organization.load();
-    await organization.change({
-      revision: org.revision,
-      kind: "subtask",
-      action: "link",
-      childUuid: createdUuid,
-      parentUuid: input.parentUuid,
-    });
+  if (createdUuid) {
+    let org = await organization.load();
+    let rev = org.revision;
+    if (typeof input.parentUuid === "string" && input.parentUuid) {
+      org = await organization.change({
+        revision: rev,
+        kind: "subtask",
+        action: "link",
+        childUuid: createdUuid,
+        parentUuid: input.parentUuid,
+      });
+      rev = org.revision;
+    }
+    if (
+      typeof input.taskDescription === "string" &&
+      input.taskDescription.trim()
+    ) {
+      await organization.change({
+        revision: rev,
+        kind: "description",
+        action: "set",
+        uuid: createdUuid,
+        description: input.taskDescription.trim(),
+      });
+    }
   }
   return { ok: true as const, uuid: createdUuid };
 };

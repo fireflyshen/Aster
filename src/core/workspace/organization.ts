@@ -49,6 +49,14 @@ export type SubtaskChange = {
   | { action: "unlink"; childUuid: string }
 );
 
+export type DescriptionChange = {
+  revision: number;
+  kind: "description";
+} & (
+  | { action: "set"; uuid: string; description: string }
+  | { action: "delete"; uuid: string }
+);
+
 export type Organization = {
   revision: number;
   filters: SavedFilter[];
@@ -57,6 +65,7 @@ export type Organization = {
   projects?: SavedProject[];
   board?: BoardState;
   subtasks?: Record<string, string>;
+  descriptions?: Record<string, string>;
   energyState?: EnergyState;
   energy?: EnergySummary;
   timing?: { available: boolean; error?: string };
@@ -66,6 +75,7 @@ export type OrganizationChange =
   | ProjectFocusChange
   | EnergyChange
   | SubtaskChange
+  | DescriptionChange
   | {
       revision: number;
       kind: "project";

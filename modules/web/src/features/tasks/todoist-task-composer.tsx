@@ -57,33 +57,33 @@ const PRIORITIES: {
 }[] = [
   {
     value: "H",
-    label: "Priority 1",
+    label: "优先级 1",
     short: "P1",
-    iconClass: "fill-red-500/20 text-red-600 dark:text-red-400",
+    iconClass: "fill-[#d1453b]/20 text-[#d1453b]",
     chipClass:
-      "border-red-500/35 bg-red-500/8 text-red-600 hover:bg-red-500/14 dark:text-red-400",
+      "border-[#d1453b]/40 bg-[#d1453b]/10 text-[#d1453b] hover:bg-[#d1453b]/20",
   },
   {
     value: "M",
-    label: "Priority 2",
+    label: "优先级 2",
     short: "P2",
-    iconClass: "fill-amber-500/20 text-amber-600 dark:text-amber-400",
+    iconClass: "fill-[#eb8909]/20 text-[#eb8909]",
     chipClass:
-      "border-amber-500/35 bg-amber-500/8 text-amber-600 hover:bg-amber-500/14 dark:text-amber-400",
+      "border-[#eb8909]/40 bg-[#eb8909]/10 text-[#eb8909] hover:bg-[#eb8909]/20",
   },
   {
     value: "L",
-    label: "Priority 3",
+    label: "优先级 3",
     short: "P3",
-    iconClass: "fill-blue-500/20 text-blue-600 dark:text-blue-400",
+    iconClass: "fill-[#246fe0]/20 text-[#246fe0]",
     chipClass:
-      "border-blue-500/35 bg-blue-500/8 text-blue-600 hover:bg-blue-500/14 dark:text-blue-400",
+      "border-[#246fe0]/40 bg-[#246fe0]/10 text-[#246fe0] hover:bg-[#246fe0]/20",
   },
   {
     value: "",
-    label: "Priority 4",
-    short: "Priority",
-    iconClass: "text-muted-foreground",
+    label: "优先级 4",
+    short: "优先级",
+    iconClass: "text-[#888888]",
     chipClass: "border-input text-muted-foreground",
   },
 ];
@@ -92,12 +92,13 @@ export function TodoistTaskComposer({
   mode = "add",
   compact = true,
   disabled = false,
-  ariaLabel = "Add task",
-  placeholder = "Task name",
+  ariaLabel = "添加任务",
+  placeholder = "任务名称",
   defaultProject = "",
   defaultDue = "",
   initialValue,
   initialNotePreview = "",
+  initialDescription = "",
   projects = [],
   availableLabels = [],
   onSubmitTask,
@@ -111,17 +112,20 @@ export function TodoistTaskComposer({
   placeholder?: string;
   defaultProject?: string;
   defaultDue?: string;
-  initialValue?: TaskInput;
+  initialValue?: TaskInput & { taskDescription?: string };
   initialNotePreview?: string;
+  initialDescription?: string;
   projects?: string[];
   availableLabels?: SavedTag[];
-  onSubmitTask?: (task: TaskInput) => Promise<boolean>;
-  onOpenFullEditor?: (draft?: TaskInput) => void;
+  onSubmitTask?: (task: TaskInput & { taskDescription?: string }) => Promise<boolean>;
+  onOpenFullEditor?: (draft?: TaskInput & { taskDescription?: string }) => void;
   onCancel?: () => void;
 }) {
   const [editing, setEditing] = useState(mode === "edit");
   const [title, setTitle] = useState(initialValue?.description || "");
-  const [note, setNote] = useState(initialValue?.note || "");
+  const [note, setNote] = useState(
+    initialDescription || initialValue?.taskDescription || "",
+  );
 
   // Manual overrides set explicitly via the buttons/chips
   const [manualDue, setManualDue] = useState<string | null | undefined>(
@@ -253,7 +257,10 @@ export function TodoistTaskComposer({
     );
   }
 
-  function buildTaskInput(): { task: TaskInput; error?: string } {
+  function buildTaskInput(): {
+    task: TaskInput & { taskDescription?: string };
+    error?: string;
+  } {
     if (parsed.errors.length) {
       return { task: parsed.task, error: parsed.errors[0] };
     }
@@ -300,7 +307,8 @@ export function TodoistTaskComposer({
         due: resolvedDue,
         recur: initialValue?.recur,
         until: initialValue?.until,
-        note: note.trim() || undefined,
+        note: undefined,
+        taskDescription: note.trim() || undefined,
       },
     };
   }
@@ -383,17 +391,17 @@ export function TodoistTaskComposer({
         className={
           compact
             ? "task-add-button group/add"
-            : "mt-1 flex h-9 w-full items-center justify-start gap-2 rounded-lg px-2.5 text-xs font-normal text-muted-foreground transition-colors hover:bg-(--row-hover) hover:text-foreground has-[>svg]:px-2.5"
+            : "mt-1 flex h-9 w-full items-center justify-start gap-2 rounded-lg px-2.5 text-xs font-normal text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground has-[>svg]:px-2.5"
         }
       >
         <Plus
           className={cn(
             compact ? "size-[18px]" : "size-4",
-            "text-primary/85 transition-transform duration-150 group-hover/add:scale-110",
+            "text-[#de4c4a] transition-transform duration-150 group-hover/add:scale-110",
           )}
           strokeWidth={1.75}
         />
-        Add task
+        添加任务
       </Button>
     );
   }
@@ -405,7 +413,7 @@ export function TodoistTaskComposer({
       data-compact={compact}
       className={cn(compact ? "my-1.5" : "mt-1.5")}
     >
-      <div className="task-composer-shell rounded-lg border border-input bg-card p-3 transition-colors focus-within:border-ring">
+      <div className="task-composer-shell rounded-[10px] border border-white/12 bg-card p-3 transition-colors shadow-[0_2px_8px_rgba(0,0,0,0.2)] focus-within:border-white/25 animate-in fade-in-0 zoom-in-98 duration-150 ease-out">
         <div className="relative space-y-1">
           <input
             ref={titleRef}
@@ -478,18 +486,8 @@ export function TodoistTaskComposer({
             }}
             value={note}
             disabled={disabled || submitting}
-            aria-label={
-              mode === "edit"
-                ? "Add a note to task"
-                : "Task description or note"
-            }
-            placeholder={
-              mode === "edit"
-                ? initialNotePreview
-                  ? `Note: ${initialNotePreview}`
-                  : "Add a note or description…"
-                : "Description"
-            }
+            aria-label="任务描述"
+            placeholder="描述"
             onInput={(event) => {
               const el = event.currentTarget;
               el.style.height = "auto";
@@ -683,22 +681,22 @@ export function TodoistTaskComposer({
               size="xs"
               disabled={submitting}
               aria-label={
-                mode === "edit" ? "Cancel editing task" : "Cancel adding task"
+                mode === "edit" ? "取消编辑任务" : "取消添加任务"
               }
               onClick={resetOrClose}
-              className="h-7 rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+              className="h-8 rounded-md bg-[#363636] px-3 text-[13px] font-medium text-white hover:bg-[#444444] cursor-pointer"
             >
               <X className={cn("size-3.5", mode !== "edit" && "sm:hidden")} />
               {mode !== "edit" && (
-                <span className="hidden sm:inline">Cancel</span>
+                <span className="hidden sm:inline">取消</span>
               )}
             </Button>
             <Button
               type="submit"
               size="xs"
               disabled={disabled || submitting || !title.trim()}
-              aria-label={mode === "edit" ? "Save task" : "Add task"}
-              className="h-7 gap-1 rounded-md px-2.5 text-xs font-medium shadow-none"
+              aria-label={mode === "edit" ? "保存任务" : "添加任务"}
+              className="h-8 gap-1 rounded-md bg-[#de4c4a] px-3.5 text-[13px] font-semibold text-white shadow-none hover:bg-[#c93f3d] disabled:opacity-50 cursor-pointer"
             >
               {submitting ? (
                 <Spinner className="size-3" />
@@ -706,7 +704,7 @@ export function TodoistTaskComposer({
                 <Check className="size-4" />
               ) : (
                 <>
-                  Add task
+                  添加任务
                   <CornerDownLeft className="size-3 opacity-75" />
                 </>
               )}

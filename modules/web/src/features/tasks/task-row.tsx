@@ -67,10 +67,10 @@ function dueLabel(value: string) {
   local.setHours(0, 0, 0, 0);
   const day =
     +local === +today
-      ? "Today"
+      ? "今天"
       : +local === +tomorrow
-        ? "Tomorrow"
-        : format(date, "MMM d");
+        ? "明天"
+        : format(date, "M月d日");
   return (
     day +
     (date.getHours() || date.getMinutes()
@@ -82,27 +82,31 @@ function dueLabel(value: string) {
 const PRIORITIES = [
   {
     value: "H" as const,
-    label: "Priority 1",
+    label: "优先级 1",
     short: "P1",
-    iconClass: "fill-red-500/20 text-red-600 dark:text-red-400",
+    iconClass: "fill-[#d1453b]/20 text-[#d1453b]",
+    color: "#d1453b",
   },
   {
     value: "M" as const,
-    label: "Priority 2",
+    label: "优先级 2",
     short: "P2",
-    iconClass: "fill-amber-500/20 text-amber-600 dark:text-amber-400",
+    iconClass: "fill-[#eb8909]/20 text-[#eb8909]",
+    color: "#eb8909",
   },
   {
     value: "L" as const,
-    label: "Priority 3",
+    label: "优先级 3",
     short: "P3",
-    iconClass: "fill-blue-500/20 text-blue-600 dark:text-blue-400",
+    iconClass: "fill-[#246fe0]/20 text-[#246fe0]",
+    color: "#246fe0",
   },
   {
     value: "" as const,
-    label: "Priority 4",
-    short: "None",
-    iconClass: "text-muted-foreground",
+    label: "优先级 4",
+    short: "无",
+    iconClass: "text-[#888888]",
+    color: "#666666",
   },
 ];
 
@@ -131,6 +135,7 @@ export function TaskRow({
   subtasks = [],
   isSubtask = false,
   depth = 0,
+  description = "",
   onAddSubtask,
   onUnlinkSubtask,
   onToggleSubtask,
@@ -146,7 +151,7 @@ export function TaskRow({
   onToggleStart?: () => void;
   onDueChange?: (due: string) => void;
   onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
-  onSaveInline?: (input: TaskInput) => Promise<boolean>;
+  onSaveInline?: (input: TaskInput & { taskDescription?: string }) => Promise<boolean>;
   onDelete?: () => void;
   projects?: string[];
   availableLabels?: SavedTag[];
@@ -159,6 +164,7 @@ export function TaskRow({
   subtasks?: Task[];
   isSubtask?: boolean;
   depth?: number;
+  description?: string;
   onAddSubtask?: (input: TaskInput) => Promise<boolean>;
   onUnlinkSubtask?: () => void;
   onToggleSubtask?: (subtask: Task, completed: boolean) => void;
@@ -177,18 +183,13 @@ export function TaskRow({
   const nextWeekStr = format(nextMonday(now), "yyyy-MM-dd");
   const isDueToday = dueDay === todayStr;
   const isDueTomorrow = dueDay === tomorrowStr;
-  const fullNotes =
-    task.annotations
-      ?.map((a) => a.description?.trim())
-      .filter(Boolean)
-      .join("\n") || "";
 
   const [editingInline, setEditingInline] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
   const [priorityChipOpen, setPriorityChipOpen] = useState(false);
   const [drawerPinned, setDrawerPinned] = useState(false);
-  const [subtasksExpanded, setSubtasksExpanded] = useState(true);
+  const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const rowRef = useRef<HTMLElement>(null);
 
@@ -204,16 +205,18 @@ export function TaskRow({
       : isSubtask || onDelete,
   );
   const hasRightActions = Boolean(
-    (!completed &&
+    (variant === "list" &&
+      !completed &&
       (onSaveInline || onToggleStart || onDueChange || onPriorityChange)) ||
     hasMoreMenu ||
-    extraActions,
+    (variant === "list" && extraActions),
   );
   const hasDetails = !!(
     (showProject && task.project) ||
     task.due ||
     task.recur ||
     task.annotations.length ||
+    description ||
     task.tags.length ||
     task.priority ||
     task.wait ||
@@ -355,7 +358,7 @@ export function TaskRow({
           disabled={disabled}
           ariaLabel={`Edit task: ${task.description}`}
           placeholder="Task name"
-          initialNotePreview={fullNotes}
+          initialDescription={description}
           initialValue={{
             description: task.description,
             project: task.project || "",
@@ -416,16 +419,23 @@ export function TaskRow({
           )}
         >
           <div className="flex items-start gap-2 md:gap-2.5 w-full min-w-0">
-            {/* Left Gutter: Chevrons for tasks with subtasks; drag handles in list view */}
-            {(variant === "list" || totalSubtasks > 0) && (
-              <div className="task-row-gutter flex size-5 shrink-0 items-center justify-center self-start mt-2 md:mt-1.5">
-                {totalSubtasks > 0 ? (
+            {/* Left Gutter: Drag handles in list view & chevron for tasks with subtasks */}
+            {variant === "list" && (
+              <div className="task-row-gutter flex items-center justify-center shrink-0 self-start mt-2 md:mt-1.5 gap-0.5">
+                <div
+                  data-drag-handle
+                  className="size-5 flex items-center justify-center opacity-0 md:group-hover/row:opacity-40 hover:opacity-100! transition-opacity cursor-grab active:cursor-grabbing"
+                  title="拖动以重新排序"
+                >
+                  <GripVertical className="size-3 text-muted-foreground" />
+                </div>
+                {totalSubtasks > 0 && (
                   <button
                     type="button"
                     data-no-drag
                     tabIndex={-1}
                     aria-label={
-                      subtasksExpanded ? "Collapse subtasks" : "Expand subtasks"
+                      subtasksExpanded ? "收起子任务" : "展开子任务"
                     }
                     onClick={(e) => {
                       e.preventDefault();
@@ -441,11 +451,7 @@ export function TaskRow({
                       )}
                     />
                   </button>
-                ) : variant === "list" ? (
-                  <div className="size-5 flex items-center justify-center opacity-0 md:group-hover/row:opacity-40 transition-opacity">
-                    <GripVertical className="size-3 text-muted-foreground" />
-                  </div>
-                ) : null}
+                )}
               </div>
             )}
 
@@ -465,31 +471,31 @@ export function TaskRow({
                   aria-label={`${completed ? "Reopen" : "Complete"}: ${task.description}`}
                   onCheckedChange={onComplete}
                   className={cn(
-                    "task-complete size-[18px] rounded-full shadow-none transition-all duration-150 focus-visible:ring-1 disabled:opacity-100 enabled:hover:border-foreground cursor-pointer",
+                    "task-complete size-[18px] rounded-full shadow-none transition-all duration-150 focus-visible:ring-1 disabled:opacity-100 cursor-pointer",
                     !checked &&
                       !task.priority &&
-                      "border-[1.5px] border-muted-foreground/60 bg-transparent enabled:hover:border-foreground",
+                      "border-[2px] border-[#666666] bg-transparent enabled:hover:border-[#888888]",
                     !checked &&
                       task.priority === "H" &&
-                      "border-[1.5px] border-red-500 bg-red-500/10 enabled:hover:border-red-600 enabled:hover:bg-red-500/20 dark:border-red-400 dark:bg-red-400/10",
+                      "border-[2px] border-[#d1453b] bg-[#d1453b]/10 enabled:hover:border-[#d1453b] enabled:hover:bg-[#d1453b]/20",
                     !checked &&
                       task.priority === "M" &&
-                      "border-[1.5px] border-amber-500 bg-amber-500/10 enabled:hover:border-amber-600 enabled:hover:bg-amber-500/20 dark:border-amber-400 dark:bg-amber-400/10",
+                      "border-[2px] border-[#eb8909] bg-[#eb8909]/10 enabled:hover:border-[#eb8909] enabled:hover:bg-[#eb8909]/20",
                     !checked &&
                       task.priority === "L" &&
-                      "border-[1.5px] border-blue-500 bg-blue-500/10 enabled:hover:border-blue-600 enabled:hover:bg-blue-500/20 dark:border-blue-400 dark:bg-blue-400/10",
+                      "border-[2px] border-[#246fe0] bg-[#246fe0]/10 enabled:hover:border-[#246fe0] enabled:hover:bg-[#246fe0]/20",
                     checked &&
                       task.priority === "H" &&
-                      "border-red-500 bg-red-500 text-white data-[state=checked]:border-red-500 data-[state=checked]:bg-red-500 dark:border-red-500 dark:bg-red-500 dark:data-[state=checked]:border-red-500 dark:data-[state=checked]:bg-red-500 dark:data-[state=checked]:text-white",
+                      "border-[2px] border-[#d1453b] bg-[#d1453b] text-white data-[state=checked]:border-[#d1453b] data-[state=checked]:bg-[#d1453b] data-[state=checked]:text-white",
                     checked &&
                       task.priority === "M" &&
-                      "border-amber-500 bg-amber-500 text-white data-[state=checked]:border-amber-500 data-[state=checked]:bg-amber-500 dark:border-amber-500 dark:bg-amber-500 dark:data-[state=checked]:border-amber-500 dark:data-[state=checked]:bg-amber-500 dark:data-[state=checked]:text-white",
+                      "border-[2px] border-[#eb8909] bg-[#eb8909] text-white data-[state=checked]:border-[#eb8909] data-[state=checked]:bg-[#eb8909] data-[state=checked]:text-white",
                     checked &&
                       task.priority === "L" &&
-                      "border-blue-500 bg-blue-500 text-white data-[state=checked]:border-blue-500 data-[state=checked]:bg-blue-500 dark:border-blue-500 dark:bg-blue-500 dark:data-[state=checked]:border-blue-500 dark:data-[state=checked]:bg-blue-500 dark:data-[state=checked]:text-white",
+                      "border-[2px] border-[#246fe0] bg-[#246fe0] text-white data-[state=checked]:border-[#246fe0] data-[state=checked]:bg-[#246fe0] data-[state=checked]:text-white",
                     checked &&
                       !task.priority &&
-                      "border-muted-foreground/70 bg-muted-foreground/70 text-white data-[state=checked]:border-muted-foreground/70 data-[state=checked]:bg-muted-foreground/70 dark:border-muted-foreground/70 dark:bg-muted-foreground/70 dark:data-[state=checked]:border-muted-foreground/70 dark:data-[state=checked]:bg-muted-foreground/70 dark:data-[state=checked]:text-white",
+                      "border-[2px] border-[#888888] bg-[#888888] text-white data-[state=checked]:border-[#888888] data-[state=checked]:bg-[#888888] data-[state=checked]:text-white",
                   )}
                 />
                 {!checked && !disabled && (
@@ -498,12 +504,12 @@ export function TaskRow({
                     className={cn(
                       "task-check-preview pointer-events-none absolute inset-0 m-auto size-3 opacity-0 transition-opacity duration-150 group-hover/check:opacity-80",
                       task.priority === "H"
-                        ? "text-red-600 dark:text-red-400"
+                        ? "text-[#d1453b]"
                         : task.priority === "M"
-                          ? "text-amber-600 dark:text-amber-400"
+                          ? "text-[#eb8909]"
                           : task.priority === "L"
-                            ? "text-blue-600 dark:text-blue-400"
-                            : "text-muted-foreground",
+                            ? "text-[#246fe0]"
+                            : "text-[#888888]",
                     )}
                   />
                 )}
@@ -531,7 +537,7 @@ export function TaskRow({
                 data-task-title
                 onClick={onEdit}
                 className={cn(
-                  "block min-w-0 w-full text-[14px] leading-5 font-normal transition-colors duration-150 [overflow-wrap:anywhere] cursor-pointer outline-none hover:text-foreground",
+                  "block min-w-0 w-full text-[14px] leading-5 font-normal transition-colors duration-150 break-words cursor-pointer outline-none hover:text-foreground",
                   checked
                     ? "text-muted-foreground/60 line-through decoration-muted-foreground/50"
                     : "text-foreground",
@@ -539,9 +545,9 @@ export function TaskRow({
               >
                 {task.description}
               </div>
-              {fullNotes && (
+              {description && (
                 <div
-                  data-task-note-preview
+                  data-task-description-preview
                   onClick={(e) => {
                     if (window.getSelection()?.toString().length) {
                       e.stopPropagation();
@@ -550,22 +556,22 @@ export function TaskRow({
                     onEdit();
                   }}
                   className={cn(
-                    "mt-0.5 block min-w-0 w-full text-xs leading-relaxed line-clamp-2 select-text [overflow-wrap:anywhere] whitespace-pre-wrap break-words cursor-pointer transition-colors",
+                    "mt-0.5 block min-w-0 w-full text-xs leading-relaxed line-clamp-2 select-text whitespace-pre-wrap break-words cursor-pointer transition-colors",
                     checked
                       ? "text-muted-foreground/50 line-through decoration-muted-foreground/40"
                       : "text-muted-foreground/80 hover:text-foreground/85",
                   )}
                 >
-                  {fullNotes}
+                  {description}
                 </div>
               )}
               {hasDetails && (
                 <div
                   data-task-details
-                  className="mt-1 flex min-w-0 w-full flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-4 text-muted-foreground [overflow-wrap:anywhere]"
+                  className="mt-1.5 flex min-w-0 w-full flex-wrap items-center gap-1.5 text-xs leading-4 text-muted-foreground"
                 >
                   {showProject && task.project && (
-                    <span className="inline-flex min-w-0 items-center gap-1">
+                    <span className="inline-flex min-w-0 shrink-0 items-center gap-1 whitespace-nowrap">
                       <ProjectIcon
                         name={task.project}
                         className="size-3 shrink-0"
@@ -578,32 +584,54 @@ export function TaskRow({
                       type="button"
                       data-no-drag
                       onClick={(e) => {
-                        e.preventDefault();
                         e.stopPropagation();
-                        setSubtasksExpanded(!subtasksExpanded);
+                        if (variant === "list") {
+                          setSubtasksExpanded(!subtasksExpanded);
+                        } else {
+                          onEdit();
+                        }
                       }}
-                      title={
-                        subtasksExpanded
-                          ? "Collapse subtasks"
-                          : "Expand subtasks"
-                      }
-                      className={cn(
-                        "inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-sm transition-colors cursor-pointer",
-                        completedSubtasks === totalSubtasks
-                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25"
-                          : "text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted",
-                      )}
+                      title={`${completedSubtasks}/${totalSubtasks} 个子任务`}
+                      className="inline-flex shrink-0 items-center gap-1 h-5 px-1 rounded-[4px] text-[12px] leading-none text-muted-foreground/80 hover:text-foreground hover:bg-white/[0.08] transition-colors cursor-pointer select-none whitespace-nowrap"
                     >
-                      <ListTree className="size-3 shrink-0" strokeWidth={1.8} />
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        className="size-3.5 shrink-0 opacity-80"
+                        aria-hidden="true"
+                      >
+                        <path d="M4.5 2A2.5 2.5 0 0 1 5 6.95V8.5a2.5 2.5 0 0 0 2.336 2.495L7.5 11h1.55a2.5 2.5 0 1 1 0 1H7.5a3.5 3.5 0 0 1-3.495-3.308L4 8.5V6.95A2.5 2.5 0 0 1 4.5 2m7 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3m-7-7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3" />
+                      </svg>
                       <span className="tabular-nums">
                         {completedSubtasks}/{totalSubtasks}
                       </span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        className="size-3 shrink-0 opacity-60"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fill="currentColor"
+                          d="M5.646 4.354a.5.5 0 1 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L9.293 8z"
+                        />
+                      </svg>
                     </button>
                   )}
                   {!!task.annotations.length && (
                     <span
-                      className="inline-flex items-center gap-1 text-[11px] leading-none text-muted-foreground"
-                      title={`${task.annotations.length} note(s)`}
+                      className="inline-flex shrink-0 items-center gap-1 text-[11px] leading-none text-muted-foreground hover:text-foreground transition-colors cursor-pointer whitespace-nowrap"
+                      title={`${task.annotations.length} 条评论`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit();
+                      }}
                     >
                       <MessageSquare
                         className="size-3.5 shrink-0"
@@ -617,15 +645,15 @@ export function TaskRow({
                   {(started || (trackedSeconds ?? 0) > 0) && (
                     <span
                       className={cn(
-                        "flex items-center gap-1 tabular-nums",
+                        "inline-flex shrink-0 items-center gap-1 tabular-nums whitespace-nowrap",
                         started && "font-medium text-foreground",
                       )}
                     >
                       <Clock3 className="size-3" strokeWidth={1.5} />
                       {started
                         ? timingUnavailable
-                          ? "Active · time unavailable"
-                          : `Active · ${formatDuration(trackedSeconds || 0)}`
+                          ? "进行中 · 计时不可用"
+                          : `进行中 · ${formatDuration(trackedSeconds || 0)}`
                         : formatDuration(trackedSeconds || 0)}
                     </span>
                   )}
@@ -634,34 +662,46 @@ export function TaskRow({
                       <div
                         data-no-drag
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center"
+                        className="inline-flex shrink-0 items-center"
                       >
                         <DatePicker
                           id={`due-chip-${task.uuid}`}
                           value={dueDay}
                           disabled={disabled}
                           align="start"
-                          ariaLabel={`Due date: ${task.description}`}
+                          ariaLabel={`截止日期: ${task.description}`}
                           onChange={onDueChange}
                           trigger={
                             <button
                               type="button"
                               className={cn(
-                                "group/due inline-flex items-center gap-1 text-[12px] leading-none transition-opacity hover:opacity-75 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                                "group/due inline-flex shrink-0 items-center gap-1 text-[12px] leading-none transition-opacity hover:opacity-75 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs whitespace-nowrap",
                                 overdue
-                                  ? "font-medium text-red-600 dark:text-red-400"
+                                  ? "font-medium text-[#d1453b]"
                                   : isDueToday
-                                    ? "font-medium text-emerald-600 dark:text-emerald-400"
+                                    ? "font-medium text-[#058527] dark:text-[#25b84c]"
                                     : isDueTomorrow
-                                      ? "font-medium text-amber-600 dark:text-amber-400"
-                                      : "text-violet-600 dark:text-violet-400",
+                                      ? "font-medium text-[#eb8909]"
+                                      : "text-[#a970ff]",
                               )}
                             >
-                              <CalendarDays
-                                className="size-3.5 shrink-0"
-                                strokeWidth={1.6}
-                              />
-                              {overdue && "Overdue · "}
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="12"
+                                height="12"
+                                fill="none"
+                                viewBox="0 0 12 12"
+                                aria-hidden="true"
+                                className="size-3 shrink-0"
+                              >
+                                <path
+                                  fill="currentColor"
+                                  fillRule="evenodd"
+                                  d="M9.5 1h-7A1.5 1.5 0 0 0 1 2.5v7A1.5 1.5 0 0 0 2.5 11h7A1.5 1.5 0 0 0 11 9.5v-7A1.5 1.5 0 0 0 9.5 1M2 2.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5zM8.75 8a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0M3.5 4a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              {overdue && "逾期 · "}
                               {dueLabel(task.due)}
                             </button>
                           }
@@ -670,33 +710,45 @@ export function TaskRow({
                     ) : (
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1 text-[12px] leading-none transition-colors",
+                          "inline-flex shrink-0 items-center gap-1 text-[12px] leading-none transition-colors whitespace-nowrap",
                           checked && "text-muted-foreground",
                         )}
                       >
-                        <CalendarDays
-                          className="size-3.5 shrink-0"
-                          strokeWidth={1.6}
-                        />
-                        {overdue && !checked && "Overdue · "}
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          fill="none"
+                          viewBox="0 0 12 12"
+                          aria-hidden="true"
+                          className="size-3 shrink-0"
+                        >
+                          <path
+                            fill="currentColor"
+                            fillRule="evenodd"
+                            d="M9.5 1h-7A1.5 1.5 0 0 0 1 2.5v7A1.5 1.5 0 0 0 2.5 11h7A1.5 1.5 0 0 0 11 9.5v-7A1.5 1.5 0 0 0 9.5 1M2 2.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v7a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5zM8.75 8a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0M3.5 4a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        {overdue && !checked && "逾期 · "}
                         {dueLabel(task.due)}
                       </span>
                     ))}
                   {!!task.wait &&
                     new Date(task.wait) > new Date() &&
                     !checked && (
-                      <span className="inline-flex items-center gap-1 text-[12px] leading-none text-muted-foreground">
+                      <span className="inline-flex shrink-0 items-center gap-1 text-[12px] leading-none text-muted-foreground whitespace-nowrap">
                         <Clock3
                           className="size-3.5 shrink-0"
                           strokeWidth={1.5}
                         />
-                        Waiting · {dueLabel(task.wait)}
+                        等待 · {dueLabel(task.wait)}
                       </span>
                     )}
                   {!!task.recur && (
                     <span
-                      className="inline-flex items-center gap-1 text-[12px] leading-none text-muted-foreground"
-                      aria-label={`Repeats ${task.recur}`}
+                      className="inline-flex shrink-0 items-center gap-1 text-[12px] leading-none text-muted-foreground whitespace-nowrap"
+                      aria-label={`重复 ${task.recur}`}
                     >
                       <Repeat2
                         className="size-3.5 shrink-0"
@@ -710,7 +762,7 @@ export function TaskRow({
                       <div
                         data-no-drag
                         onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center"
+                        className="inline-flex shrink-0 items-center"
                       >
                         <Popover
                           open={priorityChipOpen}
@@ -720,7 +772,7 @@ export function TaskRow({
                             <button
                               type="button"
                               className={cn(
-                                "inline-flex items-center gap-1 text-[12px] font-medium leading-none transition-opacity hover:opacity-75 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs",
+                                "inline-flex shrink-0 items-center gap-1 text-[12px] font-medium leading-none transition-opacity hover:opacity-75 cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs whitespace-nowrap",
                                 task.priority === "H"
                                   ? "text-red-600 dark:text-red-400"
                                   : task.priority === "M"
@@ -772,8 +824,16 @@ export function TaskRow({
                     ) : (
                       <span
                         className={cn(
-                          "inline-flex items-center gap-1 text-[12px] font-medium leading-none transition-colors",
-                          checked && "text-muted-foreground",
+                          "inline-flex shrink-0 items-center gap-1 text-[12px] font-medium leading-none transition-colors whitespace-nowrap",
+                          checked
+                            ? "text-muted-foreground"
+                            : task.priority === "H"
+                              ? "text-[#d1453b]"
+                              : task.priority === "M"
+                                ? "text-[#eb8909]"
+                                : task.priority === "L"
+                                  ? "text-[#246fe0]"
+                                  : "text-muted-foreground",
                         )}
                       >
                         <Flag
@@ -794,12 +854,24 @@ export function TaskRow({
                   {task.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex min-w-0 items-center gap-1 text-[12px] leading-none text-muted-foreground/80 hover:text-foreground transition-colors"
+                      className="inline-flex shrink-0 max-w-[120px] items-center gap-1 text-[12px] leading-none text-muted-foreground/80 hover:text-foreground transition-colors whitespace-nowrap"
                     >
-                      <LabelIcon
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="12"
+                        height="12"
+                        fill="none"
+                        viewBox="0 0 12 12"
                         className="size-3 shrink-0 opacity-70"
-                        strokeWidth={1.6}
-                      />
+                        aria-hidden="true"
+                      >
+                        <path
+                          fill="currentColor"
+                          fillRule="evenodd"
+                          d="M5.93 1h3.427C10.264 1 11 1.736 11 2.643V6.07c0 .436-.173.854-.481 1.162L7.232 10.52a1.643 1.643 0 0 1-2.323 0L1.48 7.09a1.643 1.643 0 0 1 0-2.323L4.768 1.48A1.64 1.64 0 0 1 5.93 1m.001.91a.8.8 0 0 0-.569.235L2.145 5.362a.804.804 0 0 0 0 1.138L5.5 9.855a.804.804 0 0 0 1.138 0l3.217-3.217a.804.804 0 0 0 .236-.569V2.713a.804.804 0 0 0-.804-.804zm1.433 3.635a.91.91 0 1 0 0-1.818.91.91 0 0 0 0 1.818"
+                          clipRule="evenodd"
+                        />
+                      </svg>
                       <span className="truncate">{tag}</span>
                     </span>
                   ))}
@@ -818,28 +890,28 @@ export function TaskRow({
                     : "opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
                 )}
               >
-                {extraActions}
-                {!completed && onSaveInline && (
+                {variant === "list" && extraActions}
+                {variant === "list" && !completed && onSaveInline && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
                     disabled={disabled}
-                    aria-label={`Edit task inline: ${task.description}`}
-                    title="Edit inline (E)"
+                    aria-label={`行内编辑: ${task.description}`}
+                    title="行内编辑 (E)"
                     onClick={() => setEditingInline(true)}
-                    className="size-7 rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                    className="size-6 rounded-[4px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
                   >
                     <Pencil className="size-3.5" strokeWidth={1.6} />
                   </Button>
                 )}
-                {!completed && onDueChange && (
+                {variant === "list" && !completed && onDueChange && (
                   <DatePicker
                     id={`due-${task.uuid}`}
                     value={dueDay}
                     disabled={disabled}
                     align="end"
-                    ariaLabel={`Due date: ${task.description}`}
+                    ariaLabel={`截止日期: ${task.description}`}
                     onChange={onDueChange}
                     trigger={
                       <Button
@@ -847,20 +919,20 @@ export function TaskRow({
                         variant="ghost"
                         size="icon-sm"
                         disabled={disabled}
-                        aria-label={`Set due date: ${task.description}`}
+                        aria-label={`设置截止日期: ${task.description}`}
                         title={
                           task.due
-                            ? `Due ${dueLabel(task.due)} — click to change`
-                            : "Choose due date"
+                            ? `截止 ${dueLabel(task.due)} — 点击更改`
+                            : "选择截止日期"
                         }
-                        className="size-7 rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+                        className="size-6 rounded-[4px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground data-[state=open]:bg-white/10 data-[state=open]:text-foreground"
                       >
                         <CalendarDays className="size-3.5" strokeWidth={1.6} />
                       </Button>
                     }
                   />
                 )}
-                {!completed && onPriorityChange && (
+                {variant === "list" && !completed && onPriorityChange && (
                   <Popover
                     open={priorityPopoverOpen}
                     onOpenChange={setPriorityPopoverOpen}
@@ -871,23 +943,23 @@ export function TaskRow({
                         variant="ghost"
                         size="icon-sm"
                         disabled={disabled}
-                        aria-label={`Set priority: ${task.description}`}
+                        aria-label={`设置优先级: ${task.description}`}
                         title={
                           task.priority
-                            ? `Priority ${task.priority === "H" ? "1" : task.priority === "M" ? "2" : "3"}`
-                            : "Set priority"
+                            ? `优先级 ${task.priority === "H" ? "1" : task.priority === "M" ? "2" : "3"}`
+                            : "设置优先级"
                         }
-                        className="size-7 rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+                        className="size-6 rounded-[4px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground data-[state=open]:bg-white/10 data-[state=open]:text-foreground"
                       >
                         <Flag
                           className={cn(
                             "size-3.5",
                             task.priority === "H" &&
-                              "fill-red-500/20 text-red-600 dark:text-red-400",
+                              "fill-[#d1453b]/20 text-[#d1453b]",
                             task.priority === "M" &&
-                              "fill-amber-500/20 text-amber-600 dark:text-amber-400",
+                              "fill-[#eb8909]/20 text-[#eb8909]",
                             task.priority === "L" &&
-                              "fill-blue-500/20 text-blue-600 dark:text-blue-400",
+                              "fill-[#246fe0]/20 text-[#246fe0]",
                             !task.priority && "text-muted-foreground",
                           )}
                           strokeWidth={1.6}
@@ -918,23 +990,23 @@ export function TaskRow({
                     </PopoverContent>
                   </Popover>
                 )}
-                {!completed && onToggleStart && (
+                {variant === "list" && !completed && onToggleStart && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
                     disabled={disabled || (!started && timingUnavailable)}
-                    aria-label={`${started ? "Stop" : "Start"}: ${task.description}`}
+                    aria-label={`${started ? "停止" : "开始"}: ${task.description}`}
                     title={
                       !started && timingUnavailable
-                        ? "Timer data unavailable. Refresh to start."
+                        ? "计时不可用"
                         : started
-                          ? "Stop timer"
-                          : "Start timer"
+                          ? "停止计时"
+                          : "开始计时"
                     }
                     onClick={onToggleStart}
                     className={cn(
-                      "size-7 rounded-md transition-colors hover:bg-muted/80",
+                      "size-6 rounded-[4px] transition-colors hover:bg-white/10",
                       started
                         ? "text-foreground font-semibold"
                         : "text-muted-foreground hover:text-foreground",
@@ -955,11 +1027,11 @@ export function TaskRow({
                         variant="ghost"
                         size="icon-sm"
                         disabled={disabled}
-                        aria-label={`More actions: ${task.description}`}
-                        title="More actions"
-                        className="size-7 rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+                        aria-label={`更多操作: ${task.description}`}
+                        title="更多操作"
+                        className="size-6 rounded-[4px] text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground data-[state=open]:bg-white/10 data-[state=open]:text-foreground"
                       >
-                        <Ellipsis className="size-4" />
+                        <Ellipsis className="size-3.5" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
@@ -979,7 +1051,7 @@ export function TaskRow({
                           }}
                         >
                           <Pencil className="size-3.5" />
-                          Edit task{" "}
+                          编辑任务{" "}
                           <kbd className="ml-auto text-[11px] text-muted-foreground">
                             E
                           </kbd>
@@ -988,9 +1060,9 @@ export function TaskRow({
                       {!completed && onDueChange && (
                         <div className="border-b border-border/60 px-1.5 pt-1 pb-2">
                           <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-                            <span>Date</span>
+                            <span>日期</span>
                             <span className="font-normal">
-                              {task.due ? dueLabel(task.due) : "No date"}
+                              {task.due ? dueLabel(task.due) : "无日期"}
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-1">
@@ -998,8 +1070,8 @@ export function TaskRow({
                               type="button"
                               variant={isDueToday ? "secondary" : "ghost"}
                               size="icon-xs"
-                              title="Today"
-                              aria-label="Schedule today"
+                              title="今天"
+                              aria-label="安排至今天"
                               onClick={() => {
                                 setMoreOpen(false);
                                 onDueChange(todayStr);
@@ -1012,8 +1084,8 @@ export function TaskRow({
                               type="button"
                               variant={isDueTomorrow ? "secondary" : "ghost"}
                               size="icon-xs"
-                              title="Tomorrow"
-                              aria-label="Schedule tomorrow"
+                              title="明天"
+                              aria-label="安排至明天"
                               onClick={() => {
                                 setMoreOpen(false);
                                 onDueChange(tomorrowStr);
@@ -1028,8 +1100,8 @@ export function TaskRow({
                                 dueDay === weekendStr ? "secondary" : "ghost"
                               }
                               size="icon-xs"
-                              title="This weekend"
-                              aria-label="Schedule this weekend"
+                              title="本周末"
+                              aria-label="安排至本周末"
                               onClick={() => {
                                 setMoreOpen(false);
                                 onDueChange(weekendStr);
@@ -1044,8 +1116,8 @@ export function TaskRow({
                                 dueDay === nextWeekStr ? "secondary" : "ghost"
                               }
                               size="icon-xs"
-                              title="Next week"
-                              aria-label="Schedule next week"
+                              title="下周"
+                              aria-label="安排至下周"
                               onClick={() => {
                                 setMoreOpen(false);
                                 onDueChange(nextWeekStr);
@@ -1059,8 +1131,8 @@ export function TaskRow({
                               variant="ghost"
                               size="icon-xs"
                               disabled={!task.due}
-                              title="No date"
-                              aria-label="Clear due date"
+                              title="无日期"
+                              aria-label="清除截止日期"
                               onClick={() => {
                                 setMoreOpen(false);
                                 onDueChange("");
@@ -1075,7 +1147,7 @@ export function TaskRow({
                       {!completed && onPriorityChange && (
                         <div className="border-b border-border/60 px-1.5 pt-2 pb-2">
                           <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
-                            <span>Priority</span>
+                            <span>优先级</span>
                             <span className="font-normal">
                               {task.priority === "H"
                                 ? "P1"
@@ -1090,22 +1162,22 @@ export function TaskRow({
                             {[
                               {
                                 val: "H" as const,
-                                label: "Priority 1",
+                                label: "优先级 1",
                                 cls: "fill-red-500/20 text-red-600 dark:text-red-400",
                               },
                               {
                                 val: "M" as const,
-                                label: "Priority 2",
+                                label: "优先级 2",
                                 cls: "fill-amber-500/20 text-amber-600 dark:text-amber-400",
                               },
                               {
                                 val: "L" as const,
-                                label: "Priority 3",
+                                label: "优先级 3",
                                 cls: "fill-blue-500/20 text-blue-600 dark:text-blue-400",
                               },
                               {
                                 val: "" as const,
-                                label: "Priority 4",
+                                label: "优先级 4",
                                 cls: "text-muted-foreground",
                               },
                             ].map((item) => (
@@ -1145,7 +1217,7 @@ export function TaskRow({
                             }}
                           >
                             <CornerDownRight className="size-3.5" />
-                            Add subtask
+                            添加子任务
                           </Button>
                         )}
                         {isSubtask && onUnlinkSubtask && (
@@ -1159,7 +1231,7 @@ export function TaskRow({
                             }}
                           >
                             <ArrowUpRight className="size-3.5" />
-                            Turn into top-level task
+                            转为主任务
                           </Button>
                         )}
                         <Button
@@ -1172,13 +1244,13 @@ export function TaskRow({
                           }}
                         >
                           <ListPlus className="size-3.5" />
-                          Notes & full details…
+                          备注与完整详情…
                         </Button>
                         {onDelete && (
                           <Button
                             type="button"
                             variant="navigation"
-                            aria-label={`Delete task: ${task.description}`}
+                            aria-label={`删除任务: ${task.description}`}
                             className="h-8 text-xs font-normal text-destructive hover:text-destructive"
                             onClick={() => {
                               setMoreOpen(false);
@@ -1186,7 +1258,7 @@ export function TaskRow({
                             }}
                           >
                             <Trash2 className="size-3.5" />
-                            Delete task
+                            删除任务
                           </Button>
                         )}
                       </div>
@@ -1206,7 +1278,7 @@ export function TaskRow({
                   {renderSubtask ? renderSubtask(child) : null}
                 </div>
               ))}
-              {onAddSubtask && !completed && isAddingSubtask && (
+              {onAddSubtask && !completed && (
                 <div className="pt-1">
                   {isAddingSubtask ? (
                     <TodoistTaskComposer
@@ -1235,140 +1307,16 @@ export function TaskRow({
                         setIsAddingSubtask(true);
                         setSubtasksExpanded(true);
                       }}
-                      className="flex items-center gap-1.5 py-1 px-2 text-xs font-normal text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors cursor-pointer w-full text-left"
+                      className="flex items-center gap-1.5 py-1 px-1.5 text-xs font-normal text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors cursor-pointer w-full text-left"
                     >
-                      <Plus className="size-3.5" />
-                      <span>Add subtask</span>
+                      <Plus className="size-3.5 text-[#de4c4a]" />
+                      <span>添加子任务</span>
                     </button>
                   )}
                 </div>
               )}
             </div>
           )}
-        {variant === "card" && (totalSubtasks > 0 || isAddingSubtask) && (
-          <div
-            className="mt-2 pt-2 border-t border-border/40 w-full"
-            data-no-drag
-          >
-            {totalSubtasks > 0 && (
-              <button
-                type="button"
-                onClick={() => setSubtasksExpanded(!subtasksExpanded)}
-                className="flex items-center justify-between w-full text-xs text-muted-foreground hover:text-foreground py-0.5 group/sub-toggle cursor-pointer"
-              >
-                <span className="inline-flex items-center gap-1.5 font-medium text-[11px]">
-                  <CornerDownRight className="size-3 text-muted-foreground" />
-                  <span>Subtasks</span>
-                  <span className="text-[10px] tabular-nums px-1.5 py-0.2 rounded-full bg-muted font-normal">
-                    {completedSubtasks}/{totalSubtasks}
-                  </span>
-                </span>
-                <ChevronDown
-                  className={cn(
-                    "size-3.5 text-muted-foreground transition-transform duration-150",
-                    !subtasksExpanded && "-rotate-90",
-                  )}
-                />
-              </button>
-            )}
-            {(subtasksExpanded || totalSubtasks === 0) && (
-              <div className="mt-1 flex flex-col divide-y divide-border/20">
-                {subtasks.map((child) => (
-                  <div
-                    key={child.uuid}
-                    className="py-1 flex items-center justify-between gap-2 group/card-sub"
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Checkbox
-                        id={`subtask-${child.uuid}`}
-                        checked={child.status === "completed"}
-                        disabled={disabled}
-                        onCheckedChange={() => {
-                          onToggleSubtask?.(
-                            child,
-                            child.status !== "completed",
-                          );
-                        }}
-                        className={cn(
-                          "size-3.5 rounded-full border-muted-foreground/60 shadow-none cursor-pointer",
-                          child.priority === "H" &&
-                            "border-red-500 bg-red-500/10",
-                          child.priority === "M" &&
-                            "border-amber-500 bg-amber-500/10",
-                          child.priority === "L" &&
-                            "border-blue-500 bg-blue-500/10",
-                        )}
-                      />
-                      <span
-                        role="button"
-                        tabIndex={-1}
-                        onClick={() => onEditSubtask?.(child)}
-                        className={cn(
-                          "text-xs truncate font-normal leading-tight cursor-pointer hover:text-foreground",
-                          child.status === "completed" &&
-                            "line-through text-muted-foreground/60",
-                        )}
-                      >
-                        {child.description}
-                      </span>
-                    </div>
-                    {child.priority && (
-                      <span
-                        className={cn(
-                          "text-[10px] font-semibold shrink-0",
-                          child.priority === "H" &&
-                            "text-red-600 dark:text-red-400",
-                          child.priority === "M" &&
-                            "text-amber-600 dark:text-amber-400",
-                          child.priority === "L" &&
-                            "text-blue-600 dark:text-blue-400",
-                        )}
-                      >
-                        P
-                        {child.priority === "H"
-                          ? 1
-                          : child.priority === "M"
-                            ? 2
-                            : 3}
-                      </span>
-                    )}
-                  </div>
-                ))}
-                {onAddSubtask && !completed && (
-                  <div className="pt-1">
-                    {isAddingSubtask ? (
-                      <TodoistTaskComposer
-                        mode="add"
-                        compact
-                        disabled={disabled}
-                        placeholder="Subtask name"
-                        defaultProject={task.project}
-                        projects={projects}
-                        availableLabels={availableLabels}
-                        onSubmitTask={async (subtaskInput) => {
-                          return onAddSubtask({
-                            ...subtaskInput,
-                            project: subtaskInput.project || task.project,
-                          });
-                        }}
-                        onCancel={() => setIsAddingSubtask(false)}
-                      />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setIsAddingSubtask(true)}
-                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground py-1 px-1.5 rounded hover:bg-muted/50 mt-0.5 cursor-pointer"
-                      >
-                        <Plus className="size-3" />
-                        <span>Add subtask</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </article>
   );
