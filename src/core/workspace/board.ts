@@ -20,6 +20,8 @@ export type BoardChange = { revision: number; kind: "board" } & (
       uuid: string;
       columnId: string;
       beforeUuid: string | null;
+      /** undefined preserves hierarchy; null promotes to a root task. */
+      parentUuid?: string | null;
     }
 );
 
@@ -51,8 +53,17 @@ export function columnTasks<T extends BoardTask>(
   columnId: string,
 ): T[] {
   const order = new Map(board.order.map((uuid, index) => [uuid, index]));
+  const placements = new Map(
+    board.placements.map((item) => [item.uuid, item.columnId]),
+  );
+  const columns = new Set(board.columns.map((column) => column.id));
   return tasks
-    .filter((task) => taskColumnId(task, board) === columnId)
+    .filter((task) => {
+      const saved =
+        placements.get(task.uuid) ??
+        (task.parent ? placements.get(task.parent) : undefined);
+      return (saved && columns.has(saved) ? saved : UNSECTIONED) === columnId;
+    })
     .sort(
       (a, b) =>
         (order.get(a.uuid) ??
@@ -62,6 +73,36 @@ export function columnTasks<T extends BoardTask>(
           (b.parent ? order.get(b.parent) : undefined) ??
           Infinity),
     );
+}
+
+/** Aster hierarchy is separate from Taskwarrior's recurring-task `parent`. */
+export function inheritSubtaskColumns(
+  board: BoardState,
+  tasks: BoardTask[],
+  links: Record<string, string>,
+): BoardState {
+  const byUuid = new Map(tasks.map((task) => [task.uuid, task]));
+  const placements = new Map(
+    board.placements.map((item) => [item.uuid, item.columnId]),
+  );
+  for (const child of Object.keys(links)) {
+    let root = child;
+    const seen = new Set<string>();
+    while (links[root] && byUuid.has(links[root]) && !seen.has(root)) {
+      seen.add(root);
+      root = links[root];
+    }
+    const task = byUuid.get(root);
+    if (task && root !== child)
+      placements.set(child, taskColumnId(task, board));
+  }
+  return {
+    ...board,
+    placements: [...placements].map(([uuid, columnId]) => ({
+      uuid,
+      columnId,
+    })),
+  };
 }
 
 export function placeCard(
@@ -88,4 +129,38 @@ export function placeCard(
       { uuid, columnId },
     ],
   };
+}
+
+/** Section placement follows the whole Aster subtree, including hidden children. */
+export function placeTaskTree(
+  board: BoardState,
+  tasks: BoardTask[],
+  links: Record<string, string>,
+  uuid: string,
+  columnId: string,
+  beforeUuid: string | null,
+): BoardState {
+  const moved = placeCard(board, tasks, uuid, columnId, beforeUuid);
+  const children = new Map<string, string[]>();
+  for (const [child, parent] of Object.entries(links)) {
+    const list = children.get(parent) || [];
+    list.push(child);
+    children.set(parent, list);
+  }
+  const descendants = new Set<string>();
+  const pending = [...(children.get(uuid) || [])];
+  while (pending.length) {
+    const child = pending.pop()!;
+    if (descendants.has(child) || child === uuid) continue;
+    descendants.add(child);
+    pending.push(...(children.get(child) || []));
+  }
+  if (beforeUuid && descendants.has(beforeUuid))
+    throw new Error("Cannot move a task inside its own subtree.");
+  moved.placements = moved.placements.filter(
+    (item) => !descendants.has(item.uuid),
+  );
+  for (const child of descendants)
+    moved.placements.push({ uuid: child, columnId });
+  return moved;
 }

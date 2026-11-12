@@ -53,6 +53,8 @@ import { taskDate } from "@core/tasks/quick-task";
 import {
   columnTasks,
   defaultBoard,
+  placeTaskTree,
+  inheritSubtaskColumns,
   taskColumnId,
   UNSECTIONED,
   unsectionedColumn,
@@ -216,6 +218,10 @@ export default function App() {
   const [quickError, setQuickError] = useState("");
   const [toastOpen, setToastOpen] = useState(false);
   const [toastVersion, setToastVersion] = useState(0);
+  const [expandedDrop, setExpandedDrop] = useState<{
+    uuid: string;
+    version: number;
+  }>();
   const [addedProject, setAddedProject] = useState("");
   const [undoTask, setUndoTask] = useState<{
     task: Task;
@@ -223,7 +229,11 @@ export default function App() {
     wasStarted?: boolean;
     wasDeleted?: boolean;
     message?: string;
-    board?: { columnId: string; beforeUuid: string | null };
+    board?: {
+      columnId: string;
+      beforeUuid: string | null;
+      parentUuid: string | null;
+    };
   }>();
   const [completion, setCompletion] = useState<{
     uuid: string;
@@ -282,7 +292,11 @@ export default function App() {
   useEffect(() => {
     setNow(new Date());
     if (!hasActiveTask) return;
-    const id = window.setInterval(() => setNow(new Date()), 15_000);
+    const id = window.setInterval(() => {
+      // Timer labels can catch up after release; avoid a full view render mid-drag.
+      if (!document.querySelector("[data-board-scroll][data-drag-active]"))
+        setNow(new Date());
+    }, 15_000);
     return () => window.clearInterval(id);
   }, [hasActiveTask, organization.energy?.calculatedAt]);
   const energy = liveEnergySummary(organization.energy, now);
@@ -684,6 +698,7 @@ export default function App() {
     columnId: string,
     beforeUuid: string | null = null,
     offerUndo = true,
+    parentUuid: string | null | undefined = undefined,
   ) {
     if (
       writeLock.current ||
@@ -693,31 +708,51 @@ export default function App() {
       !organizationReady
     )
       return false;
-    const board = organization.board || defaultBoard();
+    const board = inheritSubtaskColumns(
+      organization.board || defaultBoard(),
+      tasks,
+      organization.subtasks || {},
+    );
     const target =
       columnId === UNSECTIONED
         ? unsectionedColumn
         : board.columns.find((column) => column.id === columnId);
     if (!target) return false;
     const source = taskColumnId(task, board);
-    const items = columnTasks(tasks, board, source);
+    const oldParent = organization.subtasks?.[task.uuid] || null;
+    const nextParent = parentUuid === undefined ? oldParent : parentUuid;
+    const items = columnTasks(tasks, board, source).filter(
+      (item) => (organization.subtasks?.[item.uuid] || null) === oldParent,
+    );
     const index = items.findIndex((item) => item.uuid === task.uuid);
     const next = items[index + 1]?.uuid || null;
     if (
       source === columnId &&
+      oldParent === nextParent &&
       (beforeUuid === next || beforeUuid === task.uuid)
     )
       return true;
 
-    // Check if subtask is being dragged out of its parent to become a top-level task:
-    const isSub = Boolean(organization.subtasks?.[task.uuid]);
-    const targetParent = beforeUuid ? organization.subtasks?.[beforeUuid] : undefined;
-    if (isSub && (!targetParent || targetParent !== organization.subtasks?.[task.uuid])) {
-      void unlinkSubtask(task.uuid);
-    }
-
     setToastOpen(false);
     setUndoTask(undefined);
+    const previous = organization;
+    const links = { ...organization.subtasks };
+    if (nextParent) links[task.uuid] = nextParent;
+    else delete links[task.uuid];
+    setOrganization({
+      ...organization,
+      subtasks: links,
+      board: placeTaskTree(
+        board,
+        tasks,
+        links,
+        task.uuid,
+        columnId,
+        beforeUuid,
+      ),
+    });
+    if (nextParent)
+      setExpandedDrop({ uuid: nextParent, version: performance.now() });
     try {
       const saved = await changeOrganization({
         kind: "board",
@@ -726,19 +761,26 @@ export default function App() {
         uuid: task.uuid,
         columnId,
         beforeUuid,
+        parentUuid,
       });
+      if (!saved) setOrganization(previous);
       if (saved && offerUndo) {
         setUndoTask({
           task,
           wasCompleted: task.status === "completed",
           message: `Task moved to ${target.name}`,
-          board: { columnId: source, beforeUuid: next },
+          board: {
+            columnId: source,
+            beforeUuid: next,
+            parentUuid: oldParent,
+          },
         });
         setToastVersion((value) => value + 1);
         setToastOpen(true);
       }
       return saved;
     } catch {
+      setOrganization(previous);
       return false;
     }
   }
@@ -1138,6 +1180,9 @@ export default function App() {
         trackedSeconds={taskTrackedSeconds(task)}
         timingUnavailable={organization.timing?.available === false}
         subtasks={subtasksMap.get(task.uuid) || []}
+        expandSubtasks={
+          expandedDrop?.uuid === task.uuid ? expandedDrop.version : undefined
+        }
         isSubtask={isSubtask(task.uuid)}
         description={organization.descriptions?.[task.uuid] || ""}
         onAddSubtask={(subtaskInput) => createSubtask(task.uuid, subtaskInput)}
@@ -2345,7 +2390,7 @@ export default function App() {
                         boardScroll.current = position;
                       }}
                       tasks={topLevelVisible}
-                      allTasks={visible}
+                      allTasks={tasks}
                       board={organization.board || defaultBoard()}
                       revision={organization.revision}
                       saving={organizationSaving}
@@ -2368,7 +2413,9 @@ export default function App() {
                       }
                       moving={boardMove}
                       renderTask={renderTask}
-                      onMove={moveTask}
+                      onMove={(task, columnId, beforeUuid, parentUuid) =>
+                        moveTask(task, columnId, beforeUuid, true, parentUuid)
+                      }
                       onCreateTask={createTaskInView}
                       projects={filterProjects}
                       availableLabels={organization.tags}
@@ -2411,7 +2458,7 @@ export default function App() {
                         boardScroll.current = position;
                       }}
                       tasks={topLevelVisible}
-                      allTasks={visible}
+                      allTasks={tasks}
                       board={organization.board || defaultBoard()}
                       revision={organization.revision}
                       saving={organizationSaving}
@@ -2434,7 +2481,9 @@ export default function App() {
                       }
                       moving={boardMove}
                       renderTask={renderTask}
-                      onMove={moveTask}
+                      onMove={(task, columnId, beforeUuid, parentUuid) =>
+                        moveTask(task, columnId, beforeUuid, true, parentUuid)
+                      }
                       onCreateTask={createTaskInView}
                       projects={filterProjects}
                       availableLabels={organization.tags}
@@ -2601,6 +2650,7 @@ export default function App() {
                 undoTask.board.columnId,
                 undoTask.board.beforeUuid,
                 false,
+                undoTask.board.parentUuid,
               );
             else if (undoTask.wasStarted !== undefined)
               void mutate("action", {
@@ -2844,13 +2894,7 @@ export default function App() {
         busy={busy}
         detail={!!editing && !seriesUuid}
         location={editing?.project ? `收件箱 / ${editing.project}` : "收件箱"}
-        title={
-          seriesUuid
-            ? "编辑重复任务"
-            : editing
-              ? "编辑任务"
-              : "添加任务"
-        }
+        title={seriesUuid ? "编辑重复任务" : editing ? "编辑任务" : "添加任务"}
         onOpenChange={(value) => {
           if (!writeLock.current) {
             setOpen(value);

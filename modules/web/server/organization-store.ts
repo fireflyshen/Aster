@@ -2,7 +2,13 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { filterArguments, tagName } from "../../../src/core/tasks/filter.ts";
-import { type BoardTask } from "../../../src/core/workspace/board.ts";
+import {
+  defaultBoard,
+  inheritSubtaskColumns,
+  placeTaskTree,
+  taskColumnId,
+  type BoardTask,
+} from "../../../src/core/workspace/board.ts";
 import {
   colors,
   type Organization,
@@ -70,7 +76,9 @@ export function createOrganizationStore(path: string) {
                 typeof item.uuid !== "string" ||
                 typeof item.columnId !== "string",
             ) ||
-            data.board.order.some((uuid: unknown) => typeof uuid !== "string"))) ||
+            data.board.order.some(
+              (uuid: unknown) => typeof uuid !== "string",
+            ))) ||
         (data.subtasks !== undefined &&
           (!data.subtasks ||
             typeof data.subtasks !== "object" ||
@@ -88,9 +96,7 @@ export function createOrganizationStore(path: string) {
             Array.isArray(data.descriptions) ||
             Object.entries(data.descriptions).some(
               ([uuid, desc]) =>
-                typeof uuid !== "string" ||
-                typeof desc !== "string" ||
-                !uuid,
+                typeof uuid !== "string" || typeof desc !== "string" || !uuid,
             )))
       )
         throw new Error(
@@ -168,7 +174,61 @@ export function createOrganizationStore(path: string) {
         }
         if (input.kind === "board") {
           if (!boardContext) throw new Error("Board changes are unavailable.");
-          const board = changeBoardState(data.board, input, boardContext.tasks);
+          const sourceBoard =
+            input.action === "task.move"
+              ? inheritSubtaskColumns(
+                  data.board || defaultBoard(),
+                  boardContext.tasks,
+                  data.subtasks || {},
+                )
+              : data.board;
+          let board = changeBoardState(sourceBoard, input, boardContext.tasks);
+          if (input.action === "task.move") {
+            const links = { ...data.subtasks };
+            if (input.parentUuid !== undefined) {
+              if (input.parentUuid !== null) {
+                const parent = boardContext.tasks.find(
+                  (task) => task.uuid === input.parentUuid,
+                );
+                const child = boardContext.tasks.find(
+                  (task) => task.uuid === input.uuid,
+                );
+                if (
+                  !parent ||
+                  !child ||
+                  (parent.project || "") !== (child.project || "")
+                )
+                  throw new Error("Choose a parent task in the same project.");
+                const visited = new Set([input.uuid]);
+                let ancestor: string | undefined = parent.uuid;
+                while (ancestor) {
+                  if (visited.has(ancestor))
+                    throw new Error(
+                      "Circular subtask dependency is not allowed.",
+                    );
+                  visited.add(ancestor);
+                  ancestor = links[ancestor];
+                }
+                // The destination parent and child must stay in the same section.
+                if (taskColumnId(parent, board) !== input.columnId)
+                  throw new Error(
+                    "Choose a parent task in the destination section.",
+                  );
+                links[input.uuid] = parent.uuid;
+              } else {
+                delete links[input.uuid];
+              }
+            }
+            board = placeTaskTree(
+              board,
+              boardContext.tasks,
+              links,
+              input.uuid,
+              input.columnId,
+              input.beforeUuid,
+            );
+            data.subtasks = links;
+          }
           data.board = board;
           await persist(data);
           return data;
@@ -443,7 +503,9 @@ export function createOrganizationStore(path: string) {
               } else if (removing) {
                 const removedIds = new Set(
                   data.board.columns
-                    .filter((col) => col.project && inProject(col.project, original))
+                    .filter(
+                      (col) => col.project && inProject(col.project, original),
+                    )
                     .map((col) => col.id),
                 );
                 if (removedIds.size > 0) {

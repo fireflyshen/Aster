@@ -38,17 +38,12 @@ import type { Organization, SavedTag } from "@core/workspace/organization";
 import {
   closestCenter,
   DndContext,
-  DragOverlay,
   KeyboardSensor,
   PointerSensor,
-  pointerWithin,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
-  type DragEndEvent,
-  type DragMoveEvent,
-  type DragOverEvent,
   type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
 import type { Task, TaskInput } from "@shared/tasks";
@@ -78,7 +73,6 @@ import {
   ChevronRight,
   Ellipsis,
   FolderPlus,
-  GripVertical,
   Inbox,
   Pencil,
   Plus,
@@ -87,19 +81,18 @@ import {
 } from "lucide-react";
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type FormEvent,
-  type MouseEvent,
   type ReactNode,
-  type TouchEvent,
 } from "react";
 import { BoardColumnEditor } from "./board-column-editor";
+import { TaskDragLayer } from "./task-drag-layer";
+import type { DropPosition } from "./drag-model";
 
-type Position = { columnId: string; beforeUuid: string | null };
+type Position = DropPosition;
 type Props = {
   layout?: "board" | "list";
   initialScrollLeft: number;
@@ -129,6 +122,7 @@ type Props = {
     task: Task,
     columnId: string,
     beforeUuid: string | null,
+    parentUuid?: string | null,
   ) => Promise<boolean>;
   onAdd: (draft?: TaskInput) => void;
   onCreateTask?: (task: TaskInput, columnId?: string) => Promise<boolean>;
@@ -335,27 +329,21 @@ function InlineColumnCreator({
 function BoardCard({
   task,
   column,
-  columns,
   disabled,
   saving,
-  before,
   children,
-  onMove,
   compact,
   isSubtask = false,
   interactive = true,
 }: {
   task: Task;
   column: Column;
-  columns?: Column[];
   disabled: boolean;
   saving?: boolean;
-  before: boolean;
   compact?: boolean;
   isSubtask?: boolean;
   interactive?: boolean;
   children: ReactNode;
-  onMove?: (task: Task, columnId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } =
     useDraggable({
@@ -363,18 +351,12 @@ function BoardCard({
       data: { columnId: column.id, name: task.description, isSubtask },
       disabled: disabled || !interactive,
     });
-  const { setNodeRef: setDropRef } = useDroppable({
-    id: `card:${task.uuid}`,
-    data: { kind: isSubtask ? "subtask" : "card", columnId: column.id, uuid: task.uuid },
-    disabled: disabled || !interactive,
-  });
   const setRefs = useCallback(
     (node: HTMLDivElement | null) => {
       setNodeRef(node);
-      setDropRef(node);
       setActivatorNodeRef(node);
     },
-    [setNodeRef, setDropRef, setActivatorNodeRef],
+    [setNodeRef, setActivatorNodeRef],
   );
   return (
     <div
@@ -382,9 +364,16 @@ function BoardCard({
       data-task-card={task.uuid}
       data-subtask={isSubtask ? "true" : undefined}
       data-compact={compact ? "true" : undefined}
+      data-dragging={isDragging || undefined}
       aria-busy={saving}
       {...attributes}
       {...listeners}
+      onKeyDown={(e) => {
+        if (
+          (e.target as Element).closest("[data-task-card]") === e.currentTarget
+        )
+          listeners?.onKeyDown?.(e);
+      }}
       onPointerDown={(e) => {
         // Prevent child subtask drag from triggering parent task!
         const target = e.target as Element | null;
@@ -396,30 +385,15 @@ function BoardCard({
         listeners?.onPointerDown?.(e);
       }}
       className={cn(
-        "board-card group/card relative select-none [&:has(:focus-visible)]:bg-(--row-hover)",
+        "board-card group/card relative [&:has(:focus-visible)]:bg-(--row-hover)",
         compact
-          ? (isSubtask
-              ? "flex min-w-0 items-start shadow-none"
-              : "-mx-2.5 flex min-w-0 items-start px-2.5 shadow-none md:-mx-3 md:px-3")
+          ? isSubtask
+            ? "flex min-w-0 items-start shadow-none"
+            : "-mx-2.5 flex min-w-0 items-start px-2.5 shadow-none md:-mx-3 md:px-3"
           : "cursor-grab rounded-[10px] border border-border/70 bg-card px-2.5 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.2)] mb-2 transition-[box-shadow,opacity,border-color,background-color] duration-150 hover:border-foreground/20 hover:shadow-[0_2px_4px_rgba(0,0,0,0.25)] active:cursor-grabbing",
-        isDragging &&
-          (compact
-            ? "bg-white/[0.04] text-transparent [&>*]:invisible shadow-none"
-            : "min-h-[72px] border border-dashed border-white/20 bg-white/[0.04] rounded-[10px] text-transparent [&>*]:invisible shadow-none"),
+        isDragging && "opacity-25",
       )}
     >
-      {before && (
-        compact ? (
-          <div className="pointer-events-none absolute -top-1 inset-x-0 z-30 flex items-center">
-            <div className="size-2 -ml-1 rounded-full border-2 border-[#dc4c3e] bg-[#dc4c3e] shrink-0" />
-            <div className="h-[2px] w-full bg-[#dc4c3e] shadow-[0_0_6px_rgba(220,76,62,0.5)]" />
-          </div>
-        ) : (
-          <div className="pointer-events-none absolute -top-1.5 inset-x-0 z-30">
-            <div className="h-1 rounded-full bg-[#de4c4a] shadow-[0_0_8px_rgba(222,76,74,0.6)]" />
-          </div>
-        )
-      )}
       {children}
     </div>
   );
@@ -436,9 +410,7 @@ function BoardColumn({
   onShift,
   onDelete,
   children,
-  append,
   compact,
-  activeDrag,
 }: {
   column: Column;
   count: number;
@@ -450,11 +422,9 @@ function BoardColumn({
   onShift: (direction: "left" | "right") => void;
   onDelete: () => void;
   children: ReactNode;
-  append: boolean;
   compact?: boolean;
-  activeDrag?: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({
+  const { setNodeRef } = useDroppable({
     id: column.id,
     data: { kind: "column", columnId: column.id },
     disabled,
@@ -468,7 +438,9 @@ function BoardColumn({
       aria-label={`${columnDisplayName(column)} 列`}
       className={cn(
         "group/column min-w-0 snap-start rounded-lg transition-colors",
-        compact ? "pb-0" : "w-[260px] min-w-[260px] flex flex-col min-h-[calc(100vh-220px)] pb-4",
+        compact
+          ? "pb-0"
+          : "w-[260px] min-w-[260px] flex flex-col min-h-[calc(100vh-220px)] pb-4",
       )}
     >
       {showHeader && (
@@ -642,26 +614,13 @@ function BoardColumn({
         </div>
       )}
       <div
+        data-drop-content
         hidden={compact && showHeader && collapsed}
         className={
-          compact
-            ? activeDrag
-              ? "min-h-6"
-              : "min-h-0"
-            : "flex-1 flex flex-col space-y-2 min-h-64"
+          compact ? "min-h-7" : "flex-1 flex flex-col space-y-2 min-h-64"
         }
       >
         {children}
-        {append && (
-          compact ? (
-            <div className="pointer-events-none relative flex items-center my-1.5">
-              <div className="size-2 -ml-1 rounded-full border-2 border-[#dc4c3e] bg-[#dc4c3e] shrink-0" />
-              <div className="h-[2px] w-full bg-[#dc4c3e] shadow-[0_0_6px_rgba(220,76,62,0.5)]" />
-            </div>
-          ) : (
-            <div className="h-1 rounded-full bg-[#de4c4a] shadow-[0_0_8px_rgba(222,76,74,0.6)] my-1.5" />
-          )
-        )}
       </div>
     </section>
   );
@@ -701,17 +660,9 @@ export function TaskBoard({
   onReload,
   onClearError,
 }: Props) {
-  const [active, setActive] = useState<Task>();
-  const [position, setPosition] = useState<Position>();
   const [announcement, setAnnouncement] = useState("");
   const [overdueCollapsed, setOverdueCollapsed] = useState(false);
   const [reschedulingOverdue, setReschedulingOverdue] = useState(false);
-  const [optimisticBoard, setOptimisticBoard] = useState<BoardState | null>(null);
-
-  useEffect(() => {
-    setOptimisticBoard(null);
-  }, [board, tasks]);
-
   const allTasksList = allTasks.length ? allTasks : tasks;
   const allTasksMap = useMemo(
     () => new Map(allTasksList.map((t) => [t.uuid, t])),
@@ -776,131 +727,24 @@ export function TaskBoard({
     }),
     useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates }),
   );
-  const displayBoard =
-    optimisticBoard ??
-    (moving
-      ? placeCard(board, allTasksList, moving.uuid, moving.columnId, moving.beforeUuid)
-      : board);
-  function findTargetColumn(pointerX: number): string | undefined {
-    const colSections = Array.from(
-      document.querySelectorAll<HTMLElement>("[data-board-column]"),
-    );
-    if (colSections.length === 0) return undefined;
-
-    const colRects = colSections
-      .map((el) => ({
-        id: el.getAttribute("data-board-column") || "",
-        rect: el.getBoundingClientRect(),
-      }))
-      .filter((c) => c.id && c.rect.width > 0);
-
-    if (colRects.length === 0) return undefined;
-
-    colRects.sort((a, b) => a.rect.left - b.rect.left);
-
-    if (pointerX < colRects[0].rect.left) {
-      return colRects[0].id;
-    }
-    if (pointerX > colRects[colRects.length - 1].rect.right) {
-      return colRects[colRects.length - 1].id;
-    }
-
-    for (let i = 0; i < colRects.length; i++) {
-      const current = colRects[i];
-      const prev = colRects[i - 1];
-      const next = colRects[i + 1];
-
-      const leftBound = prev
-        ? (prev.rect.right + current.rect.left) / 2
-        : current.rect.left;
-      const rightBound = next
-        ? (current.rect.right + next.rect.left) / 2
-        : current.rect.right;
-
-      if (pointerX >= leftBound && pointerX <= rightBound) {
-        return current.id;
-      }
-    }
-
-    return colRects[0].id;
-  }
-
-  function destination(
-    event: DragOverEvent | DragEndEvent | DragMoveEvent,
-  ): Position | undefined {
-    const { over, active, delta, activatorEvent } = event;
-
-    const pointerX =
-      "clientX" in activatorEvent
-        ? Number(activatorEvent.clientX) + delta.x
-        : "touches" in activatorEvent
-          ? ((activatorEvent as globalThis.TouchEvent).touches[0]?.clientX ?? 0) + delta.x
-          : null;
-
-    const pointerY =
-      "clientY" in activatorEvent
-        ? Number(activatorEvent.clientY) + delta.y
-        : "touches" in activatorEvent
-          ? ((activatorEvent as globalThis.TouchEvent).touches[0]?.clientY ?? 0) + delta.y
-          : null;
-
-    let columnId: string | undefined;
-
-    if (layout === "board") {
-      if (pointerX !== null) {
-        columnId = findTargetColumn(pointerX);
-      }
-      if (!columnId && over) {
-        columnId = over.data.current?.columnId as string | undefined;
-      }
-    } else {
-      columnId = over?.data.current?.columnId as string | undefined;
-      if (!columnId && over) {
-        if (columns.some((col) => col.id === String(over.id))) {
-          columnId = String(over.id);
-        }
-      }
-    }
-
-    if (!columnId || !columns.some((item) => item.id === columnId)) {
-      if (over?.data.current?.columnId) {
-        columnId = over.data.current.columnId;
-      }
-    }
-
-    if (!columnId) return;
-    const resolvedColumnId = columnId;
-
-    const colSection = document.querySelector<HTMLElement>(
-      `[data-board-column="${resolvedColumnId}"]`,
-    );
-    if (!colSection) return { columnId: resolvedColumnId, beforeUuid: null };
-
-    const cardElements = Array.from(
-      colSection.querySelectorAll<HTMLElement>("[data-task-card]"),
-    ).filter((el) => el.getAttribute("data-task-card") !== String(active.id));
-
-    if (cardElements.length === 0 || pointerY === null) {
-      return { columnId: resolvedColumnId, beforeUuid: null };
-    }
-
-    for (const cardEl of cardElements) {
-      const rect = cardEl.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      if (pointerY < midY) {
-        const uuid = cardEl.getAttribute("data-task-card");
-        if (uuid) {
-          return { columnId: resolvedColumnId, beforeUuid: uuid };
-        }
-      }
-    }
-
-    return { columnId: resolvedColumnId, beforeUuid: null };
-  }
+  const displayBoard = moving
+    ? placeCard(
+        board,
+        allTasksList,
+        moving.uuid,
+        moving.columnId,
+        moving.beforeUuid,
+      )
+    : board;
   async function move(task: Task, target: Position) {
     if (disabled) return;
     setAnnouncement(`Moving ${task.description}.`);
-    const saved = await onMove(task, target.columnId, target.beforeUuid);
+    const saved = await onMove(
+      task,
+      target.columnId,
+      target.beforeUuid,
+      target.parentUuid,
+    );
     setAnnouncement(
       saved
         ? `${task.description} moved.`
@@ -911,7 +755,6 @@ export function TaskBoard({
     onClearError();
     setEditor({ column, revision });
   }
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   return (
     <div
       aria-label={layout === "list" ? "Tasks grouped by column" : "Task board"}
@@ -961,50 +804,7 @@ export function TaskBoard({
       )}
       <DndContext
         sensors={sensors}
-        collisionDetection={(args) => {
-          const available = args.droppableContainers.filter(
-            (item) => item.data.current?.uuid !== args.active.id,
-          );
-          if (args.pointerCoordinates && layout === "board") {
-            const targetColId = findTargetColumn(args.pointerCoordinates.x);
-            if (targetColId) {
-              const hits = pointerWithin({
-                ...args,
-                droppableContainers: available.filter(
-                  (item) => item.data.current?.columnId === targetColId,
-                ),
-              });
-              const cardHit = hits.find((hit) =>
-                String(hit.id).startsWith("card:"),
-              );
-              if (cardHit) return [cardHit];
-
-              const colContainer = available.find(
-                (item) => item.id === targetColId,
-              );
-              if (colContainer) return [colContainer];
-            }
-          }
-          if (args.pointerCoordinates) {
-            const hits = pointerWithin({
-              ...args,
-              droppableContainers: available,
-            });
-            if (hits.length > 0) {
-              const cardHit = hits.find((hit) =>
-                String(hit.id).startsWith("card:"),
-              );
-              if (cardHit) return [cardHit];
-              return [hits[0]];
-            }
-          }
-          return closestCenter({
-            ...args,
-            droppableContainers: available.filter(
-              (item) => item.data.current?.kind === "column",
-            ),
-          });
-        }}
+        collisionDetection={closestCenter}
         accessibility={{
           announcements: {
             onDragStart: ({ active }) =>
@@ -1022,75 +822,6 @@ export function TaskBoard({
                 ? "Press Space to pick up a task, Up or Down to choose a group, Space to move, or Escape to cancel. Use the Move menu as an alternative."
                 : "Press Space to pick up a task, Left or Right to choose a column, Space to move, or Escape to cancel. Use the Move menu as an alternative.",
           },
-        }}
-        onDragStart={({ active }) => {
-          const task =
-            allTasksMap.get(String(active.id)) ||
-            tasks.find((t) => t.uuid === active.id);
-          setActive(task);
-        }}
-        onDragMove={(event) => {
-          const next = destination(event);
-          if (!next) return;
-          setPosition((prev) => {
-            if (
-              prev?.columnId === next.columnId &&
-              prev?.beforeUuid === next.beforeUuid
-            ) {
-              return prev;
-            }
-            return next;
-          });
-        }}
-        onDragOver={(event) => {
-          const next = destination(event);
-          if (!next) return;
-          setPosition((prev) => {
-            if (
-              prev?.columnId === next.columnId &&
-              prev?.beforeUuid === next.beforeUuid
-            ) {
-              return prev;
-            }
-            return next;
-          });
-        }}
-        onDragCancel={() => {
-          setActive(undefined);
-          setPosition(undefined);
-        }}
-        onDragEnd={(event) => {
-          const task =
-            allTasksMap.get(String(event.active.id)) ||
-            tasks.find((t) => t.uuid === event.active.id);
-          const next = destination(event) ?? position;
-          setActive(undefined);
-          setPosition(undefined);
-          if (!task || !next) return;
-          const currentCards = columnTasks(
-            allTasksList,
-            displayBoard,
-            next.columnId,
-          ).map((t) => t.uuid);
-          const currentIndex = currentCards.indexOf(task.uuid);
-          if (currentIndex !== -1) {
-            const currentNextUuid = currentCards[currentIndex + 1] ?? null;
-            if (
-              next.beforeUuid === task.uuid ||
-              next.beforeUuid === currentNextUuid
-            ) {
-              return;
-            }
-          }
-          const nextBoard = placeCard(
-            board,
-            allTasksList,
-            task.uuid,
-            next.columnId,
-            next.beforeUuid,
-          );
-          setOptimisticBoard(nextBoard);
-          void move(task, next);
         }}
       >
         <div
@@ -1132,7 +863,11 @@ export function TaskBoard({
                   return (
                     <div className="space-y-6">
                       {overdueEntries.length > 0 && (
-                        <section aria-label="Overdue tasks" className="min-w-0">
+                        <section
+                          data-board-column={UNSECTIONED}
+                          aria-label="Overdue tasks"
+                          className="min-w-0"
+                        >
                           <div className="mb-1 flex h-10 items-center justify-between gap-2 border-b border-border/80">
                             <button
                               type="button"
@@ -1190,18 +925,8 @@ export function TaskBoard({
                                 interactive={canAddTask}
                                 task={task}
                                 column={column}
-                                columns={columns}
                                 disabled={disabled}
                                 saving={moving?.uuid === task.uuid}
-                                before={
-                                  !!active && position?.beforeUuid === task.uuid
-                                }
-                                onMove={(t, columnId) =>
-                                  void move(t, {
-                                    columnId,
-                                    beforeUuid: null,
-                                  })
-                                }
                               >
                                 {renderTask(
                                   task,
@@ -1213,16 +938,11 @@ export function TaskBoard({
                                       key={child.uuid}
                                       task={child}
                                       column={column}
-                                      columns={columns}
                                       compact={true}
                                       isSubtask={true}
                                       disabled={disabled}
                                       interactive={canAddTask}
                                       saving={moving?.uuid === child.uuid}
-                                      before={
-                                        !!active &&
-                                        position?.beforeUuid === child.uuid
-                                      }
                                     >
                                       {defaultRender(child)}
                                     </BoardCard>
@@ -1233,7 +953,11 @@ export function TaskBoard({
                           </div>
                         </section>
                       )}
-                      <section aria-label="Today tasks" className="min-w-0">
+                      <section
+                        data-board-column={UNSECTIONED}
+                        aria-label="Today tasks"
+                        className="min-w-0"
+                      >
                         {overdueEntries.length > 0 && (
                           <div className="mb-1 flex h-10 items-center gap-2 border-b border-border/80">
                             <h2 className="text-sm font-semibold">
@@ -1269,18 +993,8 @@ export function TaskBoard({
                                 interactive={canAddTask}
                                 task={task}
                                 column={column}
-                                columns={columns}
                                 disabled={disabled}
                                 saving={moving?.uuid === task.uuid}
-                                before={
-                                  !!active && position?.beforeUuid === task.uuid
-                                }
-                                onMove={(t, columnId) =>
-                                  void move(t, {
-                                    columnId,
-                                    beforeUuid: null,
-                                  })
-                                }
                               >
                                 {renderTask(
                                   task,
@@ -1292,16 +1006,11 @@ export function TaskBoard({
                                       key={child.uuid}
                                       task={child}
                                       column={column}
-                                      columns={columns}
                                       compact={true}
                                       isSubtask={true}
                                       disabled={disabled}
                                       interactive={canAddTask}
                                       saving={moving?.uuid === child.uuid}
-                                      before={
-                                        !!active &&
-                                        position?.beforeUuid === child.uuid
-                                      }
                                     >
                                       {defaultRender(child)}
                                     </BoardCard>
@@ -1338,19 +1047,11 @@ export function TaskBoard({
               : columns.map((column, index) => {
                   const items = columnTasks(tasks, displayBoard, column.id);
                   const isUnsectioned = column.id === UNSECTIONED;
-                  if (
-                    isUnsectioned &&
-                    hasCustomColumns &&
-                    items.length === 0
-                  ) {
-                    return null;
-                  }
                   const showColumnHeader = layout === "board" || !isUnsectioned;
                   return (
                     <BoardColumn
                       key={column.id}
                       compact={layout === "list"}
-                      activeDrag={!!active}
                       column={column}
                       count={items.length}
                       index={index - 1}
@@ -1372,13 +1073,8 @@ export function TaskBoard({
                         onClearError();
                         setDeleting({ column, revision });
                       }}
-                      append={
-                        !!active &&
-                        position?.columnId === column.id &&
-                        position.beforeUuid === null
-                      }
                     >
-                      {items.length === 0 && !hasCustomColumns && !active && (
+                      {items.length === 0 && !hasCustomColumns && (
                         <div className="flex flex-col items-center justify-center py-10 text-center">
                           <div className="relative mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
                             <Inbox className="size-6" strokeWidth={1.5} />
@@ -1398,18 +1094,8 @@ export function TaskBoard({
                           interactive={canAddTask}
                           task={task}
                           column={column}
-                          columns={columns}
                           disabled={disabled}
                           saving={moving?.uuid === task.uuid}
-                          before={
-                            !!active && position?.beforeUuid === task.uuid
-                          }
-                          onMove={(task, columnId) =>
-                            void move(task, {
-                              columnId,
-                              beforeUuid: null,
-                            })
-                          }
                         >
                           {renderTask(
                             task,
@@ -1422,16 +1108,11 @@ export function TaskBoard({
                                     key={child.uuid}
                                     task={child}
                                     column={column}
-                                    columns={columns}
                                     compact={true}
                                     isSubtask={true}
                                     disabled={disabled}
                                     interactive={canAddTask}
                                     saving={moving?.uuid === child.uuid}
-                                    before={
-                                      !!active &&
-                                      position?.beforeUuid === child.uuid
-                                    }
                                   >
                                     {defaultRender(child)}
                                   </BoardCard>
@@ -1483,20 +1164,12 @@ export function TaskBoard({
               )}
           </div>
         </div>
-        <DragOverlay dropAnimation={null}>
-          {active && (
-            <div
-              className={cn(
-                "cursor-grabbing rounded-[10px] border border-white/20 bg-card px-2.5 py-2 shadow-[0_16px_32px_rgba(0,0,0,0.5),0_0_1px_rgba(255,255,255,0.15)] select-none pointer-events-none opacity-100 rotate-[2.5deg] scale-[1.02] transition-transform duration-100 ease-out",
-                layout === "board"
-                  ? "w-[260px]"
-                  : "w-full max-w-xl rotate-[1.5deg] scale-[1.015]",
-              )}
-            >
-              {renderTask(active, undefined, layout === "board" ? "card" : "list")}
-            </div>
-          )}
-        </DragOverlay>
+        <TaskDragLayer
+          area={scrollArea}
+          tasks={allTasksMap}
+          layout={layout}
+          onDrop={(task, target) => void move(task, target)}
+        />
       </DndContext>
       {editor && (
         <BoardColumnEditor
@@ -1523,7 +1196,9 @@ export function TaskBoard({
           }}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>删除分区“{columnDisplayName(deleting?.column)}”？</AlertDialogTitle>
+            <AlertDialogTitle>
+              删除分区“{columnDisplayName(deleting?.column)}”？
+            </AlertDialogTitle>
             <AlertDialogDescription>
               该分区下的任务将移至未分区，任务内容将被保留。
             </AlertDialogDescription>

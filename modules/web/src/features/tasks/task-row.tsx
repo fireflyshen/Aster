@@ -141,6 +141,7 @@ export function TaskRow({
   onToggleSubtask,
   onEditSubtask,
   renderSubtask,
+  expandSubtasks,
 }: {
   task: Task;
   completed: boolean;
@@ -151,7 +152,9 @@ export function TaskRow({
   onToggleStart?: () => void;
   onDueChange?: (due: string) => void;
   onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
-  onSaveInline?: (input: TaskInput & { taskDescription?: string }) => Promise<boolean>;
+  onSaveInline?: (
+    input: TaskInput & { taskDescription?: string },
+  ) => Promise<boolean>;
   onDelete?: () => void;
   projects?: string[];
   availableLabels?: SavedTag[];
@@ -170,6 +173,7 @@ export function TaskRow({
   onToggleSubtask?: (subtask: Task, completed: boolean) => void;
   onEditSubtask?: (subtask: Task) => void;
   renderSubtask?: (subtask: Task) => ReactNode;
+  expandSubtasks?: number;
 }) {
   const checked = transition?.checked ?? completed;
   const started = !!task.start && !checked;
@@ -192,6 +196,10 @@ export function TaskRow({
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const rowRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (expandSubtasks !== undefined) setSubtasksExpanded(true);
+  }, [expandSubtasks]);
 
   const totalSubtasks = subtasks.length;
   const completedSubtasks = subtasks.filter(
@@ -433,14 +441,12 @@ export function TaskRow({
                   <button
                     type="button"
                     data-no-drag
-                    tabIndex={-1}
-                    aria-label={
-                      subtasksExpanded ? "收起子任务" : "展开子任务"
-                    }
+                    aria-expanded={subtasksExpanded}
+                    aria-label={subtasksExpanded ? "收起子任务" : "展开子任务"}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      setSubtasksExpanded(!subtasksExpanded);
+                      setSubtasksExpanded((expanded) => !expanded);
                     }}
                     className="size-4.5 flex items-center justify-center rounded-sm text-muted-foreground/60 hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
                   >

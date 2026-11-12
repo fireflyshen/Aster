@@ -226,7 +226,10 @@ test("columns are scoped to project and update when project is renamed or remove
     const path = dir + "/organization.json",
       store = createOrganizationStore(path);
     let revision = 0;
-    const change = async (input: any, currentProjects: string[] = ["ProjectA", "ProjectB"]) => {
+    const change = async (
+      input: any,
+      currentProjects: string[] = ["ProjectA", "ProjectB"],
+    ) => {
       const result = await store.change(
         { ...input, revision } as any,
         [],
@@ -246,7 +249,9 @@ test("columns are scoped to project and update when project is renamed or remove
       action: "column.save",
       column: { id: "", name: "Review", project: "ProjectA" },
     });
-    const colA = saved.board!.columns.find((c: any) => c.project === "ProjectA");
+    const colA = saved.board!.columns.find(
+      (c: any) => c.project === "ProjectA",
+    );
     assert(colA);
     assert.equal(colA.name, "Review");
     assert.equal(colA.project, "ProjectA");
@@ -257,7 +262,9 @@ test("columns are scoped to project and update when project is renamed or remove
       action: "column.save",
       column: { id: "", name: "Review", project: "ProjectB" },
     });
-    const colB = saved.board!.columns.find((c: any) => c.project === "ProjectB");
+    const colB = saved.board!.columns.find(
+      (c: any) => c.project === "ProjectB",
+    );
     assert(colB);
     assert.notEqual(colA.id, colB.id);
 
@@ -296,6 +303,142 @@ test("columns are scoped to project and update when project is renamed or remove
       saved.board!.columns.some((c: any) => c.project === "ProjectB"),
       false,
     );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("hierarchy, section and order move atomically and survive reload and undo", async () => {
+  const dir = await mkdtemp(tmpdir() + "/aster-tree-move-");
+  try {
+    const c = "123e4567-e89b-42d3-a456-426614174002";
+    const path = dir + "/organization.json";
+    const taskList = [
+      { uuid: a, status: "pending" },
+      { uuid: b, status: "pending" },
+      { uuid: c, status: "pending" },
+    ];
+    const originalTasks = structuredClone(taskList);
+    await writeFile(
+      path,
+      JSON.stringify({
+        revision: 0,
+        filters: [],
+        tags: [],
+        subtasks: { [b]: a, [c]: b },
+        board: {
+          columns: [
+            { id: "one", name: "One" },
+            { id: "two", name: "Two" },
+          ],
+          placements: [{ uuid: a, columnId: "one" }],
+          order: [a, b, c],
+        },
+      }),
+    );
+    const store = createOrganizationStore(path);
+    const move = (
+      revision: number,
+      uuid: string,
+      columnId: string,
+      beforeUuid: string | null,
+      parentUuid?: string | null,
+    ) =>
+      store.change(
+        {
+          kind: "board",
+          action: "task.move",
+          revision,
+          uuid,
+          columnId,
+          beforeUuid,
+          parentUuid,
+        },
+        [],
+        noTaskWrite,
+        { tasks: taskList },
+      );
+    let saved = await move(0, b, "two", null, null);
+    assert.equal(saved.revision, 1);
+    assert.deepEqual(saved.subtasks, { [c]: b });
+    assert.equal(taskColumnId(taskList[1], saved.board!), "two");
+    assert.equal(taskColumnId(taskList[2], saved.board!), "two");
+    saved = await createOrganizationStore(path).read();
+    assert.deepEqual(saved.subtasks, { [c]: b });
+    saved = await move(1, b, "one", null, a);
+    assert.deepEqual(saved.subtasks, { [b]: a, [c]: b });
+    assert.equal(taskColumnId(taskList[2], saved.board!), "one");
+    // Existing children may have no explicit placement: their parent's section is authoritative.
+    saved = await move(2, c, "one", b, a);
+    assert.equal(saved.subtasks![c], a);
+    assert.ok(saved.board!.order.indexOf(c) < saved.board!.order.indexOf(b));
+    await assert.rejects(move(3, a, "one", null, b), /Circular/);
+    assert.equal((await store.read()).revision, 3);
+    await assert.rejects(move(2, b, "two", null, null), /another window/);
+    assert.deepEqual(taskList, originalTasks);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("moving before an implicitly placed sibling and rejecting foreign parents are atomic", async () => {
+  const dir = await mkdtemp(tmpdir() + "/aster-tree-siblings-");
+  try {
+    const c = "123e4567-e89b-42d3-a456-426614174002";
+    const path = dir + "/organization.json";
+    const taskList = [
+      { uuid: a, status: "pending", project: "A" },
+      { uuid: b, status: "pending", project: "A" },
+      { uuid: c, status: "pending", project: "B" },
+    ];
+    await writeFile(
+      path,
+      JSON.stringify({
+        revision: 0,
+        filters: [],
+        tags: [],
+        subtasks: { [b]: a },
+        board: {
+          columns: [{ id: "one", name: "One" }],
+          placements: [{ uuid: a, columnId: "one" }],
+          order: [a, b, c],
+        },
+      }),
+    );
+    const store = createOrganizationStore(path);
+    const saved = await store.change(
+      {
+        kind: "board",
+        action: "task.move",
+        revision: 0,
+        uuid: c,
+        columnId: "one",
+        beforeUuid: b,
+        parentUuid: null,
+      },
+      [],
+      noTaskWrite,
+      { tasks: taskList },
+    );
+    assert.ok(saved.board!.order.indexOf(c) < saved.board!.order.indexOf(b));
+    await assert.rejects(
+      store.change(
+        {
+          kind: "board",
+          action: "task.move",
+          revision: 1,
+          uuid: b,
+          columnId: "one",
+          beforeUuid: null,
+          parentUuid: c,
+        },
+        [],
+        noTaskWrite,
+        { tasks: taskList },
+      ),
+      /same project/,
+    );
+    assert.deepEqual(await store.read(), saved);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
