@@ -16,12 +16,7 @@ import { closestCenter, DndContext } from "@dnd-kit/core";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { Inbox } from "lucide-react";
-import {
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { TaskRenderFn } from "@/app/hooks/use-task-renderer";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";

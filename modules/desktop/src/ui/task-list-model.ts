@@ -5,7 +5,10 @@ import {
   type TaskwarriorTask,
 } from "../../../core/tasks/model.ts";
 import { formatDuration } from "../../../core/workspace/energy.ts";
-import { itemColor, type Organization } from "../../../core/workspace/organization.ts";
+import {
+  itemColor,
+  type Organization,
+} from "../../../core/workspace/organization.ts";
 
 export const VIEWS: Array<{
   id: TaskView | "focus" | "later" | "inbox" | "active";

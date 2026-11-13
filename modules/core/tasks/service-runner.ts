@@ -35,10 +35,7 @@ export function formatTaskwarriorTimestamp(date = new Date()): string {
 }
 
 /** Creates the low-level Taskwarrior command, export/import, and recurrence runner. */
-export function createTaskRunner(
-  connection: Connection,
-  executor: Executor,
-) {
+export function createTaskRunner(connection: Connection, executor: Executor) {
   let restoredSchema: Record<string, string> = {};
   let versionCheck: Promise<string> | undefined;
   let generatedAt = 0;

@@ -18,7 +18,10 @@ async function start(env) {
   let tempClientRoot;
   if (!env?.CLIENT_ROOT && !existsSync(builtClientIndex)) {
     tempClientRoot = await mkdtemp(tmpdir() + "/aster-client-");
-    await writeFile(tempClientRoot + "/index.html", "<!doctype html><html></html>");
+    await writeFile(
+      tempClientRoot + "/index.html",
+      "<!doctype html><html></html>",
+    );
   }
   const child = spawn(
     process.execPath,

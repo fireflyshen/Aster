@@ -28,7 +28,8 @@ const organizationFile = resolve(
   process.env.ORGANIZATION_FILE || "data/organization.json",
 );
 const recoveryFile = resolve(
-  process.env.RECOVERY_FILE || resolve(dirname(organizationFile), "recovery.json"),
+  process.env.RECOVERY_FILE ||
+    resolve(dirname(organizationFile), "recovery.json"),
 );
 
 const service = createTaskService({

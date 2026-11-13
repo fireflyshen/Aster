@@ -126,7 +126,9 @@ export function QuickAddOptionRow({
           label={dueToken?.label}
           disabled={locked}
           className={
-            dueToken ? "h-[34px] rounded-r-none border-0 md:h-[26px]" : undefined
+            dueToken
+              ? "h-[34px] rounded-r-none border-0 md:h-[26px]"
+              : undefined
           }
           onChange={(value) => onSetField("due", value)}
         />

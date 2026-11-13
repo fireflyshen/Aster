@@ -206,9 +206,7 @@ export function QuickCapture({
                   { scope: "pending" },
                   workspace.client,
                 )
-              ).filter(
-                (task) => task.description === parsed.task.description,
-              );
+              ).filter((task) => task.description === parsed.task.description);
               setChecked(true);
               await showToast({
                 title: "Tasks Checked",

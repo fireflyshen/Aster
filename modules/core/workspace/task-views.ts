@@ -97,7 +97,11 @@ export async function loadTaskView(
         "Web workspace unavailable. Refresh or choose another view.",
       );
     }
-    const tasks = await queryWorkspaceTasks(service, { scope: "board" }, client);
+    const tasks = await queryWorkspaceTasks(
+      service,
+      { scope: "board" },
+      client,
+    );
     return columnTasks(
       tasks,
       organization.board || defaultBoard(),

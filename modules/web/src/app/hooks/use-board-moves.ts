@@ -9,7 +9,10 @@ import {
   unsectionedColumn,
   type BoardChange,
 } from "@core/workspace/board";
-import type { Organization, OrganizationChange } from "@core/workspace/organization";
+import type {
+  Organization,
+  OrganizationChange,
+} from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
 import { useCallback, useState, type MutableRefObject } from "react";
 import type { UndoState } from "./use-task-completion";

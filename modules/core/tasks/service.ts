@@ -209,7 +209,11 @@ export function createTaskService(
     },
     async loadProjects() {
       return parseProjects(
-        await runner.run(["status.not:deleted", "_projects", ...READ_OVERRIDES]),
+        await runner.run([
+          "status.not:deleted",
+          "_projects",
+          ...READ_OVERRIDES,
+        ]),
       );
     },
     addTask(input: TaskInput) {
@@ -261,10 +265,13 @@ export function createTaskService(
         }
       });
     },
-    completeTask: (uuid: string) => runner.write(taskActionArguments(uuid, "done")),
+    completeTask: (uuid: string) =>
+      runner.write(taskActionArguments(uuid, "done")),
     reopenTask: (uuid: string) => runner.write(reopenTaskArguments(uuid)),
-    deleteTask: (uuid: string) => runner.write(taskActionArguments(uuid, "delete")),
-    startTask: (uuid: string) => runner.write(taskActionArguments(uuid, "start")),
+    deleteTask: (uuid: string) =>
+      runner.write(taskActionArguments(uuid, "delete")),
+    startTask: (uuid: string) =>
+      runner.write(taskActionArguments(uuid, "start")),
     stopTask: (uuid: string) => runner.write(taskActionArguments(uuid, "stop")),
     setTaskWait: (uuid: string, wait: string) =>
       runner.write(waitTaskArguments(uuid, wait)),

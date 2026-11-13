@@ -221,9 +221,7 @@ export async function applyFilterOrTagChange(
     await effect(old, next);
   }
 
-  const updated = list.filter(
-    (x) => x.id !== item.id && x.name !== old?.name,
-  );
+  const updated = list.filter((x) => x.id !== item.id && x.name !== old?.name);
   if (next) updated.push(next);
 
   if (input.kind === "filter") {

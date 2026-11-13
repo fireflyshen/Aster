@@ -9,11 +9,7 @@ import { queryWorkspaceTasks } from "../../../core/workspace/task-views.ts";
 import { focusProject } from "../../../core/workspace/focus.ts";
 import type { Organization } from "../../../core/workspace/organization.ts";
 
-export type TaskMutationAction =
-  | "complete"
-  | "reopen"
-  | "start"
-  | "stop";
+export type TaskMutationAction = "complete" | "reopen" | "start" | "stop";
 
 interface UseTaskListActionsOptions {
   service: TaskService;
@@ -55,10 +51,7 @@ export function useTaskListActions({
     unconfirmed.current.clear();
   }
 
-  function runTaskAction(
-    task: TaskwarriorTask,
-    action: TaskMutationAction,
-  ) {
+  function runTaskAction(task: TaskwarriorTask, action: TaskMutationAction) {
     if (client?.taskAction) {
       return client.taskAction({ uuid: task.uuid, action });
     }

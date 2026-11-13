@@ -108,10 +108,7 @@ export async function handleAddTask(
 }
 
 /** Reads the metadata snapshot for an active recurring task template. */
-export async function readRecurringSeries(
-  service: TaskService,
-  uuid: string,
-) {
+export async function readRecurringSeries(service: TaskService, uuid: string) {
   const task = await service.rawTask(uuid);
   if (task.status !== "recurring") {
     throw new Error("This series has stopped or no longer exists.");

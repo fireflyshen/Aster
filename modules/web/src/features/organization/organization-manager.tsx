@@ -230,23 +230,26 @@ export function OrganizationManager({
                     未找到匹配的{kind === "filter" ? "过滤器" : "标签"}
                   </p>
                 )}
-                {!list.length && !(kind === "tag" && editing?.kind === "tag") && (
-                  <Button
-                    variant="ghost"
-                    onClick={() => edit(freshOrganizationEntry(kind))}
-                    disabled={locked}
-                    className="task-add-button my-2"
-                  >
-                    <Plus className="size-4" />
-                    {kind === "filter" ? "添加过滤器" : "添加标签"}
-                  </Button>
-                )}
+                {!list.length &&
+                  !(kind === "tag" && editing?.kind === "tag") && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => edit(freshOrganizationEntry(kind))}
+                      disabled={locked}
+                      className="task-add-button my-2"
+                    >
+                      <Plus className="size-4" />
+                      {kind === "filter" ? "添加过滤器" : "添加标签"}
+                    </Button>
+                  )}
               </CollapsibleContent>
             </Collapsible>
           );
         })}
       <FilterEditorDialog
-        filter={editing?.kind === "filter" ? (editing.item as SavedFilter) : undefined}
+        filter={
+          editing?.kind === "filter" ? (editing.item as SavedFilter) : undefined
+        }
         busy={busy}
         locked={locked}
         error={error}

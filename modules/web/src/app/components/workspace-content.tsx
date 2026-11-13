@@ -391,7 +391,9 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                 board={organization.board || defaultBoard()}
                 revision={organization.revision}
                 saving={organizationSaving}
-                blocked={organizationBlocked || needsCheck || !organizationReady}
+                blocked={
+                  organizationBlocked || needsCheck || !organizationReady
+                }
                 error={organizationError}
                 onChange={onChangeBoard}
                 onReload={onReloadBoard}

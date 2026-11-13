@@ -15,7 +15,10 @@ import type { TaskInput } from "../../../core/tasks/arguments.ts";
 import { formatTaskDate } from "../../../core/tasks/date.ts";
 import type { TaskwarriorTask } from "../../../core/tasks/model.ts";
 import { parseTaskwarriorDate } from "../../../core/tasks/model.ts";
-import { itemColor, type SavedTag } from "../../../core/workspace/organization.ts";
+import {
+  itemColor,
+  type SavedTag,
+} from "../../../core/workspace/organization.ts";
 import { recurrenceOptions } from "../../../core/tasks/recurrence.ts";
 import { taskDate } from "../../../core/tasks/quick-task.ts";
 import {

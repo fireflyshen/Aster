@@ -1,4 +1,7 @@
-import type { Organization, OrganizationChange } from "@core/workspace/organization";
+import type {
+  Organization,
+  OrganizationChange,
+} from "@core/workspace/organization";
 import { projectNames } from "@core/workspace/projects";
 import type { Task, View } from "@shared/tasks";
 import { useCallback, useEffect, useMemo } from "react";

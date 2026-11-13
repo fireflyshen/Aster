@@ -14,10 +14,7 @@ type BoardAccessibility = NonNullable<
 >;
 
 /** Configures pointer/keyboard DnD sensors and screen-reader announcements for TaskBoard. */
-export function useBoardDnd(
-  layout: "board" | "list",
-  columns: Column[],
-) {
+export function useBoardDnd(layout: "board" | "list", columns: Column[]) {
   const keyboardCoordinates: KeyboardCoordinateGetter = (
     event,
     { currentCoordinates, context },

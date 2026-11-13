@@ -66,8 +66,13 @@ export function useTaskActions(deps: TaskActionsDeps) {
   } = deps;
 
   const editor = useTaskEditor({ busy, needsCheck, writeLock, mutate });
-  const { setOpen, setQuickOpen, setQuickProject, setFormError, setQuickError } =
-    editor;
+  const {
+    setOpen,
+    setQuickOpen,
+    setQuickProject,
+    setFormError,
+    setQuickError,
+  } = editor;
 
   const mutateWithOrigin = useCallback(
     (
@@ -272,7 +277,14 @@ export function useTaskActions(deps: TaskActionsDeps) {
         void toggleTask(undoTask.task, !undoTask.wasCompleted, false);
       }
     },
-    [undoTask, addedProject, setToastOpen, mutateWithOrigin, moveTask, toggleTask],
+    [
+      undoTask,
+      addedProject,
+      setToastOpen,
+      mutateWithOrigin,
+      moveTask,
+      toggleTask,
+    ],
   );
 
   return {

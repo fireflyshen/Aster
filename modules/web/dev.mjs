@@ -17,17 +17,13 @@ const backend = spawn(
   },
 );
 
-const frontend = spawn(
-  process.execPath,
-  ["./node_modules/vite/bin/vite.js"],
-  {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      ASTER_BACKEND_PORT: backendPort,
-    },
+const frontend = spawn(process.execPath, ["./node_modules/vite/bin/vite.js"], {
+  stdio: "inherit",
+  env: {
+    ...process.env,
+    ASTER_BACKEND_PORT: backendPort,
   },
-);
+});
 
 let closing = false;
 function shutdown(code = 0) {

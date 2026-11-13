@@ -209,7 +209,9 @@ export function WorkspaceHeadingMenu({
             <Button
               key={key}
               variant="navigation"
-              aria-current={view === key && !currentProject ? "page" : undefined}
+              aria-current={
+                view === key && !currentProject ? "page" : undefined
+              }
               className="h-8 text-xs"
               onClick={() => {
                 onOpenChange(false);

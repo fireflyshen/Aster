@@ -3,7 +3,10 @@ import {
   type BoardState,
   unsectionedColumn,
 } from "../../../core/workspace/board.ts";
-import { itemColor, type Organization } from "../../../core/workspace/organization.ts";
+import {
+  itemColor,
+  type Organization,
+} from "../../../core/workspace/organization.ts";
 import { projectPath, projectTree } from "../../../core/workspace/projects.ts";
 import { VIEWS } from "./task-list-model";
 

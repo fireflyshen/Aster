@@ -16,7 +16,14 @@ import type { View } from "@shared/tasks";
 import { cn } from "cn";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { Columns3, List, PanelLeft, RotateCw, Search, Target } from "lucide-react";
+import {
+  Columns3,
+  List,
+  PanelLeft,
+  RotateCw,
+  Search,
+  Target,
+} from "lucide-react";
 import { ThemeSwitcher } from "../theme-switcher";
 import { views } from "../workspace-sidebar";
 import { WorkspaceHeadingMenu } from "./workspace-heading-menu";

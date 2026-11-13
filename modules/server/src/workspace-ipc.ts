@@ -51,16 +51,20 @@ function normalizeIpcHandlers(
       target.tasks
         ? target.tasks(parameters.get("filter") ?? undefined)
         : unsupported(),
-    addTask: (input) => (target.addTask ? target.addTask(input) : unsupported()),
+    addTask: (input) =>
+      target.addTask ? target.addTask(input) : unsupported(),
     action: (input) => (target.action ? target.action(input) : unsupported()),
-    parseQuickTask: (input) => (target.parse ? target.parse(input) : unsupported()),
+    parseQuickTask: (input) =>
+      target.parse ? target.parse(input) : unsupported(),
     deleted: () => (target.deleted ? target.deleted() : unsupported()),
     series: (uuid) => (target.series ? target.series(uuid) : unsupported()),
     exportBackup: () => (target.export ? target.export() : unsupported()),
     points: () => (target.points ? target.points() : unsupported()),
     download: (id) => (target.download ? target.download(id) : unsupported()),
-    preview: (input) => (target.preview ? target.preview(input) : unsupported()),
-    restore: (token) => (target.restore ? target.restore(token) : unsupported()),
+    preview: (input) =>
+      target.preview ? target.preview(input) : unsupported(),
+    restore: (token) =>
+      target.restore ? target.restore(token) : unsupported(),
   };
 }
 

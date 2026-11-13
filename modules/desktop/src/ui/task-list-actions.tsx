@@ -65,7 +65,9 @@ export function CommonTaskActions({
         <Action.Push
           title="Data & Recovery"
           icon={Icon.Trash}
-          target={<RecoveryListView workspace={client} onSaved={onRefreshAll} />}
+          target={
+            <RecoveryListView workspace={client} onSaved={onRefreshAll} />
+          }
         />
       ) : null}
       <Action

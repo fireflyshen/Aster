@@ -29,7 +29,10 @@ export type ProjectChangeContext = {
 /** Validates and applies a project save, rename, or delete operation across projects, filters, and board columns. */
 export async function applyProjectSaveOrDeleteChange(
   data: Organization,
-  input: Extract<OrganizationChange, { kind: "project"; action: "save" | "delete" }>,
+  input: Extract<
+    OrganizationChange,
+    { kind: "project"; action: "save" | "delete" }
+  >,
   boardContext?: ProjectChangeContext,
 ): Promise<void> {
   const item = input.item as SavedProject | undefined;
