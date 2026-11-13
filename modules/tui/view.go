@@ -7,56 +7,33 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
-	"github.com/muesli/termenv"
 )
 
-var (
-	ink        = lipgloss.AdaptiveColor{Light: "#202428", Dark: "#E5E7EB"}
-	muted      = lipgloss.AdaptiveColor{Light: "#71717A", Dark: "#9299A6"}
-	line       = lipgloss.AdaptiveColor{Light: "#DADDE3", Dark: "#343B49"}
-	brand      = lipgloss.AdaptiveColor{Light: "#426B57", Dark: "#9FCBB1"}
-	selectedBG = lipgloss.AdaptiveColor{Light: "#E8EFEA", Dark: "#25382F"}
-	accent     = lipgloss.NewStyle().Foreground(brand).Bold(true)
-	dim        = lipgloss.NewStyle().Foreground(muted)
-)
+type renderFrame struct {
+	now     time.Time
+	idx     viewIndex
+	visible []Task
+	rows    []row
+	cur     row
+}
 
-func disableColor()               { lipgloss.SetColorProfile(termenv.Ascii) }
-func clip(s string, w int) string { return ansi.Truncate(s, max(1, w), "…") }
-func wrap(s string, w int) string {
-	var out []string
-	for _, part := range strings.Split(s, "\n") {
-		out = append(
-			out,
-			lipgloss.NewStyle().Width(max(1, w)).Render(clean(part)),
-		)
+func currentRow(rs []row, cursor int) row {
+	if cursor >= 0 && cursor < len(rs) {
+		return rs[cursor]
 	}
-	return strings.Join(out, "\n")
+	return row{}
 }
-func panel(title, body string, width, height int, focused bool) string {
-	color := line
-	if focused {
-		color = brand
+
+func fillRow(styledSegments string, plainWidth, totalWidth int, selected bool) string {
+	bg := lipgloss.NewStyle()
+	if selected {
+		bg = bg.Background(selectedBG)
 	}
-	heading := accent.Render(title)
-	content := heading + "\n" + dim.Render(
-		strings.Repeat("─", max(1, width-4)),
-	) + "\n" + body
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(color).
-		Padding(0, 1).
-		Width(max(1, width-2)).
-		Height(max(1, height-2)).
-		MaxHeight(height).
-		Render(content)
+	pad := max(0, totalWidth-plainWidth)
+	return styledSegments + bg.Render(strings.Repeat(" ", pad))
 }
-func window(lines []string, offset, height int) string {
-	offset = max(0, min(offset, max(0, len(lines)-height)))
-	end := min(len(lines), offset+height)
-	return strings.Join(lines[offset:end], "\n")
-}
-func (m model) sidebar(w, h int) string {
+
+func (m model) sidebar(w, h int, f renderFrame) string {
 	var lines []string
 	es := m.nav()
 	start := 0
@@ -64,73 +41,231 @@ func (m model) sidebar(w, h int) string {
 		start = m.navCursor - h + 6
 	}
 	end := min(len(es), start+h-4)
+	rowW := max(1, w-4)
 	for i := start; i < end; i++ {
 		e := es[i]
-		s := "  " + e.title
-		if e.id == m.view {
-			s = "● " + e.title
+		activeView := e.id == m.view
+		cursorHere := m.navFocus && i == m.navCursor
+		highlighted := cursorHere || (!m.navFocus && activeView)
+		prefix := "  "
+		if activeView {
+			prefix = "● "
 		}
-		s = clip(s, w-5)
-		style := lipgloss.NewStyle().Width(w - 4).Foreground(ink)
-		if (m.navFocus && i == m.navCursor) || (!m.navFocus && e.id == m.view) {
-			style = style.Background(selectedBG).Foreground(brand).Bold(true)
+		if cursorHere {
+			prefix = "▸ "
 		}
-		lines = append(lines, style.Render(s))
+		label := e.title
+		countText := ""
+		dotColor := brand
+		hasDot := false
+		if strings.HasPrefix(e.id, "project:") {
+			pName := strings.TrimPrefix(e.id, "project:")
+			if p, ok := f.idx.projByName[pName]; ok && p.Color != "" {
+				dotColor = swatchColor(p.Color)
+				hasDot = true
+			}
+			indent := strings.Repeat("  ", min(strings.Count(pName, "."), 3))
+			label = indent + pName
+			if !activeView && !cursorHere {
+				prefix = "● "
+				hasDot = true
+			}
+			if cnt := m.org.ProjectCounts[pName]; cnt > 0 && rowW > 14 {
+				countText = fmt.Sprintf(" %d", cnt)
+			}
+		} else if e.id == "active" && f.idx.anyRunning {
+			dotColor = timerColor
+			hasDot = true
+		}
+
+		maxTitleW := max(4, rowW-len([]rune(prefix))-lipgloss.Width(countText))
+		clippedLabel := clip(label, maxTitleW)
+		textStyle := lipgloss.NewStyle().Foreground(ink)
+		prefixStyle := lipgloss.NewStyle().Foreground(muted)
+		countStyle := lipgloss.NewStyle().Foreground(muted)
+		if hasDot && !highlighted {
+			prefixStyle = lipgloss.NewStyle().Foreground(dotColor)
+		}
+		if highlighted {
+			textStyle = textStyle.Background(selectedBG).Foreground(selectedFG).Bold(true)
+			prefixStyle = prefixStyle.Background(selectedBG).Foreground(brand).Bold(true)
+			countStyle = countStyle.Background(selectedBG).Foreground(muted)
+		}
+		gap := max(0, rowW-lipgloss.Width(prefix+clippedLabel+countText))
+		rendered := prefixStyle.Render(prefix) +
+			textStyle.Render(clippedLabel+strings.Repeat(" ", gap)) +
+			countStyle.Render(countText)
+		lines = append(lines, rendered)
 	}
 	return panel("工作区", strings.Join(lines, "\n"), w, h, m.navFocus)
 }
-func (m model) taskMeta(t Task) string {
+
+func (m model) taskMetaLine(f renderFrame, r row) string {
+	t := r.task
+	td := f.idx.dates[t.UUID]
+	waiting := t.Status == "waiting" || td.wait.After(f.now)
 	var parts []string
-	if t.Project != "" {
-		parts = append(parts, t.Project)
+
+	if r.parentTitle != "" {
+		parts = append(parts, dim.Render("↳ "+clip(clean(r.parentTitle), 18)))
 	}
-	if t.Priority != "" {
-		parts = append(parts, "优先级 "+t.Priority)
+	if st, ok := f.idx.subStats[t.UUID]; ok && st.total > 0 {
+		subStyle := lipgloss.NewStyle().Foreground(brand)
+		subIcon := ""
+		if st.done == st.total {
+			subStyle = lipgloss.NewStyle().Foreground(okColor)
+			subIcon = "✓ "
+		}
+		parts = append(parts, subStyle.Render(fmt.Sprintf("%s%d/%d", subIcon, st.done, st.total)))
+	}
+	if strings.TrimSpace(m.org.Descriptions[t.UUID]) != "" {
+		parts = append(parts, dim.Render("≡"))
+	}
+	if t.Project != "" {
+		c := muted
+		if p, ok := f.idx.projByName[t.Project]; ok && p.Color != "" {
+			c = swatchColor(p.Color)
+		}
+		parts = append(parts, lipgloss.NewStyle().Foreground(c).Render("●")+" "+softText.Render(clean(t.Project)))
 	}
 	if t.Due != "" {
-		d := shownDate(t.Due)
-		if date(t.Due).Before(time.Now()) && t.Status != "completed" {
-			d = "逾期 " + d
+		lbl, c := dueLabel(td.due, t.Due, t.Status == "completed", f.now)
+		if lbl != "" {
+			parts = append(parts, lipgloss.NewStyle().Foreground(c).Render(lbl))
 		}
-		parts = append(parts, d)
 	}
-	if len(t.Tags) > 0 {
-		parts = append(parts, "#"+strings.Join(t.Tags, " #"))
+	if t.Start != "" && !td.start.IsZero() && t.Status != "completed" {
+		parts = append(parts, lipgloss.NewStyle().Foreground(timerColor).Bold(true).
+			Render("▶ "+formatDurationShort(f.now.Sub(td.start).Seconds())))
+	} else if m.org.Energy != nil {
+		if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
+			parts = append(parts, dim.Render("⧖ "+formatDurationShort(secs)))
+		}
+	}
+	for _, tag := range t.Tags {
+		c := muted
+		if item, ok := f.idx.tagByName[tag]; ok && item.Color != "" {
+			c = swatchColor(item.Color)
+		}
+		parts = append(parts, lipgloss.NewStyle().Foreground(c).Render("#"+clean(tag)))
 	}
 	if t.Recur != "" {
-		parts = append(parts, "↻ "+t.Recur)
+		parts = append(parts, dim.Render("↻ "+clean(t.Recur)))
 	}
-	if t.Status == "waiting" || date(t.Wait).After(time.Now()) {
-		parts = append(parts, "等待中")
+	if waiting {
+		parts = append(parts, lipgloss.NewStyle().Foreground(warnColor).Render("◴ 等待"))
 	}
-	return clean(strings.Join(parts, " · "))
+	return strings.Join(parts, dim.Render(" · "))
 }
-func (m model) list(w, h int) string {
+
+func (m model) renderTaskLines(f renderFrame, r row, width int, selected bool) []string {
+	t := r.task
+	td := f.idx.dates[t.UUID]
+	waiting := t.Status == "waiting" || td.wait.After(f.now)
+	marker := "  "
+	if selected {
+		marker = "▎ "
+	}
+	tree := ""
+	metaIndent := "    "
+	if r.depth > 0 {
+		tree = "├─ "
+		if r.lastChild {
+			tree = "└─ "
+		}
+		metaIndent = "       "
+	}
+	glyphText := "○"
+	glyphColor := priorityColor(t.Priority)
+	if t.Status == "completed" {
+		glyphText = "✓"
+		glyphColor = okColor
+	} else if t.Start != "" {
+		glyphText = "▶"
+		glyphColor = timerColor
+	} else if waiting {
+		glyphText = "◴"
+		glyphColor = warnColor
+	}
+	prioRaw := ""
+	if t.Priority == "H" {
+		prioRaw = "[P1] "
+	} else if t.Priority == "M" {
+		prioRaw = "[P2] "
+	} else if t.Priority == "L" {
+		prioRaw = "[P3] "
+	}
+
+	prefixPlain := marker + tree + glyphText + " " + prioRaw
+	titlePlain := clip(clean(r.title), max(4, width-lipgloss.Width(prefixPlain)))
+
+	bgStyle := lipgloss.NewStyle()
+	titleStyle := lipgloss.NewStyle().Foreground(ink)
+	markerStyle := lipgloss.NewStyle().Foreground(muted)
+	treeStyle := lipgloss.NewStyle().Foreground(line)
+	glyphStyle := lipgloss.NewStyle().Foreground(glyphColor)
+	prioStyle := lipgloss.NewStyle().Foreground(priorityColor(t.Priority)).Bold(t.Priority == "H")
+	if t.Status == "completed" {
+		titleStyle = lipgloss.NewStyle().Foreground(muted)
+	}
+	if selected {
+		bgStyle = bgStyle.Background(selectedBG)
+		titleStyle = titleStyle.Background(selectedBG).Foreground(selectedFG).Bold(true)
+		markerStyle = markerStyle.Background(selectedBG).Foreground(brand).Bold(true)
+		treeStyle = treeStyle.Background(selectedBG).Foreground(muted)
+		glyphStyle = glyphStyle.Background(selectedBG)
+		prioStyle = prioStyle.Background(selectedBG)
+	}
+	line1 := markerStyle.Render(marker) +
+		treeStyle.Render(tree) +
+		glyphStyle.Render(glyphText) +
+		bgStyle.Render(" ") +
+		prioStyle.Render(prioRaw) +
+		titleStyle.Render(titlePlain)
+	line1 = fillRow(line1, lipgloss.Width(prefixPlain+titlePlain), width, selected)
+
+	out := []string{line1}
+	if meta := m.taskMetaLine(f, r); meta != "" {
+		clippedMeta := clip(metaIndent+meta, width)
+		if selected {
+			metaBg := lipgloss.NewStyle().Background(selectedBG)
+			pad := max(0, width-lipgloss.Width(clippedMeta))
+			clippedMeta = metaBg.Render(metaIndent) + clip(meta, max(1, width-len(metaIndent))) + metaBg.Render(strings.Repeat(" ", pad))
+		}
+		out = append(out, clippedMeta)
+	}
+	return out
+}
+
+func (m model) list(w, h int, f renderFrame) string {
 	if m.board && m.taskView() {
-		return m.boardView(w, h)
+		return m.boardView(w, h, f)
 	}
 	var lines []string
 	if m.view == "focus" {
-		active := m.activeProjects()
+		active := f.idx.activeProjects
 		lines = append(
 			lines,
-			dim.Render(fmt.Sprintf("%d / 3 聚焦项目", len(active))),
+			softText.Render(fmt.Sprintf("◎ Focus 聚焦 · %d / 3", len(active))),
 		)
 		for _, p := range active {
-			lines = append(lines, accent.Render(clip("◎ "+p.Name, w-5)))
-			if p.Outcome != "" {
-				lines = append(lines, dim.Render(clip("  "+p.Outcome, w-5)))
+			dot := lipgloss.NewStyle().Foreground(swatchColor(p.Color)).Render("●")
+			lineText := dot + " " + accent.Render(clean(p.Name))
+			if p.Outcome != "" && w > 28 {
+				lineText += dim.Render("  — " + clean(p.Outcome))
 			}
+			lines = append(lines, clip(lineText, w-5))
 		}
 		if len(active) == 0 {
-			lines = append(lines, dim.Render("按 p 选择项目，或 Tab 打开导航"))
+			lines = append(lines, dim.Render("按 p 选择聚焦项目，或按 Tab 切换工作区"))
 		}
 		lines = append(lines, "")
 	}
 	if m.query != "" {
-		lines = append(lines, dim.Render("搜索："+clip(clean(m.query), w-12)))
+		lines = append(lines, lipgloss.NewStyle().Foreground(brand).Render("⌕ 搜索："+clip(clean(m.query), w-12)))
 	}
-	rs := m.rows()
+	rs := f.rows
+	rowW := max(4, w-4)
 	header := len(lines)
 	available := max(3, h-header-5)
 	type block struct {
@@ -139,15 +274,7 @@ func (m model) list(w, h int) string {
 	}
 	var blocks []block
 	for i, r := range rs {
-		style := lipgloss.NewStyle().Width(w - 4).Foreground(ink)
 		selected := i == m.cursor && !m.navFocus
-		if selected {
-			style = style.Background(selectedBG).Foreground(brand)
-		}
-		marker := "  "
-		if selected {
-			marker = "▸ "
-		}
 		var ls []string
 		switch r.kind {
 		case "group":
@@ -155,35 +282,47 @@ func (m model) list(w, h int) string {
 			if m.collapsed[r.id] && !m.board {
 				arrow = "▸"
 			}
-			ls = []string{
-				style.Bold(true).
-					Render(clip(fmt.Sprintf("%s%s %s  %d", marker, arrow, r.title, r.count), w-4)),
+			marker := "  "
+			if selected {
+				marker = "▎ "
+			}
+			head := fmt.Sprintf("%s%s %s", marker, arrow, r.title)
+			count := fmt.Sprintf(" %d ", r.count)
+			if selected {
+				bg := lipgloss.NewStyle().Background(selectedBG)
+				headStyled := bg.Foreground(selectedFG).Bold(true).Render(clip(head, max(4, rowW-len(count))))
+				cntStyled := bg.Foreground(brand).Bold(true).Render(count)
+				ls = []string{fillRow(headStyled+cntStyled, lipgloss.Width(headStyled+cntStyled), rowW, true)}
+			} else {
+				ls = []string{softText.Bold(true).Render(clip(head, max(4, rowW-len(count)))) + dim.Render(count)}
 			}
 		case "task":
-			icon := "○"
-			if r.task.Status == "completed" {
-				icon = "✓"
-			}
-			if r.task.Start != "" {
-				icon = "▶"
-			}
-			title := clip(marker+icon+" "+clean(r.title), w-4)
-			ls = []string{style.Render(title)}
-			if meta := m.taskMeta(r.task); meta != "" {
-				ls = append(
-					ls,
-					style.Foreground(muted).Render(clip("    "+meta, w-4)),
-				)
-			}
+			ls = m.renderTaskLines(f, r, rowW, selected)
 		default:
-			ls = []string{
-				style.Bold(true).Render(clip(marker+clean(r.title), w-4)),
+			marker := "  "
+			if selected {
+				marker = "▎ "
 			}
+			titleStyle := lipgloss.NewStyle().Foreground(ink).Bold(true)
+			if selected {
+				titleStyle = titleStyle.Background(selectedBG).Foreground(selectedFG)
+			}
+			prefixDot := ""
+			if r.kind == "project" && r.project.Color != "" {
+				prefixDot = lipgloss.NewStyle().Foreground(swatchColor(r.project.Color)).Render("● ")
+			} else if (r.kind == "filter" || r.kind == "tag") && r.item.Color != "" {
+				prefixDot = lipgloss.NewStyle().Foreground(swatchColor(r.item.Color)).Render("● ")
+			}
+			line1 := titleStyle.Render(marker) + prefixDot + titleStyle.Render(clip(clean(r.title), max(4, rowW-4)))
+			ls = []string{fillRow(line1, lipgloss.Width(line1), rowW, selected)}
 			if sub := clean(r.subtitle); sub != "" {
-				ls = append(
-					ls,
-					style.Foreground(muted).Render(clip("  "+sub, w-4)),
-				)
+				subLine := dim.Render(clip("    "+sub, rowW))
+				if selected {
+					subBg := lipgloss.NewStyle().Background(selectedBG).Foreground(muted)
+					subText := clip("    "+sub, rowW)
+					subLine = fillRow(subBg.Render(subText), lipgloss.Width(subText), rowW, true)
+				}
+				ls = append(ls, subLine)
 			}
 		}
 		blocks = append(blocks, block{i, ls})
@@ -203,7 +342,7 @@ func (m model) list(w, h int) string {
 	for _, b := range blocks {
 		content = append(content, b.lines...)
 	}
-	if len(rs) == 0 || len(m.visible()) == 0 && m.taskView() {
+	if len(rs) == 0 || len(f.visible) == 0 && m.taskView() {
 		content = append(content, "")
 		content = append(
 			content,
@@ -212,22 +351,22 @@ func (m model) list(w, h int) string {
 	lines = append(
 		lines,
 		strings.Split(window(content, offset, available), "\n")...)
-	mode := "分组列表"
-	if m.board {
-		mode = fmt.Sprintf(
-			"看板 · %d / %d · ← → 切换列",
-			m.boardColumn+1,
-			len(m.columns()),
-		)
+	rightMeta := ""
+	if m.taskView() {
+		rightMeta = fmt.Sprintf("%d 项", len(f.visible))
+	} else {
+		rightMeta = fmt.Sprintf("%d 项", len(rs))
 	}
-	return panel(
-		clip(m.title(), w-5)+"  "+dim.Render(mode),
+	return panelWithRight(
+		m.title(),
+		rightMeta,
 		strings.Join(lines, "\n"),
 		w,
 		h,
 		!m.navFocus,
 	)
 }
+
 func (m model) taskView() bool {
 	switch m.view {
 	case "projects",
@@ -241,135 +380,254 @@ func (m model) taskView() bool {
 	}
 	return true
 }
+
 func (m model) emptyMessage() string {
 	if m.busy {
-		return "正在连接工作区…"
-	}
-	if m.blocked {
-		return "读取失败。请查看底部错误，按 r 刷新。"
+		return "正在读取工作区…"
 	}
 	if m.query != "" {
-		return "当前视图没有匹配项。按 / 修改或清除搜索。"
+		return "当前搜索没有匹配项。按 / 清空或修改关键词。"
 	}
-	if m.view == "focus" && len(m.activeProjects()) == 0 {
-		return "尚未选择聚焦项目。按 p 选择，或在导航中查看全部任务。"
+	if m.view == "focus" && len(m.viewIdx().activeProjects) == 0 {
+		return "还没有聚焦项目。按 p 最多选择 3 个 Focus 项目，或按 Tab 在其他视图操作。"
 	}
-	complete, waiting := 0, 0
-	for _, t := range m.tasks {
-		if t.Status == "completed" {
-			complete++
-		}
-		if t.Status == "waiting" {
-			waiting++
-		}
+	if m.view == "waiting" {
+		return "没有处于等待状态的任务。"
 	}
-	if m.taskView() {
-		return fmt.Sprintf(
-			"此视图暂无任务。工作区有 %d 条已完成、%d 条等待任务。Tab 打开导航；a 添加任务。",
-			complete,
-			waiting,
-		)
+	if m.view == "active" {
+		return "当前没有正在计时的任务。选中任意任务按 s 开始计时。"
 	}
-	return "暂无条目。按 : 打开操作菜单以创建或管理。"
+	if m.view == "completed" {
+		return "当前没有已完成任务。"
+	}
+	if m.view == "recovery" {
+		return "没有可恢复的已删除任务。"
+	}
+	return "当前视图没有任务。按 a 新建任务，或按 A 一句话捕捉。"
 }
-func (m model) inspector(w, h int) string {
-	r := m.current()
+
+func (m model) inspector(w, h int, f renderFrame) string {
+	r := f.cur
 	var lines []string
-	add := func(s string) { lines = append(lines, strings.Split(wrap(s, w-5), "\n")...) }
+	bodyW := max(10, w-5)
+	add := func(s string) { lines = append(lines, strings.Split(wrap(s, bodyW), "\n")...) }
+	addStyled := func(st lipgloss.Style, s string) {
+		for _, part := range strings.Split(wrap(s, bodyW), "\n") {
+			lines = append(lines, st.Render(part))
+		}
+	}
+	kv := func(label, val string, valColor lipgloss.AdaptiveColor) {
+		padW := max(1, 7-lipgloss.Width(label))
+		lbl := dim.Render(label + strings.Repeat(" ", padW))
+		v := lipgloss.NewStyle().Foreground(valColor).Render(clip(clean(val), max(4, bodyW-8)))
+		lines = append(lines, lbl+" "+v)
+	}
 	switch r.kind {
 	case "task":
 		t := r.task
-		add(t.Description)
+		td := f.idx.dates[t.UUID]
+		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), t.Description)
 		lines = append(lines, "")
+
+		statusLbl := t.Status
+		statusCol := inkSoft
+		switch t.Status {
+		case "completed":
+			statusLbl = "✓ 已完成"
+			statusCol = okColor
+		case "waiting":
+			statusLbl = "◴ 等待中"
+			statusCol = warnColor
+		case "pending":
+			if t.Start != "" {
+				statusLbl = "▶ 进行中"
+				statusCol = timerColor
+			} else {
+				statusLbl = "○ 待办"
+			}
+		}
+		kv("状态", statusLbl, statusCol)
+
 		project := t.Project
+		projCol := inkSoft
 		if project == "" {
 			project = "收件箱"
+		} else if p, ok := f.idx.projByName[project]; ok && p.Color != "" {
+			projCol = swatchColor(p.Color)
 		}
-		add("状态  " + t.Status)
-		add("项目  " + project)
+		kv("项目", project, projCol)
+
+		if colID := f.idx.columnID(t); colID != "" {
+			colName := "未分组"
+			for _, c := range m.org.Board.Columns {
+				if c.ID == colID {
+					colName = c.Name
+					break
+				}
+			}
+			kv("分组", colName, inkSoft)
+		}
 		if t.Due != "" {
-			add("截止  " + shownDate(t.Due))
+			lbl, col := dueLabel(td.due, t.Due, t.Status == "completed", f.now)
+			dueDisplay := shownDate(t.Due)
+			if strings.HasPrefix(lbl, "逾期 ") {
+				dueDisplay += " 逾期"
+			} else if strings.HasPrefix(lbl, "今天 ") {
+				dueDisplay += " 今天"
+			} else if strings.HasPrefix(lbl, "明天 ") {
+				dueDisplay += " 明天"
+			}
+			kv("截止", dueDisplay, col)
 		}
 		if t.Wait != "" {
-			add("等待  " + shownDate(t.Wait))
-		}
-		if len(t.Tags) > 0 {
-			add("标签  " + strings.Join(t.Tags, ", "))
+			kv("等待", shownDate(t.Wait), warnColor)
 		}
 		if t.Priority != "" {
-			add("优先级  " + t.Priority)
+			pText := map[string]string{"H": "P1 高优先级", "M": "P2 中优先级", "L": "P3 低优先级"}[t.Priority]
+			if pText == "" {
+				pText = t.Priority
+			}
+			kv("优先级", pText, priorityColor(t.Priority))
+		}
+		if len(t.Tags) > 0 {
+			kv("标签", "#"+strings.Join(t.Tags, "  #"), brand)
 		}
 		if t.Recur != "" {
-			add("重复  " + t.Recur + " → " + shownDate(t.Until))
+			rec := t.Recur
+			if u := shownDate(t.Until); u != "" {
+				rec += " → " + u
+			}
+			kv("重复", rec, inkSoft)
 		}
-		if t.Parent != "" {
-			add("系列  " + t.Parent)
+		if t.Start != "" && !td.start.IsZero() {
+			kv("计时", "正在运行 "+formatDurationShort(f.now.Sub(td.start).Seconds()), timerColor)
 		}
-		if t.Depends != nil {
-			add(fmt.Sprint("依赖  ", t.Depends))
+		if m.org.Energy != nil {
+			if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
+				kv("今日", formatDurationShort(secs), muted)
+			}
 		}
-		for _, p := range m.org.Projects {
-			if inProject(t.Project, p.Name) && p.Status == "active" {
+
+		// Task description (Aster org.descriptions)
+		lines = append(lines, "", accent.Render("任务描述"))
+		if desc := strings.TrimSpace(m.org.Descriptions[t.UUID]); desc != "" {
+			addStyled(softText, desc)
+		} else {
+			lines = append(lines, dim.Render("暂无描述 · 按 D 编辑"))
+		}
+
+		// Parent / Subtasks (Aster org.subtasks)
+		pid := f.idx.parentOf[t.UUID]
+		children := f.idx.childrenOf[t.UUID]
+		if pid != "" || len(children) > 0 {
+			headerText := "子任务"
+			if st, ok := f.idx.subStats[t.UUID]; ok && st.total > 0 {
+				headerText = fmt.Sprintf("子任务 (%d/%d)", st.done, st.total)
+			}
+			lines = append(lines, "", accent.Render(headerText))
+			if pid != "" {
+				parentName := pid
+				if pt, ok := f.idx.tasksByUUID[pid]; ok {
+					parentName = pt.Description
+				}
+				addStyled(mutedStyle(), "上级: "+parentName)
+			}
+			limit := min(len(children), 12)
+			for i := 0; i < limit; i++ {
+				if ct, ok := f.idx.tasksByUUID[children[i]]; ok {
+					cMark := "○"
+					cCol := inkSoft
+					if ct.Status == "completed" {
+						cMark = "✓"
+						cCol = okColor
+					} else if ct.Start != "" {
+						cMark = "▶"
+						cCol = timerColor
+					}
+					cLine := lipgloss.NewStyle().Foreground(cCol).Render(cMark) + " " + clip(clean(ct.Description), max(4, bodyW-3))
+					lines = append(lines, cLine)
+				}
+			}
+			if len(children) > limit {
+				lines = append(lines, dim.Render(fmt.Sprintf("  + 还有 %d 项子任务", len(children)-limit)))
+			}
+		}
+
+		for _, p := range f.idx.activeProjects {
+			if inProject(t.Project, p.Name) {
 				lines = append(lines, "")
-				add("◎ " + p.Name)
+				addStyled(accent, "◎ "+p.Name)
 				add("完成目标：" + p.Outcome)
 				if p.NextTask == t.UUID {
-					add("★ 这是项目下一步")
+					lines = append(lines, lipgloss.NewStyle().Foreground(okColor).Bold(true).Render("★ 这是项目下一步"))
 				}
 			}
 		}
+
 		lines = append(lines, "", accent.Render("备注"))
 		if len(t.Annotations) == 0 {
-			add("暂无备注 · : 追加备注")
+			lines = append(lines, dim.Render("暂无备注 · : 追加备注"))
 		}
 		for _, n := range t.Annotations {
 			add("• " + n.Description)
 			lines = append(lines, "")
 		}
 		lines = append(lines, "", dim.Render("UUID"))
-		add(t.UUID)
+		lines = append(lines, dim.Render(clip(t.UUID, bodyW)))
 	case "project":
 		p := r.project
-		add(p.Name)
-		add("状态：" + p.Status)
+		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), p.Name)
+		kv("状态", p.Status, brand)
 		lines = append(lines, "")
-		add("完成目标：" + p.Outcome)
-		add("描述：" + p.Description)
-		for _, t := range m.tasks {
-			if t.UUID == p.NextTask {
-				add("下一步：" + t.Description)
+		if p.Outcome != "" {
+			add("完成目标：" + p.Outcome)
+		}
+		if p.Description != "" {
+			add("描述：" + p.Description)
+		}
+		if p.NextTask != "" {
+			if nt, ok := f.idx.tasksByUUID[p.NextTask]; ok {
+				add("下一步：" + nt.Description)
 			}
 		}
-		add("Enter 打开任务 · : 管理项目")
+		lines = append(lines, "", dim.Render("Enter 打开任务 · : 管理项目"))
 	case "filter", "tag":
-		add(r.item.Name)
-		add(r.item.Description)
-		add(r.item.Expression)
-		add("颜色：" + r.item.Color)
-		add(fmt.Sprint("收藏：", r.item.Favorite))
-		add("Enter 打开任务 · : 编辑")
+		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.item.Name)
+		if r.item.Description != "" {
+			add(r.item.Description)
+		}
+		if r.item.Expression != "" {
+			add(r.item.Expression)
+		}
+		kv("颜色", r.item.Color, swatchColor(r.item.Color))
+		kv("收藏", fmt.Sprint(r.item.Favorite), inkSoft)
+		lines = append(lines, "", dim.Render("Enter 打开任务 · : 编辑"))
 	case "group", "column":
-		add(r.title)
+		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.title)
 		add(fmt.Sprintf("%d 个可见任务", r.count))
+		lines = append(lines, "")
 		add("每个列表分组对应一列看板。任务位置、组内排序与栏目顺序共用同一份数据。")
-		add("Space 折叠 / 展开 · : 管理分组")
+		lines = append(lines, "", dim.Render("Space 折叠 / 展开 · : 管理分组"))
 	default:
 		add("选择任务或项目查看详情。")
-		add("按 : 查看可用操作。")
-		add("Tab 切换导航与内容。")
-		add("? 打开帮助。")
+		add("按 : 打开操作菜单，S 添加子任务。")
+		add("按 ! 快速设优先级，@ 快速改期。")
+		add("Tab 切换工作区与任务列表。")
 	}
 	return panel(
-		"详情  ·  PgUp / PgDn 滚动",
+		"详情  ·  PgUp/PgDn",
 		window(lines, m.detailScroll, max(1, h-5)),
 		w,
 		h,
 		false,
 	)
 }
+
+func mutedStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(muted) }
+
 func (m model) overlay(w, h int) string {
 	width := min(80, w-4)
-	bodyWidth := max(15, width-6)
+	bodyWidth := max(15, width-4)
 	title := "操作菜单"
 	hint := "输入搜索 · ↑↓ 选择 · Enter 确认 · Esc 返回"
 	var lines []string
@@ -402,14 +660,18 @@ func (m model) overlay(w, h int) string {
 				}
 				label = mark + label
 			}
-			style := lipgloss.NewStyle().Width(bodyWidth)
 			marker := "  "
-			if i == m.optionCursor {
-				style = style.Background(selectedBG).Foreground(brand)
+			selected := i == m.optionCursor
+			if selected {
 				marker = "› "
 			}
-			lines = append(lines, style.Render(clip(marker+label, bodyWidth)))
-			if o.hint != "" && len(opts) < 6 {
+			clipped := clip(marker+label, bodyWidth)
+			rowStyle := lipgloss.NewStyle().Foreground(ink)
+			if selected {
+				rowStyle = lipgloss.NewStyle().Background(selectedBG).Foreground(selectedFG).Bold(true)
+			}
+			lines = append(lines, fillRow(rowStyle.Render(clipped), lipgloss.Width(clipped), bodyWidth, selected))
+			if o.hint != "" && len(opts) < 8 {
 				lines = append(
 					lines,
 					dim.Render(clip("  "+clean(o.hint), bodyWidth)),
@@ -433,7 +695,7 @@ func (m model) overlay(w, h int) string {
 		var bs []block
 		for i, f := range m.fields {
 			marker := "  "
-			style := dim
+			style := softText
 			if i == m.field {
 				marker = "▸ "
 				style = accent
@@ -507,15 +769,8 @@ func (m model) overlay(w, h int) string {
 		}
 		lines = append(lines, fmt.Sprintf("恢复时停止的计时：%d", p.StoppedOccurrences))
 	}
-	body := strings.Join(
-		lines,
-		"\n",
-	) + "\n" + dim.Render(
-		strings.Repeat("─", bodyWidth),
-	) + "\n" + wrap(
-		hint,
-		bodyWidth,
-	)
+	rule := lipgloss.NewStyle().Foreground(line).Render(strings.Repeat("─", bodyWidth))
+	body := strings.Join(lines, "\n") + "\n" + rule + "\n" + dim.Render(wrap(hint, bodyWidth))
 	return lipgloss.Place(
 		w,
 		h,
@@ -524,27 +779,48 @@ func (m model) overlay(w, h int) string {
 		panel(title, body, width, min(h, lipgloss.Height(body)+5), true),
 	)
 }
+
 func (m model) View() string {
 	w, h := max(30, m.width), max(12, m.height)
-	header := lipgloss.NewStyle().
-		Foreground(ink).
-		Bold(true).
-		Render("  ASTER") +
-		dim.Render(
-			"   /   "+clean(m.title()),
-		)
-	right := "SSH · " + m.client.Host
-	if m.org.Energy != nil {
-		right += fmt.Sprintf(
-			"   精力 %.0f/%.0f",
-			m.org.Energy.Remaining,
-			m.org.Energy.Max,
-		)
-	} else if m.org.Timing != nil && !m.org.Timing.Available {
-		right += "   计时不可用"
+	now := time.Now()
+	idx := m.viewIdx()
+	rs := idx.rows(m, now)
+	f := renderFrame{
+		now:     now,
+		idx:     idx,
+		visible: idx.visibleTasks(m, now),
+		rows:    rs,
+		cur:     currentRow(rs, m.cursor),
 	}
+
+	brandMark := lipgloss.NewStyle().Foreground(brand).Bold(true).Render("  ◈ ASTER")
+	header := brandMark +
+		lipgloss.NewStyle().Foreground(line).Render("  /  ") +
+		softText.Bold(true).Render(clean(m.title()))
+
+	var rightParts []string
+	if idx.anyRunning {
+		rightParts = append(rightParts, lipgloss.NewStyle().Foreground(timerColor).Bold(true).Render("▶ 计时中"))
+	}
+	if m.org.Energy != nil {
+		if m.org.Energy.TrackedSecondsToday >= 60 {
+			rightParts = append(rightParts, dim.Render("今日 "+formatDurationShort(m.org.Energy.TrackedSecondsToday)))
+		}
+		bars := 6
+		if w < 90 {
+			bars = 4
+		}
+		rightParts = append(rightParts, energyMeter(m.org.Energy.Remaining, m.org.Energy.Max, bars))
+	} else if m.org.Timing != nil && !m.org.Timing.Available {
+		rightParts = append(rightParts, dim.Render("计时不可用"))
+	}
+	if w >= 60 {
+		rightParts = append(rightParts, dim.Render(m.client.Host))
+	}
+	right := strings.Join(rightParts, dim.Render("  ·  "))
 	pad := max(1, w-lipgloss.Width(header)-lipgloss.Width(right)-2)
-	header += strings.Repeat(" ", pad) + dim.Render(right)
+	header += strings.Repeat(" ", pad) + right
+
 	contentHeight := h - 5
 	var body string
 	if m.help {
@@ -554,33 +830,27 @@ func (m model) View() string {
 			lipgloss.Center,
 			lipgloss.Center,
 			panel(
-				"键盘帮助",
+				"键盘快捷键",
 				strings.Join(
 					[]string{
-						"Tab              导航 / 内容",
-						"↑ ↓ / j k        选择条目",
-						"Enter            查看详情 / 打开项目 / 折叠分组",
-						": / Ctrl+K       可搜索的操作菜单",
-						"a / A            添加任务 / 一句话捕捉",
-						"e / x / s        编辑 / 完成重开 / 开始停止",
-						"m / d / u        移动排序 / 删除 / 撤销",
+						"Tab / ← →        切换左侧导航 / 右侧任务区",
+						"↑ ↓ / j k        上下选择条目",
+						"Enter / Space    详情 / 打开项目 / 折叠分组",
+						": / Ctrl+K       搜索并执行所有操作",
+						"a / A / S        新建任务 / 一句话 / 添加子任务",
+						"e / D / x / s    编辑 / 任务描述 / 完成 / 计时",
+						"! / @ / m        快速优先级 / 改期 / 移动排序",
+						"d / u / r        删除 / 撤销最近操作 / 刷新核对",
 						"b / ← →          列表看板切换 / 切换栏目",
-						"p / n / g        聚焦项目 / 下一步 / 新增分组",
-						"/                搜索当前视图",
-						"PgUp / PgDn      详情滚动",
-						"r                刷新核对",
-						"表单 Tab         切换字段",
-						"表单 Enter       打开选择器 / 多行换行",
-						"表单 Ctrl+S      保存",
-						"Esc              返回并保留本次会话草稿",
-						"q / Ctrl+C       退出",
-						"",
-						"? / Esc 关闭帮助",
+						"p / n / g        Focus 项目 / 下一步 / 新增分组",
+						"/ / PgUp / PgDn  搜索视图 / 滚动详情",
+						"表单按键         Tab 切换 · Enter 选择 · Ctrl+S 保存",
+						"Esc / q          关闭或暂存草稿 / 退出",
 					},
 					"\n",
 				),
 				min(74, w-2),
-				min(24, contentHeight),
+				min(20, contentHeight),
 				true,
 			),
 		)
@@ -588,11 +858,11 @@ func (m model) View() string {
 		body = m.overlay(w, contentHeight)
 	} else if w < 76 {
 		if m.navFocus {
-			body = m.sidebar(w, contentHeight)
+			body = m.sidebar(w, contentHeight, f)
 		} else if m.detail {
-			body = m.inspector(w, contentHeight)
+			body = m.inspector(w, contentHeight, f)
 		} else {
-			body = m.list(w, contentHeight)
+			body = m.list(w, contentHeight, f)
 		}
 	} else {
 		navW := min(27, w/4)
@@ -602,26 +872,26 @@ func (m model) View() string {
 		}
 		centerW := w - navW - detailW
 		panes := []string{
-			m.sidebar(navW, contentHeight),
-			m.list(centerW, contentHeight),
+			m.sidebar(navW, contentHeight, f),
+			m.list(centerW, contentHeight, f),
 		}
 		if detailW > 0 {
-			panes = append(panes, m.inspector(detailW, contentHeight))
+			panes = append(panes, m.inspector(detailW, contentHeight, f))
 		}
 		body = lipgloss.JoinHorizontal(lipgloss.Top, panes...)
 	}
-	state := "● "
+
+	stateDot := lipgloss.NewStyle().Foreground(okColor).Render("● ")
 	if m.busy {
-		state = "◌ 保存 / 读取中 · "
+		stateDot = lipgloss.NewStyle().Foreground(brand).Render("◌ 同步中 · ")
 	}
 	if m.blocked {
-		state = "! 写入锁定 · "
+		stateDot = lipgloss.NewStyle().Foreground(dangerColor).Bold(true).Render("! 写入锁定 · ")
 	}
-	footer := dim.Render("  Tab 导航   : 操作   / 搜索   a 添加   b 列表/看板   ? 帮助")
-	message := clip("  "+state+clean(m.message), w)
-	output := header + "\n" + dim.Render(
-		strings.Repeat("─", w),
-	) + "\n" + body + "\n" + footer + "\n" + message
+	footer := dim.Render("  Tab/←→ 切焦点   j/k 移动   x 完成   s 计时   a 新建   S 子任务   !/@ 优先级/改期   : 菜单   ? 帮助")
+	message := clip("  "+stateDot+softText.Render(clean(m.message)), w)
+	divider := lipgloss.NewStyle().Foreground(line).Render(strings.Repeat("─", w))
+	output := header + "\n" + divider + "\n" + body + "\n" + footer + "\n" + message
 	lines := strings.Split(output, "\n")
 	for i := range lines {
 		lines[i] = clip(lines[i], w)
@@ -629,53 +899,84 @@ func (m model) View() string {
 	return strings.Join(lines, "\n")
 }
 
-func (m model) boardView(w, h int) string {
+func (m model) boardView(w, h int, f renderFrame) string {
 	cols := m.columns()
-	count := max(1, min(len(cols), w/26))
+	count := max(1, min(len(cols), w/28))
 	colW := (w - 2) / count
 	start := max(0, min(m.boardColumn-count/2, len(cols)-count))
 	end := min(len(cols), start+count)
+	cardW := max(4, colW-4)
 	var panes []string
 	for i := start; i < end; i++ {
 		c := cols[i]
-		ts := m.grouped(m.visible(), c.ID)
+		ts, depth, lastChild := f.idx.groupedTasks(m, f.visible, c.ID)
 		var lines []string
-		current := m.current()
 		offset := 0
 		selectedLine := 0
 		for _, t := range ts {
-			style := lipgloss.NewStyle().Width(colW - 4).Foreground(ink)
-			mark := "○ "
-			if t.Status == "completed" {
-				mark = "✓ "
-			}
-			if t.Start != "" {
-				mark = "▶ "
-			}
-			if i == m.boardColumn && t.UUID == current.id {
-				style = style.Background(selectedBG).Foreground(brand)
+			selected := i == m.boardColumn && t.UUID == f.cur.id
+			if selected {
 				selectedLine = len(lines)
 			}
-			titleLines := strings.Split(wrap(mark+t.Description, colW-4), "\n")
-			for _, titleLine := range titleLines {
-				lines = append(lines, style.Render(titleLine))
+			td := f.idx.dates[t.UUID]
+			waiting := t.Status == "waiting" || td.wait.After(f.now)
+			tree := ""
+			if depth[t.UUID] > 0 {
+				tree = "├ "
+				if lastChild[t.UUID] {
+					tree = "└ "
+				}
 			}
-			if meta := m.taskMeta(t); meta != "" {
-				lines = append(lines, dim.Render(clip("  "+meta, colW-4)))
+			mark := "○"
+			markCol := priorityColor(t.Priority)
+			if t.Status == "completed" {
+				mark = "✓"
+				markCol = okColor
+			} else if t.Start != "" {
+				mark = "▶"
+				markCol = timerColor
+			} else if waiting {
+				mark = "◴"
+				markCol = warnColor
+			}
+			prio := ""
+			if t.Priority != "" {
+				prio = "[" + t.Priority + "] "
+			}
+			titlePrefix := tree + mark + " " + prio
+			wrapped := strings.Split(wrap(titlePrefix+t.Description, cardW), "\n")
+			for li, titleLine := range wrapped {
+				if selected {
+					st := lipgloss.NewStyle().Background(selectedBG).Foreground(selectedFG).Bold(true)
+					lines = append(lines, fillRow(st.Render(titleLine), lipgloss.Width(titleLine), cardW, true))
+				} else if li == 0 {
+					stTitle := lipgloss.NewStyle().Foreground(ink)
+					prefixStyled := lipgloss.NewStyle().Foreground(muted).Render(tree) +
+						lipgloss.NewStyle().Foreground(markCol).Render(mark) + " " +
+						lipgloss.NewStyle().Foreground(priorityColor(t.Priority)).Render(prio)
+					rest := strings.TrimPrefix(titleLine, titlePrefix)
+					lines = append(lines, prefixStyled+stTitle.Render(rest))
+				} else {
+					lines = append(lines, lipgloss.NewStyle().Foreground(ink).Render(titleLine))
+				}
+			}
+			if meta := m.taskMetaLine(f, row{task: t, depth: depth[t.UUID]}); meta != "" {
+				lines = append(lines, clip("  "+meta, cardW))
 			}
 			lines = append(lines, "")
 		}
 		if len(ts) == 0 {
 			lines = append(lines, dim.Render("暂无任务"))
 		}
-		offset = max(0, selectedLine-(h-9))
+		offset = max(0, selectedLine-(h-7))
 		panes = append(
 			panes,
-			panel(
-				fmt.Sprintf("%s · %d", c.Name, len(ts)),
-				window(lines, offset, h-7),
+			panelWithRight(
+				c.Name,
+				fmt.Sprintf("%d", len(ts)),
+				window(lines, offset, h-5),
 				colW,
-				h-3,
+				h-1,
 				i == m.boardColumn && !m.navFocus,
 			),
 		)
@@ -683,7 +984,7 @@ func (m model) boardView(w, h int) string {
 	content := lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		panes...) + "\n" + dim.Render(
-		" ← → 选择栏目 · ↑↓ 选择任务 · m 移动排序 · b 列表",
+		" ← → 切列 · ↑↓ 选卡 · m 移动 · S 子任务 · b 列表",
 	)
 	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(content)
 }

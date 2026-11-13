@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -28,7 +28,10 @@ type result struct {
 	data json.RawMessage
 	err  error
 }
-type tick time.Time
+type tickMsg struct {
+	at  time.Time
+	gen int
+}
 type entry struct{ id, title string }
 type row struct {
 	kind, id, title, subtitle string
@@ -37,6 +40,9 @@ type row struct {
 	item                      SavedItem
 	column                    Column
 	count                     int
+	depth                     int
+	lastChild                 bool
+	parentTitle               string
 }
 type choice struct{ value, label, hint string }
 type undoChange struct {
@@ -50,6 +56,8 @@ type model struct {
 	client                                       Client
 	tasks                                        []Task
 	org                                          Organization
+	idx                                          viewIndex
+	tickGen                                      int
 	view, query, message                         string
 	expression                                   string
 	cursor, navCursor, width, height             int
@@ -128,20 +136,45 @@ func shownDate(s string) string {
 	}
 	return t.Local().Format("2006-01-02 15:04")
 }
+func (m model) tickInterval() time.Duration {
+	if m.viewIdx().anyRunning {
+		return time.Second
+	}
+	return 10 * time.Second
+}
+func (m model) nextTick() tea.Cmd {
+	gen := m.tickGen
+	return tea.Tick(m.tickInterval(), func(t time.Time) tea.Msg { return tickMsg{t, gen} })
+}
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		m.refresh(),
-		tea.Tick(time.Second, func(t time.Time) tea.Msg { return tick(t) }),
+		m.nextTick(),
 	)
 }
 func (m model) refresh() tea.Cmd {
 	return func() tea.Msg {
-		o, e := m.client.workspace()
-		if e != nil {
-			return loaded{err: e}
+		var (
+			o  Organization
+			ts []Task
+			oe error
+			te error
+			wg sync.WaitGroup
+		)
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			o, oe = m.client.workspace()
+		}()
+		go func() {
+			defer wg.Done()
+			ts, te = m.client.tasks()
+		}()
+		wg.Wait()
+		if oe != nil {
+			return loaded{err: oe}
 		}
-		ts, e := m.client.tasks()
-		return loaded{ts, o, e}
+		return loaded{ts, o, te}
 	}
 }
 func (m model) write(route string, data any) tea.Cmd {
@@ -155,6 +188,7 @@ func (m model) nav() []entry {
 		{"focus", "◎  Focus"},
 		{"inbox", "▣  收件箱"},
 		{"today", "◷  今天与逾期"},
+		{"active", "▶  进行中"},
 		{"all", "≡  全部任务"},
 		{"waiting", "◴  等待中"},
 		{"completed", "✓  已完成"},
@@ -197,243 +231,23 @@ func (m model) title() string {
 	return "筛选结果"
 }
 func (m model) activeProjects() []Project {
-	var out []Project
-	for _, p := range m.org.Projects {
-		if p.Status == "active" {
-			out = append(out, p)
-		}
-	}
-	return out
+	return m.viewIdx().activeProjects
 }
 func (m model) visible() []Task {
-	var out []Task
-	for _, t := range m.tasks {
-		match := false
-		unfinished := t.Status == "pending" || t.Status == "waiting"
-		switch {
-		case m.view == "focus":
-			for _, p := range m.activeProjects() {
-				if inProject(t.Project, p.Name) && unfinished {
-					match = true
-				}
-			}
-		case m.view == "inbox":
-			match = unfinished && t.Project == ""
-		case m.view == "today":
-			now := time.Now()
-			y, mo, d := now.Date()
-			end := time.Date(y, mo, d+1, 0, 0, 0, 0, now.Location())
-			match = unfinished && !date(t.Due).IsZero() &&
-				date(t.Due).Before(end) &&
-				!date(t.Wait).After(now)
-		case m.view == "waiting":
-			match = t.Status == "waiting" ||
-				unfinished && date(t.Wait).After(time.Now())
-		case m.view == "completed":
-			match = t.Status == "completed"
-		case strings.HasPrefix(m.view, "project:"):
-			match = inProject(t.Project, strings.TrimPrefix(m.view, "project:"))
-		case strings.HasPrefix(m.view, "tag:"):
-			for _, tag := range t.Tags {
-				if tag == strings.TrimPrefix(m.view, "tag:") {
-					match = true
-				}
-			}
-		case m.view == "all":
-			match = unfinished || t.Status == "completed"
-		}
-		if match &&
-			strings.Contains(
-				strings.ToLower(
-					t.Description+" "+t.Project+" "+strings.Join(t.Tags, " "),
-				),
-				strings.ToLower(m.query),
-			) {
-			out = append(out, t)
-		}
-	}
-	if strings.HasPrefix(m.view, "filter:") || m.view == "expression" {
-		out = nil
-		for _, r := range m.extra {
-			if strings.Contains(
-				strings.ToLower(r.task.Description+" "+r.task.Project),
-				strings.ToLower(m.query),
-			) {
-				out = append(out, r.task)
-			}
-		}
-	}
-	return out
+	return m.viewIdx().visibleTasks(m, time.Now())
 }
 func (m model) columns() []Column {
 	return append([]Column{{"unsectioned", "未分组"}}, m.org.Board.Columns...)
 }
 func (m model) columnID(t Task) string {
-	for _, id := range []string{t.UUID, t.Parent} {
-		if id == "" {
-			continue
-		}
-		for _, p := range m.org.Board.Placements {
-			if p.UUID == id {
-				for _, c := range m.org.Board.Columns {
-					if c.ID == p.ColumnID {
-						return c.ID
-					}
-				}
-			}
-		}
-	}
-	return "unsectioned"
+	return m.viewIdx().columnID(t)
 }
 func (m model) grouped(ts []Task, col string) []Task {
-	var out []Task
-	for _, t := range ts {
-		if m.columnID(t) == col {
-			out = append(out, t)
-		}
-	}
-	order := map[string]int{}
-	for i, id := range m.org.Board.Order {
-		order[id] = i
-	}
-	rank := func(t Task) int {
-		if v, ok := order[t.UUID]; ok {
-			return v
-		}
-		if v, ok := order[t.Parent]; ok {
-			return v
-		}
-		return len(order) + 1
-	}
-	sort.SliceStable(out, func(i, j int) bool {
-		if rank(out[i]) != rank(out[j]) {
-			return rank(out[i]) < rank(out[j])
-		}
-		if m.view == "completed" {
-			return out[i].End > out[j].End
-		}
-		return out[i].Description < out[j].Description
-	})
-	return out
+	items, _, _ := m.viewIdx().groupedTasks(m, ts, col)
+	return items
 }
 func (m model) rows() []row {
-	var out []row
-	switch m.view {
-	case "projects", "later":
-		for _, p := range m.org.Projects {
-			if m.view == "later" {
-				covered := false
-				for _, a := range m.activeProjects() {
-					if inProject(p.Name, a.Name) {
-						covered = true
-					}
-				}
-				if covered {
-					continue
-				}
-			}
-			if strings.Contains(
-				strings.ToLower(p.Name+" "+p.Description),
-				strings.ToLower(m.query),
-			) {
-				status := p.Status
-				if status == "" {
-					status = "later"
-				}
-				out = append(
-					out,
-					row{
-						kind:     "project",
-						id:       p.Name,
-						title:    p.Name,
-						subtitle: status + " · " + p.Outcome,
-						project:  p,
-					},
-				)
-			}
-		}
-		return out
-	case "filters", "tags":
-		items := m.org.Filters
-		kind := "filter"
-		if m.view == "tags" {
-			items = m.org.Tags
-			kind = "tag"
-		}
-		for _, i := range items {
-			if strings.Contains(
-				strings.ToLower(i.Name+" "+i.Expression),
-				strings.ToLower(m.query),
-			) {
-				star := ""
-				if i.Favorite {
-					star = "★ "
-				}
-				out = append(
-					out,
-					row{
-						kind:     kind,
-						id:       i.ID,
-						title:    star + i.Name,
-						subtitle: i.Expression,
-						item:     i,
-					},
-				)
-			}
-		}
-		return out
-	case "columns":
-		for _, c := range m.org.Board.Columns {
-			out = append(
-				out,
-				row{
-					kind:     "column",
-					id:       c.ID,
-					title:    c.Name,
-					subtitle: "列表分组 ↔ 看板栏目",
-					column:   c,
-				},
-			)
-		}
-		return out
-	case "recovery", "backup":
-		return m.extra
-	}
-	ts := m.visible()
-	cols := m.columns()
-	if m.board {
-		at := min(m.boardColumn, len(cols)-1)
-		cols = cols[at : at+1]
-	}
-	for _, c := range cols {
-		items := m.grouped(ts, c.ID)
-		out = append(
-			out,
-			row{
-				kind:   "group",
-				id:     c.ID,
-				title:  c.Name,
-				count:  len(items),
-				column: c,
-			},
-		)
-		if m.collapsed[c.ID] && !m.board {
-			continue
-		}
-		for _, t := range items {
-			out = append(
-				out,
-				row{
-					kind:     "task",
-					id:       t.UUID,
-					title:    t.Description,
-					subtitle: t.Project,
-					task:     t,
-				},
-			)
-		}
-	}
-	return out
+	return m.viewIdx().rows(m, time.Now())
 }
 func (m model) current() row {
 	rs := m.rows()
@@ -498,17 +312,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
-	case tick:
-		nextTick := tea.Tick(
-			time.Second,
-			func(t time.Time) tea.Msg { return tick(t) },
-		)
+	case tickMsg:
+		if msg.gen != m.tickGen {
+			return m, nil
+		}
+		next := m.nextTick()
 		if m.ready && !m.busy && !m.blocked && m.mode == "" && !m.navFocus &&
 			time.Since(m.lastRefresh) > 30*time.Second {
 			m.busy = true
-			return m, tea.Batch(nextTick, m.refresh())
+			return m, tea.Batch(next, m.refresh())
 		}
-		return m, nextTick
+		return m, next
 	case loaded:
 		m.busy = false
 		if msg.err != nil {
@@ -516,9 +330,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.message = msg.err.Error()
 			return m, nil
 		}
+		wasRunning := m.idx.anyRunning
 		id := m.current().id
 		m.tasks = msg.tasks
 		m.org = msg.org
+		m.idx = buildViewIndex(m.tasks, m.org)
 		m.ready = true
 		m.lastRefresh = time.Now()
 		m.blocked = false
@@ -533,6 +349,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.mode == "form" {
 			m.message = "已刷新；草稿保留。请关闭后重新打开表单以使用新版本。"
 		}
+		var tickCmd tea.Cmd
+		if m.idx.anyRunning != wasRunning {
+			m.tickGen++
+			tickCmd = m.nextTick()
+		}
 		if (strings.HasPrefix(m.view, "filter:") || m.view == "expression") &&
 			m.mode == "" {
 			if strings.HasPrefix(m.view, "filter:") {
@@ -543,12 +364,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			m.busy = true
-			return m, m.read(
-				"filter",
-				"/api/tasks?filter="+url.QueryEscape(m.expression),
+			return m, tea.Batch(
+				tickCmd,
+				m.read(
+					"filter",
+					"/api/tasks?filter="+url.QueryEscape(m.expression),
+				),
 			)
 		}
-		return m, nil
+		return m, tickCmd
 	case saved:
 		m.busy = false
 		if msg.err != nil {
@@ -657,9 +481,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if k == "down" || k == "j" {
 				m.navCursor = min(len(m.nav())-1, m.navCursor+1)
 			}
+			if k == "right" || k == "l" {
+				m.navFocus = false
+			}
 			if k == "enter" {
 				return m, m.navigate(m.nav()[m.navCursor].id)
 			}
+			return m, nil
+		}
+		if (k == "left" || k == "h") && !m.board {
+			m.navFocus = true
 			return m, nil
 		}
 		if k == "b" {
@@ -723,10 +554,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		actions := map[string]string{
 			"a": "task.new",
 			"A": "quick",
+			"S": "task.subtask",
+			"D": "task.description",
 			"e": "edit",
 			"x": "task.toggle",
 			"s": "task.timer",
 			"m": "task.move",
+			"!": "task.priority",
+			"@": "task.due",
 			"d": "delete",
 			"u": "undo",
 			"p": "focus.choose",

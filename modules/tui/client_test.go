@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -347,5 +348,141 @@ func TestEditingOccurrenceDoesNotRewriteSeries(t *testing.T) {
 	values[5] = "weekly"
 	if _, err = m.taskInput(values); err == nil {
 		t.Fatal("series change should use series editor")
+	}
+}
+
+func TestSubtasksNestingOrphanPromotionAndActiveView(t *testing.T) {
+	m := sampleModel()
+	m.org.Subtasks = map[string]string{
+		"sub1": "a",
+		"sub2": "a",
+	}
+	m.org.Descriptions = map[string]string{
+		"a": "主要发布检查清单",
+	}
+	nowStr := time.Now().UTC().Format("20060102T150405Z")
+	m.tasks = append(
+		m.tasks,
+		Task{UUID: "sub1", Description: "子任务一", Project: "Work", Status: "completed", Priority: "M"},
+		Task{UUID: "sub2", Description: "子任务二", Project: "Work", Status: "pending", Priority: "H", Start: nowStr},
+	)
+	m.org.Board.Placements = append(m.org.Board.Placements, Placement{UUID: "a", ColumnID: "todo"})
+
+	// Both subtasks inherit "todo" column and nest beneath "a".
+	if got := m.columnID(m.tasks[len(m.tasks)-1]); got != "todo" {
+		t.Fatalf("expected subtask to inherit todo column, got %q", got)
+	}
+	rs := m.rows()
+	var sub2Row row
+	for _, r := range rs {
+		if r.id == "sub2" {
+			sub2Row = r
+		}
+	}
+	if sub2Row.depth != 1 || !sub2Row.lastChild {
+		t.Fatalf("expected sub2 nested as last child (depth=1, lastChild=true), got %+v", sub2Row)
+	}
+	if st := m.viewIdx().subStats["a"]; st.done != 1 || st.total != 2 {
+		t.Fatalf("unexpected subtask stats: %+v", st)
+	}
+
+	// Searching only for sub2 promotes orphaned child to top-level depth 0 with parentTitle.
+	m.query = "子任务二"
+	var promoted row
+	for _, r := range m.rows() {
+		if r.id == "sub2" {
+			promoted = r
+		}
+	}
+	if promoted.depth != 0 || promoted.parentTitle != "未分组任务" {
+		t.Fatalf("expected orphaned subtask promoted with parentTitle, got %+v", promoted)
+	}
+
+	// Active view only shows running task sub2.
+	m.query = ""
+	m.view = "active"
+	vis := m.visible()
+	if len(vis) != 1 || vis[0].UUID != "sub2" {
+		t.Fatalf("expected only active task sub2, got %+v", vis)
+	}
+
+	// Responsive sizes remain bounded with nested subtasks, descriptions, priorities, and timer badges.
+	m.view = "all"
+	for _, size := range [][2]int{{50, 20}, {80, 24}, {120, 36}, {160, 40}} {
+		m.width = size[0]
+		m.height = size[1]
+		view := m.View()
+		if lipgloss.Height(view) > size[1] {
+			t.Fatalf("%v exceeds height: %d", size, lipgloss.Height(view))
+		}
+		for _, line := range strings.Split(view, "\n") {
+			if lipgloss.Width(line) > size[0] {
+				t.Fatalf("%v exceeds width: %d", size, lipgloss.Width(line))
+			}
+		}
+	}
+}
+
+func TestSubtaskDescriptionQuickPriorityAndDueSubmit(t *testing.T) {
+	c, log := validClient(t)
+	m := sampleModel()
+	m.client = c
+	m.cursor = 1 // task "a"
+	if m.current().id != "a" {
+		t.Fatalf("expected cursor on task a, got %+v", m.current())
+	}
+
+	// 1. Add subtask sends parentUuid + taskDescription atomically.
+	m.action("task.subtask")
+	m.fields[0].set("验证部署步骤")
+	m.fields[8].set("检查 nginx 与 systemd 状态")
+	cmd, err := m.submit()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd()
+	p := readPayload(t, log)
+	data := p["data"].(map[string]any)
+	if data["parentUuid"] != "a" || data["taskDescription"] != "检查 nginx 与 systemd 状态" {
+		t.Fatalf("unexpected subtask payload: %+v", data)
+	}
+	m.mode = ""
+
+	// 2. Standalone task.description edit sends org change kind=description.
+	m.action("task.description")
+	m.fields[0].set("更新后的详细说明")
+	cmd, err = m.submit()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd()
+	p = readPayload(t, log)
+	data = p["data"].(map[string]any)
+	if data["kind"] != "description" || data["action"] != "set" || data["uuid"] != "a" {
+		t.Fatalf("unexpected description payload: %+v", data)
+	}
+	m.mode = ""
+
+	// 3. Quick priority & undo tracking.
+	cmd = m.action("setprio:H")
+	if cmd == nil {
+		t.Fatal("expected setprio command")
+	}
+	cmd()
+	p = readPayload(t, log)
+	taskData := p["data"].(map[string]any)["task"].(map[string]any)
+	if taskData["priority"] != "H" {
+		t.Fatalf("expected priority H, got %+v", taskData)
+	}
+	if m.undo == nil {
+		t.Fatal("expected undo recorded for quick priority")
+	}
+
+	// 4. Quick due preset.
+	if _, ok := quickDuePreset("today", time.Now()); !ok {
+		t.Fatal("expected today preset to resolve")
+	}
+	if cleared, ok := quickDuePreset("clear", time.Now()); !ok || cleared != "" {
+		t.Fatalf("expected clear preset empty, got %q %v", cleared, ok)
 	}
 }

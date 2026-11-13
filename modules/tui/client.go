@@ -10,7 +10,9 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -63,14 +65,17 @@ type Placement struct {
 	ColumnID string `json:"columnId"`
 }
 type Organization struct {
-	Filters       []SavedItem    `json:"filters"`
-	Tags          []SavedItem    `json:"tags"`
-	ProjectCounts map[string]int `json:"projectCounts"`
+	Filters       []SavedItem       `json:"filters"`
+	Tags          []SavedItem       `json:"tags"`
+	ProjectCounts map[string]int    `json:"projectCounts"`
+	Subtasks      map[string]string `json:"subtasks"`
+	Descriptions  map[string]string `json:"descriptions"`
 	Energy        *struct {
-		Remaining           float64 `json:"remaining"`
-		Max                 float64 `json:"max"`
-		ActiveCount         int     `json:"activeCount"`
-		TrackedSecondsToday float64 `json:"trackedSecondsToday"`
+		Remaining           float64            `json:"remaining"`
+		Max                 float64            `json:"max"`
+		ActiveCount         int                `json:"activeCount"`
+		TrackedSecondsToday float64            `json:"trackedSecondsToday"`
+		TaskSeconds         map[string]float64 `json:"taskSeconds"`
 	} `json:"energy"`
 	Timing *struct {
 		Available bool   `json:"available"`
@@ -123,6 +128,29 @@ func (c Client) run(command string, write bool) ([]byte, error) {
 	return c.runInput(command, write, nil)
 }
 
+func sshControlArgs() []string {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return nil
+	}
+	dir := filepath.Join(home, ".cache", "aster", "ssh")
+	// Keep Unix socket path safely below the ~104-byte macOS sun_path limit.
+	if len(dir)+42 > 100 {
+		return nil
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return nil
+	}
+	return []string{
+		"-oControlMaster=auto",
+		"-oControlPath=" + filepath.Join(dir, "%C"),
+		"-oControlPersist=120",
+	}
+}
+
 func (c Client) runInput(
 	command string,
 	write bool,
@@ -130,14 +158,13 @@ func (c Client) runInput(
 ) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(
-		ctx,
-		"ssh",
+	args := []string{
 		"-oBatchMode=yes",
 		"-oConnectTimeout=8",
-		c.Host,
-		command,
-	)
+	}
+	args = append(args, sshControlArgs()...)
+	args = append(args, c.Host, command)
+	cmd := exec.CommandContext(ctx, "ssh", args...)
 	cmd.Stdin = bytes.NewReader(input)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
