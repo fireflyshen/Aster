@@ -3,8 +3,17 @@ import {
   useDndMonitor,
   type DragStartEvent,
   type DragMoveEvent,
+  type DropAnimation,
 } from "@dnd-kit/core";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import type { Task } from "@shared/tasks";
 import {
@@ -12,6 +21,8 @@ import {
   TASK_INDENT,
   type DragSection,
   type DropPosition,
+  type DropPreview,
+  type DragBounds,
 } from "./drag-model";
 
 type Session = {
@@ -23,6 +34,62 @@ type Session = {
   sections: DragSection[];
   dirty: boolean;
   keyboard: boolean;
+  target?: DropPreview;
+  bounds?: DragBounds;
+};
+
+type Preview = {
+  content: HTMLElement;
+  width: number;
+  originX: number;
+  originY: number;
+};
+
+// A one-time visual snapshot retains the real checkbox, labels and dates without
+// mounting a second TaskRow (and all of its editors/popovers) while dragging.
+function TaskDragPreview({
+  preview,
+  layout,
+}: {
+  preview: Preview;
+  layout: "list" | "board";
+}) {
+  const content = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    content.current?.replaceChildren(preview.content);
+  }, [preview]);
+  return (
+    <div
+      aria-hidden="true"
+      data-drag-preview
+      data-layout={layout}
+      className="task-drag-preview board-card"
+      style={
+        {
+          width: preview.width,
+          "--drag-origin-x": `${preview.originX}px`,
+          "--drag-origin-y": `${preview.originY}px`,
+        } as CSSProperties
+      }
+    >
+      <div ref={content} className="task-drag-preview-content" />
+    </div>
+  );
+}
+
+const dropAnimation: DropAnimation = {
+  duration: 180,
+  easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+  sideEffects({ active, dragOverlay }) {
+    const opacity = active.node.style.opacity;
+    active.node.style.opacity = "0";
+    dragOverlay.node
+      .querySelector<HTMLElement>("[data-drag-preview]")
+      ?.setAttribute("data-settling", "true");
+    return () => {
+      active.node.style.opacity = opacity;
+    };
+  },
 };
 
 /** Only this small overlay renders on pickup. Pointer motion never renders rows. */
@@ -41,11 +108,18 @@ export function TaskDragLayer({
   const frame = useRef(0);
   const paintRef = useRef<() => void>(() => {});
   const indicator = useRef<HTMLDivElement>(null);
-  const [preview, setPreview] = useState<{ task: Task; width: number }>();
+  const [preview, setPreview] = useState<Preview>();
 
   function measure(current: Session) {
     const root = area.current;
     if (!root) return;
+    const areaRect = root.getBoundingClientRect();
+    current.bounds = {
+      left: areaRect.left,
+      right: areaRect.right,
+      top: areaRect.top,
+      bottom: areaRect.bottom,
+    };
     const sections: DragSection[] = [];
     for (const section of root.querySelectorAll<HTMLElement>(
       "[data-board-column]",
@@ -107,6 +181,8 @@ export function TaskDragLayer({
       layout,
       current.depth + (current.point.x - current.origin.x) / TASK_INDENT,
       current.task.project || "",
+      current.target,
+      current.bounds,
     );
   }
   function paint() {
@@ -115,6 +191,7 @@ export function TaskDragLayer({
     const node = indicator.current;
     if (!current || !node) return;
     const target = destination(current);
+    current.target = target;
     node.hidden = !target;
     if (!target) return;
     node.style.transform = `translate3d(${target.left}px, ${target.top}px, 0)`;
@@ -123,10 +200,10 @@ export function TaskDragLayer({
     node.dataset.column = target.columnId;
     node.dataset.before = target.beforeUuid || "";
   }
-  function schedule() {
+  const schedule = useCallback(() => {
     if (!frame.current)
       frame.current = requestAnimationFrame(() => paintRef.current());
-  }
+  }, []);
   paintRef.current = paint;
   function clear() {
     cancelAnimationFrame(frame.current);
@@ -164,7 +241,7 @@ export function TaskDragLayer({
       cancelAnimationFrame(frame.current);
       frame.current = 0;
     };
-  }, [area]);
+  }, [area, schedule]);
   useDndMonitor({
     onDragStart(event: DragStartEvent) {
       const task = tasks.get(String(event.active.id));
@@ -172,9 +249,12 @@ export function TaskDragLayer({
         `[data-task-card="${event.active.id}"]`,
       );
       if (!task || !source) return;
+      const surface =
+        source.querySelector<HTMLElement>("[data-task-surface]") ?? source;
       const rect =
-        source.querySelector("[data-task-surface]")?.getBoundingClientRect() ??
-        source.getBoundingClientRect();
+        layout === "list"
+          ? surface.getBoundingClientRect()
+          : source.getBoundingClientRect();
       const keyboard = !("clientX" in event.activatorEvent);
       const origin = keyboard
         ? { x: rect.left, y: rect.top + rect.height / 2 }
@@ -199,7 +279,25 @@ export function TaskDragLayer({
         keyboard,
       };
       if (area.current) area.current.dataset.dragActive = "true";
-      setPreview({ task, width: rect.width });
+      const content = surface.cloneNode(true) as HTMLElement;
+      content
+        .querySelectorAll(".task-row-gutter, [data-row-actions]")
+        .forEach((node) => node.remove());
+      for (const node of [
+        content,
+        ...content.querySelectorAll<HTMLElement>("*"),
+      ]) {
+        node.removeAttribute("id");
+        node.removeAttribute("aria-describedby");
+        if (node.matches("button, a, input, [tabindex]"))
+          node.setAttribute("tabindex", "-1");
+      }
+      setPreview({
+        content,
+        width: rect.width,
+        originX: origin.x - rect.left,
+        originY: origin.y - rect.top,
+      });
       schedule();
     },
     onDragMove(event: DragMoveEvent) {
@@ -231,20 +329,18 @@ export function TaskDragLayer({
         />,
         document.body,
       )}
-      <DragOverlay dropAnimation={null}>
-        {preview && (
-          <div
-            data-drag-preview
-            className="task-drag-preview"
-            style={{ width: preview.width }}
-          >
-            <span className="mt-0.5 size-[18px] shrink-0 rounded-full border border-muted-foreground/60" />
-            <span className="min-w-0 whitespace-normal break-words text-sm">
-              {preview.task.description}
-            </span>
-          </div>
-        )}
-      </DragOverlay>
+      {createPortal(
+        <DragOverlay
+          dropAnimation={
+            window.matchMedia("(prefers-reduced-motion: reduce)").matches
+              ? null
+              : dropAnimation
+          }
+        >
+          {preview && <TaskDragPreview preview={preview} layout={layout} />}
+        </DragOverlay>,
+        document.body,
+      )}
     </>
   );
 }

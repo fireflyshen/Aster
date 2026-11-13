@@ -100,3 +100,75 @@ test("outside drop cancels instead of snapping to the last section", () => {
     undefined,
   );
 });
+
+test("row midpoint jitter keeps the insertion slot until the pointer clearly crosses it", () => {
+  let drop = projectDrop([section], { x: 100, y: 190 }, "list", 0, "")!;
+  for (const y of [199, 201, 198, 203, 200]) {
+    drop = projectDrop([section], { x: 100, y }, "list", 0, "", drop)!;
+    assert.equal(drop.beforeUuid, "next");
+    assert.equal(drop.top, 180);
+  }
+  drop = projectDrop([section], { x: 100, y: 212 }, "list", 0, "", drop)!;
+  assert.equal(drop.beforeUuid, null);
+  drop = projectDrop([section], { x: 100, y: 199 }, "list", 0, "", drop)!;
+  assert.equal(drop.beforeUuid, null);
+  drop = projectDrop([section], { x: 100, y: 189 }, "list", 0, "", drop)!;
+  assert.equal(drop.beforeUuid, "next");
+});
+
+test("the gap between sections has a stable target in either direction", () => {
+  const next = {
+    ...section,
+    columnId: "b",
+    top: 330,
+    bottom: 420,
+    contentTop: 370,
+    rows: [],
+  };
+  let drop = projectDrop([section, next], { x: 100, y: 310 }, "list", 0, "")!;
+  for (const y of [314, 316, 313, 318]) {
+    drop = projectDrop([section, next], { x: 100, y }, "list", 0, "", drop)!;
+    assert.equal(drop.columnId, "a");
+  }
+  drop = projectDrop([section, next], { x: 100, y: 335 }, "list", 0, "", drop)!;
+  assert.equal(drop.columnId, "b");
+  drop = projectDrop([section, next], { x: 100, y: 314 }, "list", 0, "", drop)!;
+  assert.equal(drop.columnId, "b");
+});
+
+test("horizontal jitter does not accidentally change a task's parent", () => {
+  let drop = projectDrop([section], { x: 128, y: 135 }, "list", 1, "")!;
+  for (const depth of [0.49, 0.55, 0.4, 1.6]) {
+    drop = projectDrop([section], { x: 128, y: 135 }, "list", depth, "", drop)!;
+    assert.equal(drop.parentUuid, "parent");
+  }
+  drop = projectDrop([section], { x: 100, y: 135 }, "list", 0, "", drop)!;
+  assert.equal(drop.parentUuid, null);
+});
+
+test("visual groups sharing a stored column keep independent stable targets", () => {
+  const next = { ...section, top: 330, bottom: 420, contentTop: 370, rows: [] };
+  let drop = projectDrop([section, next], { x: 100, y: 340 }, "list", 0, "")!;
+  drop = projectDrop([section, next], { x: 100, y: 314 }, "list", 0, "", drop)!;
+  assert.equal(drop.sectionIndex, 1);
+  assert.equal(drop.top, 370);
+});
+
+test("the add-section/footer area is a valid append target, not a disappearing marker", () => {
+  const bounds = { left: 100, right: 600, top: 50, bottom: 440 };
+  const drop = projectDrop(
+    [section],
+    { x: 120, y: 400 },
+    "list",
+    0,
+    "",
+    undefined,
+    bounds,
+  )!;
+  assert.equal(drop.columnId, "a");
+  assert.equal(drop.beforeUuid, null);
+  assert.equal(
+    projectDrop([section], { x: 900, y: 400 }, "list", 0, "", drop, bounds),
+    undefined,
+  );
+});

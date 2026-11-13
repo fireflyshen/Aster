@@ -386,8 +386,12 @@ export function TaskRow({
           }}
           onCancel={() => setEditingInline(false)}
         />
-        {variant === "list" && subtasksExpanded && subtasks.length > 0 && (
-          <div className="task-subtree">
+        {subtasksExpanded && subtasks.length > 0 && (
+          <div
+            className="task-subtree"
+            data-subtree-variant={variant}
+            data-no-drag={variant === "card" ? "" : undefined}
+          >
             {subtasks.map((child) => (
               <div key={child.uuid}>{renderSubtask?.(child)}</div>
             ))}
@@ -589,16 +593,14 @@ export function TaskRow({
                     <button
                       type="button"
                       data-no-drag
+                      aria-expanded={subtasksExpanded}
+                      aria-label={`${subtasksExpanded ? "收起" : "展开"}子任务: ${task.description}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (variant === "list") {
-                          setSubtasksExpanded(!subtasksExpanded);
-                        } else {
-                          onEdit();
-                        }
+                        setSubtasksExpanded(!subtasksExpanded);
                       }}
                       title={`${completedSubtasks}/${totalSubtasks} 个子任务`}
-                      className="inline-flex shrink-0 items-center gap-1 h-5 px-1 rounded-[4px] text-[12px] leading-none text-muted-foreground/80 hover:text-foreground hover:bg-white/[0.08] transition-colors cursor-pointer select-none whitespace-nowrap"
+                      className="inline-flex shrink-0 items-center gap-1 h-4 rounded-[4px] text-[12px] leading-none text-muted-foreground/80 hover:text-foreground hover:bg-muted transition-colors cursor-pointer select-none whitespace-nowrap"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -620,7 +622,10 @@ export function TaskRow({
                         height="14"
                         viewBox="0 0 16 16"
                         fill="none"
-                        className="size-3 shrink-0 opacity-60"
+                        className={cn(
+                          "size-3 shrink-0 opacity-60 transition-transform duration-150",
+                          subtasksExpanded && "rotate-90",
+                        )}
                         aria-hidden="true"
                       >
                         <path
@@ -666,6 +671,7 @@ export function TaskRow({
                   {task.due &&
                     (!checked && onDueChange ? (
                       <div
+                        data-task-meta="due"
                         data-no-drag
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex shrink-0 items-center"
@@ -715,6 +721,7 @@ export function TaskRow({
                       </div>
                     ) : (
                       <span
+                        data-task-meta="due"
                         className={cn(
                           "inline-flex shrink-0 items-center gap-1 text-[12px] leading-none transition-colors whitespace-nowrap",
                           checked && "text-muted-foreground",
@@ -1275,10 +1282,13 @@ export function TaskRow({
             )}
           </div>
         </div>
-        {variant === "list" &&
-          (totalSubtasks > 0 || isAddingSubtask) &&
+        {(totalSubtasks > 0 || isAddingSubtask) &&
           subtasksExpanded && (
-            <div className="task-subtree">
+            <div
+              className="task-subtree"
+              data-subtree-variant={variant}
+              data-no-drag={variant === "card" ? "" : undefined}
+            >
               {subtasks.map((child) => (
                 <div key={child.uuid} className="relative">
                   {renderSubtask ? renderSubtask(child) : null}

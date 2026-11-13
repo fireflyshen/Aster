@@ -234,7 +234,7 @@ function InlineColumnCreator({
               setEditing(true);
               requestAnimationFrame(() => inputRef.current?.focus());
             }}
-            className="h-10 w-[260px] justify-start gap-2 self-start rounded-lg border border-dashed border-border/80 px-3 text-sm font-normal text-muted-foreground hover:border-ring/40 hover:bg-muted/40 hover:text-foreground"
+            className="h-9 w-full justify-start gap-2 self-start rounded-md px-3 text-sm font-normal text-muted-foreground hover:bg-muted/40 hover:text-foreground"
           >
             <Plus className="size-4 text-[#de4c4a]" strokeWidth={1.75} />
             添加版块
@@ -271,7 +271,7 @@ function InlineColumnCreator({
       className={
         layout === "list"
           ? "my-2 flex max-w-sm items-center gap-1.5 rounded-xl border border-ring/40 bg-card p-2 shadow-sm"
-          : "flex h-10 w-[260px] items-center gap-1.5 self-start rounded-lg border border-ring/40 bg-card px-3"
+          : "flex h-9 w-full items-center gap-1.5 self-start rounded-md border border-ring/40 bg-card px-3"
       }
     >
       <input
@@ -390,7 +390,7 @@ function BoardCard({
           ? isSubtask
             ? "flex min-w-0 items-start shadow-none"
             : "-mx-2.5 flex min-w-0 items-start px-2.5 shadow-none md:-mx-3 md:px-3"
-          : "cursor-grab rounded-[10px] border border-border/70 bg-card px-2.5 py-2 shadow-[0_1px_2px_rgba(0,0,0,0.2)] mb-2 transition-[box-shadow,opacity,border-color,background-color] duration-150 hover:border-foreground/20 hover:shadow-[0_2px_4px_rgba(0,0,0,0.25)] active:cursor-grabbing",
+          : "task-board-card cursor-grab bg-card transition-[box-shadow,opacity,border-color] duration-150 active:cursor-grabbing",
         isDragging && "opacity-25",
       )}
     >
@@ -440,15 +440,17 @@ function BoardColumn({
         "group/column min-w-0 snap-start rounded-lg transition-colors",
         compact
           ? "pb-0"
-          : "w-[260px] min-w-[260px] flex flex-col min-h-[calc(100vh-220px)] pb-4",
+          : "flex w-full flex-col min-h-[calc(100vh-220px)] pb-4",
       )}
     >
       {showHeader && (
         <div
           data-list-section={compact}
           className={cn(
-            "mb-3 flex h-11 items-center gap-1.5 md:h-10",
-            compact && "mb-0.5 border-b border-border/80",
+            "flex items-center gap-2",
+            compact
+              ? "mb-0.5 h-11 border-b border-border/80 md:h-10"
+              : "mb-2 h-9 px-0.5",
           )}
         >
           {compact ? (
@@ -543,7 +545,7 @@ function BoardColumn({
               <h2 className="min-w-0 truncate text-sm font-semibold">
                 {columnDisplayName(column)}
               </h2>
-              <span className="text-xs font-normal tabular-nums text-muted-foreground/75 ml-0.5">
+              <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
                 {count}
               </span>
               {column.id !== UNSECTIONED && (
@@ -843,7 +845,7 @@ export function TaskBoard({
             className={
               layout === "list"
                 ? "space-y-4"
-                : "grid grid-flow-col auto-cols-[260px] gap-4 items-start"
+                : "task-board-columns grid grid-flow-col items-start"
             }
           >
             {todaySplit && layout === "list"

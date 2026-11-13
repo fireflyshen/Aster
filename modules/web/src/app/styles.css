@@ -262,12 +262,16 @@
 /* Acknowledgement is immediate; removal waits for a confirmed server response. */
 .task-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 1fr;
   opacity: 1;
   transition:
     grid-template-rows 220ms cubic-bezier(0.4, 0, 0.2, 1),
     opacity 180ms ease,
     transform 180ms ease;
+}
+.task-row > div {
+  min-width: 0;
 }
 .task-row[data-completion="leaving"] {
   grid-template-rows: 0fr;
@@ -367,6 +371,83 @@
 }
 .board-card [data-task-drag-surface]:active {
   cursor: grabbing;
+}
+.board-card:not([data-compact="true"]) {
+  min-width: 0;
+  max-width: 100%;
+}
+.task-board-columns {
+  grid-auto-columns: min(288px, calc(100vw - 40px));
+  column-gap: 20px;
+}
+.task-board-card {
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 12%, var(--card));
+  border-radius: 8px;
+  box-shadow: 0 1px 2px #0000000a;
+}
+.task-board-card:hover {
+  border-color: color-mix(in srgb, var(--foreground) 24%, var(--card));
+  box-shadow: 0 2px 5px #0000000d;
+}
+.dark .task-board-card {
+  box-shadow: 0 1px 2px #00000026;
+}
+[data-task-surface][data-variant="card"] {
+  min-width: 0;
+  max-width: 100%;
+}
+[data-task-surface][data-variant="card"] > div {
+  position: relative;
+  gap: 8px;
+}
+[data-variant="card"] .task-row-check {
+  margin-top: 0;
+}
+[data-variant="card"] [data-task-drag-surface] {
+  min-height: 20px;
+  padding-block: 0;
+}
+[data-variant="card"] [data-task-title] {
+  overflow-wrap: anywhere;
+}
+[data-variant="card"] [data-task-description-preview] {
+  overflow-wrap: anywhere;
+  line-height: 18px;
+}
+[data-variant="card"] [data-task-details] {
+  margin-top: 6px;
+  gap: 6px 8px;
+  line-height: 16px;
+}
+[data-variant="card"] [data-task-details] > * {
+  min-width: 0;
+  max-width: 100%;
+}
+[data-variant="card"] [data-task-meta="due"] {
+  order: -1;
+}
+[data-variant="card"] [data-row-actions] {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  z-index: 1;
+  border-radius: 4px;
+  background: var(--card);
+  box-shadow: -4px 0 6px var(--card);
+}
+.task-subtree[data-subtree-variant="card"] {
+  margin: 10px 0 0 28px;
+  border-top: 1px solid var(--border);
+}
+.task-subtree[data-subtree-variant="card"] > div {
+  padding-top: 10px;
+}
+.task-board-columns .task-add-button {
+  margin-top: 0;
+  padding-inline: 10px;
+  height: 36px;
+  font-size: 13px;
 }
 
 /* Hover belongs to the entire management row, never only its title button. */
@@ -506,6 +587,10 @@
   background: #dc4c3e;
   pointer-events: none;
   will-change: transform;
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 1px 6px #dc4c3e30;
 }
 .task-drop-indicator::before {
   content: "";
@@ -519,21 +604,76 @@
   background: var(--background);
 }
 .task-drag-preview {
-  display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  --drag-tilt: 1.25deg;
+  --drag-scale: 1.012;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 16%, var(--border));
+  border-radius: 10px;
   background: var(--card);
   color: var(--foreground);
-  box-shadow: var(--floating-shadow);
+  box-shadow:
+    0 16px 36px #00000026,
+    0 3px 8px #00000012;
   cursor: grabbing;
   pointer-events: none;
   user-select: none;
+  transform-origin: var(--drag-origin-x, 50%) var(--drag-origin-y, 20px);
+  transform: rotate(var(--drag-tilt)) scale(var(--drag-scale));
+  animation: task-drag-lift 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: transform;
+}
+.task-drag-preview[data-layout="board"] {
+  --drag-tilt: 2.5deg;
+  --drag-scale: 1.025;
+  padding: 12px;
+  border-radius: 8px;
+}
+.dark .task-drag-preview {
+  box-shadow:
+    0 18px 40px #00000070,
+    0 0 0 1px #ffffff0a;
+}
+.task-drag-preview-content {
+  min-width: 0;
+}
+.task-drag-preview [data-task-surface] {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+.task-drag-preview [data-task-surface]::after {
+  display: none;
+}
+.task-drag-preview [data-settling],
+.task-drag-preview[data-settling] {
+  animation: none;
+  transform: none;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease;
+  box-shadow: none;
+}
+@keyframes task-drag-lift {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+  to {
+    transform: rotate(var(--drag-tilt)) scale(var(--drag-scale));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-drag-preview {
+    animation: none;
+    transform: none;
+    transition: none;
+  }
 }
 [data-board-scroll][data-drag-active] {
   scroll-snap-type: none;
   user-select: none;
+}
+[data-board-scroll][data-drag-active] .board-card {
+  animation: none;
 }
 [data-drop-content] {
   min-height: 28px;

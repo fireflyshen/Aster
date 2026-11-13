@@ -388,11 +388,7 @@ export function TodoistTaskComposer({
           setEditing(true);
           requestAnimationFrame(() => titleRef.current?.focus());
         }}
-        className={
-          compact
-            ? "task-add-button group/add"
-            : "mt-1 flex h-9 w-full items-center justify-start gap-2 rounded-lg px-2.5 text-xs font-normal text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground has-[>svg]:px-2.5"
-        }
+        className="task-add-button group/add text-muted-foreground hover:text-foreground"
       >
         <Plus
           className={cn(
