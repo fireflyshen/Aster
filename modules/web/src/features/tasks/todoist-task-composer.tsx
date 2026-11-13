@@ -8,6 +8,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { DatePicker } from "@/features/tasks/date-picker";
 import { LabelsPicker } from "@/features/tasks/labels-picker";
 import { ProjectPicker } from "@/features/tasks/project-picker";
+import { PRIORITIES, priorityOption } from "@/features/tasks/task-constants";
+import { isoDue, toDueDay } from "@/features/tasks/task-date";
 import {
   parseQuickTask,
   taskDate,
@@ -16,7 +18,6 @@ import {
 import type { SavedTag } from "@core/workspace/organization";
 import type { TaskInput } from "@shared/tasks";
 import { cn } from "cn";
-import { format } from "date-fns";
 import {
   CalendarDays,
   Check,
@@ -30,64 +31,6 @@ import {
 } from "lucide-react";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 
-const isoDate = (value: string) =>
-  value
-    .replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z$/, "$1-$2-$3T$4:$5:00Z")
-    .replace(
-      /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
-      "$1-$2-$3T$4:$5:$6Z",
-    );
-
-const toDayString = (raw: string | undefined): string => {
-  if (!raw) return "";
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  try {
-    return format(new Date(isoDate(raw)), "yyyy-MM-dd");
-  } catch {
-    return "";
-  }
-};
-
-const PRIORITIES: {
-  value: "H" | "M" | "L" | "";
-  label: string;
-  short: string;
-  iconClass: string;
-  chipClass: string;
-}[] = [
-  {
-    value: "H",
-    label: "优先级 1",
-    short: "P1",
-    iconClass: "fill-[#d1453b]/20 text-[#d1453b]",
-    chipClass:
-      "border-[#d1453b]/40 bg-[#d1453b]/10 text-[#d1453b] hover:bg-[#d1453b]/20",
-  },
-  {
-    value: "M",
-    label: "优先级 2",
-    short: "P2",
-    iconClass: "fill-[#eb8909]/20 text-[#eb8909]",
-    chipClass:
-      "border-[#eb8909]/40 bg-[#eb8909]/10 text-[#eb8909] hover:bg-[#eb8909]/20",
-  },
-  {
-    value: "L",
-    label: "优先级 3",
-    short: "P3",
-    iconClass: "fill-[#246fe0]/20 text-[#246fe0]",
-    chipClass:
-      "border-[#246fe0]/40 bg-[#246fe0]/10 text-[#246fe0] hover:bg-[#246fe0]/20",
-  },
-  {
-    value: "",
-    label: "优先级 4",
-    short: "优先级",
-    iconClass: "text-[#888888]",
-    chipClass: "border-input text-muted-foreground",
-  },
-];
-
 export function TodoistTaskComposer({
   mode = "add",
   compact = true,
@@ -97,7 +40,6 @@ export function TodoistTaskComposer({
   defaultProject = "",
   defaultDue = "",
   initialValue,
-  initialNotePreview = "",
   initialDescription = "",
   projects = [],
   availableLabels = [],
@@ -117,7 +59,9 @@ export function TodoistTaskComposer({
   initialDescription?: string;
   projects?: string[];
   availableLabels?: SavedTag[];
-  onSubmitTask?: (task: TaskInput & { taskDescription?: string }) => Promise<boolean>;
+  onSubmitTask?: (
+    task: TaskInput & { taskDescription?: string },
+  ) => Promise<boolean>;
   onOpenFullEditor?: (draft?: TaskInput & { taskDescription?: string }) => void;
   onCancel?: () => void;
 }) {
@@ -127,7 +71,6 @@ export function TodoistTaskComposer({
     initialDescription || initialValue?.taskDescription || "",
   );
 
-  // Manual overrides set explicitly via the buttons/chips
   const [manualDue, setManualDue] = useState<string | null | undefined>(
     undefined,
   );
@@ -146,7 +89,6 @@ export function TodoistTaskComposer({
   const [submitting, setSubmitting] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  // Parse natural language expressions in real time
   const parsed = useMemo(() => parseQuickTask(title), [title]);
 
   const dueToken = parsed.tokens.find((t) => t.kind === "due" && !t.ignored);
@@ -158,41 +100,24 @@ export function TodoistTaskComposer({
   );
   const tagTokens = parsed.tokens.filter((t) => t.kind === "tag" && !t.ignored);
 
-  // Active resolved values:
-  // Natural language tokens typed in the input take immediate precedence over defaults
   const activeDueDay: string = useMemo(() => {
-    if (dueToken) {
-      return toDayString(dueToken.value);
-    }
-    if (manualDue !== undefined) {
-      return manualDue || "";
-    }
-    if (initialValue?.due) {
-      return toDayString(initialValue.due);
-    }
-    if (defaultDue) {
-      return toDayString(defaultDue);
-    }
+    if (dueToken) return toDueDay(dueToken.value);
+    if (manualDue !== undefined) return manualDue || "";
+    if (initialValue?.due) return toDueDay(initialValue.due);
+    if (defaultDue) return toDueDay(defaultDue);
     return "";
   }, [dueToken, manualDue, initialValue?.due, defaultDue]);
 
   const activePriority: "H" | "M" | "L" | "" = useMemo(() => {
-    if (priorityToken) {
+    if (priorityToken)
       return (priorityToken.value as "H" | "M" | "L" | "") || "";
-    }
-    if (manualPriority !== undefined) {
-      return manualPriority;
-    }
+    if (manualPriority !== undefined) return manualPriority;
     return (initialValue?.priority as "H" | "M" | "L" | "") || "";
   }, [priorityToken, manualPriority, initialValue?.priority]);
 
   const activeProject: string = useMemo(() => {
-    if (projectToken) {
-      return projectToken.value;
-    }
-    if (manualProject !== undefined) {
-      return manualProject;
-    }
+    if (projectToken) return projectToken.value;
+    if (manualProject !== undefined) return manualProject;
     return initialValue?.project ?? defaultProject ?? "";
   }, [projectToken, manualProject, initialValue?.project, defaultProject]);
 
@@ -202,7 +127,6 @@ export function TodoistTaskComposer({
     return Array.from(new Set([...base, ...fromTitle]));
   }, [manualTags, initialValue?.tags, tagTokens]);
 
-  // Autocomplete matching for '#' and '@'
   const triggerMatch = /(?:^|\s)(#|@)([^\s]*)$/.exec(title);
   const triggerKind = triggerMatch ? triggerMatch[1] : null;
   const triggerQuery = triggerMatch ? triggerMatch[2].toLowerCase() : "";
@@ -226,11 +150,8 @@ export function TodoistTaskComposer({
     const matchIndex =
       triggerMatch.index + (triggerMatch[0].startsWith(" ") ? 1 : 0);
     const replacement = `${kind}${tokenValue.includes(" ") ? `"${tokenValue}"` : tokenValue} `;
-    const next = title.slice(0, matchIndex) + replacement;
-    setTitle(next);
-    if (kind === "#") {
-      setManualProject(tokenValue);
-    }
+    setTitle(title.slice(0, matchIndex) + replacement);
+    if (kind === "#") setManualProject(tokenValue);
     requestAnimationFrame(() => titleRef.current?.focus());
   }
 
@@ -281,7 +202,7 @@ export function TodoistTaskComposer({
           due: "",
           note: note.trim(),
         },
-        error: "Enter a task name.",
+        error: "请输入任务名称。",
       };
     }
 
@@ -289,8 +210,8 @@ export function TodoistTaskComposer({
     if (dueToken) {
       resolvedDue = dueToken.value;
     } else if (activeDueDay) {
-      const existingIso = initialValue?.due ? isoDate(initialValue.due) : "";
-      const existingDay = existingIso ? toDayString(existingIso) : "";
+      const existingIso = initialValue?.due ? isoDue(initialValue.due) : "";
+      const existingDay = existingIso ? toDueDay(existingIso) : "";
       if (existingDay === activeDueDay && existingIso) {
         resolvedDue = taskDate(new Date(existingIso));
       } else {
@@ -338,7 +259,7 @@ export function TodoistTaskComposer({
       if (mode === "add") {
         resetOrClose();
       } else {
-        setError("Enter a task name.");
+        setError("请输入任务名称。");
         titleRef.current?.focus();
       }
       return;
@@ -366,8 +287,7 @@ export function TodoistTaskComposer({
     }
   }
 
-  const activePriorityItem =
-    PRIORITIES.find((item) => item.value === activePriority) || PRIORITIES[3];
+  const activePriorityItem = priorityOption(activePriority);
 
   if (!editing && mode === "add") {
     return (
@@ -388,15 +308,11 @@ export function TodoistTaskComposer({
           setEditing(true);
           requestAnimationFrame(() => titleRef.current?.focus());
         }}
-        className="task-add-button group/add text-muted-foreground hover:text-foreground"
+        className="task-add-button group/add text-muted-foreground hover:text-primary"
       >
-        <Plus
-          className={cn(
-            compact ? "size-[18px]" : "size-4",
-            "text-[#de4c4a] transition-transform duration-150 group-hover/add:scale-110",
-          )}
-          strokeWidth={1.75}
-        />
+        <span className="flex size-[18px] items-center justify-center rounded-full text-primary transition-colors group-hover/add:bg-primary group-hover/add:text-primary-foreground">
+          <Plus className="size-3.5" strokeWidth={2} />
+        </span>
         添加任务
       </Button>
     );
@@ -409,7 +325,7 @@ export function TodoistTaskComposer({
       data-compact={compact}
       className={cn(compact ? "my-1.5" : "mt-1.5")}
     >
-      <div className="task-composer-shell rounded-[10px] border border-white/12 bg-card p-3 transition-colors shadow-[0_2px_8px_rgba(0,0,0,0.2)] focus-within:border-white/25 animate-in fade-in-0 zoom-in-98 duration-150 ease-out">
+      <div className="task-composer-shell rounded-[10px] border border-border bg-card p-3 transition-colors shadow-xs focus-within:border-ring/60 animate-in fade-in-0 zoom-in-98 duration-150 ease-out">
         <div className="relative space-y-1">
           <input
             ref={titleRef}
@@ -443,9 +359,8 @@ export function TodoistTaskComposer({
             className="w-full bg-transparent text-sm leading-5 font-medium text-foreground outline-none placeholder:font-normal placeholder:text-muted-foreground/60"
           />
 
-          {/* Autocomplete suggestion popup for # and @ */}
           {(projectSuggestions.length > 0 || labelSuggestions.length > 0) && (
-            <div className="absolute top-7 left-0 z-30 min-w-44 rounded-lg border border-border/70 bg-popover p-1 shadow-md">
+            <div className="absolute top-7 left-0 z-30 min-w-44 rounded-lg border border-border bg-popover p-1 shadow-md">
               {projectSuggestions.map((p) => (
                 <button
                   key={p}
@@ -477,7 +392,7 @@ export function TodoistTaskComposer({
             ref={(el) => {
               if (el) {
                 el.style.height = "auto";
-                el.style.height = `${Math.max(26, el.scrollHeight)}px`;
+                el.style.height = `${Math.max(24, el.scrollHeight)}px`;
               }
             }}
             value={note}
@@ -487,7 +402,7 @@ export function TodoistTaskComposer({
             onInput={(event) => {
               const el = event.currentTarget;
               el.style.height = "auto";
-              el.style.height = `${Math.max(26, el.scrollHeight)}px`;
+              el.style.height = `${Math.max(24, el.scrollHeight)}px`;
             }}
             onChange={(event) => setNote(event.target.value)}
             onKeyDown={(event) => {
@@ -510,9 +425,8 @@ export function TodoistTaskComposer({
           />
         </div>
 
-        {/* Real-time recognized tokens badges */}
         {parsed.tokens.length > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/40 pt-2 text-[11px]">
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2 text-[11px]">
             {parsed.tokens.map((token) => (
               <span
                 key={token.id}
@@ -536,7 +450,7 @@ export function TodoistTaskComposer({
                 <button
                   type="button"
                   onClick={() => removeToken(token)}
-                  title={`Remove ${token.label}`}
+                  title={`移除 ${token.label}`}
                   className="hover:text-destructive"
                 >
                   <X className="size-2.5" />
@@ -546,7 +460,6 @@ export function TodoistTaskComposer({
           </div>
         )}
 
-        {/* Action Toolbar */}
         <div className="task-composer-toolbar mt-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <DatePicker
@@ -571,9 +484,9 @@ export function TodoistTaskComposer({
                   type="button"
                   variant="outline"
                   disabled={disabled || submitting}
-                  aria-label="Priority"
+                  aria-label="优先级"
                   className={cn(
-                    "h-8 gap-1.5 rounded-[5px] px-2 py-0 text-[13px] font-normal shadow-none has-[>svg]:px-2 md:h-7",
+                    "h-8 gap-1.5 rounded-[6px] px-2 py-0 text-[12px] font-normal shadow-none has-[>svg]:px-2 md:h-7",
                     activePriorityItem.chipClass,
                   )}
                 >
@@ -603,10 +516,7 @@ export function TodoistTaskComposer({
                     onClick={() => {
                       setManualPriority(item.value);
                       setPriorityOpen(false);
-                      const pWord = item.value
-                        ? { H: "p1", M: "p2", L: "p3" }[item.value] || ""
-                        : "";
-                      setField("priority", pWord);
+                      setField("priority", item.value ? item.quickWord : "");
                     }}
                   >
                     <span className="flex items-center gap-2">
@@ -629,9 +539,7 @@ export function TodoistTaskComposer({
                 choices={availableLabels}
                 disabled={disabled || submitting}
                 returnFocus={() => titleRef.current?.focus()}
-                onChange={(nextTags) => {
-                  setManualTags(nextTags);
-                }}
+                onChange={setManualTags}
               />
             )}
 
@@ -656,8 +564,8 @@ export function TodoistTaskComposer({
                 variant="ghost"
                 size="icon-xs"
                 disabled={disabled || submitting}
-                title="Open full task editor (⌘E)"
-                aria-label="Open full task editor"
+                title="打开完整任务编辑 (⌘E)"
+                aria-label="打开完整任务编辑"
                 onClick={() => {
                   const built = buildTaskInput();
                   resetOrClose();
@@ -673,14 +581,14 @@ export function TodoistTaskComposer({
           <div className="task-composer-actions ml-auto flex shrink-0 items-center gap-1.5">
             <Button
               type="button"
-              variant="ghost"
+              variant="secondary"
               size="xs"
               disabled={submitting}
               aria-label={
                 mode === "edit" ? "取消编辑任务" : "取消添加任务"
               }
               onClick={resetOrClose}
-              className="h-8 rounded-md bg-[#363636] px-3 text-[13px] font-medium text-white hover:bg-[#444444] cursor-pointer"
+              className="h-8 rounded-md px-3 text-[13px] font-medium cursor-pointer"
             >
               <X className={cn("size-3.5", mode !== "edit" && "sm:hidden")} />
               {mode !== "edit" && (
@@ -692,7 +600,7 @@ export function TodoistTaskComposer({
               size="xs"
               disabled={disabled || submitting || !title.trim()}
               aria-label={mode === "edit" ? "保存任务" : "添加任务"}
-              className="h-8 gap-1 rounded-md bg-[#de4c4a] px-3.5 text-[13px] font-semibold text-white shadow-none hover:bg-[#c93f3d] disabled:opacity-50 cursor-pointer"
+              className="h-8 gap-1 rounded-md bg-primary px-3.5 text-[13px] font-semibold text-primary-foreground shadow-none hover:bg-primary/90 disabled:opacity-45 cursor-pointer"
             >
               {submitting ? (
                 <Spinner className="size-3" />

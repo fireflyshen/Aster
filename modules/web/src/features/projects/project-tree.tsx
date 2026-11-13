@@ -155,7 +155,7 @@ export function ProjectTree({
           <div className="flex shrink-0 items-center gap-2">
             {inherited && inherited.name !== row.name ? (
               <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-block">
-                In Focus
+                焦点中
               </span>
             ) : projectStatus(record) === "active" ? (
               <Button
@@ -163,12 +163,12 @@ export function ProjectTree({
                 variant="ghost"
                 size="xs"
                 disabled={disabled}
-                title="Move project to Later"
+                title="移至稍后"
                 onClick={() => onStatus(row.name, "later")}
                 className="h-6 gap-1 rounded-full border border-primary/25 bg-primary/8 px-2.5 text-[11px] font-medium text-foreground hover:bg-primary/15"
               >
                 <Target className="size-3" strokeWidth={1.8} />
-                Focus
+                焦点
               </Button>
             ) : projectStatus(record) === "later" ? (
               <Button
@@ -176,12 +176,12 @@ export function ProjectTree({
                 variant="ghost"
                 size="xs"
                 disabled={disabled}
-                title="Promote project to Focus"
+                title="设为焦点项目"
                 onClick={() => onStatus(row.name, "active")}
                 className="h-6 gap-1 rounded-full border border-border/80 px-2.5 text-[11px] font-normal text-muted-foreground transition-opacity hover:border-border hover:bg-background hover:text-foreground md:opacity-0 md:group-hover/project:opacity-100 md:group-focus-within/project:opacity-100"
               >
                 <Target className="size-3" strokeWidth={1.6} />
-                Focus
+                设为焦点
               </Button>
             ) : (
               <span className="hidden text-xs capitalize text-muted-foreground sm:inline">

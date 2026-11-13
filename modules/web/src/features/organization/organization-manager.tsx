@@ -145,8 +145,8 @@ export function OrganizationManager({
                 variant="outline"
                 size="icon-sm"
                 disabled={locked}
-                aria-label="Choose label color"
-                title="Choose color"
+                aria-label="选择标签颜色"
+                title="选择颜色"
                 className="size-8 shrink-0 rounded-md"
               >
                 <LabelIcon
@@ -157,7 +157,7 @@ export function OrganizationManager({
             </PopoverTrigger>
             <PopoverContent align="start" className="w-64 p-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">
-                Label color
+                标签颜色
               </p>
               <ColorPicker
                 id="inline-label-color"
@@ -176,7 +176,7 @@ export function OrganizationManager({
             id="organization-name"
             autoFocus
             value={editing.item.name}
-            placeholder="Label name…"
+            placeholder="标签名称…"
             maxLength={60}
             autoComplete="off"
             disabled={locked}
@@ -194,14 +194,8 @@ export function OrganizationManager({
             variant="ghost"
             size="icon-sm"
             disabled={locked}
-            aria-label={
-              editing.item.favorite
-                ? "Remove from favorites"
-                : "Add to favorites"
-            }
-            title={
-              editing.item.favorite ? "Favorited" : "Add to sidebar favorites"
-            }
+            aria-label={editing.item.favorite ? "取消收藏" : "添加到收藏"}
+            title={editing.item.favorite ? "已收藏" : "添加到侧边栏收藏"}
             onClick={() =>
               setEditing({
                 ...editing,
@@ -354,8 +348,8 @@ export function OrganizationManager({
   return (
     <>
       <Input
-        aria-label="Search filters and labels"
-        placeholder="Search filters and labels"
+        aria-label="搜索过滤器和标签"
+        placeholder="搜索过滤器和标签"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
         className="mb-5 shadow-none"
@@ -370,7 +364,7 @@ export function OrganizationManager({
               onClick={() => void reload()}
               disabled={busy}
             >
-              Reload
+              重新加载
             </Button>
           </AlertDescription>
         </Alert>
@@ -381,7 +375,7 @@ export function OrganizationManager({
           className="flex items-center gap-2 py-8 text-sm text-muted-foreground"
         >
           <Spinner className="size-4" />
-          Loading filters and labels…
+          正在加载过滤器和标签…
         </div>
       )}
       {!loading &&
@@ -394,14 +388,17 @@ export function OrganizationManager({
                   className="group -ml-2 h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-semibold hover:bg-(--row-hover) has-[>svg]:px-2"
                 >
                   <ChevronDown className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-                  {kind === "filter" ? "Filters" : "Labels"}
+                  <span>{kind === "filter" ? "我的过滤器" : "标签"}</span>
+                  <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
+                    {kind === "filter" ? data.filters.length : data.tags.length}
+                  </span>
                 </Button>
               </CollapsibleTrigger>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 disabled={locked}
-                aria-label={kind === "filter" ? "Add filter" : "Add label"}
+                aria-label={kind === "filter" ? "添加过滤器" : "添加标签"}
                 className="text-muted-foreground"
                 onClick={() => edit(fresh(kind))}
               >
@@ -416,7 +413,7 @@ export function OrganizationManager({
               {rows(kind)}
               {!!search.trim() && !rows(kind).length && (
                 <p className="py-5 text-sm text-muted-foreground">
-                  No {kind === "filter" ? "filters" : "labels"} found
+                  未找到匹配的{kind === "filter" ? "过滤器" : "标签"}
                 </p>
               )}
               {!(kind === "filter" ? data.filters : data.tags).length &&
@@ -428,7 +425,7 @@ export function OrganizationManager({
                     className="task-add-button my-2"
                   >
                     <Plus className="size-4" />
-                    {kind === "filter" ? "Add filter" : "Add label"}
+                    {kind === "filter" ? "添加过滤器" : "添加标签"}
                   </Button>
                 )}
             </CollapsibleContent>
@@ -459,15 +456,15 @@ export function OrganizationManager({
             <>
               <header className="flex shrink-0 items-center gap-2 border-b px-5 py-4 pr-14">
                 <DialogTitle className="text-base leading-6 font-semibold">
-                  {editing.item.id ? "Edit " : "Add "}
-                  {editing.kind === "filter" ? "filter" : "label"}
+                  {editing.item.id ? "编辑" : "添加"}
+                  {editing.kind === "filter" ? "过滤器" : "标签"}
                 </DialogTitle>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      aria-label="Help"
+                      aria-label="帮助"
                       className="size-6 rounded-full text-muted-foreground"
                     >
                       <CircleHelp className="size-[18px]" strokeWidth={1.5} />
@@ -475,14 +472,14 @@ export function OrganizationManager({
                   </PopoverTrigger>
                   <PopoverContent className="text-sm leading-6">
                     {editing.kind === "filter"
-                      ? "Use @label or +label, attribute:value, and / or, and parentheses."
-                      : "Renaming a label updates it on tasks."}
+                      ? "支持 @标签 或 +标签、attribute:value、and / or 以及括号。"
+                      : "重命名标签将同步更新所有相关任务。"}
                   </PopoverContent>
                 </Popover>
               </header>
               <DialogDescription className="sr-only">
-                Set name, color, and favorites
-                {editing.kind === "filter" ? " and filter expression" : ""}.
+                设置名称、颜色、收藏状态
+                {editing.kind === "filter" ? "与过滤查询表达式" : ""}。
               </DialogDescription>
               <form
                 className="flex min-h-0 flex-col"
@@ -499,7 +496,7 @@ export function OrganizationManager({
                       htmlFor="organization-name"
                       className="text-sm leading-5 font-medium"
                     >
-                      Name
+                      名称
                     </Label>
                     <div className="relative">
                       <Input
@@ -530,7 +527,7 @@ export function OrganizationManager({
                         htmlFor="filter-description"
                         className="text-sm leading-5 font-medium"
                       >
-                        Description
+                        描述
                       </Label>
                       <Textarea
                         id="filter-description"
@@ -546,7 +543,7 @@ export function OrganizationManager({
                         }
                         maxLength={500}
                         disabled={locked}
-                        placeholder="Add description"
+                        placeholder="添加描述"
                         className="h-32 min-h-32 resize-none text-base md:h-28 md:min-h-28 md:text-sm"
                       />
                     </div>
@@ -556,7 +553,7 @@ export function OrganizationManager({
                       htmlFor="organization-color"
                       className="text-sm leading-5 font-medium"
                     >
-                      Color
+                      颜色
                     </Label>
                     <ColorPicker
                       id="organization-color"
@@ -592,7 +589,7 @@ export function OrganizationManager({
                       htmlFor="organization-favorite"
                       className="text-base leading-6 font-normal md:text-sm"
                     >
-                      Add to favorites
+                      添加到收藏
                     </Label>
                   </div>
                   {editing.kind === "filter" && (
@@ -601,7 +598,7 @@ export function OrganizationManager({
                         htmlFor="filter-expression"
                         className="text-sm leading-5 font-medium"
                       >
-                        Query
+                        查询表达式
                       </Label>
                       <Textarea
                         id="filter-expression"
@@ -637,7 +634,7 @@ export function OrganizationManager({
                             className="h-auto p-0 text-current"
                             onClick={() => void reload()}
                           >
-                            Reload and keep draft
+                            重新加载并保留草稿
                           </Button>
                         )}
                       </AlertDescription>
@@ -652,14 +649,14 @@ export function OrganizationManager({
                     onClick={() => setEditing(undefined)}
                     className="h-10 min-w-20 md:h-8 md:min-w-17"
                   >
-                    Cancel
+                    取消
                   </Button>
                   <Button
                     type="submit"
                     disabled={locked}
                     className="h-10 min-w-20 md:h-8 md:min-w-17"
                   >
-                    {busy ? <Spinner /> : "Save"}
+                    {busy ? <Spinner /> : "保存"}
                   </Button>
                 </footer>
               </form>
@@ -676,17 +673,17 @@ export function OrganizationManager({
         <AlertDialogContent className="max-w-sm">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete {deleting?.kind === "filter" ? "filter" : "label"} “
-              {deleting?.item.name}”?
+              删除{deleting?.kind === "filter" ? "过滤器" : "标签"}“
+              {deleting?.item.name}”？
             </AlertDialogTitle>
             <AlertDialogDescription>
               {deleting?.kind === "filter"
-                ? "Tasks will be kept."
-                : "Remove this label from tasks. Tasks will be kept."}
+                ? "相关任务将被保留。"
+                : "将从任务中移除此标签，任务本身将被保留。"}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
               disabled={locked}
@@ -702,7 +699,7 @@ export function OrganizationManager({
                   });
               }}
             >
-              {busy ? <Spinner /> : "Delete"}
+              {busy ? <Spinner /> : "删除"}
             </AlertDialogAction>
           </AlertDialogFooter>
           {error && (
@@ -737,7 +734,7 @@ function RowMenu({
           variant="ghost"
           size="icon-sm"
           disabled={disabled}
-          aria-label={`Options: ${entry.item.name}`}
+          aria-label={`操作选项: ${entry.item.name}`}
           className={cn(
             "ml-2 text-muted-foreground md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 data-[state=open]:opacity-100",
             open && "bg-accent",
@@ -759,22 +756,20 @@ function RowMenu({
         }}
       >
         {[
-          { label: "Edit", Icon: Pencil, run: onEdit },
+          { label: "编辑", Icon: Pencil, run: onEdit },
           {
-            label: entry.item.favorite
-              ? "Remove from favorites"
-              : "Add to favorites",
+            label: entry.item.favorite ? "取消收藏" : "添加到收藏",
             Icon: Heart,
             run: onFavorite,
           },
-          { label: "Delete", Icon: Trash2, run: onDelete },
+          { label: "删除", Icon: Trash2, run: onDelete },
         ].map(({ label, Icon, run }) => (
           <Button
             key={label}
             variant="ghost"
             className={cn(
               "h-9 w-full justify-start text-sm font-normal",
-              label === "Delete" && "text-destructive",
+              label === "删除" && "text-destructive",
             )}
             onClick={() => {
               setOpen(false);

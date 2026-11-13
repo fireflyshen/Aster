@@ -15,10 +15,10 @@ import { useState } from "react";
 import { ProjectTree } from "./project-tree";
 
 const statusTabs = [
-  { value: "all", label: "All" },
-  { value: "active", label: "Focus" },
-  { value: "later", label: "Later" },
-  { value: "completed", label: "Completed" },
+  { value: "all", label: "全部" },
+  { value: "active", label: "焦点" },
+  { value: "later", label: "稍后" },
+  { value: "completed", label: "已完成" },
 ] as const;
 
 export function ProjectManager({
@@ -71,24 +71,24 @@ export function ProjectManager({
         .includes(search.trim().toLocaleLowerCase()),
     );
   return (
-    <section aria-label="Manage projects">
+    <section aria-label="管理项目">
       <div className="mb-5 flex items-center gap-3">
         <Input
-          aria-label="Search projects"
-          placeholder="Search projects"
+          aria-label="搜索项目"
+          placeholder="搜索项目"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="min-w-0 flex-1 shadow-none"
         />
         <Button onClick={onAdd} disabled={disabled}>
           <Plus className="size-4" />
-          Add project
+          添加项目
         </Button>
       </div>
       {mode === "all" && (
         <div
           role="tablist"
-          aria-label="Project status"
+          aria-label="项目状态"
           className="mb-4 inline-flex items-center gap-1 rounded-lg bg-muted/70 p-1"
         >
           {statusTabs.map((tab) => (
@@ -121,7 +121,7 @@ export function ProjectManager({
               onClick={onReload}
               className="h-auto p-0 text-current"
             >
-              Reload
+              重新加载
             </Button>
           </AlertDescription>
         </Alert>
@@ -132,7 +132,7 @@ export function ProjectManager({
           className="flex items-center gap-2 py-8 text-sm text-muted-foreground"
         >
           <Spinner className="size-4" />
-          Loading projects…
+          加载项目中…
         </div>
       ) : (
         <ProjectTree
@@ -155,10 +155,10 @@ export function ProjectManager({
         <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
           <p className="text-sm text-muted-foreground">
             {search.trim()
-              ? "No matching projects found."
+              ? "未找到匹配的项目。"
               : mode === "later"
-                ? "No projects waiting in Later."
-                : "No projects yet."}
+                ? "稍后队列中暂无项目。"
+                : "暂无项目。"}
           </p>
           {!search.trim() && (
             <Button
@@ -170,7 +170,7 @@ export function ProjectManager({
               className="mt-1 gap-1.5"
             >
               <Plus className="size-3.5" />
-              New project
+              新建项目
             </Button>
           )}
         </div>

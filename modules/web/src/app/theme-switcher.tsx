@@ -57,8 +57,8 @@ export function ThemeSwitcher() {
       }}
     >
       <SelectTrigger
-        aria-label="Appearance"
-        title="Appearance"
+        aria-label="外观"
+        title="外观"
         className="size-8 justify-center gap-0 border-0 bg-transparent p-0 text-muted-foreground hover:bg-accent dark:bg-transparent dark:hover:bg-accent [&>svg:last-child]:hidden"
       >
         <Icon className="size-[18px]" strokeWidth={1.5} />
@@ -69,15 +69,15 @@ export function ThemeSwitcher() {
       <SelectContent align="end" className="min-w-36">
         <SelectItem value="light">
           <Sun className="size-4" />
-          Light
+          浅色
         </SelectItem>
         <SelectItem value="dark">
           <Moon className="size-4" />
-          Dark
+          深色
         </SelectItem>
         <SelectItem value="system">
           <Monitor className="size-4" />
-          System
+          跟随系统
         </SelectItem>
       </SelectContent>
     </Select>

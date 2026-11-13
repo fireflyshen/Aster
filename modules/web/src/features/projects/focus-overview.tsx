@@ -170,7 +170,7 @@ export function FocusOverview({
     (project) => projectStatus(project) === "active",
   );
   return (
-    <section aria-label="Focus projects">
+    <section aria-label="焦点项目">
       {error && (
         <Alert variant="destructive" className="mb-5">
           <AlertDescription>{error}</AlertDescription>
@@ -178,7 +178,7 @@ export function FocusOverview({
       )}
       <div className="mb-6 flex items-center justify-between gap-3 text-sm text-muted-foreground">
         <span>
-          {projects.length} / {FOCUS_LIMIT} active projects
+          {projects.length} / {FOCUS_LIMIT} 个活跃项目
         </span>
         <Button
           variant="outline"
@@ -188,7 +188,7 @@ export function FocusOverview({
           className="h-8 gap-1.5 text-xs font-medium text-foreground"
         >
           <Plus className="size-3.5" />
-          Add to Focus
+          加入焦点
         </Button>
       </div>
       {loading ? (
@@ -197,21 +197,21 @@ export function FocusOverview({
           className="flex items-center gap-2 py-8 text-sm text-muted-foreground"
         >
           <Spinner className="size-4" />
-          Loading Focus…
+          正在加载焦点…
         </div>
       ) : !projects.length ? (
         <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed p-6 md:p-8">
           <Target className="size-6 text-muted-foreground" strokeWidth={1.4} />
-          <p className="font-medium">Choose what matters now.</p>
+          <p className="font-medium">选择当下最重要的事情。</p>
           <p className="max-w-md text-sm leading-6 text-muted-foreground">
-            Keep up to three projects active. Everything else can wait in Later.
+            最多同时保持三个活跃焦点项目，其余事务可暂存在“稍后”中。
           </p>
           <Button
             variant="outline"
             disabled={disabled}
             onClick={onChooseProject}
           >
-            Choose a project
+            选择一个项目
             <ArrowRight className="size-4" />
           </Button>
         </div>
@@ -376,8 +376,8 @@ export function FocusOverview({
                             variant="ghost"
                             size="icon-sm"
                             disabled={disabled}
-                            title="Pin as top next step"
-                            aria-label={`Set as next step: ${item.description}`}
+                            title="置顶为下一步"
+                            aria-label={`设为下一步: ${item.description}`}
                             onClick={() =>
                               onSelectNext(project.name, item.uuid)
                             }
@@ -403,15 +403,15 @@ export function FocusOverview({
                       }
                       className="-mx-2.5 mt-0.5 h-8 px-2.5 text-xs font-normal text-muted-foreground hover:bg-(--row-hover) hover:text-foreground md:-mx-3 md:px-3"
                     >
-                      Show {hiddenCount} more task{hiddenCount === 1 ? "" : "s"}
+                      展开其余 {hiddenCount} 个任务
                     </Button>
                   )}
                   <TodoistTaskComposer
                     mode="add"
                     compact
                     disabled={disabled}
-                    ariaLabel={`Add task to ${project.name}`}
-                    placeholder="Task name (try @label, tomorrow, p1)"
+                    ariaLabel={`在 ${project.name} 中添加任务`}
+                    placeholder="添加任务（支持 @标签, 明天, p1）"
                     defaultProject={project.name}
                     availableLabels={data.tags || []}
                     onSubmitTask={

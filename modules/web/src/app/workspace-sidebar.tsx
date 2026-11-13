@@ -41,12 +41,12 @@ import { useState } from "react";
 import { WorkspaceNavigation } from "./workspace-navigation";
 
 export const views: Record<View, string> = {
-  pending: "Inbox",
-  today: "Today",
-  focus: "Focus",
-  later: "Later",
-  waiting: "Waiting",
-  completed: "Completed",
+  pending: "收件箱",
+  today: "今天",
+  focus: "焦点",
+  later: "稍后",
+  waiting: "等待中",
+  completed: "已完成",
 };
 
 const viewOrder: View[] = [
@@ -189,8 +189,8 @@ export function WorkspaceSidebar({
           id="sidebar-close"
           variant="ghost"
           size="icon-xs"
-          aria-label="Hide sidebar"
-          title="Collapse sidebar"
+          aria-label="隐藏侧边栏"
+          title="收起侧边栏"
           className="size-7 text-muted-foreground hover:bg-navigation-hover hover:text-foreground"
           onClick={() => onOpenChange(false)}
         >
@@ -202,12 +202,12 @@ export function WorkspaceSidebar({
         onClick={onAdd}
         disabled={busy || needsCheck}
         aria-keyshortcuts="Q"
-        className="sidebar-add h-9 w-full justify-start gap-2.5 px-2 font-semibold text-primary hover:bg-navigation-hover has-[>svg]:px-2"
+        className="sidebar-add h-9 w-full justify-start gap-2.5 px-2 font-semibold text-[#dc4c3e] hover:bg-navigation-hover hover:text-[#dc4c3e] dark:text-[#ff7066] dark:hover:text-[#ff7066] has-[>svg]:px-2"
       >
         <span className="flex size-[18px] items-center justify-center rounded-full bg-primary text-primary-foreground">
-          <Plus className="size-3.5" strokeWidth={2} />
+          <Plus className="size-3.5" strokeWidth={2.25} />
         </span>
-        Add task
+        添加任务
         <kbd className="ml-auto rounded border border-border/80 bg-background/80 px-1.5 py-0.5 font-sans text-[11px] leading-none text-muted-foreground">
           Q
         </kbd>
@@ -219,10 +219,10 @@ export function WorkspaceSidebar({
         className="sidebar-search"
       >
         <Search className="size-[18px]" strokeWidth={1.5} />
-        Search
+        搜索
         <kbd className="ml-auto text-[11px] text-muted-foreground">⌘K</kbd>
       </Button>
-      <nav aria-label="Task views" className="space-y-0.5">
+      <nav aria-label="任务视图" className="space-y-0.5">
         {viewOrder.map((value) => {
           const label = views[value];
           const { icon: Icon, colorClass } = viewMeta[value];
@@ -269,7 +269,7 @@ export function WorkspaceSidebar({
           }}
         >
           <OrganizationIcon className="size-[18px]" />
-          Filters & labels
+          过滤器&标签
         </Button>
       </nav>
       {!![...organization.filters, ...organization.tags].filter(
@@ -277,9 +277,9 @@ export function WorkspaceSidebar({
       ).length && (
         <>
           <p className="mt-6 mb-1.5 px-2.5 text-xs font-medium text-muted-foreground">
-            Favorites
+            收藏
           </p>
-          <nav aria-label="Favorites" className="space-y-0.5">
+          <nav aria-label="收藏" className="space-y-0.5">
             {organization.filters
               .filter((item) => item.favorite)
               .map((item) => (
@@ -336,16 +336,16 @@ export function WorkspaceSidebar({
             if (innerWidth < 768) onOpenChange(false);
           }}
           disabled={busy || organizationSaving}
-          aria-label="Manage projects"
+          aria-label="管理项目"
           aria-current={organizationPage && projectsPage ? "page" : undefined}
           className="h-7 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-navigation-hover hover:text-foreground aria-[current=page]:bg-navigation-selected aria-[current=page]:text-foreground"
         >
-          Projects
+          我的项目
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="Add project"
+          aria-label="添加项目"
           disabled={busy || organizationSaving}
           onClick={onAddProject}
           className="size-7 text-muted-foreground hover:bg-navigation-hover hover:text-foreground"
@@ -353,7 +353,7 @@ export function WorkspaceSidebar({
           <Plus className="size-4" />
         </Button>
       </div>
-      <nav aria-label="Project" className="flex-1 space-y-0.5">
+      <nav aria-label="项目" className="flex-1 space-y-0.5">
         {activeRoots.length > 0 && (
           <ProjectTree
             names={projects}
@@ -389,7 +389,7 @@ export function WorkspaceSidebar({
                     !laterCollapsed && "rotate-90",
                   )}
                 />
-                Later · {laterProjects.length}
+                稍后 · {laterProjects.length}
               </button>
             )}
             {(!laterCollapsed || activeRoots.length === 0) && (
@@ -423,7 +423,7 @@ export function WorkspaceSidebar({
             className="h-8 text-xs text-muted-foreground"
           >
             <Plus className="size-3.5" />
-            New project
+            新建项目
           </Button>
         )}
       </nav>
@@ -432,8 +432,8 @@ export function WorkspaceSidebar({
           role="status"
           className="mt-6 space-y-1 px-2.5 text-xs leading-5 text-muted-foreground"
         >
-          <p>Timer data unavailable</p>
-          <p>Energy cannot be calculated.</p>
+          <p>计时数据不可用</p>
+          <p>暂时无法计算精力值。</p>
           <Button
             variant="link"
             size="sm"
@@ -441,12 +441,12 @@ export function WorkspaceSidebar({
             disabled={busy}
             className="h-7 px-0 text-xs"
           >
-            Retry
+            重试
           </Button>
         </div>
       )}
       {energy && (
-        <div className="mt-6 space-y-1.5 px-2.5" aria-label="Daily energy">
+        <div className="mt-6 space-y-1.5 px-2.5" aria-label="每日精力">
           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 font-medium text-foreground tabular-nums">
               <Zap
@@ -461,7 +461,7 @@ export function WorkspaceSidebar({
           </div>
           <div
             role="progressbar"
-            aria-label="Remaining daily energy"
+            aria-label="剩余每日精力"
             aria-valuemin={0}
             aria-valuemax={energy.max}
             aria-valuenow={energy.remaining}
@@ -490,7 +490,7 @@ export function WorkspaceSidebar({
               className="h-6 w-full justify-start px-0 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground has-[>svg]:px-0"
             >
               <Plus className="size-3" />
-              Restore +30 energy
+              恢复 +30 精力
             </Button>
           )}
         </div>
@@ -505,7 +505,7 @@ export function WorkspaceSidebar({
         className="mt-4 h-9 text-xs"
       >
         <DatabaseBackup className="size-4" />
-        Data & recovery
+        数据与恢复
       </Button>
       <p
         className={cn(

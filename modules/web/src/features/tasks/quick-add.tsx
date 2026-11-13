@@ -26,61 +26,20 @@ import { ProjectIcon } from "@/features/projects/project-icon";
 import { DatePicker } from "@/features/tasks/date-picker";
 import { LabelsPicker } from "@/features/tasks/labels-picker";
 import { ProjectPicker } from "@/features/tasks/project-picker";
+import {
+  PRIORITIES,
+  priorityOption,
+} from "@/features/tasks/task-constants";
+import { toDueDay } from "@/features/tasks/task-date";
 import { parseQuickTask, type QuickToken } from "@core/tasks/quick-task";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
 import type { TaskInput } from "@shared/tasks";
 import { cn } from "cn";
-import { format } from "date-fns";
 import { ArrowUp, CircleHelp, Flag, ListPlus, X } from "lucide-react";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 
 const chip =
-  "h-9 gap-1.5 md:h-7 rounded-[5px] border-input px-2 py-0 text-[13px] font-normal text-muted-foreground shadow-none has-[>svg]:px-2";
-const isoDate = (value: string) =>
-  value.replace(
-    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
-    "$1-$2-$3T$4:$5:$6Z",
-  );
-
-const PRIORITIES: {
-  value: "H" | "M" | "L" | "none";
-  label: string;
-  short: string;
-  iconClass: string;
-  chipClass: string;
-}[] = [
-  {
-    value: "H",
-    label: "Priority 1",
-    short: "P1",
-    iconClass: "fill-red-500/20 text-red-600 dark:text-red-400",
-    chipClass:
-      "border-red-500/35 bg-red-500/8 text-red-600 hover:bg-red-500/14 dark:text-red-400",
-  },
-  {
-    value: "M",
-    label: "Priority 2",
-    short: "P2",
-    iconClass: "fill-amber-500/20 text-amber-600 dark:text-amber-400",
-    chipClass:
-      "border-amber-500/35 bg-amber-500/8 text-amber-600 hover:bg-amber-500/14 dark:text-amber-400",
-  },
-  {
-    value: "L",
-    label: "Priority 3",
-    short: "P3",
-    iconClass: "fill-blue-500/20 text-blue-600 dark:text-blue-400",
-    chipClass:
-      "border-blue-500/35 bg-blue-500/8 text-blue-600 hover:bg-blue-500/14 dark:text-blue-400",
-  },
-  {
-    value: "none",
-    label: "Priority 4",
-    short: "Priority",
-    iconClass: "text-muted-foreground",
-    chipClass: "border-input text-muted-foreground",
-  },
-];
+  "h-9 gap-1.5 md:h-7 rounded-[6px] border-input px-2 py-0 text-[12px] font-normal text-muted-foreground shadow-none has-[>svg]:px-2";
 
 export function QuickAdd({
   open,
@@ -103,7 +62,7 @@ export function QuickAdd({
   error: string;
   onClearError: () => void;
   onCheck: () => void;
-  onAdd: (task: TaskInput) => Promise<boolean>;
+  onAdd: (task: TaskInput & { taskDescription?: string }) => Promise<boolean>;
   onEdit: (task: TaskInput) => void;
   projects: string[];
   availableLabels?: SavedTag[];
@@ -111,6 +70,7 @@ export function QuickAdd({
 }) {
   const [noProject, setNoProject] = useState(false);
   const [text, setText] = useState("");
+  const [note, setNote] = useState("");
   const [ignored, setIgnored] = useState<string[]>([]);
   const [attempted, setAttempted] = useState(false);
   const mirror = useRef<HTMLDivElement>(null);
@@ -128,11 +88,9 @@ export function QuickAdd({
   const locked = busy || blocked;
   const validation =
     parsed.errors[0] ||
-    (attempted && !parsed.task.description ? "Enter a task name." : "");
+    (attempted && !parsed.task.description ? "请输入任务名称。" : "");
   const dueToken = parsed.tokens.find((t) => t.kind === "due" && !t.ignored);
-  const dueDay = parsed.task.due
-    ? format(new Date(isoDate(parsed.task.due)), "yyyy-MM-dd")
-    : "";
+  const dueDay = toDueDay(parsed.task.due);
 
   const trailingMatch = text.match(/(?:^|\s)([#@])([^\s#@]*)$/);
   const triggerKind = trailingMatch?.[1] as "#" | "@" | undefined;
@@ -155,8 +113,7 @@ export function QuickAdd({
     const prefixLen =
       trailingMatch[0].length - (1 + (trailingMatch[2]?.length || 0));
     const replaceStart = text.length - trailingMatch[0].length + prefixLen;
-    const next = text.slice(0, replaceStart) + tokenText + " ";
-    change(next);
+    change(text.slice(0, replaceStart) + tokenText + " ");
     requestAnimationFrame(() => input.current?.focus());
   }
 
@@ -169,18 +126,24 @@ export function QuickAdd({
     setAttempted(false);
     onClearError();
   }
-  function setField(kind: QuickToken["kind"], expression: string) {
+  function setField(kind: QuickToken["kind"], expressionStr: string) {
     const matches = parsed.tokens.filter((t) => t.kind === kind && !t.ignored);
     let value = text;
     for (const token of [...matches].reverse())
       value = value.slice(0, token.start) + value.slice(token.end);
-    change((value.trimEnd() + (expression ? " " + expression : "")).trim());
+    change((value.trimEnd() + (expressionStr ? " " + expressionStr : "")).trim());
+  }
+  function resetState() {
+    setNoProject(false);
+    setText("");
+    setNote("");
+    setIgnored([]);
+    setAttempted(false);
   }
   function editForm() {
     onEdit(parsed.task);
-    setNoProject(false);
-    change("");
-    setIgnored([]);
+    resetState();
+    onClearError();
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -191,11 +154,13 @@ export function QuickAdd({
       input.current?.focus();
       return;
     }
-    if (await onAdd(withProject(result.task))) {
-      setNoProject(false);
-      change("");
-      setIgnored([]);
-      setAttempted(false);
+    const payload = {
+      ...withProject(result.task),
+      ...(note.trim() ? { taskDescription: note.trim() } : {}),
+    };
+    if (await onAdd(payload)) {
+      resetState();
+      onClearError();
     }
   }
   const highlights: ReactNode[] = [];
@@ -205,7 +170,7 @@ export function QuickAdd({
     highlights.push(
       <span
         key={token.id}
-        className={token.ignored ? "" : "rounded-sm bg-navigation-selected"}
+        className={token.ignored ? "" : "rounded-sm bg-primary/20"}
       >
         {token.raw}
       </span>,
@@ -213,74 +178,9 @@ export function QuickAdd({
     cursor = token.end;
   }
   highlights.push(text.slice(cursor), "\n");
-  const more = (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          disabled={locked}
-          aria-label="Quick syntax help"
-          className="size-9 shrink-0 p-0 text-muted-foreground md:size-7"
-        >
-          <CircleHelp className="size-4" strokeWidth={1.5} />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        collisionPadding={12}
-        className="w-72 space-y-3 p-3 text-xs leading-6"
-        onCloseAutoFocus={restoreInput}
-      >
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={locked || !!parsed.errors.length}
-          className="h-8 w-full justify-start px-2 text-[13px] font-normal"
-          onClick={editForm}
-        >
-          <ListPlus />
-          Open task editor
-        </Button>
-        <p className="border-t px-2 pt-2 text-muted-foreground">
-          Submit report tomorrow #Work @Focus p1
-          <br />
-          Try tomorrow at 14 or 2026-10-20.
-          <br />
-          Enter to add · Tab to autocomplete · ⌘E for editor
-        </p>
-      </PopoverContent>
-    </Popover>
-  );
-  const actions = (
-    <div data-quick-actions className="flex shrink-0 items-center gap-2">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        disabled={busy}
-        aria-label="Close quick add"
-        onClick={() => onOpenChange(false)}
-        className="size-9 p-0 text-muted-foreground md:size-8"
-      >
-        <X className="size-5" strokeWidth={1.5} />
-      </Button>
-      <Button
-        type="submit"
-        size="icon-sm"
-        disabled={locked}
-        aria-label="Add task"
-        className="size-9 rounded-[7px] md:size-8 p-0 shadow-none"
-      >
-        {busy ? (
-          <Spinner className="size-4" />
-        ) : (
-          <ArrowUp className="size-5" strokeWidth={1.8} />
-        )}
-      </Button>
-    </div>
-  );
+
+  const activePriority = priorityOption(parsed.task.priority);
+
   return (
     <Dialog
       open={open}
@@ -295,8 +195,8 @@ export function QuickAdd({
           event.preventDefault();
           input.current?.focus();
         }}
-        overlayClassName="bg-transparent"
-        className="top-[max(4.5rem,15vh)] flex max-h-[calc(100dvh-6rem)] w-[calc(100vw-1.5rem)] max-w-[800px] translate-y-0 flex-col gap-0 overflow-hidden rounded-[14px] border-input p-0 shadow-modal duration-150 sm:max-w-[800px]"
+        overlayClassName="bg-black/25 backdrop-blur-[1px]"
+        className="top-[max(4.5rem,14vh)] flex max-h-[calc(100dvh-6rem)] w-[calc(100vw-1.5rem)] max-w-[580px] translate-y-0 flex-col gap-0 overflow-hidden rounded-[12px] border-border bg-popover p-0 shadow-modal duration-150 sm:max-w-[580px]"
         onEscapeKeyDown={(e) => {
           if (busy) e.preventDefault();
         }}
@@ -304,91 +204,106 @@ export function QuickAdd({
           if (busy) e.preventDefault();
         }}
       >
-        <DialogTitle className="sr-only">Quick add</DialogTitle>
+        <DialogTitle className="sr-only">快速添加任务</DialogTitle>
         <DialogDescription className="sr-only">
-          Enter a task, date, project, labels, and priority. Press Enter to add.
+          输入任务名称、日期、项目、标签和优先级，按回车添加。
         </DialogDescription>
-        <form
-          noValidate
-          onSubmit={submit}
-          className="flex min-h-0 flex-col p-4"
-        >
-          <div className="min-h-0 overflow-y-auto overscroll-contain">
-            <div data-quick-input-row className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Label htmlFor="quick-expression" className="sr-only">
-                  Task expression
-                </Label>
-                <div
-                  ref={mirror}
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap text-transparent [overflow-wrap:anywhere] text-base leading-6"
-                >
-                  {highlights}
-                </div>
-                <Textarea
-                  ref={input}
-                  id="quick-expression"
-                  value={text}
-                  rows={1}
-                  maxLength={4000}
-                  placeholder="Task name… (try #project, @label, tomorrow, p1)"
-                  disabled={locked}
-                  aria-describedby={
-                    validation || error ? "quick-error" : undefined
-                  }
-                  aria-invalid={!!validation || !!error}
-                  className="relative min-h-6 max-h-[min(10rem,25dvh)] resize-none rounded-none border-0 bg-transparent p-0 text-base leading-6 shadow-none placeholder:text-muted-foreground/65 focus-visible:ring-0 focus-visible:ring-offset-0 md:text-base dark:bg-transparent"
-                  onScroll={(e) => {
-                    if (mirror.current)
-                      mirror.current.scrollTop = e.currentTarget.scrollTop;
-                  }}
-                  onChange={(e) => change(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (
-                      e.key === "Tab" &&
-                      !e.shiftKey &&
-                      (projectSuggestions.length > 0 ||
-                        labelSuggestions.length > 0)
-                    ) {
-                      e.preventDefault();
-                      if (projectSuggestions[0]) {
-                        const name = projectSuggestions[0];
-                        applySuggestion(
-                          /\s/.test(name) ? `#"${name}"` : `#${name}`,
-                        );
-                      } else if (labelSuggestions[0]) {
-                        applySuggestion(`@${labelSuggestions[0].name}`);
-                      }
-                      return;
-                    }
-                    if (
-                      (e.metaKey || e.ctrlKey) &&
-                      e.key.toLowerCase() === "e" &&
-                      !locked &&
-                      !parsed.errors.length
-                    ) {
-                      e.preventDefault();
-                      editForm();
-                      return;
-                    }
-                    if (
-                      e.key === "Enter" &&
-                      !e.shiftKey &&
-                      !e.nativeEvent.isComposing &&
-                      e.nativeEvent.keyCode !== 229
-                    ) {
-                      e.preventDefault();
-                      e.currentTarget.form?.requestSubmit();
-                    }
-                  }}
-                />
+        <form noValidate onSubmit={submit} className="flex min-h-0 flex-col">
+          <div className="min-h-0 overflow-y-auto overscroll-contain p-3.5 pb-2.5">
+            <div data-quick-input-row className="relative min-w-0">
+              <Label htmlFor="quick-expression" className="sr-only">
+                任务表达式
+              </Label>
+              <div
+                ref={mirror}
+                aria-hidden
+                className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap text-transparent [overflow-wrap:anywhere] text-[15px] leading-6 font-medium"
+              >
+                {highlights}
               </div>
+              <Textarea
+                ref={input}
+                id="quick-expression"
+                value={text}
+                rows={1}
+                maxLength={4000}
+                placeholder="任务名称（支持 #项目, @标签, 今天/明天, p1）"
+                disabled={locked}
+                aria-describedby={
+                  validation || error ? "quick-error" : undefined
+                }
+                aria-invalid={!!validation || !!error}
+                className="relative min-h-6 max-h-[min(10rem,25dvh)] resize-none rounded-none border-0 bg-transparent p-0 text-[15px] leading-6 font-medium shadow-none placeholder:font-normal placeholder:text-muted-foreground/65 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent"
+                onScroll={(e) => {
+                  if (mirror.current)
+                    mirror.current.scrollTop = e.currentTarget.scrollTop;
+                }}
+                onChange={(e) => change(e.target.value)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Tab" &&
+                    !e.shiftKey &&
+                    (projectSuggestions.length > 0 ||
+                      labelSuggestions.length > 0)
+                  ) {
+                    e.preventDefault();
+                    if (projectSuggestions[0]) {
+                      const name = projectSuggestions[0];
+                      applySuggestion(
+                        /\s/.test(name) ? `#"${name}"` : `#${name}`,
+                      );
+                    } else if (labelSuggestions[0]) {
+                      applySuggestion(`@${labelSuggestions[0].name}`);
+                    }
+                    return;
+                  }
+                  if (
+                    (e.metaKey || e.ctrlKey) &&
+                    e.key.toLowerCase() === "e" &&
+                    !locked &&
+                    !parsed.errors.length
+                  ) {
+                    e.preventDefault();
+                    editForm();
+                    return;
+                  }
+                  if (
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    !e.nativeEvent.isComposing &&
+                    e.nativeEvent.keyCode !== 229
+                  ) {
+                    e.preventDefault();
+                    e.currentTarget.form?.requestSubmit();
+                  }
+                }}
+              />
             </div>
+            <Textarea
+              value={note}
+              rows={1}
+              maxLength={2000}
+              disabled={locked}
+              aria-label="任务描述"
+              placeholder="描述"
+              onChange={(e) => setNote(e.target.value)}
+              onKeyDown={(e) => {
+                if (
+                  e.key === "Enter" &&
+                  (e.metaKey || e.ctrlKey) &&
+                  !e.nativeEvent.isComposing
+                ) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
+              className="mt-1 min-h-5 max-h-24 resize-none rounded-none border-0 bg-transparent p-0 text-[13px] leading-5 text-muted-foreground shadow-none placeholder:text-muted-foreground/55 focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-transparent"
+            />
+
             {(projectSuggestions.length > 0 || labelSuggestions.length > 0) && (
-              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
                 <span className="text-[11px] text-muted-foreground">
-                  {triggerKind === "#" ? "Projects (Tab):" : "Labels (Tab):"}
+                  {triggerKind === "#" ? "项目 (Tab 补全):" : "标签 (Tab 补全):"}
                 </span>
                 {projectSuggestions.map((name, idx) => (
                   <Button
@@ -425,159 +340,198 @@ export function QuickAdd({
                 ))}
               </div>
             )}
+
             <div
-              className="mt-3 flex min-w-0 items-center gap-2 border-t border-border/60 pt-3"
-              data-quick-attributes
+              data-quick-options
+              className="mt-2.5 flex flex-wrap items-center gap-1.5"
             >
               <div
-                data-quick-options
-                className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0"
+                className={
+                  "flex max-w-full" +
+                  (dueToken ? " rounded-[6px] border border-input" : "")
+                }
               >
-                {more}
-                <ProjectPicker
+                <DatePicker
                   returnFocus={() => input.current?.focus()}
-                  id="quick-project"
+                  id="quick-due"
                   compact
-                  value={parsed.task.project || ""}
-                  projects={projects}
+                  value={dueDay}
+                  label={dueToken?.label}
                   disabled={locked}
-                  onChange={(value) => {
-                    setNoProject(!value);
-                    setField("project", value ? `#"${value}"` : "");
-                  }}
-                />
-                <div
                   className={
-                    "flex max-w-full" +
-                    (dueToken ? " rounded-[5px] border border-input" : "")
+                    dueToken
+                      ? "h-[34px] rounded-r-none border-0 md:h-[26px]"
+                      : undefined
                   }
-                >
-                  <DatePicker
-                    returnFocus={() => input.current?.focus()}
-                    id="quick-due"
-                    compact
-                    value={dueDay}
-                    label={dueToken?.label}
-                    disabled={locked}
-                    className={
-                      dueToken
-                        ? "h-[34px] rounded-r-none border-0 md:h-[26px]"
-                        : undefined
-                    }
-                    onChange={(value) => setField("due", value)}
-                  />
-                  {dueToken && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      disabled={locked}
-                      aria-label="Keep date as text"
-                      className="h-[34px] w-8 rounded-l-none md:h-[26px] md:w-6 p-0 text-muted-foreground"
-                      onClick={() => {
-                        setIgnored((items) => [...items, dueToken.id]);
-                        input.current?.focus();
-                      }}
-                    >
-                      <X className="size-3.5" />
-                    </Button>
-                  )}
-                </div>
-                {(() => {
-                  const currentPriorityVal = (parsed.task.priority ||
-                    "none") as "H" | "M" | "L" | "none";
-                  const activePriority =
-                    PRIORITIES.find((p) => p.value === currentPriorityVal) ||
-                    PRIORITIES[3];
-                  return (
-                    <Select
-                      disabled={locked}
-                      value={currentPriorityVal}
-                      onValueChange={(v) =>
-                        setField(
-                          "priority",
-                          (
-                            {
-                              H: "p1",
-                              M: "p2",
-                              L: "p3",
-                              none: "p4",
-                            } as Record<string, string>
-                          )[v],
-                        )
-                      }
-                    >
-                      <SelectTrigger
-                        aria-label="Priority"
-                        className={cn(
-                          chip,
-                          "w-auto gap-1.5 data-[size=default]:h-9 md:data-[size=default]:h-7 [&>svg:last-child]:hidden",
-                          activePriority.chipClass,
-                        )}
-                      >
-                        <Flag
-                          className={cn("size-3.5", activePriority.iconClass)}
-                        />
-                        <SelectValue>{activePriority.short}</SelectValue>
-                      </SelectTrigger>
-                      <SelectContent onCloseAutoFocus={restoreInput}>
-                        {PRIORITIES.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>
-                            <span className="flex items-center gap-2">
-                              <Flag className={cn("size-3.5", p.iconClass)} />
-                              <span>{p.label}</span>
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  );
-                })()}
-                <LabelsPicker
-                  compact
-                  id="quick-tags"
-                  value={parsed.task.tags}
-                  choices={availableLabels}
-                  disabled={locked}
-                  returnFocus={() => input.current?.focus()}
-                  onChange={(tags) =>
-                    setField("tag", tags.map((t) => "@" + t).join(" "))
-                  }
+                  onChange={(value) => setField("due", value)}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className={chip}
-                  disabled={locked || !!parsed.errors.length}
-                  onClick={editForm}
-                >
-                  <ListPlus className="size-4" />
-                  Task editor
-                </Button>
+                {dueToken && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={locked}
+                    aria-label="保留日期文本"
+                    className="h-[34px] w-8 rounded-l-none p-0 text-muted-foreground md:h-[26px] md:w-6"
+                    onClick={() => {
+                      setIgnored((items) => [...items, dueToken.id]);
+                      input.current?.focus();
+                    }}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                )}
               </div>
-              {actions}
-            </div>
-            {(validation || error) && (
-              <Alert
-                id="quick-error"
-                variant="destructive"
-                className="mt-3 rounded-md p-3"
+
+              <Select
+                disabled={locked}
+                value={activePriority.selectValue}
+                onValueChange={(v) =>
+                  setField("priority", priorityOption(v).quickWord)
+                }
               >
-                <AlertDescription className="text-xs">
-                  {validation || error}
-                  {blocked && (
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="h-auto p-0 text-xs text-current"
-                      onClick={onCheck}
-                    >
-                      Close and check tasks
-                    </Button>
+                <SelectTrigger
+                  aria-label="优先级"
+                  className={cn(
+                    chip,
+                    "w-auto gap-1.5 data-[size=default]:h-9 md:data-[size=default]:h-7 [&>svg:last-child]:hidden",
+                    activePriority.chipClass,
                   )}
-                </AlertDescription>
-              </Alert>
-            )}
+                >
+                  <Flag
+                    className={cn("size-3.5", activePriority.iconClass)}
+                  />
+                  <SelectValue>{activePriority.short}</SelectValue>
+                </SelectTrigger>
+                <SelectContent onCloseAutoFocus={restoreInput}>
+                  {PRIORITIES.map((p) => (
+                    <SelectItem key={p.selectValue} value={p.selectValue}>
+                      <span className="flex items-center gap-2">
+                        <Flag className={cn("size-3.5", p.iconClass)} />
+                        <span>{p.label}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <LabelsPicker
+                compact
+                id="quick-tags"
+                value={parsed.task.tags}
+                choices={availableLabels}
+                disabled={locked}
+                returnFocus={() => input.current?.focus()}
+                onChange={(tags) =>
+                  setField("tag", tags.map((t) => "@" + t).join(" "))
+                }
+              />
+
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={locked}
+                    aria-label="快捷语法帮助"
+                    className="size-8 shrink-0 p-0 text-muted-foreground md:size-7"
+                  >
+                    <CircleHelp className="size-4" strokeWidth={1.5} />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  collisionPadding={12}
+                  className="w-72 space-y-2.5 p-3 text-xs leading-6"
+                  onCloseAutoFocus={restoreInput}
+                >
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={locked || !!parsed.errors.length}
+                    className="h-8 w-full justify-start px-2 text-[13px] font-normal"
+                    onClick={editForm}
+                  >
+                    <ListPlus className="size-4" />
+                    打开完整编辑窗口 (⌘E)
+                  </Button>
+                  <p className="border-t pt-2 text-muted-foreground">
+                    示例：提交周报 明天 #Work @Focus p1
+                    <br />
+                    回车添加 · Tab 自动补全 · ⌘E 完整编辑
+                  </p>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
+
+          <div
+            data-quick-attributes
+            className="flex items-center justify-between gap-2 border-t border-border/70 px-3.5 py-2.5"
+          >
+            <div className="min-w-0">
+              <ProjectPicker
+                returnFocus={() => input.current?.focus()}
+                id="quick-project"
+                compact
+                value={parsed.task.project || ""}
+                projects={projects}
+                disabled={locked}
+                onChange={(value) => {
+                  setNoProject(!value);
+                  setField("project", value ? `#"${value}"` : "");
+                }}
+              />
+            </div>
+            <div data-quick-actions className="flex shrink-0 items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                disabled={busy}
+                aria-label="关闭快速添加"
+                onClick={() => onOpenChange(false)}
+                className="size-8 rounded-md text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-4" strokeWidth={1.75} />
+              </Button>
+              <Button
+                type="submit"
+                size="icon-sm"
+                disabled={locked || !text.trim()}
+                aria-label="添加任务"
+                className="size-8 rounded-[7px] bg-primary p-0 text-primary-foreground shadow-none hover:bg-primary/90"
+              >
+                {busy ? (
+                  <Spinner className="size-4" />
+                ) : (
+                  <ArrowUp className="size-4" strokeWidth={2.2} />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {(validation || error) && (
+            <Alert
+              id="quick-error"
+              variant="destructive"
+              className="mx-3.5 mb-3 rounded-md p-2.5"
+            >
+              <AlertDescription className="text-xs">
+                {validation || error}
+                {blocked && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="h-auto p-0 text-xs text-current"
+                    onClick={onCheck}
+                  >
+                    关闭并检查任务
+                  </Button>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
         </form>
       </DialogContent>
     </Dialog>

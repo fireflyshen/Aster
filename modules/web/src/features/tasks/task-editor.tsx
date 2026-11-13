@@ -12,7 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Inbox, ChevronRight } from "lucide-react";
+import { Hash, Inbox } from "lucide-react";
 import { useSyncExternalStore, type ReactNode } from "react";
 import { cn } from "cn";
 
@@ -31,7 +31,7 @@ export function TaskEditor({
   title,
   children,
   detail = false,
-  location = "Inbox",
+  location = "收件箱",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -45,22 +45,25 @@ export function TaskEditor({
   const Header = desktop ? DialogHeader : SheetHeader;
   const Title = desktop ? DialogTitle : SheetTitle;
   const Description = desktop ? DialogDescription : SheetDescription;
+  const isInboxLocation = !location || location === "收件箱" || location === "Inbox";
   const body = (
     <>
-      <Header className="task-detail-header shrink-0 border-b border-border/70 px-5 py-3.5 pr-12 text-left">
-        <Title className="flex items-center gap-2 text-[13px] font-normal text-muted-foreground">
+      <Header className="task-detail-header shrink-0 border-b border-border/70 px-5 py-3 pr-12 text-left">
+        <Title className="flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
           {detail ? (
             <>
-              <Inbox className="size-4 shrink-0" strokeWidth={1.5} />
-              <span>{location}</span>
+              {isInboxLocation ? (
+                <Inbox className="size-4 shrink-0" strokeWidth={1.6} />
+              ) : (
+                <Hash className="size-4 shrink-0" strokeWidth={1.6} />
+              )}
+              <span>{isInboxLocation ? "收件箱" : location}</span>
             </>
           ) : (
             title
           )}
         </Title>
-        <Description className="sr-only">
-          Edit the task and its properties.
-        </Description>
+        <Description className="sr-only">编辑任务及其属性。</Description>
       </Header>
       {children}
     </>

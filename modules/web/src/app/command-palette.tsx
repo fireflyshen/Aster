@@ -105,42 +105,42 @@ export function CommandPalette({
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Command Palette"
-      description="Jump to a view, project, label, or run an action."
+      title="命令面板"
+      description="快速跳转视图、项目、标签或执行操作。"
       showCloseButton={false}
       className="top-[max(4rem,14vh)] translate-y-0 rounded-xl border-border/80 shadow-modal sm:max-w-[540px]"
     >
-      <CommandInput placeholder="Type a command, project, or task…" />
+      <CommandInput placeholder="输入命令、项目、标签或任务…" />
       <CommandList className="max-h-[min(420px,65dvh)] p-1.5">
         <CommandEmpty className="py-8 text-center text-sm text-muted-foreground">
-          No matching commands, projects, or tasks.
+          没有匹配的命令、项目或任务。
         </CommandEmpty>
 
-        <CommandGroup heading="Actions">
+        <CommandGroup heading="快捷操作">
           <CommandItem
-            value="Add task create new todo"
+            value="Add task create new todo 添加任务 新建"
             onSelect={() => run(onAddTask)}
           >
             <Plus className="size-4" />
-            <span>Add task</span>
+            <span>添加任务</span>
             <CommandShortcut>Q</CommandShortcut>
           </CommandItem>
           <CommandItem
-            value="New project create folder"
+            value="New project create folder 新建项目"
             onSelect={() => run(onAddProject)}
           >
             <FolderPlus className="size-4" />
-            <span>New project…</span>
+            <span>新建项目…</span>
           </CommandItem>
           <CommandItem
-            value="Choose Focus project activate goal"
+            value="Choose Focus project activate goal 设为焦点项目"
             onSelect={() => run(onFocusPicker)}
           >
             <Target className="size-4" />
-            <span>Focus a project…</span>
+            <span>设为焦点项目…</span>
           </CommandItem>
           <CommandItem
-            value={`Switch to ${layout === "list" ? "Board" : "List"} view toggle layout`}
+            value={`Switch to ${layout === "list" ? "Board" : "List"} view toggle layout 切换视图 看板 列表`}
             onSelect={() => run(onToggleLayout)}
           >
             {layout === "list" ? (
@@ -148,7 +148,7 @@ export function CommandPalette({
             ) : (
               <List className="size-4" />
             )}
-            <span>Switch to {layout === "list" ? "Board" : "List"} view</span>
+            <span>切换至{layout === "list" ? "看板" : "列表"}视图</span>
             <CommandShortcut>B</CommandShortcut>
           </CommandItem>
           {currentProject && (
@@ -171,16 +171,16 @@ export function CommandPalette({
                 )}
                 <span>
                   {currentInFocus
-                    ? `Move “${currentProject}” to Later`
-                    : `Add “${currentProject}” to Focus`}
+                    ? `将“${currentProject}”移至稍后`
+                    : `将“${currentProject}”加入焦点`}
                 </span>
               </CommandItem>
               <CommandItem
-                value={`Edit project ${currentProject}`}
+                value={`Edit project 编辑项目 ${currentProject}`}
                 onSelect={() => run(() => onEditProject(currentProject))}
               >
                 <Pencil className="size-4" />
-                <span>Edit project “{currentProject}”…</span>
+                <span>编辑项目“{currentProject}”…</span>
               </CommandItem>
             </>
           )}
@@ -188,7 +188,7 @@ export function CommandPalette({
 
         <CommandSeparator className="my-1" />
 
-        <CommandGroup heading="Views">
+        <CommandGroup heading="视图">
           {(Object.entries(views) as [View, string][]).map(([value, label]) => {
             const Icon = viewIcons[value];
             return (
@@ -203,25 +203,25 @@ export function CommandPalette({
             );
           })}
           <CommandItem
-            value="Go to Filters and labels organization"
+            value="Go to Filters and labels organization 过滤器 标签"
             onSelect={() => run(onOrganization)}
           >
             <OrganizationIcon className="size-4" />
-            <span>Filters &amp; labels</span>
+            <span>过滤器&amp;标签</span>
           </CommandItem>
           <CommandItem
-            value="Open Data and recovery backups restore"
+            value="Open Data and recovery backups restore 数据 恢复"
             onSelect={() => run(onRecovery)}
           >
             <DatabaseBackup className="size-4" />
-            <span>Data &amp; recovery</span>
+            <span>数据与恢复</span>
           </CommandItem>
         </CommandGroup>
 
         {projects.length > 0 && (
           <>
             <CommandSeparator className="my-1" />
-            <CommandGroup heading="Projects">
+            <CommandGroup heading="我的项目">
               {projects.map((name) => {
                 const count = projectTaskCount(
                   name,
@@ -233,15 +233,15 @@ export function CommandPalette({
                 return (
                   <CommandItem
                     key={name}
-                    value={`Project ${name} ${inFocus ? "focus" : "later"}`}
+                    value={`Project 项目 ${name} ${inFocus ? "focus" : "later"}`}
                     onSelect={() => run(() => onProject(name))}
                   >
                     <ProjectIcon name={name} className="size-4 shrink-0" />
                     <span className="truncate">{name}</span>
                     <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
                       {inFocus && (
-                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-foreground">
-                          Focus
+                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                          焦点
                         </span>
                       )}
                       {count > 0 && (
@@ -258,11 +258,11 @@ export function CommandPalette({
         {(organization.filters.length > 0 || organization.tags.length > 0) && (
           <>
             <CommandSeparator className="my-1" />
-            <CommandGroup heading="Filters & Labels">
+            <CommandGroup heading="过滤器&标签">
               {organization.filters.map((item) => (
                 <CommandItem
                   key={`filter-${item.id}`}
-                  value={`Filter ${item.name} ${item.expression}`}
+                  value={`Filter 过滤器 ${item.name} ${item.expression}`}
                   onSelect={() => run(() => onEntry({ kind: "filter", item }))}
                 >
                   <FilterIcon
@@ -275,7 +275,7 @@ export function CommandPalette({
               {organization.tags.map((item) => (
                 <CommandItem
                   key={`tag-${item.id}`}
-                  value={`Label tag @${item.name}`}
+                  value={`Label tag 标签 @${item.name}`}
                   onSelect={() => run(() => onEntry({ kind: "tag", item }))}
                 >
                   <LabelIcon
@@ -292,11 +292,11 @@ export function CommandPalette({
         {pendingTasks.length > 0 && (
           <>
             <CommandSeparator className="my-1" />
-            <CommandGroup heading="Tasks">
+            <CommandGroup heading="任务">
               {pendingTasks.map((task) => (
                 <CommandItem
                   key={task.uuid}
-                  value={`Task ${task.description} ${task.project || ""} ${task.tags.join(" ")}`}
+                  value={`Task 任务 ${task.description} ${task.project || ""} ${task.tags.join(" ")}`}
                   onSelect={() => run(() => onEditTask(task))}
                 >
                   <CircleCheck className="size-4 text-muted-foreground/70" />

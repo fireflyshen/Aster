@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { LabelIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ export function LabelsPicker({
   disabled,
   compact = false,
   id = "tags",
+  trigger,
   returnFocus,
 }: {
   value: string[];
@@ -34,6 +35,7 @@ export function LabelsPicker({
   disabled?: boolean;
   compact?: boolean;
   id?: string;
+  trigger?: ReactNode;
   returnFocus?: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -71,38 +73,40 @@ export function LabelsPicker({
       }}
     >
       <PopoverTrigger asChild>
-        <Button
-          id={id}
-          role="combobox"
-          aria-label="Labels"
-          aria-expanded={open}
-          variant="outline"
-          type="button"
-          disabled={disabled}
-          className={cn(
-            "h-11 w-full min-w-0 justify-between px-3 text-base font-normal md:h-9 md:text-sm",
-            compact &&
-              "h-9 w-auto max-w-44 justify-start gap-1.5 rounded-[5px] border-input px-2 py-0 text-[13px] font-normal text-muted-foreground shadow-none has-[>svg]:px-2 md:h-7 md:text-[13px]",
-            compact && value.length > 0 && "text-foreground",
-          )}
-        >
-          {compact && <LabelIcon className="size-4 shrink-0" />}
-          <span
+        {trigger ?? (
+          <Button
+            id={id}
+            role="combobox"
+            aria-label="标签"
+            aria-expanded={open}
+            variant="outline"
+            type="button"
+            disabled={disabled}
             className={cn(
-              "truncate",
-              !value.length && !compact && "text-muted-foreground",
+              "h-11 w-full min-w-0 justify-between px-3 text-base font-normal md:h-9 md:text-sm",
+              compact &&
+                "h-9 w-auto max-w-44 justify-start gap-1.5 rounded-[5px] border-input px-2 py-0 text-[13px] font-normal text-muted-foreground shadow-none has-[>svg]:px-2 md:h-7 md:text-[13px]",
+              compact && value.length > 0 && "text-foreground",
             )}
           >
-            {value.length
-              ? value.join(", ")
-              : compact
-                ? "标签"
-                : "选择标签"}
-          </span>
-          {!compact && (
-            <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
-          )}
-        </Button>
+            {compact && <LabelIcon className="size-4 shrink-0" />}
+            <span
+              className={cn(
+                "truncate",
+                !value.length && !compact && "text-muted-foreground",
+              )}
+            >
+              {value.length
+                ? value.join(", ")
+                : compact
+                  ? "标签"
+                  : "选择标签"}
+            </span>
+            {!compact && (
+              <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+            )}
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="start"
