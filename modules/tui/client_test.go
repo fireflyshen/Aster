@@ -363,10 +363,26 @@ func TestSubtasksNestingOrphanPromotionAndActiveView(t *testing.T) {
 	nowStr := time.Now().UTC().Format("20060102T150405Z")
 	m.tasks = append(
 		m.tasks,
-		Task{UUID: "sub1", Description: "子任务一", Project: "Work", Status: "completed", Priority: "M"},
-		Task{UUID: "sub2", Description: "子任务二", Project: "Work", Status: "pending", Priority: "H", Start: nowStr},
+		Task{
+			UUID:        "sub1",
+			Description: "子任务一",
+			Project:     "Work",
+			Status:      "completed",
+			Priority:    "M",
+		},
+		Task{
+			UUID:        "sub2",
+			Description: "子任务二",
+			Project:     "Work",
+			Status:      "pending",
+			Priority:    "H",
+			Start:       nowStr,
+		},
 	)
-	m.org.Board.Placements = append(m.org.Board.Placements, Placement{UUID: "a", ColumnID: "todo"})
+	m.org.Board.Placements = append(
+		m.org.Board.Placements,
+		Placement{UUID: "a", ColumnID: "todo"},
+	)
 
 	// Both subtasks inherit "todo" column and nest beneath "a".
 	if got := m.columnID(m.tasks[len(m.tasks)-1]); got != "todo" {
@@ -380,7 +396,10 @@ func TestSubtasksNestingOrphanPromotionAndActiveView(t *testing.T) {
 		}
 	}
 	if sub2Row.depth != 1 || !sub2Row.lastChild {
-		t.Fatalf("expected sub2 nested as last child (depth=1, lastChild=true), got %+v", sub2Row)
+		t.Fatalf(
+			"expected sub2 nested as last child (depth=1, lastChild=true), got %+v",
+			sub2Row,
+		)
 	}
 	if st := m.viewIdx().subStats["a"]; st.done != 1 || st.total != 2 {
 		t.Fatalf("unexpected subtask stats: %+v", st)
@@ -395,7 +414,10 @@ func TestSubtasksNestingOrphanPromotionAndActiveView(t *testing.T) {
 		}
 	}
 	if promoted.depth != 0 || promoted.parentTitle != "未分组任务" {
-		t.Fatalf("expected orphaned subtask promoted with parentTitle, got %+v", promoted)
+		t.Fatalf(
+			"expected orphaned subtask promoted with parentTitle, got %+v",
+			promoted,
+		)
 	}
 
 	// Active view only shows running task sub2.
@@ -443,7 +465,8 @@ func TestSubtaskDescriptionQuickPriorityAndDueSubmit(t *testing.T) {
 	cmd()
 	p := readPayload(t, log)
 	data := p["data"].(map[string]any)
-	if data["parentUuid"] != "a" || data["taskDescription"] != "检查 nginx 与 systemd 状态" {
+	if data["parentUuid"] != "a" ||
+		data["taskDescription"] != "检查 nginx 与 systemd 状态" {
 		t.Fatalf("unexpected subtask payload: %+v", data)
 	}
 	m.mode = ""
@@ -458,7 +481,8 @@ func TestSubtaskDescriptionQuickPriorityAndDueSubmit(t *testing.T) {
 	cmd()
 	p = readPayload(t, log)
 	data = p["data"].(map[string]any)
-	if data["kind"] != "description" || data["action"] != "set" || data["uuid"] != "a" {
+	if data["kind"] != "description" || data["action"] != "set" ||
+		data["uuid"] != "a" {
 		t.Fatalf("unexpected description payload: %+v", data)
 	}
 	m.mode = ""
@@ -482,7 +506,11 @@ func TestSubtaskDescriptionQuickPriorityAndDueSubmit(t *testing.T) {
 	if _, ok := quickDuePreset("today", time.Now()); !ok {
 		t.Fatal("expected today preset to resolve")
 	}
-	if cleared, ok := quickDuePreset("clear", time.Now()); !ok || cleared != "" {
+	if cleared, ok := quickDuePreset(
+		"clear",
+		time.Now(),
+	); !ok ||
+		cleared != "" {
 		t.Fatalf("expected clear preset empty, got %q %v", cleared, ok)
 	}
 }

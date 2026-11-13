@@ -72,7 +72,11 @@ func panel(title, body string, width, height int, focused bool) string {
 	return panelWithRight(title, "", body, width, height, focused)
 }
 
-func panelWithRight(title, rightMeta, body string, width, height int, focused bool) string {
+func panelWithRight(
+	title, rightMeta, body string,
+	width, height int,
+	focused bool,
+) string {
 	borderColor := line
 	titleStyle := softText.Bold(true)
 	if focused {
@@ -89,7 +93,9 @@ func panelWithRight(title, rightMeta, body string, width, height int, focused bo
 		gap := max(1, innerW-lipgloss.Width(headerLine)-metaW)
 		headerLine += strings.Repeat(" ", gap) + metaStyled
 	}
-	rule := lipgloss.NewStyle().Foreground(line).Render(strings.Repeat("─", innerW))
+	rule := lipgloss.NewStyle().
+		Foreground(line).
+		Render(strings.Repeat("─", innerW))
 	content := headerLine + "\n" + rule + "\n" + body
 	return lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -164,7 +170,12 @@ func statusGlyph(t Task, waiting bool) string {
 	return lipgloss.NewStyle().Foreground(c).Render("○")
 }
 
-func dueLabel(due time.Time, rawDue string, completed bool, now time.Time) (string, lipgloss.AdaptiveColor) {
+func dueLabel(
+	due time.Time,
+	rawDue string,
+	completed bool,
+	now time.Time,
+) (string, lipgloss.AdaptiveColor) {
 	if due.IsZero() {
 		if rawDue == "" {
 			return "", muted

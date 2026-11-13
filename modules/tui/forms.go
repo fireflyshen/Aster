@@ -563,7 +563,10 @@ func (m *model) submit() (tea.Cmd, error) {
 			if err := m.client.mutate("/api/action", editPayload); err != nil {
 				return saved{err: err}
 			}
-			if err := m.client.mutate("/api/organization", descPayload); err != nil {
+			if err := m.client.mutate(
+				"/api/organization",
+				descPayload,
+			); err != nil {
 				return saved{err: err}
 			}
 			return saved{message: "已保存任务与描述"}

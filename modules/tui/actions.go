@@ -149,7 +149,10 @@ func (m *model) action(a string) tea.Cmd {
 			r.title,
 		}
 		m.busy = true
-		return m.write("/api/action", map[string]any{"uuid": r.id, "action": "edit", "task": next})
+		return m.write(
+			"/api/action",
+			map[string]any{"uuid": r.id, "action": "edit", "task": next},
+		)
 	}
 	if strings.HasPrefix(a, "setdue:") {
 		if r.kind != "task" {
@@ -162,7 +165,11 @@ func (m *model) action(a string) tea.Cmd {
 				"task.due.custom",
 				"设置截止日期",
 				r.title,
-				textField("截止日期", shownDate(r.task.Due), "YYYY-MM-DD HH:MM；留空清除"),
+				textField(
+					"截止日期",
+					shownDate(r.task.Due),
+					"YYYY-MM-DD HH:MM；留空清除",
+				),
 			)
 		}
 		due, ok := quickDuePreset(preset, time.Now())
@@ -178,7 +185,10 @@ func (m *model) action(a string) tea.Cmd {
 			r.title,
 		}
 		m.busy = true
-		return m.write("/api/action", map[string]any{"uuid": r.id, "action": "edit", "task": next})
+		return m.write(
+			"/api/action",
+			map[string]any{"uuid": r.id, "action": "edit", "task": next},
+		)
 	}
 	switch a {
 	case "task.new":
@@ -214,7 +224,11 @@ func (m *model) action(a string) tea.Cmd {
 			a,
 			"编辑任务描述",
 			r.title,
-			areaField("任务描述", m.org.Descriptions[r.id], "留空保存将清空描述 · Ctrl+S 保存"),
+			areaField(
+				"任务描述",
+				m.org.Descriptions[r.id],
+				"留空保存将清空描述 · Ctrl+S 保存",
+			),
 		)
 	case "task.priority":
 		if r.kind != "task" {
@@ -482,7 +496,9 @@ func (m *model) action(a string) tea.Cmd {
 				"本地文件路径",
 				filepath.Join(
 					os.TempDir(),
-					"aster-backup-"+time.Now().Format("20060102-150405")+".json",
+					"aster-backup-"+time.Now().
+						Format("20060102-150405")+
+						".json",
 				),
 				"可输入绝对路径",
 			),

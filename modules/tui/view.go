@@ -24,7 +24,11 @@ func currentRow(rs []row, cursor int) row {
 	return row{}
 }
 
-func fillRow(styledSegments string, plainWidth, totalWidth int, selected bool) string {
+func fillRow(
+	styledSegments string,
+	plainWidth, totalWidth int,
+	selected bool,
+) string {
 	bg := lipgloss.NewStyle()
 	if selected {
 		bg = bg.Background(selectedBG)
@@ -87,8 +91,12 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 			prefixStyle = lipgloss.NewStyle().Foreground(dotColor)
 		}
 		if highlighted {
-			textStyle = textStyle.Background(selectedBG).Foreground(selectedFG).Bold(true)
-			prefixStyle = prefixStyle.Background(selectedBG).Foreground(brand).Bold(true)
+			textStyle = textStyle.Background(selectedBG).
+				Foreground(selectedFG).
+				Bold(true)
+			prefixStyle = prefixStyle.Background(selectedBG).
+				Foreground(brand).
+				Bold(true)
 			countStyle = countStyle.Background(selectedBG).Foreground(muted)
 		}
 		gap := max(0, rowW-lipgloss.Width(prefix+clippedLabel+countText))
@@ -116,7 +124,10 @@ func (m model) taskMetaLine(f renderFrame, r row) string {
 			subStyle = lipgloss.NewStyle().Foreground(okColor)
 			subIcon = "✓ "
 		}
-		parts = append(parts, subStyle.Render(fmt.Sprintf("%s%d/%d", subIcon, st.done, st.total)))
+		parts = append(
+			parts,
+			subStyle.Render(fmt.Sprintf("%s%d/%d", subIcon, st.done, st.total)),
+		)
 	}
 	if strings.TrimSpace(m.org.Descriptions[t.UUID]) != "" {
 		parts = append(parts, dim.Render("≡"))
@@ -126,7 +137,15 @@ func (m model) taskMetaLine(f renderFrame, r row) string {
 		if p, ok := f.idx.projByName[t.Project]; ok && p.Color != "" {
 			c = swatchColor(p.Color)
 		}
-		parts = append(parts, lipgloss.NewStyle().Foreground(c).Render("●")+" "+softText.Render(clean(t.Project)))
+		parts = append(
+			parts,
+			lipgloss.NewStyle().
+				Foreground(c).
+				Render("●")+
+				" "+softText.Render(
+				clean(t.Project),
+			),
+		)
 	}
 	if t.Due != "" {
 		lbl, c := dueLabel(td.due, t.Due, t.Status == "completed", f.now)
@@ -135,8 +154,11 @@ func (m model) taskMetaLine(f renderFrame, r row) string {
 		}
 	}
 	if t.Start != "" && !td.start.IsZero() && t.Status != "completed" {
-		parts = append(parts, lipgloss.NewStyle().Foreground(timerColor).Bold(true).
-			Render("▶ "+formatDurationShort(f.now.Sub(td.start).Seconds())))
+		parts = append(
+			parts,
+			lipgloss.NewStyle().Foreground(timerColor).Bold(true).
+				Render("▶ "+formatDurationShort(f.now.Sub(td.start).Seconds())),
+		)
 	} else if m.org.Energy != nil {
 		if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
 			parts = append(parts, dim.Render("⧖ "+formatDurationShort(secs)))
@@ -147,18 +169,29 @@ func (m model) taskMetaLine(f renderFrame, r row) string {
 		if item, ok := f.idx.tagByName[tag]; ok && item.Color != "" {
 			c = swatchColor(item.Color)
 		}
-		parts = append(parts, lipgloss.NewStyle().Foreground(c).Render("#"+clean(tag)))
+		parts = append(
+			parts,
+			lipgloss.NewStyle().Foreground(c).Render("#"+clean(tag)),
+		)
 	}
 	if t.Recur != "" {
 		parts = append(parts, dim.Render("↻ "+clean(t.Recur)))
 	}
 	if waiting {
-		parts = append(parts, lipgloss.NewStyle().Foreground(warnColor).Render("◴ 等待"))
+		parts = append(
+			parts,
+			lipgloss.NewStyle().Foreground(warnColor).Render("◴ 等待"),
+		)
 	}
 	return strings.Join(parts, dim.Render(" · "))
 }
 
-func (m model) renderTaskLines(f renderFrame, r row, width int, selected bool) []string {
+func (m model) renderTaskLines(
+	f renderFrame,
+	r row,
+	width int,
+	selected bool,
+) []string {
 	t := r.task
 	td := f.idx.dates[t.UUID]
 	waiting := t.Status == "waiting" || td.wait.After(f.now)
@@ -197,21 +230,30 @@ func (m model) renderTaskLines(f renderFrame, r row, width int, selected bool) [
 	}
 
 	prefixPlain := marker + tree + glyphText + " " + prioRaw
-	titlePlain := clip(clean(r.title), max(4, width-lipgloss.Width(prefixPlain)))
+	titlePlain := clip(
+		clean(r.title),
+		max(4, width-lipgloss.Width(prefixPlain)),
+	)
 
 	bgStyle := lipgloss.NewStyle()
 	titleStyle := lipgloss.NewStyle().Foreground(ink)
 	markerStyle := lipgloss.NewStyle().Foreground(muted)
 	treeStyle := lipgloss.NewStyle().Foreground(line)
 	glyphStyle := lipgloss.NewStyle().Foreground(glyphColor)
-	prioStyle := lipgloss.NewStyle().Foreground(priorityColor(t.Priority)).Bold(t.Priority == "H")
+	prioStyle := lipgloss.NewStyle().
+		Foreground(priorityColor(t.Priority)).
+		Bold(t.Priority == "H")
 	if t.Status == "completed" {
 		titleStyle = lipgloss.NewStyle().Foreground(muted)
 	}
 	if selected {
 		bgStyle = bgStyle.Background(selectedBG)
-		titleStyle = titleStyle.Background(selectedBG).Foreground(selectedFG).Bold(true)
-		markerStyle = markerStyle.Background(selectedBG).Foreground(brand).Bold(true)
+		titleStyle = titleStyle.Background(selectedBG).
+			Foreground(selectedFG).
+			Bold(true)
+		markerStyle = markerStyle.Background(selectedBG).
+			Foreground(brand).
+			Bold(true)
 		treeStyle = treeStyle.Background(selectedBG).Foreground(muted)
 		glyphStyle = glyphStyle.Background(selectedBG)
 		prioStyle = prioStyle.Background(selectedBG)
@@ -222,7 +264,12 @@ func (m model) renderTaskLines(f renderFrame, r row, width int, selected bool) [
 		bgStyle.Render(" ") +
 		prioStyle.Render(prioRaw) +
 		titleStyle.Render(titlePlain)
-	line1 = fillRow(line1, lipgloss.Width(prefixPlain+titlePlain), width, selected)
+	line1 = fillRow(
+		line1,
+		lipgloss.Width(prefixPlain+titlePlain),
+		width,
+		selected,
+	)
 
 	out := []string{line1}
 	if meta := m.taskMetaLine(f, r); meta != "" {
@@ -230,7 +277,14 @@ func (m model) renderTaskLines(f renderFrame, r row, width int, selected bool) [
 		if selected {
 			metaBg := lipgloss.NewStyle().Background(selectedBG)
 			pad := max(0, width-lipgloss.Width(clippedMeta))
-			clippedMeta = metaBg.Render(metaIndent) + clip(meta, max(1, width-len(metaIndent))) + metaBg.Render(strings.Repeat(" ", pad))
+			clippedMeta = metaBg.Render(
+				metaIndent,
+			) + clip(
+				meta,
+				max(1, width-len(metaIndent)),
+			) + metaBg.Render(
+				strings.Repeat(" ", pad),
+			)
 		}
 		out = append(out, clippedMeta)
 	}
@@ -249,7 +303,9 @@ func (m model) list(w, h int, f renderFrame) string {
 			softText.Render(fmt.Sprintf("◎ Focus 聚焦 · %d / 3", len(active))),
 		)
 		for _, p := range active {
-			dot := lipgloss.NewStyle().Foreground(swatchColor(p.Color)).Render("●")
+			dot := lipgloss.NewStyle().
+				Foreground(swatchColor(p.Color)).
+				Render("●")
 			lineText := dot + " " + accent.Render(clean(p.Name))
 			if p.Outcome != "" && w > 28 {
 				lineText += dim.Render("  — " + clean(p.Outcome))
@@ -262,7 +318,12 @@ func (m model) list(w, h int, f renderFrame) string {
 		lines = append(lines, "")
 	}
 	if m.query != "" {
-		lines = append(lines, lipgloss.NewStyle().Foreground(brand).Render("⌕ 搜索："+clip(clean(m.query), w-12)))
+		lines = append(
+			lines,
+			lipgloss.NewStyle().
+				Foreground(brand).
+				Render("⌕ 搜索："+clip(clean(m.query), w-12)),
+		)
 	}
 	rs := f.rows
 	rowW := max(4, w-4)
@@ -290,11 +351,26 @@ func (m model) list(w, h int, f renderFrame) string {
 			count := fmt.Sprintf(" %d ", r.count)
 			if selected {
 				bg := lipgloss.NewStyle().Background(selectedBG)
-				headStyled := bg.Foreground(selectedFG).Bold(true).Render(clip(head, max(4, rowW-len(count))))
+				headStyled := bg.Foreground(selectedFG).
+					Bold(true).
+					Render(clip(head, max(4, rowW-len(count))))
 				cntStyled := bg.Foreground(brand).Bold(true).Render(count)
-				ls = []string{fillRow(headStyled+cntStyled, lipgloss.Width(headStyled+cntStyled), rowW, true)}
+				ls = []string{
+					fillRow(
+						headStyled+cntStyled,
+						lipgloss.Width(headStyled+cntStyled),
+						rowW,
+						true,
+					),
+				}
 			} else {
-				ls = []string{softText.Bold(true).Render(clip(head, max(4, rowW-len(count)))) + dim.Render(count)}
+				ls = []string{
+					softText.Bold(true).
+						Render(clip(head, max(4, rowW-len(count)))) +
+						dim.Render(
+							count,
+						),
+				}
 			}
 		case "task":
 			ls = m.renderTaskLines(f, r, rowW, selected)
@@ -305,22 +381,39 @@ func (m model) list(w, h int, f renderFrame) string {
 			}
 			titleStyle := lipgloss.NewStyle().Foreground(ink).Bold(true)
 			if selected {
-				titleStyle = titleStyle.Background(selectedBG).Foreground(selectedFG)
+				titleStyle = titleStyle.Background(selectedBG).
+					Foreground(selectedFG)
 			}
 			prefixDot := ""
 			if r.kind == "project" && r.project.Color != "" {
-				prefixDot = lipgloss.NewStyle().Foreground(swatchColor(r.project.Color)).Render("● ")
+				prefixDot = lipgloss.NewStyle().
+					Foreground(swatchColor(r.project.Color)).
+					Render("● ")
+
 			} else if (r.kind == "filter" || r.kind == "tag") && r.item.Color != "" {
-				prefixDot = lipgloss.NewStyle().Foreground(swatchColor(r.item.Color)).Render("● ")
+				prefixDot = lipgloss.NewStyle().
+					Foreground(swatchColor(r.item.Color)).
+					Render("● ")
 			}
-			line1 := titleStyle.Render(marker) + prefixDot + titleStyle.Render(clip(clean(r.title), max(4, rowW-4)))
+			line1 := titleStyle.Render(
+				marker,
+			) + prefixDot + titleStyle.Render(
+				clip(clean(r.title), max(4, rowW-4)),
+			)
 			ls = []string{fillRow(line1, lipgloss.Width(line1), rowW, selected)}
 			if sub := clean(r.subtitle); sub != "" {
 				subLine := dim.Render(clip("    "+sub, rowW))
 				if selected {
-					subBg := lipgloss.NewStyle().Background(selectedBG).Foreground(muted)
+					subBg := lipgloss.NewStyle().
+						Background(selectedBG).
+						Foreground(muted)
 					subText := clip("    "+sub, rowW)
-					subLine = fillRow(subBg.Render(subText), lipgloss.Width(subText), rowW, true)
+					subLine = fillRow(
+						subBg.Render(subText),
+						lipgloss.Width(subText),
+						rowW,
+						true,
+					)
 				}
 				ls = append(ls, subLine)
 			}
@@ -419,7 +512,9 @@ func (m model) inspector(w, h int, f renderFrame) string {
 	kv := func(label, val string, valColor lipgloss.AdaptiveColor) {
 		padW := max(1, 7-lipgloss.Width(label))
 		lbl := dim.Render(label + strings.Repeat(" ", padW))
-		v := lipgloss.NewStyle().Foreground(valColor).Render(clip(clean(val), max(4, bodyW-8)))
+		v := lipgloss.NewStyle().
+			Foreground(valColor).
+			Render(clip(clean(val), max(4, bodyW-8)))
 		lines = append(lines, lbl+" "+v)
 	}
 	switch r.kind {
@@ -500,7 +595,11 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			kv("重复", rec, inkSoft)
 		}
 		if t.Start != "" && !td.start.IsZero() {
-			kv("计时", "正在运行 "+formatDurationShort(f.now.Sub(td.start).Seconds()), timerColor)
+			kv(
+				"计时",
+				"正在运行 "+formatDurationShort(f.now.Sub(td.start).Seconds()),
+				timerColor,
+			)
 		}
 		if m.org.Energy != nil {
 			if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
@@ -544,12 +643,23 @@ func (m model) inspector(w, h int, f renderFrame) string {
 						cMark = "▶"
 						cCol = timerColor
 					}
-					cLine := lipgloss.NewStyle().Foreground(cCol).Render(cMark) + " " + clip(clean(ct.Description), max(4, bodyW-3))
+					cLine := lipgloss.NewStyle().
+						Foreground(cCol).
+						Render(cMark) +
+						" " + clip(
+						clean(ct.Description),
+						max(4, bodyW-3),
+					)
 					lines = append(lines, cLine)
 				}
 			}
 			if len(children) > limit {
-				lines = append(lines, dim.Render(fmt.Sprintf("  + 还有 %d 项子任务", len(children)-limit)))
+				lines = append(
+					lines,
+					dim.Render(
+						fmt.Sprintf("  + 还有 %d 项子任务", len(children)-limit),
+					),
+				)
 			}
 		}
 
@@ -559,7 +669,13 @@ func (m model) inspector(w, h int, f renderFrame) string {
 				addStyled(accent, "◎ "+p.Name)
 				add("完成目标：" + p.Outcome)
 				if p.NextTask == t.UUID {
-					lines = append(lines, lipgloss.NewStyle().Foreground(okColor).Bold(true).Render("★ 这是项目下一步"))
+					lines = append(
+						lines,
+						lipgloss.NewStyle().
+							Foreground(okColor).
+							Bold(true).
+							Render("★ 这是项目下一步"),
+					)
 				}
 			}
 		}
@@ -668,9 +784,20 @@ func (m model) overlay(w, h int) string {
 			clipped := clip(marker+label, bodyWidth)
 			rowStyle := lipgloss.NewStyle().Foreground(ink)
 			if selected {
-				rowStyle = lipgloss.NewStyle().Background(selectedBG).Foreground(selectedFG).Bold(true)
+				rowStyle = lipgloss.NewStyle().
+					Background(selectedBG).
+					Foreground(selectedFG).
+					Bold(true)
 			}
-			lines = append(lines, fillRow(rowStyle.Render(clipped), lipgloss.Width(clipped), bodyWidth, selected))
+			lines = append(
+				lines,
+				fillRow(
+					rowStyle.Render(clipped),
+					lipgloss.Width(clipped),
+					bodyWidth,
+					selected,
+				),
+			)
 			if o.hint != "" && len(opts) < 8 {
 				lines = append(
 					lines,
@@ -769,8 +896,15 @@ func (m model) overlay(w, h int) string {
 		}
 		lines = append(lines, fmt.Sprintf("恢复时停止的计时：%d", p.StoppedOccurrences))
 	}
-	rule := lipgloss.NewStyle().Foreground(line).Render(strings.Repeat("─", bodyWidth))
-	body := strings.Join(lines, "\n") + "\n" + rule + "\n" + dim.Render(wrap(hint, bodyWidth))
+	rule := lipgloss.NewStyle().
+		Foreground(line).
+		Render(strings.Repeat("─", bodyWidth))
+	body := strings.Join(
+		lines,
+		"\n",
+	) + "\n" + rule + "\n" + dim.Render(
+		wrap(hint, bodyWidth),
+	)
 	return lipgloss.Place(
 		w,
 		h,
@@ -793,24 +927,41 @@ func (m model) View() string {
 		cur:     currentRow(rs, m.cursor),
 	}
 
-	brandMark := lipgloss.NewStyle().Foreground(brand).Bold(true).Render("  ◈ ASTER")
+	brandMark := lipgloss.NewStyle().
+		Foreground(brand).
+		Bold(true).
+		Render("  ◈ ASTER")
 	header := brandMark +
 		lipgloss.NewStyle().Foreground(line).Render("  /  ") +
 		softText.Bold(true).Render(clean(m.title()))
 
 	var rightParts []string
 	if idx.anyRunning {
-		rightParts = append(rightParts, lipgloss.NewStyle().Foreground(timerColor).Bold(true).Render("▶ 计时中"))
+		rightParts = append(
+			rightParts,
+			lipgloss.NewStyle().
+				Foreground(timerColor).
+				Bold(true).
+				Render("▶ 计时中"),
+		)
 	}
 	if m.org.Energy != nil {
 		if m.org.Energy.TrackedSecondsToday >= 60 {
-			rightParts = append(rightParts, dim.Render("今日 "+formatDurationShort(m.org.Energy.TrackedSecondsToday)))
+			rightParts = append(
+				rightParts,
+				dim.Render(
+					"今日 "+formatDurationShort(m.org.Energy.TrackedSecondsToday),
+				),
+			)
 		}
 		bars := 6
 		if w < 90 {
 			bars = 4
 		}
-		rightParts = append(rightParts, energyMeter(m.org.Energy.Remaining, m.org.Energy.Max, bars))
+		rightParts = append(
+			rightParts,
+			energyMeter(m.org.Energy.Remaining, m.org.Energy.Max, bars),
+		)
 	} else if m.org.Timing != nil && !m.org.Timing.Available {
 		rightParts = append(rightParts, dim.Render("计时不可用"))
 	}
@@ -886,11 +1037,18 @@ func (m model) View() string {
 		stateDot = lipgloss.NewStyle().Foreground(brand).Render("◌ 同步中 · ")
 	}
 	if m.blocked {
-		stateDot = lipgloss.NewStyle().Foreground(dangerColor).Bold(true).Render("! 写入锁定 · ")
+		stateDot = lipgloss.NewStyle().
+			Foreground(dangerColor).
+			Bold(true).
+			Render("! 写入锁定 · ")
 	}
-	footer := dim.Render("  Tab/←→ 切焦点   j/k 移动   x 完成   s 计时   a 新建   S 子任务   !/@ 优先级/改期   : 菜单   ? 帮助")
+	footer := dim.Render(
+		"  Tab/←→ 切焦点   j/k 移动   x 完成   s 计时   a 新建   S 子任务   !/@ 优先级/改期   : 菜单   ? 帮助",
+	)
 	message := clip("  "+stateDot+softText.Render(clean(m.message)), w)
-	divider := lipgloss.NewStyle().Foreground(line).Render(strings.Repeat("─", w))
+	divider := lipgloss.NewStyle().
+		Foreground(line).
+		Render(strings.Repeat("─", w))
 	output := header + "\n" + divider + "\n" + body + "\n" + footer + "\n" + message
 	lines := strings.Split(output, "\n")
 	for i := range lines {
@@ -944,23 +1102,50 @@ func (m model) boardView(w, h int, f renderFrame) string {
 				prio = "[" + t.Priority + "] "
 			}
 			titlePrefix := tree + mark + " " + prio
-			wrapped := strings.Split(wrap(titlePrefix+t.Description, cardW), "\n")
+			wrapped := strings.Split(
+				wrap(titlePrefix+t.Description, cardW),
+				"\n",
+			)
 			for li, titleLine := range wrapped {
 				if selected {
-					st := lipgloss.NewStyle().Background(selectedBG).Foreground(selectedFG).Bold(true)
-					lines = append(lines, fillRow(st.Render(titleLine), lipgloss.Width(titleLine), cardW, true))
+					st := lipgloss.NewStyle().
+						Background(selectedBG).
+						Foreground(selectedFG).
+						Bold(true)
+					lines = append(
+						lines,
+						fillRow(
+							st.Render(titleLine),
+							lipgloss.Width(titleLine),
+							cardW,
+							true,
+						),
+					)
 				} else if li == 0 {
 					stTitle := lipgloss.NewStyle().Foreground(ink)
-					prefixStyled := lipgloss.NewStyle().Foreground(muted).Render(tree) +
-						lipgloss.NewStyle().Foreground(markCol).Render(mark) + " " +
-						lipgloss.NewStyle().Foreground(priorityColor(t.Priority)).Render(prio)
+					prefixStyled := lipgloss.NewStyle().
+						Foreground(muted).
+						Render(tree) +
+						lipgloss.NewStyle().
+							Foreground(markCol).
+							Render(mark) +
+						" " +
+						lipgloss.NewStyle().
+							Foreground(priorityColor(t.Priority)).
+							Render(prio)
 					rest := strings.TrimPrefix(titleLine, titlePrefix)
 					lines = append(lines, prefixStyled+stTitle.Render(rest))
 				} else {
-					lines = append(lines, lipgloss.NewStyle().Foreground(ink).Render(titleLine))
+					lines = append(
+						lines,
+						lipgloss.NewStyle().Foreground(ink).Render(titleLine),
+					)
 				}
 			}
-			if meta := m.taskMetaLine(f, row{task: t, depth: depth[t.UUID]}); meta != "" {
+			if meta := m.taskMetaLine(
+				f,
+				row{task: t, depth: depth[t.UUID]},
+			); meta != "" {
 				lines = append(lines, clip("  "+meta, cardW))
 			}
 			lines = append(lines, "")

@@ -52,7 +52,7 @@ func (m model) indexSig() indexSig {
 
 func buildViewIndex(tasks []Task, org Organization) viewIndex {
 	idx := viewIndex{
-		built:       true,
+		built: true,
 		sig: indexSig{
 			tasks:    len(tasks),
 			rev:      org.Revision,
@@ -190,7 +190,10 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 		for _, r := range m.extra {
 			if q == "" || strings.Contains(
 				strings.ToLower(
-					r.task.Description+" "+r.task.Project+" "+strings.Join(r.task.Tags, " ")+" "+m.org.Descriptions[r.task.UUID],
+					r.task.Description+" "+r.task.Project+" "+strings.Join(
+						r.task.Tags,
+						" ",
+					)+" "+m.org.Descriptions[r.task.UUID],
 				),
 				q,
 			) {
@@ -252,7 +255,10 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 		}
 		if q != "" && !strings.Contains(
 			strings.ToLower(
-				t.Description+" "+t.Project+" "+strings.Join(t.Tags, " ")+" "+m.org.Descriptions[t.UUID],
+				t.Description+" "+t.Project+" "+strings.Join(
+					t.Tags,
+					" ",
+				)+" "+m.org.Descriptions[t.UUID],
 			),
 			q,
 		) {
@@ -295,7 +301,8 @@ func (idx viewIndex) groupedTasks(
 	}
 	children := map[string][]Task{}
 	for _, t := range sorted {
-		if pid := idx.parentOf[t.UUID]; pid != "" && pid != t.UUID && present[pid] {
+		if pid := idx.parentOf[t.UUID]; pid != "" && pid != t.UUID &&
+			present[pid] {
 			children[pid] = append(children[pid], t)
 		}
 	}
@@ -357,7 +364,8 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 					continue
 				}
 			}
-			if q == "" || strings.Contains(strings.ToLower(p.Name+" "+p.Description), q) {
+			if q == "" ||
+				strings.Contains(strings.ToLower(p.Name+" "+p.Description), q) {
 				status := p.Status
 				if status == "" {
 					status = "later"
@@ -381,7 +389,8 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 		}
 		q := strings.ToLower(m.query)
 		for _, i := range items {
-			if q == "" || strings.Contains(strings.ToLower(i.Name+" "+i.Expression), q) {
+			if q == "" ||
+				strings.Contains(strings.ToLower(i.Name+" "+i.Expression), q) {
 				star := ""
 				if i.Favorite {
 					star = "★ "

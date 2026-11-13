@@ -144,7 +144,10 @@ func (m model) tickInterval() time.Duration {
 }
 func (m model) nextTick() tea.Cmd {
 	gen := m.tickGen
-	return tea.Tick(m.tickInterval(), func(t time.Time) tea.Msg { return tickMsg{t, gen} })
+	return tea.Tick(
+		m.tickInterval(),
+		func(t time.Time) tea.Msg { return tickMsg{t, gen} },
+	)
 }
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
