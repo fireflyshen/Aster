@@ -33,7 +33,13 @@ import {
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { Inbox } from "lucide-react";
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
 import { BoardColumnEditor } from "./board-column-editor";
@@ -233,7 +239,8 @@ export function TaskBoard({
 
   const showSectionCreator =
     canAddTask &&
-    (canAddSection ?? (Boolean(currentProj) || (!todaySplit && layout === "list")));
+    (canAddSection ??
+      (Boolean(currentProj) || (!todaySplit && layout === "list")));
 
   return (
     <div

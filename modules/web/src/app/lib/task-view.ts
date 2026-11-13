@@ -8,7 +8,12 @@ import type {
 import type { Task, TaskInput, View } from "@shared/tasks";
 import { isoDue, toDueDay } from "@/features/tasks/task-date";
 
-export type TaskGroup = "overdue" | "today" | "pending" | "waiting" | "completed";
+export type TaskGroup =
+  | "overdue"
+  | "today"
+  | "pending"
+  | "waiting"
+  | "completed";
 
 export const BLANK_TASK_INPUT: TaskInput = {
   description: "",
@@ -85,7 +90,9 @@ export function withViewDefaults<T extends TaskInput>(
 }
 
 /** Computes sidebar task badges for inbox, today, and waiting views. */
-export function computeViewCounts(tasks: Task[]): Partial<Record<View, number>> {
+export function computeViewCounts(
+  tasks: Task[],
+): Partial<Record<View, number>> {
   return {
     pending: tasks.filter(
       (task) =>

@@ -45,7 +45,8 @@ export function TaskEditor({
   const Header = desktop ? DialogHeader : SheetHeader;
   const Title = desktop ? DialogTitle : SheetTitle;
   const Description = desktop ? DialogDescription : SheetDescription;
-  const isInboxLocation = !location || location === "收件箱" || location === "Inbox";
+  const isInboxLocation =
+    !location || location === "收件箱" || location === "Inbox";
   const body = (
     <>
       <Header className="task-detail-header shrink-0 border-b border-border/70 px-5 py-3 pr-12 text-left">

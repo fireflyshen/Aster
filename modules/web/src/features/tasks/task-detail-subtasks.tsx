@@ -32,7 +32,9 @@ export function TaskDetailSubtasks({
   const [title, setTitle] = useState("");
   const [adding, setAdding] = useState(false);
   const [inputOpen, setInputOpen] = useState(false);
-  const doneCount = subtasks.filter((item) => item.status === "completed").length;
+  const doneCount = subtasks.filter(
+    (item) => item.status === "completed",
+  ).length;
 
   async function submit(event?: FormEvent) {
     if (event) event.preventDefault();

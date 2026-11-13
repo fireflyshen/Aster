@@ -182,10 +182,15 @@
 .dark .workspace-sidebar [data-variant="navigation"][aria-current="page"] {
   color: #ff7066;
 }
-.workspace-sidebar [data-variant="navigation"][aria-current="page"] svg:not([style]) {
+.workspace-sidebar
+  [data-variant="navigation"][aria-current="page"]
+  svg:not([style]) {
   color: #dc4c3e;
 }
-.dark .workspace-sidebar [data-variant="navigation"][aria-current="page"] svg:not([style]) {
+.dark
+  .workspace-sidebar
+  [data-variant="navigation"][aria-current="page"]
+  svg:not([style]) {
   color: #ff7066;
 }
 [data-project-nav] > button,

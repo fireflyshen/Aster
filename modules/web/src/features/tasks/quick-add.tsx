@@ -26,10 +26,7 @@ import { ProjectIcon } from "@/features/projects/project-icon";
 import { DatePicker } from "@/features/tasks/date-picker";
 import { LabelsPicker } from "@/features/tasks/labels-picker";
 import { ProjectPicker } from "@/features/tasks/project-picker";
-import {
-  PRIORITIES,
-  priorityOption,
-} from "@/features/tasks/task-constants";
+import { PRIORITIES, priorityOption } from "@/features/tasks/task-constants";
 import { toDueDay } from "@/features/tasks/task-date";
 import { parseQuickTask, type QuickToken } from "@core/tasks/quick-task";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
@@ -131,7 +128,9 @@ export function QuickAdd({
     let value = text;
     for (const token of [...matches].reverse())
       value = value.slice(0, token.start) + value.slice(token.end);
-    change((value.trimEnd() + (expressionStr ? " " + expressionStr : "")).trim());
+    change(
+      (value.trimEnd() + (expressionStr ? " " + expressionStr : "")).trim(),
+    );
   }
   function resetState() {
     setNoProject(false);
@@ -303,7 +302,9 @@ export function QuickAdd({
             {(projectSuggestions.length > 0 || labelSuggestions.length > 0) && (
               <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
                 <span className="text-[11px] text-muted-foreground">
-                  {triggerKind === "#" ? "项目 (Tab 补全):" : "标签 (Tab 补全):"}
+                  {triggerKind === "#"
+                    ? "项目 (Tab 补全):"
+                    : "标签 (Tab 补全):"}
                 </span>
                 {projectSuggestions.map((name, idx) => (
                   <Button
@@ -397,9 +398,7 @@ export function QuickAdd({
                     activePriority.chipClass,
                   )}
                 >
-                  <Flag
-                    className={cn("size-3.5", activePriority.iconClass)}
-                  />
+                  <Flag className={cn("size-3.5", activePriority.iconClass)} />
                   <SelectValue>{activePriority.short}</SelectValue>
                 </SelectTrigger>
                 <SelectContent onCloseAutoFocus={restoreInput}>
@@ -483,7 +482,10 @@ export function QuickAdd({
                 }}
               />
             </div>
-            <div data-quick-actions className="flex shrink-0 items-center gap-2">
+            <div
+              data-quick-actions
+              className="flex shrink-0 items-center gap-2"
+            >
               <Button
                 type="button"
                 variant="ghost"

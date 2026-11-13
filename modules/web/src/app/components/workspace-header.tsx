@@ -7,8 +7,16 @@ import {
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectIcon } from "@/features/projects/project-icon";
 import type { ProjectStatus } from "@core/workspace/focus";
-import type { SavedFilter, SavedProject, SavedTag } from "@core/workspace/organization";
-import { projectLeaf, projectParent, projectPath } from "@core/workspace/projects";
+import type {
+  SavedFilter,
+  SavedProject,
+  SavedTag,
+} from "@core/workspace/organization";
+import {
+  projectLeaf,
+  projectParent,
+  projectPath,
+} from "@core/workspace/projects";
 import type { View } from "@shared/tasks";
 import { cn } from "cn";
 import { format } from "date-fns";
@@ -185,7 +193,8 @@ export function WorkspaceHeading({
     ? projectsPage
       ? "我的项目"
       : "过滤器&标签"
-    : activeItem?.name || (currentProject ? projectLeaf(currentProject) : views[view]);
+    : activeItem?.name ||
+      (currentProject ? projectLeaf(currentProject) : views[view]);
 
   return (
     <>
@@ -363,7 +372,9 @@ export function WorkspaceHeading({
                     <Button
                       variant="navigation"
                       className="h-8 text-xs"
-                      disabled={busy || organizationSaving || !organizationReady}
+                      disabled={
+                        busy || organizationSaving || !organizationReady
+                      }
                       onClick={() => {
                         setViewMenuOpen(false);
                         onAddSubproject(currentProject);
@@ -375,7 +386,9 @@ export function WorkspaceHeading({
                     <Button
                       variant="navigation"
                       className="h-8 text-xs"
-                      disabled={busy || organizationSaving || !organizationReady}
+                      disabled={
+                        busy || organizationSaving || !organizationReady
+                      }
                       onClick={() => {
                         setViewMenuOpen(false);
                         onStartEditDesc();
@@ -387,7 +400,9 @@ export function WorkspaceHeading({
                     <Button
                       variant="navigation"
                       className="h-8 text-xs"
-                      disabled={busy || organizationSaving || !organizationReady}
+                      disabled={
+                        busy || organizationSaving || !organizationReady
+                      }
                       onClick={() => {
                         setViewMenuOpen(false);
                         onStartEditOutcome();
@@ -399,7 +414,9 @@ export function WorkspaceHeading({
                     <Button
                       variant="navigation"
                       className="h-8 text-xs"
-                      disabled={busy || organizationSaving || !organizationReady}
+                      disabled={
+                        busy || organizationSaving || !organizationReady
+                      }
                       onClick={() => {
                         setViewMenuOpen(false);
                         onEditProject(currentProject);
@@ -410,7 +427,9 @@ export function WorkspaceHeading({
                     </Button>
                     <Button
                       variant="navigation"
-                      disabled={busy || organizationSaving || !organizationReady}
+                      disabled={
+                        busy || organizationSaving || !organizationReady
+                      }
                       className="h-8 text-xs text-destructive hover:text-destructive"
                       onClick={() => {
                         setViewMenuOpen(false);

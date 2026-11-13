@@ -116,12 +116,8 @@ export function ProjectPicker({
       >
         <Command shouldFilter={false}>
           <CommandInput
-            aria-label={
-              allowCreate ? "搜索或创建项目" : "搜索项目"
-            }
-            placeholder={
-              allowCreate ? "搜索或创建项目…" : "搜索项目…"
-            }
+            aria-label={allowCreate ? "搜索或创建项目" : "搜索项目"}
+            placeholder={allowCreate ? "搜索或创建项目…" : "搜索项目…"}
             value={query}
             maxLength={200}
             onValueChange={setQuery}

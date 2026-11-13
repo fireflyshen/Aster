@@ -429,10 +429,7 @@ export function createTaskService(
       const args = addTaskArguments(input);
       const note = input.note?.trim() ? noteText(input.note) : "";
       return serializeWrite(connection, async () => {
-        const output = await run(
-          [...args, "rc.verbose=new-uuid"],
-          true,
-        );
+        const output = await run([...args, "rc.verbose=new-uuid"], true);
         try {
           if (note) {
             const uuid = output.match(

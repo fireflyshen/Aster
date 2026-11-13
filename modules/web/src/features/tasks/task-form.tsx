@@ -80,7 +80,9 @@ export function TaskForm({
   onSubmit,
   onToggleTask,
 }: TaskFormProps) {
-  const [descriptionDraft, setDescriptionDraft] = useState(taskDescription || "");
+  const [descriptionDraft, setDescriptionDraft] = useState(
+    taskDescription || "",
+  );
   const [editingDescription, setEditingDescription] = useState(false);
   const [savingDescription, setSavingDescription] = useState(false);
 

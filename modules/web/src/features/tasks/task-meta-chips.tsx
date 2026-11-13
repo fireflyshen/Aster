@@ -159,7 +159,9 @@ export function TaskMetaChips({
           title={`${completedSubtasks}/${totalSubtasks} 个子任务`}
           className={cn(
             "inline-flex shrink-0 items-center gap-1 h-4.5 rounded-[4px] px-1 -mx-1 text-[12px] leading-none text-muted-foreground/85 hover:text-foreground hover:bg-muted transition-colors cursor-pointer select-none whitespace-nowrap",
-            subtasksExpanded && variant === "card" && "bg-muted/80 text-foreground",
+            subtasksExpanded &&
+              variant === "card" &&
+              "bg-muted/80 text-foreground",
           )}
         >
           <svg

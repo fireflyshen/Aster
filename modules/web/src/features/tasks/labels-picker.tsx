@@ -96,11 +96,7 @@ export function LabelsPicker({
                 !value.length && !compact && "text-muted-foreground",
               )}
             >
-              {value.length
-                ? value.join(", ")
-                : compact
-                  ? "标签"
-                  : "选择标签"}
+              {value.length ? value.join(", ") : compact ? "标签" : "选择标签"}
             </span>
             {!compact && (
               <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
@@ -132,9 +128,7 @@ export function LabelsPicker({
           <CommandList className="max-h-60 overscroll-contain p-1">
             {!filtered.length && !create && (
               <CommandEmpty>
-                {query
-                  ? "未找到匹配标签"
-                  : "输入以创建标签"}
+                {query ? "未找到匹配标签" : "输入以创建标签"}
               </CommandEmpty>
             )}
             {filtered.map((tag) => (

@@ -59,7 +59,8 @@ export function formatCommentTime(raw?: string): string {
   if (Number.isNaN(date.getTime())) return raw;
   const now = new Date();
   const dayStr = format(date, "yyyy-MM-dd");
-  if (dayStr === format(now, "yyyy-MM-dd")) return `今天 ${format(date, "HH:mm")}`;
+  if (dayStr === format(now, "yyyy-MM-dd"))
+    return `今天 ${format(date, "HH:mm")}`;
   if (dayStr === format(addDays(now, -1), "yyyy-MM-dd"))
     return `昨天 ${format(date, "HH:mm")}`;
   return format(date, "yyyy-MM-dd HH:mm");

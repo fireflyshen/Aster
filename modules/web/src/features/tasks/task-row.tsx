@@ -130,15 +130,15 @@ export function TaskRow({
   const hasMoreMenu = Boolean(
     (!completed &&
       (onDueChange || onPriorityChange || onSaveInline || onAddSubtask)) ||
-      isSubtask ||
-      onDelete,
+    isSubtask ||
+    onDelete,
   );
   const hasRightActions = Boolean(
     (variant === "list" &&
       !completed &&
       (onSaveInline || onToggleStart || onDueChange || onPriorityChange)) ||
-      hasMoreMenu ||
-      (variant === "list" && extraActions),
+    hasMoreMenu ||
+    (variant === "list" && extraActions),
   );
   const hasDetails = !!(
     (showProject && task.project) ||

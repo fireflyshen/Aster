@@ -423,7 +423,9 @@ test("subtask links persist atomically, reject cycles and self-parenting", async
     assert.equal(linked.subtasks?.[childUuid], parentUuid);
 
     // Read from disk to verify persistence
-    const reloaded = await createOrganizationStore(directory + "/organization.json").read();
+    const reloaded = await createOrganizationStore(
+      directory + "/organization.json",
+    ).read();
     assert.equal(reloaded.subtasks?.[childUuid], parentUuid);
 
     // Link grandchild to child
@@ -494,8 +496,13 @@ test("task descriptions persist atomically, update and remove cleanly", async ()
     assert.equal(saved.descriptions?.[taskUuid], "My task description details");
 
     // Verify persistence across store reloads
-    const reloaded = await createOrganizationStore(directory + "/organization.json").read();
-    assert.equal(reloaded.descriptions?.[taskUuid], "My task description details");
+    const reloaded = await createOrganizationStore(
+      directory + "/organization.json",
+    ).read();
+    assert.equal(
+      reloaded.descriptions?.[taskUuid],
+      "My task description details",
+    );
 
     // Update description
     const updated = await store.change({
@@ -539,4 +546,3 @@ test("task descriptions persist atomically, update and remove cleanly", async ()
     await rm(directory, { recursive: true, force: true });
   }
 });
-

@@ -3,7 +3,10 @@ import { Label } from "@/components/ui/label";
 import { cn } from "cn";
 import { Check } from "lucide-react";
 
-const RING_STYLES: Record<string, { unchecked: string; checked: string; preview: string }> = {
+const RING_STYLES: Record<
+  string,
+  { unchecked: string; checked: string; preview: string }
+> = {
   H: {
     unchecked:
       "border-[2px] border-[#d1453b] bg-[#d1453b]/10 enabled:hover:border-[#d1453b] enabled:hover:bg-[#d1453b]/20",
@@ -56,11 +59,7 @@ export function TaskCheckbox({
 }) {
   const style = RING_STYLES[priority || ""] || RING_STYLES[""];
   const dims =
-    size === "lg"
-      ? "size-[20px]"
-      : size === "sm"
-        ? "size-4"
-        : "size-[18px]";
+    size === "lg" ? "size-[20px]" : size === "sm" ? "size-4" : "size-[18px]";
   const previewSize = size === "lg" ? "size-3.5" : "size-3";
 
   return (

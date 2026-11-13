@@ -11,9 +11,17 @@ import {
   type BoardChange,
 } from "@core/workspace/board";
 import type { EnergySummary } from "@core/workspace/energy";
-import type { Organization, OrganizationChange } from "@core/workspace/organization";
+import type {
+  Organization,
+  OrganizationChange,
+} from "@core/workspace/organization";
 import type { Task, TaskInput, View } from "@shared/tasks";
-import { useCallback, useState, type FormEvent, type MutableRefObject } from "react";
+import {
+  useCallback,
+  useState,
+  type FormEvent,
+  type MutableRefObject,
+} from "react";
 import {
   BLANK_TASK_INPUT,
   formatInitialDue,
@@ -61,7 +69,10 @@ type TaskActionsDeps = {
     beforeApply?: (tasks: Task[]) => Promise<void>,
     callbacks?: {
       onSuccess?: (origin?: "editor" | "quick" | "notes") => void;
-      onError?: (message: string, origin?: "editor" | "quick" | "notes") => void;
+      onError?: (
+        message: string,
+        origin?: "editor" | "quick" | "notes",
+      ) => void;
     },
   ) => Promise<boolean>;
   changeOrganization: (change: OrganizationChange) => Promise<boolean>;
@@ -117,12 +128,15 @@ export function useTaskActions(deps: TaskActionsDeps) {
   const [due, setDue] = useState("");
   const [formError, setFormError] = useState("");
 
-  const showToast = useCallback((nextUndo?: UndoState, nextAddedProject?: string) => {
-    if (nextAddedProject !== undefined) setAddedProject(nextAddedProject);
-    setUndoTask(nextUndo);
-    setToastVersion((value) => value + 1);
-    setToastOpen(true);
-  }, []);
+  const showToast = useCallback(
+    (nextUndo?: UndoState, nextAddedProject?: string) => {
+      if (nextAddedProject !== undefined) setAddedProject(nextAddedProject);
+      setUndoTask(nextUndo);
+      setToastVersion((value) => value + 1);
+      setToastOpen(true);
+    },
+    [],
+  );
 
   const dismissUndo = useCallback(() => {
     setToastOpen(false);
@@ -620,10 +634,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
   );
 
   const saveInlineTask = useCallback(
-    async (
-      task: Task,
-      nextTask: TaskInput & { taskDescription?: string },
-    ) => {
+    async (task: Task, nextTask: TaskInput & { taskDescription?: string }) => {
       const saved = await mutateWithOrigin("action", {
         uuid: task.uuid,
         action: "edit",

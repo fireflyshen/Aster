@@ -584,9 +584,7 @@ export function TodoistTaskComposer({
               variant="secondary"
               size="xs"
               disabled={submitting}
-              aria-label={
-                mode === "edit" ? "取消编辑任务" : "取消添加任务"
-              }
+              aria-label={mode === "edit" ? "取消编辑任务" : "取消添加任务"}
               onClick={resetOrClose}
               className="h-8 rounded-md px-3 text-[13px] font-medium cursor-pointer"
             >

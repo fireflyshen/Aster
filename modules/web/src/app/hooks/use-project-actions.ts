@@ -1,5 +1,13 @@
-import { focusProject, inProject, projectStatus, type ProjectStatus } from "@core/workspace/focus";
-import type { Organization, OrganizationChange } from "@core/workspace/organization";
+import {
+  focusProject,
+  inProject,
+  projectStatus,
+  type ProjectStatus,
+} from "@core/workspace/focus";
+import type {
+  Organization,
+  OrganizationChange,
+} from "@core/workspace/organization";
 import { useCallback, useEffect, useState } from "react";
 
 type ProjectActionsDeps = {
@@ -72,7 +80,9 @@ export function useProjectActions({
         return;
       }
       if (status === "active") {
-        const record = organization.projects?.find((item) => item.name === name);
+        const record = organization.projects?.find(
+          (item) => item.name === name,
+        );
         const active = (organization.projects || []).filter(
           (item) => item.name !== name && projectStatus(item) === "active",
         );

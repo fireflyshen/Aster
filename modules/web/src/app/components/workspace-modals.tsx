@@ -548,19 +548,20 @@ export function WorkspaceModals(props: WorkspaceModalsProps) {
               editing
                 ? () => {
                     const target = editing;
-                    void onToggleTask(target, target.status === "completed").then(
-                      (saved) => {
-                        if (saved) {
-                          setEditing({
-                            ...target,
-                            status:
-                              target.status === "completed"
-                                ? "pending"
-                                : "completed",
-                          });
-                        }
-                      },
-                    );
+                    void onToggleTask(
+                      target,
+                      target.status === "completed",
+                    ).then((saved) => {
+                      if (saved) {
+                        setEditing({
+                          ...target,
+                          status:
+                            target.status === "completed"
+                              ? "pending"
+                              : "completed",
+                        });
+                      }
+                    });
                   }
                 : undefined
             }

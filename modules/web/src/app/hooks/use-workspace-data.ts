@@ -2,7 +2,10 @@ import { api, RequestError } from "@/lib/api";
 import { taskDate } from "@core/tasks/quick-task";
 import { liveEnergySummary } from "@core/workspace/energy";
 import { inProject } from "@core/workspace/focus";
-import type { Organization, OrganizationChange } from "@core/workspace/organization";
+import type {
+  Organization,
+  OrganizationChange,
+} from "@core/workspace/organization";
 import { remapProject } from "@core/workspace/projects";
 import type { Task } from "@shared/tasks";
 import { useCallback, useEffect, useRef, useState } from "react";

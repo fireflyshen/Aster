@@ -1,5 +1,8 @@
 import { Button } from "@/components/ui/button";
-import type { OrganizationChange, SavedProject } from "@core/workspace/organization";
+import type {
+  OrganizationChange,
+  SavedProject,
+} from "@core/workspace/organization";
 import { Pencil, Target } from "lucide-react";
 
 type ProjectInlineMetaProps = {
@@ -138,7 +141,9 @@ export function ProjectInlineMeta({
               className="min-w-0 flex-1 cursor-pointer select-text whitespace-pre-wrap [overflow-wrap:anywhere] transition-colors hover:text-foreground"
             >
               {projectOutcome || (
-                <span className="italic text-muted-foreground/60">设定目标</span>
+                <span className="italic text-muted-foreground/60">
+                  设定目标
+                </span>
               )}
             </div>
             <Button

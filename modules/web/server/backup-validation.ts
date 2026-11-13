@@ -311,8 +311,16 @@ export function validateBackup(value: unknown): AsterBackup {
   }
   const backup = structuredClone(value) as unknown as AsterBackup;
   // Only persisted fields enter organization storage; derived figures are recalculated.
-  const { revision, filters, tags, projects, board, energyState, subtasks, descriptions } =
-    backup.organization;
+  const {
+    revision,
+    filters,
+    tags,
+    projects,
+    board,
+    energyState,
+    subtasks,
+    descriptions,
+  } = backup.organization;
   backup.organization = {
     revision,
     filters,
