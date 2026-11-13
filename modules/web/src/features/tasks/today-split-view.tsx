@@ -178,7 +178,7 @@ export function TodaySplitView({
         <div>
           {todayEntries.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="relative mb-3 flex size-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+              <div className="relative mb-3 flex size-14 items-center justify-center rounded-2xl bg-(--due-today)/12 text-(--due-today)">
                 <CheckCircle2 className="size-7" strokeWidth={1.75} />
               </div>
               <h3 className="text-sm font-semibold text-foreground">

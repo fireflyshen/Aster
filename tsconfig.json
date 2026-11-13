@@ -13,5 +13,10 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": [
+    "modules/core/**/*.ts",
+    "modules/desktop/src/**/*.ts",
+    "modules/desktop/src/**/*.tsx",
+    "modules/desktop/raycast-env.d.ts"
+  ]
 }

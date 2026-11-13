@@ -70,7 +70,7 @@ export function TaskDetailComments({
                   key={`${note.entry ?? "note"}-${index}`}
                   className="group/comment flex items-start gap-2.5"
                 >
-                  <div className="flex size-7 shrink-0 select-none items-center justify-center rounded-full bg-teal-600/90 text-xs font-medium text-white">
+                  <div className="flex size-7 shrink-0 select-none items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                     A
                   </div>
                   <div className="min-w-0 flex-1">
@@ -110,7 +110,7 @@ export function TaskDetailComments({
 
           {onAddComment && (
             <div className="flex items-start gap-2.5 pt-1">
-              <div className="mt-1 flex size-7 shrink-0 select-none items-center justify-center rounded-full bg-teal-600/90 text-xs font-medium text-white">
+              <div className="mt-1 flex size-7 shrink-0 select-none items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                 A
               </div>
               <div className="flex-1 rounded-[10px] border border-border bg-transparent p-2.5 transition-colors focus-within:border-foreground/35">

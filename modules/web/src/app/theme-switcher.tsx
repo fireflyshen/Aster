@@ -27,7 +27,7 @@ export function ThemeSwitcher() {
       document.documentElement.classList.toggle("dark", dark);
       document
         .querySelector('meta[name="theme-color"]')
-        ?.setAttribute("content", dark ? "#181818" : "#ffffff");
+        ?.setAttribute("content", dark ? "#18191e" : "#f7f8fa");
       setResolvedDark(dark);
     };
     apply();

@@ -1,75 +1,41 @@
-import { FilterIcon, LabelIcon } from "@/components/icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  itemColor,
-  type Organization,
-  type OrganizationChange,
-  type SavedFilter,
-  type SavedTag,
+import type {
+  Organization,
+  OrganizationChange,
+  SavedFilter,
 } from "@core/workspace/organization";
-import { cn } from "cn";
-import {
-  ChevronDown,
-  CircleHelp,
-  Ellipsis,
-  Heart,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { useState } from "react";
-import { ColorPicker } from "./color-picker";
+import {
+  FilterEditorDialog,
+  OrganizationDeleteDialog,
+} from "./organization-dialogs";
+import { OrganizationRow } from "./organization-row";
+import {
+  freshOrganizationEntry,
+  type OrganizationEntry,
+} from "./organization-types";
+import { TagInlineForm } from "./tag-inline-form";
 
-type Entry =
-  | { kind: "filter"; item: SavedFilter }
-  | { kind: "tag"; item: SavedTag };
-const fresh = (kind: Entry["kind"]): Entry =>
-  kind === "filter"
-    ? {
-        kind,
-        item: {
-          id: "",
-          name: "",
-          color: "gray",
-          favorite: false,
-          description: "",
-          expression: "status:pending",
-        },
-      }
-    : { kind, item: { id: "", name: "", color: "gray", favorite: false } };
+function matchesSearch(entry: OrganizationEntry, search: string): boolean {
+  const needle = search.trim().toLocaleLowerCase();
+  if (!needle) return true;
+  const fields =
+    entry.kind === "filter"
+      ? [entry.item.name, entry.item.description, entry.item.expression]
+      : [entry.item.name];
+  return fields.join(" ").toLocaleLowerCase().includes(needle);
+}
 
+/** Manages saved filters and tags with search, inline tag editing, and filter expressions. */
 export function OrganizationManager({
   data,
   error,
@@ -86,24 +52,27 @@ export function OrganizationManager({
   loading: boolean;
   blocked: boolean;
   onChange: (change: OrganizationChange) => Promise<boolean>;
-  onOpen: (entry: Entry) => void;
+  onOpen: (entry: OrganizationEntry) => void;
   onReload: () => Promise<Organization | undefined>;
 }) {
   const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<Entry>();
-  const [deleting, setDeleting] = useState<Entry>();
+  const [editing, setEditing] = useState<OrganizationEntry>();
+  const [deleting, setDeleting] = useState<OrganizationEntry>();
   const [localError, setLocalError] = useState("");
   const [editingRevision, setEditingRevision] = useState(data.revision);
   const locked = busy || blocked;
-  function edit(entry: Entry) {
+
+  function edit(entry: OrganizationEntry) {
     setLocalError("");
     setEditingRevision(data.revision);
-    setEditing({ ...entry, item: { ...entry.item } } as Entry);
+    setEditing({ ...entry, item: { ...entry.item } } as OrganizationEntry);
   }
+
   async function reload() {
     const result = await onReload();
     if (result) setEditingRevision(result.revision);
   }
+
   async function save() {
     if (!editing || locked) return;
     if (!editing.item.name.trim()) {
@@ -116,235 +85,62 @@ export function OrganizationManager({
         action: "save",
         ...editing,
       })
-    )
+    ) {
       setEditing(undefined);
+    }
   }
-  const renderInlineLabelEditor = () => {
-    if (!editing || editing.kind !== "tag") return null;
-    return (
-      <form
-        key={editing.item.id || "new-tag"}
-        className="-mx-2.5 my-1 rounded-lg border border-border/80 bg-muted/25 px-3 py-2.5 md:-mx-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape" && !busy) {
-            e.preventDefault();
-            setEditing(undefined);
-            setLocalError("");
-          }
-        }}
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                disabled={locked}
-                aria-label="选择标签颜色"
-                title="选择颜色"
-                className="size-8 shrink-0 rounded-md"
-              >
-                <LabelIcon
-                  className="size-4"
-                  style={{ color: itemColor(editing.item.color) }}
-                />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-64 p-3">
-              <p className="mb-2 text-xs font-medium text-muted-foreground">
-                标签颜色
-              </p>
-              <ColorPicker
-                id="inline-label-color"
-                value={editing.item.color}
-                disabled={locked}
-                onChange={(color) =>
-                  setEditing({
-                    ...editing,
-                    item: { ...editing.item, color },
-                  } as Entry)
-                }
-              />
-            </PopoverContent>
-          </Popover>
-          <Input
-            id="organization-name"
-            autoFocus
-            value={editing.item.name}
-            placeholder="标签名称…"
-            maxLength={60}
-            autoComplete="off"
-            disabled={locked}
-            onChange={(e) => {
-              setLocalError("");
-              setEditing({
-                ...editing,
-                item: { ...editing.item, name: e.target.value },
-              } as Entry);
-            }}
-            className="h-8 min-w-[160px] flex-1 bg-background text-sm shadow-none"
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            disabled={locked}
-            aria-label={editing.item.favorite ? "取消收藏" : "添加到收藏"}
-            title={editing.item.favorite ? "已收藏" : "添加到侧边栏收藏"}
-            onClick={() =>
-              setEditing({
-                ...editing,
-                item: { ...editing.item, favorite: !editing.item.favorite },
-              } as Entry)
-            }
-            className={cn(
-              "size-8 shrink-0",
-              editing.item.favorite
-                ? "text-primary"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Heart
-              className={cn("size-4", editing.item.favorite && "fill-current")}
-            />
-          </Button>
-          <div className="ml-auto flex items-center gap-1.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              disabled={busy}
-              onClick={() => {
-                setEditing(undefined);
-                setLocalError("");
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" size="xs" disabled={locked}>
-              {busy ? <Spinner className="size-3.5" /> : "Save"}
-            </Button>
-          </div>
-        </div>
-        {(localError || error) && (
-          <p role="alert" className="mt-1.5 text-xs text-destructive">
-            {localError || error}
-          </p>
-        )}
-      </form>
-    );
-  };
 
-  const rows = (kind: Entry["kind"]) => {
+  function renderSectionRows(kind: OrganizationEntry["kind"]) {
     const list = kind === "filter" ? data.filters : data.tags;
-    const Icon = kind === "filter" ? FilterIcon : LabelIcon;
     return list
-      .filter((item) =>
-        [
-          item.name,
-          ...(kind === "filter"
-            ? [
-                (item as SavedFilter).description,
-                (item as SavedFilter).expression,
-              ]
-            : []),
-        ]
-          .join(" ")
-          .toLocaleLowerCase()
-          .includes(search.trim().toLocaleLowerCase()),
-      )
-      .map((item) => {
+      .map((item) => ({ kind, item }) as OrganizationEntry)
+      .filter((entry) => matchesSearch(entry, search))
+      .map((entry) => {
         if (
           kind === "tag" &&
           editing?.kind === "tag" &&
-          editing.item.id === item.id
+          editing.item.id === entry.item.id
         ) {
-          return renderInlineLabelEditor();
-        }
-        const entry = { kind, item } as Entry;
-        return (
-          <div
-            key={item.id}
-            data-organization-row
-            className="group -mx-2.5 flex min-h-10 items-center px-2.5 md:-mx-3 md:px-3"
-          >
-            <Button
-              variant="ghost"
-              disabled={locked}
-              onClick={() => onOpen(entry)}
-              className="h-11 min-w-0 flex-1 justify-start gap-3 rounded-none px-0 font-normal hover:bg-transparent has-[>svg]:px-0 md:h-10"
-            >
-              <Icon
-                className="size-[18px]"
-                style={{ color: itemColor(item.color) }}
-              />
-              <span className="truncate">{item.name}</span>
-              {kind === "filter" && (item as SavedFilter).description && (
-                <span className="hidden truncate text-xs text-muted-foreground sm:inline">
-                  {(item as SavedFilter).description}
-                </span>
-              )}
-            </Button>
-            {kind === "tag" && (
-              <span className="ml-3 text-xs tabular-nums text-muted-foreground">
-                {(item as SavedTag).count || ""}
-              </span>
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              disabled={locked}
-              aria-label={
-                item.favorite
-                  ? `Remove ${item.name} from favorites`
-                  : `Add ${item.name} to favorites`
-              }
-              title={
-                item.favorite ? "Remove from favorites" : "Add to favorites"
-              }
-              onClick={() =>
-                void onChange({
-                  revision: data.revision,
-                  kind,
-                  action: "save",
-                  item: { ...item, favorite: !item.favorite },
-                })
-              }
-              className={cn(
-                "ml-1 size-7 transition-opacity",
-                item.favorite
-                  ? "text-primary opacity-100"
-                  : "text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
-              )}
-            >
-              <Heart
-                className={cn("size-3.5", item.favorite && "fill-current")}
-              />
-            </Button>
-            <RowMenu
-              entry={entry}
-              disabled={locked}
-              onEdit={() => edit(entry)}
-              onDelete={() => setDeleting(entry)}
-              onFavorite={() =>
-                void onChange({
-                  revision: data.revision,
-                  kind,
-                  action: "save",
-                  item: { ...item, favorite: !item.favorite },
-                })
-              }
+          return (
+            <TagInlineForm
+              key={editing.item.id}
+              item={editing.item}
+              busy={busy}
+              locked={locked}
+              error={localError || error}
+              onChange={(item) => {
+                setLocalError("");
+                setEditing({ kind: "tag", item });
+              }}
+              onCancel={() => {
+                setEditing(undefined);
+                setLocalError("");
+              }}
+              onSubmit={() => void save()}
             />
-          </div>
+          );
+        }
+        return (
+          <OrganizationRow
+            key={entry.item.id}
+            entry={entry}
+            disabled={locked}
+            onOpen={onOpen}
+            onEdit={edit}
+            onDelete={setDeleting}
+            onFavorite={(target) =>
+              void onChange({
+                revision: data.revision,
+                kind: target.kind,
+                action: "save",
+                item: { ...target.item, favorite: !target.item.favorite },
+              } as OrganizationChange)
+            }
+          />
         );
       });
-  };
+  }
+
   return (
     <>
       <Input
@@ -379,48 +175,65 @@ export function OrganizationManager({
         </div>
       )}
       {!loading &&
-        (["filter", "tag"] as const).map((kind) => (
-          <Collapsible key={kind} defaultOpen className="mb-6">
-            <div className="flex h-11 items-center gap-2 border-b border-border/80 md:h-10">
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="group -ml-2 h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-semibold hover:bg-(--row-hover) has-[>svg]:px-2"
-                >
-                  <ChevronDown className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-                  <span>{kind === "filter" ? "我的过滤器" : "标签"}</span>
-                  <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
-                    {kind === "filter" ? data.filters.length : data.tags.length}
-                  </span>
-                </Button>
-              </CollapsibleTrigger>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={locked}
-                aria-label={kind === "filter" ? "添加过滤器" : "添加标签"}
-                className="text-muted-foreground"
-                onClick={() => edit(fresh(kind))}
-              >
-                <Plus className="size-4" strokeWidth={1.5} />
-              </Button>
-            </div>
-            <CollapsibleContent>
-              {kind === "tag" &&
-                editing?.kind === "tag" &&
-                !editing.item.id &&
-                renderInlineLabelEditor()}
-              {rows(kind)}
-              {!!search.trim() && !rows(kind).length && (
-                <p className="py-5 text-sm text-muted-foreground">
-                  未找到匹配的{kind === "filter" ? "过滤器" : "标签"}
-                </p>
-              )}
-              {!(kind === "filter" ? data.filters : data.tags).length &&
-                !(kind === "tag" && editing?.kind === "tag") && (
+        (["filter", "tag"] as const).map((kind) => {
+          const list = kind === "filter" ? data.filters : data.tags;
+          const items = renderSectionRows(kind);
+          return (
+            <Collapsible key={kind} defaultOpen className="mb-6">
+              <div className="flex h-11 items-center gap-2 border-b border-border/80 md:h-10">
+                <CollapsibleTrigger asChild>
                   <Button
                     variant="ghost"
-                    onClick={() => edit(fresh(kind))}
+                    className="group -ml-2 h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-semibold hover:bg-(--row-hover) has-[>svg]:px-2"
+                  >
+                    <ChevronDown className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
+                    <span>{kind === "filter" ? "我的过滤器" : "标签"}</span>
+                    <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
+                      {list.length}
+                    </span>
+                  </Button>
+                </CollapsibleTrigger>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={locked}
+                  aria-label={kind === "filter" ? "添加过滤器" : "添加标签"}
+                  className="text-muted-foreground"
+                  onClick={() => edit(freshOrganizationEntry(kind))}
+                >
+                  <Plus className="size-4" strokeWidth={1.5} />
+                </Button>
+              </div>
+              <CollapsibleContent>
+                {kind === "tag" &&
+                  editing?.kind === "tag" &&
+                  !editing.item.id && (
+                    <TagInlineForm
+                      item={editing.item}
+                      busy={busy}
+                      locked={locked}
+                      error={localError || error}
+                      onChange={(item) => {
+                        setLocalError("");
+                        setEditing({ kind: "tag", item });
+                      }}
+                      onCancel={() => {
+                        setEditing(undefined);
+                        setLocalError("");
+                      }}
+                      onSubmit={() => void save()}
+                    />
+                  )}
+                {items}
+                {!!search.trim() && !items.length && (
+                  <p className="py-5 text-sm text-muted-foreground">
+                    未找到匹配的{kind === "filter" ? "过滤器" : "标签"}
+                  </p>
+                )}
+                {!list.length && !(kind === "tag" && editing?.kind === "tag") && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => edit(freshOrganizationEntry(kind))}
                     disabled={locked}
                     className="task-add-button my-2"
                   >
@@ -428,359 +241,40 @@ export function OrganizationManager({
                     {kind === "filter" ? "添加过滤器" : "添加标签"}
                   </Button>
                 )}
-            </CollapsibleContent>
-          </Collapsible>
-        ))}
-      <Dialog
-        open={editing?.kind === "filter"}
-        onOpenChange={(next) => {
-          if (!next && !busy) setEditing(undefined);
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        })}
+      <FilterEditorDialog
+        filter={editing?.kind === "filter" ? (editing.item as SavedFilter) : undefined}
+        busy={busy}
+        locked={locked}
+        error={error}
+        localError={localError}
+        onClearLocalError={() => setLocalError("")}
+        onChange={(item) => setEditing({ kind: "filter", item })}
+        onClose={() => setEditing(undefined)}
+        onSave={() => void save()}
+        onReload={() => void reload()}
+      />
+      <OrganizationDeleteDialog
+        deleting={deleting}
+        busy={busy}
+        locked={locked}
+        error={error}
+        onClose={() => setDeleting(undefined)}
+        onConfirm={() => {
+          if (deleting) {
+            void onChange({
+              revision: data.revision,
+              action: "delete",
+              ...deleting,
+            }).then((ok) => {
+              if (ok) setDeleting(undefined);
+            });
+          }
         }}
-      >
-        <DialogContent
-          data-organization-editor
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            document.getElementById("organization-name")?.focus();
-          }}
-          showCloseButton={!busy}
-          className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[480px]"
-          onEscapeKeyDown={(e) => {
-            if (busy) e.preventDefault();
-          }}
-          onPointerDownOutside={(e) => {
-            if (busy) e.preventDefault();
-          }}
-        >
-          {editing && (
-            <>
-              <header className="flex shrink-0 items-center gap-2 border-b px-5 py-4 pr-14">
-                <DialogTitle className="text-base leading-6 font-semibold">
-                  {editing.item.id ? "编辑" : "添加"}
-                  {editing.kind === "filter" ? "过滤器" : "标签"}
-                </DialogTitle>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="帮助"
-                      className="size-6 rounded-full text-muted-foreground"
-                    >
-                      <CircleHelp className="size-[18px]" strokeWidth={1.5} />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="text-sm leading-6">
-                    {editing.kind === "filter"
-                      ? "支持 @标签 或 +标签、attribute:value、and / or 以及括号。"
-                      : "重命名标签将同步更新所有相关任务。"}
-                  </PopoverContent>
-                </Popover>
-              </header>
-              <DialogDescription className="sr-only">
-                设置名称、颜色、收藏状态
-                {editing.kind === "filter" ? "与过滤查询表达式" : ""}。
-              </DialogDescription>
-              <form
-                className="flex min-h-0 flex-col"
-                noValidate
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void save();
-                }}
-                onChange={() => setLocalError("")}
-              >
-                <div className="min-h-0 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 md:space-y-4 md:py-4">
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="organization-name"
-                      className="text-sm leading-5 font-medium"
-                    >
-                      名称
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="organization-name"
-                        value={editing.item.name}
-                        onChange={(e) =>
-                          setEditing({
-                            ...editing,
-                            item: {
-                              ...editing.item,
-                              name: e.target.value,
-                            },
-                          } as Entry)
-                        }
-                        maxLength={60}
-                        autoComplete="off"
-                        disabled={locked}
-                        className="h-10 pr-16 text-base md:h-8 md:text-sm"
-                      />
-                      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm tabular-nums text-muted-foreground">
-                        {editing.item.name.length}/60
-                      </span>
-                    </div>
-                  </div>
-                  {editing.kind === "filter" && (
-                    <div className="space-y-1.5">
-                      <Label
-                        htmlFor="filter-description"
-                        className="text-sm leading-5 font-medium"
-                      >
-                        描述
-                      </Label>
-                      <Textarea
-                        id="filter-description"
-                        value={editing.item.description}
-                        onChange={(e) =>
-                          setEditing({
-                            ...editing,
-                            item: {
-                              ...editing.item,
-                              description: e.target.value,
-                            },
-                          })
-                        }
-                        maxLength={500}
-                        disabled={locked}
-                        placeholder="添加描述"
-                        className="h-32 min-h-32 resize-none text-base md:h-28 md:min-h-28 md:text-sm"
-                      />
-                    </div>
-                  )}
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="organization-color"
-                      className="text-sm leading-5 font-medium"
-                    >
-                      颜色
-                    </Label>
-                    <ColorPicker
-                      id="organization-color"
-                      value={editing.item.color}
-                      disabled={locked}
-                      onChange={(color) =>
-                        setEditing({
-                          ...editing,
-                          item: {
-                            ...editing.item,
-                            color,
-                          },
-                        } as Entry)
-                      }
-                    />
-                  </div>
-                  <div className="flex min-h-7 items-center gap-2.5">
-                    <Switch
-                      id="organization-favorite"
-                      checked={editing.item.favorite}
-                      disabled={locked}
-                      onCheckedChange={(favorite) =>
-                        setEditing({
-                          ...editing,
-                          item: {
-                            ...editing.item,
-                            favorite,
-                          },
-                        } as Entry)
-                      }
-                    />
-                    <Label
-                      htmlFor="organization-favorite"
-                      className="text-base leading-6 font-normal md:text-sm"
-                    >
-                      添加到收藏
-                    </Label>
-                  </div>
-                  {editing.kind === "filter" && (
-                    <div className="space-y-1.5">
-                      <Label
-                        htmlFor="filter-expression"
-                        className="text-sm leading-5 font-medium"
-                      >
-                        查询表达式
-                      </Label>
-                      <Textarea
-                        id="filter-expression"
-                        value={editing.item.expression}
-                        onChange={(e) =>
-                          setEditing({
-                            ...editing,
-                            item: {
-                              ...editing.item,
-                              expression: e.target.value,
-                            },
-                          })
-                        }
-                        maxLength={1024}
-                        disabled={locked}
-                        placeholder="status:pending and (@Todo or +READY)"
-                        className="h-20 min-h-20 resize-none text-base md:h-16 md:min-h-16 md:text-sm"
-                      />
-                      <p className="text-right text-sm tabular-nums text-muted-foreground">
-                        {editing.item.expression.length}
-                        /1024
-                      </p>
-                    </div>
-                  )}
-                  {(localError || error) && (
-                    <Alert variant="destructive" role="alert">
-                      <AlertDescription>
-                        {localError || error}
-                        {error && (
-                          <Button
-                            type="button"
-                            variant="link"
-                            className="h-auto p-0 text-current"
-                            onClick={() => void reload()}
-                          >
-                            重新加载并保留草稿
-                          </Button>
-                        )}
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-                <footer className="mx-4 flex shrink-0 justify-end gap-2 border-t py-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:py-3">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={busy}
-                    onClick={() => setEditing(undefined)}
-                    className="h-10 min-w-20 md:h-8 md:min-w-17"
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={locked}
-                    className="h-10 min-w-20 md:h-8 md:min-w-17"
-                  >
-                    {busy ? <Spinner /> : "保存"}
-                  </Button>
-                </footer>
-              </form>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
-      <AlertDialog
-        open={!!deleting}
-        onOpenChange={(next) => {
-          if (!next && !busy) setDeleting(undefined);
-        }}
-      >
-        <AlertDialogContent className="max-w-sm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              删除{deleting?.kind === "filter" ? "过滤器" : "标签"}“
-              {deleting?.item.name}”？
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleting?.kind === "filter"
-                ? "相关任务将被保留。"
-                : "将从任务中移除此标签，任务本身将被保留。"}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>取消</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={locked}
-              onClick={(e) => {
-                e.preventDefault();
-                if (deleting)
-                  void onChange({
-                    revision: data.revision,
-                    action: "delete",
-                    ...deleting,
-                  }).then((ok) => {
-                    if (ok) setDeleting(undefined);
-                  });
-              }}
-            >
-              {busy ? <Spinner /> : "删除"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-        </AlertDialogContent>
-      </AlertDialog>
+      />
     </>
-  );
-}
-
-function RowMenu({
-  entry,
-  disabled,
-  onEdit,
-  onFavorite,
-  onDelete,
-}: {
-  entry: Entry;
-  disabled: boolean;
-  onEdit: () => void;
-  onFavorite: () => void;
-  onDelete: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={disabled}
-          aria-label={`操作选项: ${entry.item.name}`}
-          className={cn(
-            "ml-2 text-muted-foreground md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 data-[state=open]:opacity-100",
-            open && "bg-accent",
-          )}
-        >
-          <Ellipsis className="size-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        className="w-40 p-1"
-        onCloseAutoFocus={(event) => {
-          if (
-            document.querySelector(
-              '[data-organization-editor][data-state="open"], [role="alertdialog"]',
-            )
-          )
-            event.preventDefault();
-        }}
-      >
-        {[
-          { label: "编辑", Icon: Pencil, run: onEdit },
-          {
-            label: entry.item.favorite ? "取消收藏" : "添加到收藏",
-            Icon: Heart,
-            run: onFavorite,
-          },
-          { label: "删除", Icon: Trash2, run: onDelete },
-        ].map(({ label, Icon, run }) => (
-          <Button
-            key={label}
-            variant="ghost"
-            className={cn(
-              "h-9 w-full justify-start text-sm font-normal",
-              label === "删除" && "text-destructive",
-            )}
-            onClick={() => {
-              setOpen(false);
-              run();
-            }}
-          >
-            <Icon className="size-4" />
-            {label}
-          </Button>
-        ))}
-      </PopoverContent>
-    </Popover>
   );
 }

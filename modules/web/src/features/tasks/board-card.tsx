@@ -77,8 +77,8 @@ export function BoardCard({
           : "task-board-card cursor-grab bg-card transition-[box-shadow,border-color,background-color] duration-150 active:cursor-grabbing",
         isDragging &&
           (compact
-            ? "rounded-md bg-[#eeeeee] dark:bg-[#2c2c2c] [&>*]:opacity-0"
-            : "border-transparent! bg-[#e8e8e8]! shadow-none! dark:bg-[#3f3f3f]! [&>*]:opacity-0"),
+            ? "rounded-md bg-(--drag-cavity-compact) [&>*]:opacity-0"
+            : "border-transparent! bg-(--drag-cavity)! shadow-none! [&>*]:opacity-0"),
       )}
     >
       {children}

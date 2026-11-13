@@ -84,42 +84,44 @@ Local 模式需要已有的 Taskwarrior 3。macOS 默认 `/opt/homebrew/bin/task
 ## 代码结构
 
 ```text
-src/
-  my-tasks.tsx          Raycast / Tinycast 列表入口
-  quick-add.tsx         Raycast / Tinycast 创建入口
+modules/
   core/
     connection/        连接配置、命令执行与错误
     tasks/             Taskwarrior 数据、查询、操作与共用表达式解析
-    workspace/         组织资料契约、栏目计算与桌面共享资料客户端
-  desktop/             桌面客户端界面与状态
-modules/web/
-  server/              HTTP 接口、认证、校验与持久化
-  shared/              浏览器与服务端共享的数据契约
-  src/
-    app/               应用编排、导航与全局样式
-    features/
-      tasks/           任务列表、表单与快速输入界面
-      organization/    过滤器与标签管理
-      projects/        项目描述与资料
-    components/        共用图标、shadcn/ui 基础控件
-    lib/               HTTP 请求工具
-  tests/               Web 解析、存储和接口测试
-tests/                 共享核心行为测试
-docs/                  架构说明与远端配置
+    workspace/         组织资料契约、栏目计算与共用工作区客户端
+  server/              统一服务端（HTTP API + Unix Socket IPC，零外部运行时依赖）
+    src/               路由核、HTTP/IPC 适配、认证、校验、恢复与持久化
+    tests/             服务端存储、权限与 HTTP/IPC 集成测试
+  desktop/             Raycast / Tinycast 桌面端扩展
+    src/
+      my-tasks.tsx     列表入口
+      quick-add.tsx    创建入口
+      ui/              桌面客户端界面与状态
+    assets/            扩展图标
+  web/                 纯前端 Web 模块（React + shadcn/ui + Vite）
+    shared/            浏览器端 DTO 导出
+    src/
+      app/             应用编排、导航与全局样式
+      features/        任务、过滤器、标签、项目与恢复界面
+      components/      共用图标、shadcn/ui 基础控件
+      lib/             HTTP 请求工具
+    tests/             Web 拖拽模型单元测试
+  mcp/                 Model Context Protocol 服务与测试
+  tui/                 Go 终端客户端
 ```
 
-桌面端与 Web 服务端共用 `src/core`；浏览器通过 HTTP 访问服务端，不执行 SSH。详细边界与修改位置见 [架构说明](docs/architecture.md)，Web 的运行方式见 [Web 模块说明](modules/web/README.md)。
+服务端逻辑独立于 `modules/server`，同时通过 HTTP（Web、本地桌面客户端）与私有 Unix Socket（SSH 桌面客户端、MCP、Go TUI）提供同一套路由与队列；各前端不再自行绕过服务端直连数据库（本地桌面端仅在未运行服务时回退到 `TaskService`）。运行方式分别见 [服务端说明](modules/server/README.md) 与 [Web 模块说明](modules/web/README.md)。
 
 ## 开发
 
 需要 Node.js 22.14+ 和 Raycast。
 
 ```sh
-npm ci
+pnpm install
 npm run dev
 npm run typecheck
 npm test
-npx eslint src tests
+npm --prefix modules/desktop run eslint
 npm run build
 ```
 

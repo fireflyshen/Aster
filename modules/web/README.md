@@ -1,17 +1,17 @@
 # Aster · Web
 
-Aster 的独立网页模块，支持桌面与手机。React + shadcn/ui，使用自己的依赖与构建配置；服务端复用仓库的 `src/core/tasks` 和 `src/core/connection`，默认通过 SSH 连接 dmit 的 Taskwarrior。代码按应用、功能、基础控件、服务端和共享契约分组，详见 [架构说明](../../docs/architecture.md)。
+Aster 的纯前端网页模块，支持桌面与手机。React + shadcn/ui + Vite，代码按应用、功能、基础控件和 DTO 导出分组；后端接口由独立的 [`modules/server`](../server/README.md) 提供（本地开发模式下 Vite 将 `/api` 与 `/healthz` 代理至 `modules/server`）。
 
 ## 本地运行
 
 在 Aster 仓库根目录执行：
 
 ```sh
-npm ci --prefix modules/web
+pnpm install
 npm run dev:web
 ```
 
-打开 **http://localhost:4180/**。开发服务仅监听本机；正式入口为 **https://task.caten.top/**，独立运行在 dmit。首次连接先确保终端能运行 `ssh dmit 'task --version'`。不要用文件浏览方式直接打开 HTML，界面需要本地服务提供模块和任务接口。
+打开 **http://localhost:4180/**。`dev:web` 会同时启动 `modules/server`（内部端口 `4181`）和 Vite 开发服务（`4180`），默认通过 SSH 连接 `dmit`。首次连接先确保终端能运行 `ssh dmit 'task --version'`。
 
 ```sh
 npm run check:web
@@ -19,7 +19,7 @@ npm run test:web
 npm run build:web
 ```
 
-构建输出为 `dist/web/client/` 和 `dist/web/server.mjs`，与桌面扩展的构建输出分开。模块的独立配置在 `components.json`、`vite.config.ts` 和 `tsconfig.json`；shadcn/ui 组件放在 `src/components/ui/`。
+前端构建输出为 `dist/web/client/`；服务端单独通过 `npm run build:server` 构建为 `dist/server/server.mjs`。模块的独立配置在 `components.json`、`vite.config.ts`、`dev.mjs` 和 `tsconfig.json`；shadcn/ui 组件放在 `src/components/ui/`。
 
 ## 功能与边界
 
@@ -116,7 +116,7 @@ Each project can reference one existing unfinished task as its next step. Comple
 
 Project details and All projects support finish lines, next-step selection, activation, pause, completion and reopening. The project limit is enforced inside the organization store's serialized revision queue; clients cannot activate a project through ordinary project saves. Existing metadata edits preserve goal fields when older clients omit them.
 
-TinyCast uses the existing SSH connection to reach the same server process over `/opt/aster/data/workspace.sock` (0600). Enable `WORKSPACE_SOCKET` in the server environment. The socket has no TCP listener; it checks Taskwarrior source identity, uses the same revision queue as web, and exposes metadata operations only. The public web API still requires Cloudflare Access. `Shared Workspace: auto` uses this connection for SSH, or localhost web for a local Taskwarrior client. Existing localhost defaults migrate to shared SSH when using dmit.
+Desktop（Raycast / TinyCast）、MCP 与 Go TUI 通过现有 SSH 连接访问同一服务端进程上的 `/opt/aster/data/workspace.sock`（权限 `0600`）或在本地直连 HTTP 服务。服务端通过 `modules/server/src/workspace-api.ts` 对 HTTP 与 Unix Socket 暴露统一的任务查询、动作、组织资料、恢复与备份接口；公网 HTTP API 依然强制 Cloudflare Access 与 Origin 校验。
 
 ### Nested projects
 

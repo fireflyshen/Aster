@@ -1,125 +1,26 @@
 {
-  "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "aster",
-  "title": "Aster",
-  "description": "Manage Taskwarrior 3 tasks locally or on a VPS over SSH.",
-  "icon": "extension-icon.png",
+  "version": "2.5.0",
+  "private": true,
   "type": "module",
-  "author": "YOUR_RAYCAST_USERNAME",
+  "description": "Manage Taskwarrior 3 tasks across Raycast desktop, Web, TUI, and MCP.",
   "license": "MIT",
-  "platforms": [
-    "macOS",
-    "Windows"
-  ],
-  "categories": [
-    "Productivity"
-  ],
-  "preferences": [
-    {
-      "name": "connectionMode",
-      "type": "dropdown",
-      "required": true,
-      "title": "Connection Mode",
-      "default": "ssh",
-      "data": [
-        {
-          "title": "SSH (Remote)",
-          "value": "ssh"
-        },
-        {
-          "title": "Local",
-          "value": "local"
-        }
-      ],
-      "description": "Choose local Taskwarrior 3 or a remote Linux VPS over SSH."
-    },
-    {
-      "name": "sshTarget",
-      "type": "textfield",
-      "required": false,
-      "title": "SSH Target",
-      "default": "dmit",
-      "description": "SSH host alias or user@host. Port and keys come from your system SSH config."
-    },
-    {
-      "name": "remoteTaskCommand",
-      "type": "textfield",
-      "required": false,
-      "title": "Remote Task Command",
-      "default": "/usr/local/bin/task",
-      "description": "SSH only: absolute path to Taskwarrior 3 on the VPS."
-    },
-    {
-      "name": "remoteTaskrc",
-      "type": "textfield",
-      "required": false,
-      "title": "Remote Taskrc",
-      "default": "/etc/taskwarrior/taskrc",
-      "description": "SSH only: absolute taskrc path. Clear to use the remote user’s default configuration."
-    },
-    {
-      "name": "taskCommand",
-      "type": "textfield",
-      "required": false,
-      "title": "Local Task Command",
-      "description": "Local mode only: Taskwarrior 3 executable on macOS or inside WSL.",
-      "default": {
-        "macOS": "/opt/homebrew/bin/task",
-        "Windows": "/usr/bin/task"
-      },
-      "placeholder": "/usr/bin/task"
-    },
-    {
-      "name": "wslDistribution",
-      "type": "textfield",
-      "required": false,
-      "title": "WSL Distribution",
-      "description": "Local Windows mode only: WSL distribution containing Taskwarrior 3.",
-      "default": "Ubuntu",
-      "placeholder": "Ubuntu"
-    },
-    {
-      "name": "webWorkspaceUrl",
-      "type": "textfield",
-      "required": false,
-      "title": "Shared Workspace",
-      "default": "auto",
-      "description": "auto shares Focus, projects and board columns through your existing remote SSH connection. A local Aster URL is also supported; clear to disable."
-    }
-  ],
-  "commands": [
-    {
-      "name": "my-tasks",
-      "title": "My Tasks",
-      "subtitle": "Aster",
-      "description": "Manage, search and review Taskwarrior tasks",
-      "mode": "view"
-    },
-    {
-      "name": "quick-add",
-      "title": "Quick Add Task",
-      "subtitle": "Aster",
-      "description": "Capture a task with dates, #project, @labels and p1–p4",
-      "mode": "view",
-      "arguments": [
-        {
-          "name": "expression",
-          "type": "text",
-          "placeholder": "Task tomorrow #Work @focus p1",
-          "required": false
-        }
-      ]
-    }
-  ],
   "scripts": {
-    "build": "ray build -e dist",
-    "dev": "ray develop",
-    "lint": "ray lint",
-    "test": "node --experimental-strip-types --test tests/*.test.ts",
-    "fix-lint": "ray lint --fix",
-    "format": "prettier --write src tests README.md package.json",
-    "publish": "npx @raycast/api@latest publish",
+    "dev": "npm --prefix modules/desktop run dev",
+    "build": "npm --prefix modules/desktop run build",
+    "lint": "npm --prefix modules/desktop run lint",
+    "fix-lint": "npm --prefix modules/desktop run fix-lint",
+    "format": "prettier --write modules/core modules/desktop/src README.md package.json modules/desktop/package.json",
+    "publish": "npm --prefix modules/desktop run publish",
     "typecheck": "tsc --noEmit",
+    "check:core": "tsc -p modules/core/tsconfig.json --noEmit",
+    "check:desktop": "npm --prefix modules/desktop run check",
+    "dev:desktop": "npm --prefix modules/desktop run dev",
+    "build:desktop": "npm --prefix modules/desktop run build",
+    "dev:server": "npm --prefix modules/server run dev",
+    "build:server": "npm --prefix modules/server run build",
+    "check:server": "npm --prefix modules/server run check",
+    "test:server": "npm --prefix modules/server run test",
     "dev:web": "npm --prefix modules/web run dev",
     "build:web": "npm --prefix modules/web run build",
     "check:web": "npm --prefix modules/web run check",
@@ -127,19 +28,12 @@
     "deploy": "bash deploy/deploy.sh",
     "start:mcp": "npm --prefix modules/mcp start",
     "check:mcp": "npm --prefix modules/mcp run check",
-    "test:mcp": "npm --prefix modules/mcp test"
-  },
-  "dependencies": {
-    "@raycast/api": "^1.104.19",
-    "@raycast/utils": "^2.2.3"
+    "test:mcp": "npm --prefix modules/mcp test",
+    "test": "npm run test:web && npm run build:web && npm run test:server && npm run test:mcp"
   },
   "devDependencies": {
-    "@raycast/eslint-config": "^2.0.4",
     "@types/node": "^22.20.1",
-    "@types/react": "19.0.10",
-    "eslint": "^9.22.0",
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"
-  },
-  "version": "2.5.0"
+  }
 }

@@ -14,8 +14,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@shared/*": ["./shared/*"],
-      "@core/*": ["../../src/core/*"]
+      "@core/*": ["../core/*"]
     }
   },
-  "include": ["src", "server", "shared", "vite.config.ts"]
+  "include": ["src", "shared", "vite.config.ts"]
 }

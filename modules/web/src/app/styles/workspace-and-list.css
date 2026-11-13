@@ -1,0 +1,164 @@
+.board-card {
+  -webkit-touch-callout: none;
+}
+.board-card [data-task-drag-surface] {
+  cursor: pointer;
+}
+.board-card [data-task-drag-surface]:active {
+  cursor: grabbing;
+}
+.board-card:not([data-compact="true"]) {
+  min-width: 0;
+  max-width: 100%;
+}
+.task-board-columns {
+  grid-auto-columns: min(260px, calc(100vw - 40px));
+  column-gap: 16px;
+}
+.task-board-card {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 9%, var(--card));
+  border-radius: 10px;
+  box-shadow: 0 1px 2px #17201e08;
+}
+.task-board-card:hover {
+  border-color: color-mix(in srgb, var(--foreground) 18%, var(--card));
+  box-shadow: 0 2px 8px #17201e14;
+}
+.dark .task-board-card {
+  box-shadow: 0 1px 2px #00000026;
+}
+[data-task-surface][data-variant="card"] {
+  min-width: 0;
+  max-width: 100%;
+}
+[data-task-surface][data-variant="card"] > div {
+  position: relative;
+  gap: 8px;
+}
+[data-variant="card"] .task-row-check {
+  margin-top: 0;
+}
+[data-variant="card"] [data-task-drag-surface] {
+  min-height: 20px;
+  padding-block: 0;
+}
+[data-variant="card"] [data-task-title] {
+  overflow-wrap: anywhere;
+}
+[data-variant="card"] [data-task-description-preview] {
+  overflow-wrap: anywhere;
+  line-height: 18px;
+}
+[data-variant="card"] [data-task-details] {
+  margin-top: 6px;
+  gap: 6px 8px;
+  line-height: 16px;
+}
+[data-variant="card"] [data-task-details] > * {
+  min-width: 0;
+  max-width: 100%;
+}
+[data-variant="card"] [data-task-meta="due"] {
+  order: -1;
+}
+[data-variant="card"] [data-row-actions] {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  z-index: 1;
+  border-radius: 4px;
+  background: var(--card);
+  box-shadow: -4px 0 6px var(--card);
+}
+.task-subtree[data-subtree-variant="card"] {
+  margin: 10px -12px -6px -12px;
+  padding: 6px 12px 0;
+  border-top: 1px solid var(--border);
+}
+.task-subtree[data-subtree-variant="card"] > div {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.task-board-columns .task-add-button {
+  margin-top: 0;
+  padding-inline: 10px;
+  height: 36px;
+  font-size: 13px;
+}
+
+/* Hover belongs to the entire management row, never only its title button. */
+.project-manager-row > button,
+.project-manager-row > button:hover,
+[data-organization-row] > button,
+[data-organization-row] > button:hover {
+  background-color: transparent;
+}
+
+/* Workspace proportions follow the task-first desktop layout. */
+.workspace-content {
+  padding-top: 24px;
+}
+.workspace-content[data-layout="list"] {
+  max-width: 880px;
+  padding-inline: 40px;
+}
+.workspace-toolbar .workspace-frame {
+  max-width: none;
+  padding-inline: 20px;
+}
+.workspace-sidebar [data-variant="navigation"],
+#workspace-navigation [data-project-nav] > button {
+  height: 32px;
+  min-height: 32px;
+  padding-block: 0;
+  padding-inline: 8px;
+  border-radius: 5px;
+  font-size: 14px;
+}
+.workspace-sidebar nav {
+  gap: 0;
+}
+.workspace-sidebar nav > * + * {
+  margin-top: 0;
+}
+.sidebar-account {
+  margin-bottom: 2px;
+}
+.sidebar-add kbd {
+  border: 0;
+  background: transparent;
+  opacity: 0;
+}
+.sidebar-add:hover kbd,
+.sidebar-add:focus-visible kbd {
+  opacity: 1;
+}
+.sidebar-search kbd {
+  opacity: 0;
+}
+.sidebar-search:hover kbd,
+.sidebar-search:focus-visible kbd {
+  opacity: 1;
+}
+[data-workspace-heading] h1 {
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: -0.5px;
+}
+.workspace-view-controls [role="tablist"] {
+  background: transparent;
+  padding: 0;
+  gap: 2px;
+}
+.workspace-view-controls [role="tab"] {
+  color: var(--muted-foreground);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-weight: 400;
+}
+.workspace-view-controls [role="tab"][data-state="active"] {
+  color: var(--foreground);
+  background: var(--accent);
+}

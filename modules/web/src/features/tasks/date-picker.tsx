@@ -79,10 +79,10 @@ export function DatePicker({
               compact &&
                 value &&
                 (value === todayStr
-                  ? "border-emerald-500/35 bg-emerald-500/8 text-emerald-700 dark:text-emerald-400"
+                  ? "border-(--due-today)/35 bg-(--due-today)/10 text-(--due-today)"
                   : value === tomorrowStr
-                    ? "border-amber-500/35 bg-amber-500/8 text-amber-700 dark:text-amber-400"
-                    : "border-violet-500/35 bg-violet-500/8 text-violet-700 dark:text-violet-400"),
+                    ? "border-(--due-tomorrow)/35 bg-(--due-tomorrow)/10 text-(--due-tomorrow)"
+                    : "border-(--due-upcoming)/35 bg-(--due-upcoming)/10 text-(--due-upcoming)"),
               !value && "text-muted-foreground",
               className,
             )}
@@ -127,7 +127,7 @@ export function DatePicker({
             )}
           >
             <span className="inline-flex items-center gap-2">
-              <Sun className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+              <Sun className="size-3.5 text-(--due-today)" />
               今天
             </span>
             <span className="text-muted-foreground">
@@ -145,7 +145,7 @@ export function DatePicker({
             )}
           >
             <span className="inline-flex items-center gap-2">
-              <Sunrise className="size-3.5 text-amber-600 dark:text-amber-400" />
+              <Sunrise className="size-3.5 text-(--due-tomorrow)" />
               明天
             </span>
             <span className="text-muted-foreground">
@@ -163,7 +163,7 @@ export function DatePicker({
             )}
           >
             <span className="inline-flex items-center gap-2">
-              <Armchair className="size-3.5 text-blue-600 dark:text-blue-400" />
+              <Armchair className="size-3.5 text-(--priority-3)" />
               本周末
             </span>
             <span className="text-muted-foreground">
@@ -181,7 +181,7 @@ export function DatePicker({
             )}
           >
             <span className="inline-flex items-center gap-2">
-              <ArrowRight className="size-3.5 text-violet-600 dark:text-violet-400" />
+              <ArrowRight className="size-3.5 text-(--due-upcoming)" />
               下周
             </span>
             <span className="text-muted-foreground">

@@ -9,31 +9,31 @@ const RING_STYLES: Record<
 > = {
   H: {
     unchecked:
-      "border-[2px] border-[#d1453b] bg-[#d1453b]/10 enabled:hover:border-[#d1453b] enabled:hover:bg-[#d1453b]/20",
+      "border-[2px] border-(--priority-1) bg-(--priority-1)/10 enabled:hover:border-(--priority-1) enabled:hover:bg-(--priority-1)/18",
     checked:
-      "border-[2px] border-[#d1453b] bg-[#d1453b] text-white data-[state=checked]:border-[#d1453b] data-[state=checked]:bg-[#d1453b] data-[state=checked]:text-white",
-    preview: "text-[#d1453b]",
+      "border-[2px] border-(--priority-1) bg-(--priority-1) text-white data-[state=checked]:border-(--priority-1) data-[state=checked]:bg-(--priority-1) data-[state=checked]:text-white",
+    preview: "text-(--priority-1)",
   },
   M: {
     unchecked:
-      "border-[2px] border-[#eb8909] bg-[#eb8909]/10 enabled:hover:border-[#eb8909] enabled:hover:bg-[#eb8909]/20",
+      "border-[2px] border-(--priority-2) bg-(--priority-2)/10 enabled:hover:border-(--priority-2) enabled:hover:bg-(--priority-2)/18",
     checked:
-      "border-[2px] border-[#eb8909] bg-[#eb8909] text-white data-[state=checked]:border-[#eb8909] data-[state=checked]:bg-[#eb8909] data-[state=checked]:text-white",
-    preview: "text-[#eb8909]",
+      "border-[2px] border-(--priority-2) bg-(--priority-2) text-white data-[state=checked]:border-(--priority-2) data-[state=checked]:bg-(--priority-2) data-[state=checked]:text-white",
+    preview: "text-(--priority-2)",
   },
   L: {
     unchecked:
-      "border-[2px] border-[#246fe0] bg-[#246fe0]/10 enabled:hover:border-[#246fe0] enabled:hover:bg-[#246fe0]/20",
+      "border-[2px] border-(--priority-3) bg-(--priority-3)/10 enabled:hover:border-(--priority-3) enabled:hover:bg-(--priority-3)/18",
     checked:
-      "border-[2px] border-[#246fe0] bg-[#246fe0] text-white data-[state=checked]:border-[#246fe0] data-[state=checked]:bg-[#246fe0] data-[state=checked]:text-white",
-    preview: "text-[#246fe0]",
+      "border-[2px] border-(--priority-3) bg-(--priority-3) text-white data-[state=checked]:border-(--priority-3) data-[state=checked]:bg-(--priority-3) data-[state=checked]:text-white",
+    preview: "text-(--priority-3)",
   },
   "": {
     unchecked:
-      "border-[1.75px] border-[#7a7a7a] bg-transparent enabled:hover:border-[#999999]",
+      "border-[1.75px] border-(--priority-4)/85 bg-transparent enabled:hover:border-(--priority-4)",
     checked:
-      "border-[1.75px] border-[#888888] bg-[#888888] text-white data-[state=checked]:border-[#888888] data-[state=checked]:bg-[#888888] data-[state=checked]:text-white",
-    preview: "text-[#888888]",
+      "border-[1.75px] border-(--priority-4) bg-(--priority-4) text-white data-[state=checked]:border-(--priority-4) data-[state=checked]:bg-(--priority-4) data-[state=checked]:text-white",
+    preview: "text-(--priority-4)",
   },
 };
 

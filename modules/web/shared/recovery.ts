@@ -1,4 +1,4 @@
 export type {
   DeletedTask,
   RecoveryList,
-} from "../../../src/core/workspace/recovery.ts";
+} from "../../core/workspace/recovery.ts";

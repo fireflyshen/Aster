@@ -12,7 +12,7 @@ export type PriorityOption = {
   chipClass: string;
 };
 
-/** Single source of truth for Todoist-aligned priority levels (P1-P4). */
+/** Single source of truth for calm, eye-comfort calibrated priority levels (P1-P4). */
 export const PRIORITIES: PriorityOption[] = [
   {
     value: "H",
@@ -20,11 +20,11 @@ export const PRIORITIES: PriorityOption[] = [
     quickWord: "p1",
     label: "优先级 1",
     short: "P1",
-    color: "#d1453b",
-    textClass: "text-[#d1453b]",
-    iconClass: "fill-[#d1453b]/20 text-[#d1453b]",
+    color: "var(--priority-1)",
+    textClass: "text-(--priority-1)",
+    iconClass: "fill-(--priority-1)/18 text-(--priority-1)",
     chipClass:
-      "border-[#d1453b]/40 bg-[#d1453b]/10 text-[#d1453b] hover:bg-[#d1453b]/18",
+      "border-(--priority-1)/38 bg-(--priority-1)/10 text-(--priority-1) hover:bg-(--priority-1)/16",
   },
   {
     value: "M",
@@ -32,11 +32,11 @@ export const PRIORITIES: PriorityOption[] = [
     quickWord: "p2",
     label: "优先级 2",
     short: "P2",
-    color: "#eb8909",
-    textClass: "text-[#eb8909]",
-    iconClass: "fill-[#eb8909]/20 text-[#eb8909]",
+    color: "var(--priority-2)",
+    textClass: "text-(--priority-2)",
+    iconClass: "fill-(--priority-2)/18 text-(--priority-2)",
     chipClass:
-      "border-[#eb8909]/40 bg-[#eb8909]/10 text-[#eb8909] hover:bg-[#eb8909]/18",
+      "border-(--priority-2)/38 bg-(--priority-2)/10 text-(--priority-2) hover:bg-(--priority-2)/16",
   },
   {
     value: "L",
@@ -44,11 +44,11 @@ export const PRIORITIES: PriorityOption[] = [
     quickWord: "p3",
     label: "优先级 3",
     short: "P3",
-    color: "#246fe0",
-    textClass: "text-[#246fe0]",
-    iconClass: "fill-[#246fe0]/20 text-[#246fe0]",
+    color: "var(--priority-3)",
+    textClass: "text-(--priority-3)",
+    iconClass: "fill-(--priority-3)/18 text-(--priority-3)",
     chipClass:
-      "border-[#246fe0]/40 bg-[#246fe0]/10 text-[#246fe0] hover:bg-[#246fe0]/18",
+      "border-(--priority-3)/38 bg-(--priority-3)/10 text-(--priority-3) hover:bg-(--priority-3)/16",
   },
   {
     value: "",
@@ -56,9 +56,9 @@ export const PRIORITIES: PriorityOption[] = [
     quickWord: "p4",
     label: "优先级 4",
     short: "优先级",
-    color: "#888888",
+    color: "var(--priority-4)",
     textClass: "text-muted-foreground",
-    iconClass: "text-[#888888]",
+    iconClass: "text-(--priority-4)",
     chipClass: "border-input text-muted-foreground",
   },
 ];

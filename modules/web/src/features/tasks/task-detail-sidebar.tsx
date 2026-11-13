@@ -169,7 +169,7 @@ export function TaskDetailSidebar({
                   size="icon-xs"
                   aria-label="编辑标签"
                   disabled={disabled}
-                  className="size-6 rounded text-muted-foreground hover:bg-(--navigation-hover) hover:text-foreground"
+                  className="task-detail-label-add size-6 rounded text-muted-foreground hover:bg-(--navigation-hover) hover:text-foreground"
                 >
                   <Plus className="size-3.5" />
                 </Button>
@@ -188,7 +188,7 @@ export function TaskDetailSidebar({
                 return (
                   <span
                     key={tag}
-                    className="inline-flex max-w-full items-center gap-1 rounded-[6px] border border-border/80 bg-(--navigation-hover)/60 px-2 py-0.5 text-xs text-foreground"
+                    className="task-detail-label-chip inline-flex max-w-full items-center gap-1 rounded-[6px] border border-border/80 bg-(--navigation-hover)/60 px-2 py-0.5 text-xs text-foreground"
                   >
                     <LabelIcon
                       className="size-3 shrink-0"
@@ -205,7 +205,7 @@ export function TaskDetailSidebar({
                           );
                           onClearError();
                         }}
-                        className="ml-0.5 cursor-pointer rounded-xs text-muted-foreground hover:text-foreground"
+                        className="task-detail-label-remove ml-0.5 cursor-pointer rounded-xs text-muted-foreground hover:text-foreground"
                       >
                         <X className="size-3" />
                       </button>

@@ -14,15 +14,17 @@ RELEASE_ID="${STAMP}-${SUFFIX}"
 REMOTE_RELEASE="/opt/aster/releases/${RELEASE_ID}"
 REMOTE_BACKUP="/opt/aster/backups/before-${RELEASE_ID}"
 
-echo "==> [1/4] Building Web bundle (dist/web/{server.mjs,client/})..."
+echo "==> [1/4] Building server and Web client (dist/server/server.mjs, dist/web/client/)..."
 if command -v pnpm >/dev/null 2>&1; then
+  pnpm run build:server
   pnpm run build:web
 else
+  npm run build:server
   npm run build:web
 fi
 
-if [[ ! -f dist/web/server.mjs || ! -d dist/web/client ]]; then
-  echo "Error: build output dist/web/server.mjs or dist/web/client is missing." >&2
+if [[ ! -f dist/server/server.mjs || ! -d dist/web/client ]]; then
+  echo "Error: build output dist/server/server.mjs or dist/web/client is missing." >&2
   exit 1
 fi
 
@@ -50,7 +52,8 @@ ssh "$SSH_TARGET" "mkdir -p '${REMOTE_BACKUP}' '${REMOTE_RELEASE}/client' && \
   fi"
 
 echo "==> [3/4] Uploading release artifacts to ${SSH_TARGET}:${REMOTE_RELEASE}..."
-tar --no-xattrs --no-mac-metadata -C dist/web -cf - server.mjs client | ssh "$SSH_TARGET" "tar -C '${REMOTE_RELEASE}' -xf -"
+tar --no-xattrs --no-mac-metadata -C dist/server -cf - server.mjs | ssh "$SSH_TARGET" "tar -C '${REMOTE_RELEASE}' -xf -"
+tar --no-xattrs --no-mac-metadata -C dist/web -cf - client | ssh "$SSH_TARGET" "tar -C '${REMOTE_RELEASE}' -xf -"
 
 echo "==> [4/4] Switching /opt/aster/current -> ${REMOTE_RELEASE} and restarting service..."
 RESTART_REMOTE="ln -sfn '${REMOTE_RELEASE}' /opt/aster/current && \

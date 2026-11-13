@@ -1,14 +1,4 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
@@ -22,14 +12,7 @@ import {
   type BoardState,
 } from "@core/workspace/board";
 import type { Organization, SavedTag } from "@core/workspace/organization";
-import {
-  closestCenter,
-  DndContext,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  type KeyboardCoordinateGetter,
-} from "@dnd-kit/core";
+import { closestCenter, DndContext } from "@dnd-kit/core";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { Inbox } from "lucide-react";
@@ -38,17 +21,17 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
+import type { TaskRenderFn } from "@/app/hooks/use-task-renderer";
 import { BoardCard } from "./board-card";
 import { BoardColumn } from "./board-column";
-import { BoardColumnEditor } from "./board-column-editor";
+import { BoardSectionDialogs } from "./board-dialogs";
 import { columnDisplayName } from "./board-helpers";
 import type { DropPosition } from "./drag-model";
 import { InlineColumnCreator } from "./inline-column-creator";
-import { SmartPointerSensor } from "./smart-pointer-sensor";
 import { TaskDragLayer } from "./task-drag-layer";
 import { TodaySplitView } from "./today-split-view";
+import { useBoardDnd } from "./use-board-dnd";
 
 export { columnDisplayName } from "./board-helpers";
 export { SmartPointerSensor } from "./smart-pointer-sensor";
@@ -68,16 +51,7 @@ type TaskBoardProps = {
   blocked: boolean;
   error: string;
   moving?: { uuid: string; columnId: string; beforeUuid: string | null };
-  renderTask: (
-    task: Task,
-    extraActions?: ReactNode,
-    variant?: "list" | "card",
-    depth?: number,
-    renderSubtaskWrapper?: (
-      child: Task,
-      defaultRender: (child: Task) => ReactNode,
-    ) => ReactNode,
-  ) => ReactNode;
+  renderTask: TaskRenderFn;
   onMove: (
     task: Task,
     columnId: string,
@@ -166,47 +140,7 @@ export function TaskBoard({
     }
   }, [initialScrollLeft, projectColumns.length]);
 
-  const keyboardCoordinates: KeyboardCoordinateGetter = (
-    event,
-    { currentCoordinates, context },
-  ) => {
-    const backward = layout === "list" ? "ArrowUp" : "ArrowLeft";
-    const forward = layout === "list" ? "ArrowDown" : "ArrowRight";
-    if (event.code !== backward && event.code !== forward) return;
-    event.preventDefault();
-    const current =
-      context.over?.data.current?.columnId ??
-      context.active?.data.current?.columnId;
-    const index = columns.findIndex((item) => item.id === current);
-    const target = columns[index + (event.code === forward ? 1 : -1)];
-    const rect = target && context.droppableRects.get(target.id);
-    if (!rect || !context.collisionRect) return;
-    if (layout === "list") {
-      return {
-        ...currentCoordinates,
-        y:
-          currentCoordinates.y +
-          rect.top +
-          rect.height / 2 -
-          (context.collisionRect.top + context.collisionRect.height / 2),
-      };
-    }
-    return {
-      ...currentCoordinates,
-      x:
-        currentCoordinates.x +
-        rect.left +
-        rect.width / 2 -
-        (context.collisionRect.left + context.collisionRect.width / 2),
-    };
-  };
-
-  const sensors = useSensors(
-    useSensor(SmartPointerSensor, {
-      activationConstraint: { distance: 5 },
-    }),
-    useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates }),
-  );
+  const { sensors, accessibility } = useBoardDnd(layout, columns);
 
   const displayBoard = moving
     ? placeCard(
@@ -295,24 +229,7 @@ export function TaskBoard({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
-        accessibility={{
-          announcements: {
-            onDragStart: ({ active }) =>
-              `已拾取 ${active.data.current?.name || "任务"}。`,
-            onDragOver: ({ over }) =>
-              over
-                ? `位于 ${columns.find((item) => item.id === over.data.current?.columnId)?.name || "当前列"} 上方。`
-                : "位于看板之外，松开以取消。",
-            onDragEnd: () => "任务已放置。",
-            onDragCancel: () => "已取消移动。",
-          },
-          screenReaderInstructions: {
-            draggable:
-              layout === "list"
-                ? "按空格拾取任务，按上下方向键选择分区，按空格放置，按 Escape 取消。"
-                : "按空格拾取任务，按左右方向键选择版块，按空格放置，按 Escape 取消。",
-          },
-        }}
+        accessibility={accessibility}
       >
         <div
           ref={scrollArea}
@@ -481,89 +398,23 @@ export function TaskBoard({
         />
       </DndContext>
 
-      {editor && (
-        <BoardColumnEditor
-          column={editor.column}
-          revision={editor.revision}
-          busy={saving}
-          blocked={blocked}
-          error={error}
-          onClose={() => setEditor(undefined)}
-          onSave={onChange}
-          onReload={onReload}
-        />
-      )}
-
-      <AlertDialog
-        open={Boolean(deleting)}
-        onOpenChange={(open) => {
-          if (!open && !saving) setDeleting(undefined);
-        }}
-      >
-        <AlertDialogContent
-          className="max-w-sm"
-          onEscapeKeyDown={(event) => {
-            if (saving) event.preventDefault();
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              删除分区“{columnDisplayName(deleting?.column)}”？
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              该分区下的任务将移至未分区，任务内容将被保留。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription className="flex items-center gap-2">
-                <span>{error}</span>
-                <Button
-                  variant="link"
-                  disabled={saving}
-                  onClick={async () => {
-                    const latest = await onReload();
-                    if (latest && deleting) {
-                      setDeleting({ ...deleting, revision: latest.revision });
-                    }
-                  }}
-                >
-                  重新加载看板
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={saving}>取消</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={saving || blocked}
-              className="bg-destructive text-white hover:bg-destructive/90"
-              onClick={async (event) => {
-                event.preventDefault();
-                if (
-                  deleting &&
-                  (await onChange({
-                    kind: "board",
-                    action: "column.delete",
-                    revision: deleting.revision,
-                    columnId: deleting.column.id,
-                  }))
-                ) {
-                  setDeleting(undefined);
-                }
-              }}
-            >
-              {saving ? (
-                <Spinner className="size-4" />
-              ) : layout === "list" ? (
-                "删除分区"
-              ) : (
-                "删除列"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <BoardSectionDialogs
+        layout={layout}
+        editor={editor}
+        deleting={deleting}
+        saving={saving}
+        blocked={blocked}
+        error={error}
+        onCloseEditor={() => setEditor(undefined)}
+        onCloseDelete={() => setDeleting(undefined)}
+        onUpdateDeleteRevision={(nextRevision) =>
+          setDeleting((current) =>
+            current ? { ...current, revision: nextRevision } : undefined,
+          )
+        }
+        onChange={onChange}
+        onReload={onReload}
+      />
     </div>
   );
 }

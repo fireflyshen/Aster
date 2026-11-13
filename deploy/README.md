@@ -31,7 +31,7 @@ SSH_TARGET=dmit bash deploy/deploy.sh [suffix]
 
 ### What `pnpm run deploy` does:
 
-1. **Local Build**: Runs `npm run build:web` / `pnpm run build:web`, generating `dist/web/server.mjs` and `dist/web/client/`. (No git push or CI waiting required).
+1. **Local Build**: Runs `build:server` and `build:web`, generating `dist/server/server.mjs` and `dist/web/client/` (then uploaded into `/opt/aster/releases/${RELEASE_ID}/{server.mjs,client/}`). No git push or CI waiting required.
 2. **Metadata & DB Backup**: Connects to the target server (`dmit`), creates an atomic backup directory under `/opt/aster/backups/before-${RELEASE_ID}`, copies metadata JSONs, and executes an online SQLite backup of `taskchampion.sqlite3`.
 3. **Artifact Upload**: Streams clean release artifacts to `/opt/aster/releases/${RELEASE_ID}` via SSH tar (with macOS extended attributes stripped).
 4. **Service Switch & Recreate**: Atomically updates `/opt/aster/current -> ${REMOTE_RELEASE}`, recreates the Docker container via `docker compose up -d --force-recreate aster` (or restarts `systemctl restart aster.service` if on systemd), and polls `http://127.0.0.1:4180/healthz`.

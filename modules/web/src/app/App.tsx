@@ -1,1045 +1,345 @@
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { OrganizationManager } from "@/features/organization/organization-manager";
-import { FocusOverview } from "@/features/projects/focus-overview";
 import { ProjectColorsProvider } from "@/features/projects/project-icon";
-import { ProjectManager } from "@/features/projects/project-manager";
-import { toDueDay } from "@/features/tasks/task-date";
-import { TaskRow } from "@/features/tasks/task-row";
-import { taskDate } from "@core/tasks/quick-task";
-import { defaultBoard } from "@core/workspace/board";
-import type { SavedFilter, SavedTag } from "@core/workspace/organization";
-import { projectNames } from "@core/workspace/projects";
-import type { Task, View } from "@shared/tasks";
-import { format } from "date-fns";
-import { Search, X } from "lucide-react";
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
-import { ProjectInlineMeta } from "./components/project-inline-meta";
-import {
-  WorkspaceHeading,
-  WorkspaceToolbar,
-} from "./components/workspace-header";
+import { WorkspaceContent } from "./components/workspace-content";
+import { WorkspaceToolbar } from "./components/workspace-header";
 import { WorkspaceModals } from "./components/workspace-modals";
 import { useProjectActions } from "./hooks/use-project-actions";
 import { useTaskActions } from "./hooks/use-task-actions";
-import { useWorkspaceData } from "./hooks/use-workspace-data";
-import { useWorkspaceShortcuts } from "./hooks/use-workspace-shortcuts";
+import { useTaskRenderer } from "./hooks/use-task-renderer";
 import {
-  computeSubtaskHierarchy,
-  computeViewCounts,
-  filterVisibleTasks,
-} from "./lib/task-view";
+  useModalOpenSync,
+  useWorkspaceDerivedState,
+  useWorkspaceHierarchy,
+} from "./hooks/use-workspace-computed";
+import { useWorkspaceData } from "./hooks/use-workspace-data";
+import { useWorkspaceNavigation } from "./hooks/use-workspace-navigation";
+import { useWorkspaceShortcuts } from "./hooks/use-workspace-shortcuts";
 import { WorkspaceSidebar } from "./workspace-sidebar";
 
-const TaskBoard = lazy(() =>
-  import("@/features/tasks/task-board").then((module) => ({
-    default: module.TaskBoard,
-  })),
-);
-
-type ActiveEntry = {
-  kind: "filter" | "tag";
-  item: SavedFilter | SavedTag;
-};
-
-const VALID_VIEWS: readonly View[] = [
-  "today",
-  "pending",
-  "waiting",
-  "completed",
-];
-
-function readStoredView(): View {
-  if (typeof window === "undefined") return "today";
-  try {
-    const raw = window.localStorage.getItem("aster:view") as View | null;
-    return raw && VALID_VIEWS.includes(raw) ? raw : "today";
-  } catch {
-    return "today";
-  }
-}
-
-function readStoredLayout(): "list" | "board" {
-  if (typeof window === "undefined") return "list";
-  try {
-    return window.localStorage.getItem("aster:layout") === "board"
-      ? "board"
-      : "list";
-  } catch {
-    return "list";
-  }
-}
-
-function readStoredNav(): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    const raw = window.localStorage.getItem("aster:nav");
-    if (raw === "0") return false;
-    if (raw === "1") return true;
-  } catch {}
-  return window.innerWidth >= 768;
-}
-
-/** Root workspace application coordinating views, sidebar, tasks, and modals. */
+/** Root workspace application coordinating navigation, data hooks, main canvas, and dialogs. */
 export function App() {
-  const [navOpen, setNavOpen] = useState<boolean>(readStoredNav);
-  const [view, setViewState] = useState<View>(readStoredView);
-  const [layout, setLayoutState] = useState<"list" | "board">(readStoredLayout);
-  const [currentProject, setCurrentProject] = useState("");
-  const [organizationPage, setOrganizationPage] = useState(false);
-  const [projectsPage, setProjectsPage] = useState(false);
-  const [activeEntry, setActiveEntry] = useState<ActiveEntry | undefined>();
-  const [commandOpen, setCommandOpen] = useState(false);
-  const [recoveryOpen, setRecoveryOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [viewMenuOpen, setViewMenuOpen] = useState(false);
-  const [subModalOpen, setSubModalOpen] = useState(false);
-  const boardScroll = useRef(0);
-
-  const setNavigation = useCallback(
-    (next: boolean | ((current: boolean) => boolean)) => {
-      setNavOpen((prev) => {
-        const resolved = typeof next === "function" ? next(prev) : next;
-        try {
-          window.localStorage.setItem("aster:nav", resolved ? "1" : "0");
-        } catch {}
-        return resolved;
-      });
-    },
-    [],
-  );
-
-  const setView = useCallback((next: View) => {
-    setViewState(next);
-    try {
-      window.localStorage.setItem("aster:view", next);
-    } catch {}
-  }, []);
-
-  const setLayout = useCallback(
-    (
-      next: "list" | "board" | ((prev: "list" | "board") => "list" | "board"),
-    ) => {
-      setLayoutState((prev) => {
-        const resolved = typeof next === "function" ? next(prev) : next;
-        try {
-          window.localStorage.setItem("aster:layout", resolved);
-        } catch {}
-        return resolved;
-      });
-    },
-    [],
-  );
-
-  const scope =
-    view === "completed" && !currentProject && !activeEntry && !organizationPage
-      ? "completed"
-      : "pending";
-
-  const onProjectRemap = useCallback((updater: (current: string) => string) => {
-    setCurrentProject((prev) => updater(prev));
-  }, []);
-
+  const nav = useWorkspaceNavigation();
   const data = useWorkspaceData({
-    scope,
-    isModalOpen: commandOpen || recoveryOpen || subModalOpen,
-    onProjectRemap,
+    scope: nav.scope,
+    isModalOpen: nav.commandOpen || nav.recoveryOpen || nav.subModalOpen,
+    onProjectRemap: nav.onProjectRemap,
   });
 
   const {
-    organization,
-    setOrganization,
-    organizationError,
-    setOrganizationError,
-    organizationReady,
-    organizationSaving,
-    setOrganizationSaving,
-    organizationBlocked,
-    organizationGeneration,
-    tasks,
-    setTasks,
-    projects,
-    loading,
-    loaded,
-    busy,
-    needsCheck,
-    setNeedsCheck,
-    notice,
-    setNotice,
-    now,
-    energy,
-    writeLock,
-    connectionLabel,
-    taskTrackedSeconds,
-    loadOrganization,
-    reloadAll,
-    mutate,
-    changeOrganization,
-    rescheduleOverdueToToday,
-    restoreEnergy,
-  } = data;
-
-  const activeItem = useMemo(() => {
-    if (!activeEntry) return undefined;
-    if (activeEntry.kind === "filter") {
-      return (
-        organization.filters?.find((f) => f.id === activeEntry.item.id) ||
-        activeEntry.item
-      );
-    }
-    return (
-      organization.tags?.find((t) => t.id === activeEntry.item.id) ||
-      activeEntry.item
-    );
-  }, [activeEntry, organization.filters, organization.tags]);
-
-  const activeTagName =
-    activeEntry?.kind === "tag" ? activeItem?.name : undefined;
-
-  const { subtasksMap, taskLinks } = useMemo(
-    () => computeSubtaskHierarchy(tasks, organization),
-    [tasks, organization],
-  );
-
-  const isSubtask = useCallback(
-    (uuid: string) => Boolean(taskLinks[uuid]),
-    [taskLinks],
-  );
+    activeItem,
+    activeTagName,
+    subtasksMap,
+    taskLinks,
+    isSubtask,
+    filterProjects,
+    viewCounts,
+  } = useWorkspaceHierarchy({
+    activeEntry: nav.activeEntry,
+    organization: data.organization,
+    tasks: data.tasks,
+    projects: data.projects,
+  });
 
   const taskActions = useTaskActions({
-    view,
-    currentProject,
+    view: nav.view,
+    currentProject: nav.currentProject,
     activeTagName,
-    tasks,
-    setTasks,
-    organization,
-    setOrganization,
-    organizationReady,
-    organizationSaving,
-    organizationBlocked,
-    loading,
-    busy,
-    needsCheck,
-    energy,
-    writeLock,
+    tasks: data.tasks,
+    setTasks: data.setTasks,
+    organization: data.organization,
+    setOrganization: data.setOrganization,
+    organizationReady: data.organizationReady,
+    organizationSaving: data.organizationSaving,
+    organizationBlocked: data.organizationBlocked,
+    loading: data.loading,
+    busy: data.busy,
+    needsCheck: data.needsCheck,
+    energy: data.energy,
+    writeLock: data.writeLock,
     isSubtask,
-    setNotice,
-    mutate,
-    changeOrganization,
-    reloadAll,
+    setNotice: data.setNotice,
+    mutate: data.mutate,
+    changeOrganization: data.changeOrganization,
+    reloadAll: data.reloadAll,
   });
 
   const projectActions = useProjectActions({
-    currentProject,
-    organization,
-    setOrganizationError,
-    setNavOpen: setNavigation,
-    changeOrganization,
+    currentProject: nav.currentProject,
+    organization: data.organization,
+    setOrganizationError: data.setOrganizationError,
+    setNavOpen: nav.setNavigation,
+    changeOrganization: data.changeOrganization,
   });
 
-  const {
-    open,
-    setOpen,
-    seriesUuid,
-    setSeriesUuid,
-    quickOpen,
-    setQuickOpen,
-    quickProject,
-    setQuickProject,
-    quickError,
-    setQuickError,
-    toastOpen,
-    setToastOpen,
-    toastVersion,
-    undoTask,
-    addedProject,
-    expandedDrop,
-    completion,
-    editing,
-    setEditing,
-    draft,
-    setDraft,
-    tags,
-    setTags,
-    due,
-    setDue,
-    formError,
-    setFormError,
-    openQuickAdd,
-    applyViewDefaults,
-    openEditor,
-    submitTaskForm,
-    toggleTask,
-    moveTask,
-    changeBoard,
-    reloadBoard,
-    createTaskInView,
-    createSubtask,
-    unlinkSubtask,
-    toggleStartTask,
-    deleteTask,
-    saveInlineTask,
-    patchTaskFields,
-    handleToastAction,
-  } = taskActions;
-
-  const {
-    focusPickerOpen,
-    setFocusPickerOpen,
-    transitionProject,
-    setTransitionProject,
-    editingProject,
-    setEditingProject,
-    newProjectParent,
-    editingHeaderOutcome,
-    setEditingHeaderOutcome,
-    headerOutcomeDraft,
-    setHeaderOutcomeDraft,
-    editingHeaderDesc,
-    setEditingHeaderDesc,
-    headerDescDraft,
-    setHeaderDescDraft,
-    deletingProject,
-    setDeletingProject,
-    currentProjectRecord,
-    currentProjectFocus,
-    editProject,
-    addSubproject,
-    transition,
-    deleteProject,
-  } = projectActions;
-
-  useEffect(() => {
-    setSubModalOpen(
-      open ||
-        quickOpen ||
-        Boolean(seriesUuid) ||
-        Boolean(editingProject) ||
-        focusPickerOpen ||
-        Boolean(transitionProject) ||
-        Boolean(deletingProject),
-    );
-  }, [
-    open,
-    quickOpen,
-    seriesUuid,
-    editingProject,
-    focusPickerOpen,
-    transitionProject,
-    deletingProject,
-  ]);
+  useModalOpenSync(
+    [
+      taskActions.open,
+      taskActions.quickOpen,
+      Boolean(taskActions.seriesUuid),
+      Boolean(projectActions.editingProject),
+      projectActions.focusPickerOpen,
+      Boolean(projectActions.transitionProject),
+      Boolean(projectActions.deletingProject),
+    ],
+    nav.setSubModalOpen,
+  );
 
   useWorkspaceShortcuts({
-    open,
-    commandOpen,
-    quickOpen,
-    organizationPage,
-    busy,
-    organizationSaving,
-    view,
-    searchOpen,
-    query,
-    setCommandOpen,
-    setLayout,
-    setNavOpen: setNavigation,
-    setOrganizationPage,
-    setView,
-    setSearchOpen,
-    setQuery,
-    openQuickAdd,
+    open: taskActions.open,
+    commandOpen: nav.commandOpen,
+    quickOpen: taskActions.quickOpen,
+    organizationPage: nav.organizationPage,
+    busy: data.busy,
+    organizationSaving: data.organizationSaving,
+    view: nav.view,
+    searchOpen: nav.searchOpen,
+    query: nav.query,
+    setCommandOpen: nav.setCommandOpen,
+    setLayout: nav.setLayout,
+    setNavOpen: nav.setNavigation,
+    setOrganizationPage: nav.setOrganizationPage,
+    setView: nav.setView,
+    setSearchOpen: nav.setSearchOpen,
+    setQuery: nav.setQuery,
+    openQuickAdd: taskActions.openQuickAdd,
   });
 
-  const filterProjects = useMemo(
-    () =>
-      projectNames([
-        ...projects,
-        ...(organization.projects || []).map((p) => p.name),
-      ]),
-    [projects, organization.projects],
-  );
-
-  const viewCounts = useMemo(() => computeViewCounts(tasks), [tasks]);
-
   const completingUuid =
-    completion?.phase === "leaving" ? completion.uuid : undefined;
+    taskActions.completion?.phase === "leaving"
+      ? taskActions.completion.uuid
+      : undefined;
 
-  const visibleTasks = useMemo(
-    () =>
-      filterVisibleTasks({
-        tasks,
-        view,
-        activeItem,
-        inbox:
-          view === "pending" &&
-          !currentProject &&
-          !activeEntry &&
-          !organizationPage,
-        currentProject,
-        query,
-        completingUuid,
-      }),
-    [
-      tasks,
-      view,
+  const { topLevelVisible, editingParent, saveProjectField } =
+    useWorkspaceDerivedState({
+      tasks: data.tasks,
+      view: nav.view,
       activeItem,
-      activeEntry,
-      currentProject,
-      organizationPage,
-      query,
+      activeEntry: nav.activeEntry,
+      currentProject: nav.currentProject,
+      organizationPage: nav.organizationPage,
+      query: nav.query,
       completingUuid,
-    ],
-  );
-
-  const topLevelVisible = useMemo(() => {
-    const visibleIds = new Set(visibleTasks.map((t) => t.uuid));
-    return visibleTasks.filter((t) => {
-      const parentUuid = taskLinks[t.uuid];
-      return !parentUuid || !visibleIds.has(parentUuid);
+      editing: taskActions.editing,
+      taskLinks,
+      organization: data.organization,
+      changeOrganization: data.changeOrganization,
     });
-  }, [visibleTasks, taskLinks]);
 
-  const editingParent = useMemo(() => {
-    if (!editing) return undefined;
-    const parentUuid = taskLinks[editing.uuid];
-    return parentUuid ? tasks.find((t) => t.uuid === parentUuid) : undefined;
-  }, [editing, taskLinks, tasks]);
+  const workspaceLocked =
+    data.busy ||
+    data.needsCheck ||
+    data.organizationSaving ||
+    data.loading ||
+    data.organizationBlocked ||
+    !data.organizationReady;
 
-  function openTaskView() {
-    setOrganizationPage(false);
-    setProjectsPage(false);
-    setActiveEntry(undefined);
-  }
-
-  function openEntry(entry: ActiveEntry) {
-    setOrganizationPage(false);
-    setProjectsPage(false);
-    setActiveEntry(entry);
-    setCurrentProject("");
-    setView("pending");
-    setSearchOpen(false);
-    setQuery("");
-  }
-
-  function selectProject(name: string) {
-    openTaskView();
-    setCurrentProject(name);
-    setView("pending");
-    setQuery("");
-  }
-
-  function selectView(nextView: View) {
-    openTaskView();
-    setView(nextView);
-    setCurrentProject("");
-    setQuery("");
-  }
-
-  const todayDayKey = format(now, "yyyy-MM-dd");
-
-  function renderTask(
-    task: Task,
-    extraActions?: ReactNode,
-    variant: "list" | "card" = "list",
-    depth = 0,
-    renderSubtaskWrapper?: (
-      child: Task,
-      defaultRender: (child: Task) => ReactNode,
-    ) => ReactNode,
-  ): ReactNode {
-    const subtasks = subtasksMap.get(task.uuid) || [];
-    const rowDisabled =
-      busy ||
-      loading ||
-      needsCheck ||
-      organizationSaving ||
-      organizationBlocked ||
-      !organizationReady;
-    const dueDay = task.due ? toDueDay(task.due) : "";
-    const overdue = Boolean(
-      dueDay && task.status !== "completed" && dueDay < todayDayKey,
-    );
-    const isRowTransition = completion?.uuid === task.uuid;
-    const completed =
-      task.status === "completed" ||
-      Boolean(isRowTransition && completion?.checked);
-
-    const renderPlainChild = (child: Task): ReactNode =>
-      renderTask(child, undefined, variant, depth + 1, renderSubtaskWrapper);
-
-    const renderSubtaskNode = (child: Task): ReactNode =>
-      renderSubtaskWrapper
-        ? renderSubtaskWrapper(child, renderPlainChild)
-        : renderPlainChild(child);
-
-    return (
-      <TaskRow
-        key={task.uuid}
-        task={task}
-        completed={completed}
-        overdue={overdue}
-        disabled={rowDisabled}
-        onEdit={() => openEditor(task)}
-        onComplete={() => void toggleTask(task, !completed)}
-        onToggleStart={() => void toggleStartTask(task)}
-        onDueChange={(nextDue) => void patchTaskFields(task, { due: nextDue })}
-        onPriorityChange={(priority) =>
-          void patchTaskFields(task, { priority })
-        }
-        onSaveInline={(input) => saveInlineTask(task, input)}
-        onDelete={() => void deleteTask(task)}
-        projects={filterProjects}
-        availableLabels={organization.tags || []}
-        extraActions={extraActions}
-        trackedSeconds={taskTrackedSeconds(task)}
-        timingUnavailable={organization.timing?.available === false}
-        showProject={!currentProject}
-        variant={variant}
-        transition={isRowTransition ? completion : undefined}
-        subtasks={subtasks}
-        isSubtask={Boolean(taskLinks[task.uuid])}
-        depth={depth}
-        description={organization.descriptions?.[task.uuid]}
-        onAddSubtask={(input) => createSubtask(task.uuid, input)}
-        onUnlinkSubtask={
-          taskLinks[task.uuid] ? () => void unlinkSubtask(task.uuid) : undefined
-        }
-        onToggleSubtask={(subtask, nextCompleted) =>
-          void toggleTask(subtask, nextCompleted)
-        }
-        onEditSubtask={(subtask) => openEditor(subtask)}
-        renderSubtask={renderSubtaskNode}
-        expandSubtasks={
-          expandedDrop?.uuid === task.uuid ? expandedDrop.version : undefined
-        }
-      />
-    );
-  }
-
-  const boardDisabled =
-    busy ||
-    needsCheck ||
-    organizationSaving ||
-    loading ||
-    organizationBlocked ||
-    !organizationReady;
+  const renderTask = useTaskRenderer({
+    now: data.now,
+    currentProject: nav.currentProject,
+    organization: data.organization,
+    filterProjects,
+    subtasksMap,
+    taskLinks,
+    rowDisabled: workspaceLocked,
+    completion: taskActions.completion,
+    expandedDrop: taskActions.expandedDrop,
+    taskTrackedSeconds: data.taskTrackedSeconds,
+    openEditor: taskActions.openEditor,
+    toggleTask: taskActions.toggleTask,
+    toggleStartTask: taskActions.toggleStartTask,
+    patchTaskFields: taskActions.patchTaskFields,
+    saveInlineTask: taskActions.saveInlineTask,
+    deleteTask: taskActions.deleteTask,
+    createSubtask: taskActions.createSubtask,
+    unlinkSubtask: taskActions.unlinkSubtask,
+  });
 
   const projectOutcome =
-    currentProjectRecord?.outcome || currentProjectFocus?.outcome;
-  const projectDescription = currentProjectRecord?.description;
-
-  const specialPage = Boolean(organizationPage || projectsPage || activeEntry);
-
-  function saveProjectField(
-    name: string,
-    patch: { outcome?: string; nextTask?: string },
-  ) {
-    const existing = (organization.projects || []).find(
-      (item) => item.name === name,
-    );
-    return changeOrganization({
-      revision: organization.revision,
-      kind: "project",
-      action: "save",
-      item: {
-        description: "",
-        ...(existing || {}),
-        name,
-        ...patch,
-      },
-    });
-  }
+    projectActions.currentProjectRecord?.outcome ||
+    projectActions.currentProjectFocus?.outcome;
+  const projectDescription = projectActions.currentProjectRecord?.description;
 
   return (
-    <ProjectColorsProvider projects={organization.projects || []}>
+    <ProjectColorsProvider projects={data.organization.projects || []}>
       <WorkspaceSidebar
-        onSearch={() => setCommandOpen(true)}
-        navOpen={navOpen}
-        onOpenChange={setNavigation}
-        view={view}
-        currentProject={currentProject}
-        organizationPage={organizationPage}
-        projectsPage={projectsPage}
-        organization={organization}
+        onSearch={() => nav.setCommandOpen(true)}
+        navOpen={nav.navOpen}
+        onOpenChange={nav.setNavigation}
+        view={nav.view}
+        currentProject={nav.currentProject}
+        organizationPage={nav.organizationPage}
+        projectsPage={nav.projectsPage}
+        organization={data.organization}
         activeEntry={
-          activeEntry
-            ? { kind: activeEntry.kind, id: activeEntry.item.id }
+          nav.activeEntry
+            ? { kind: nav.activeEntry.kind, id: nav.activeEntry.item.id }
             : undefined
         }
         hasActiveItem={Boolean(activeItem)}
         projects={filterProjects}
         viewCounts={viewCounts}
-        busy={busy}
-        needsCheck={needsCheck}
+        busy={data.busy}
+        needsCheck={data.needsCheck}
         organizationSaving={
-          organizationSaving ||
-          !organizationReady ||
-          organizationBlocked ||
-          needsCheck
+          data.organizationSaving ||
+          !data.organizationReady ||
+          data.organizationBlocked ||
+          data.needsCheck
         }
-        onRecovery={() => setRecoveryOpen(true)}
-        onAddSubproject={addSubproject}
-        onAddProject={() => editProject("")}
-        onEditProject={editProject}
-        onDeleteProject={deleteProject}
-        onProjectStatus={transition}
-        onProjects={() => {
-          setProjectsPage(true);
-          setOrganizationPage(true);
-          setActiveEntry(undefined);
-          setSearchOpen(false);
-          setQuery("");
-          setCurrentProject("");
-        }}
-        connectionLabel={connectionLabel}
-        energy={energy}
-        timingUnavailable={organization.timing?.available === false}
-        onRetryTiming={() => void loadOrganization()}
-        onElixir={() => void restoreEnergy()}
-        onAdd={openQuickAdd}
-        onEntry={openEntry}
-        onView={selectView}
-        onProject={selectProject}
-        onOrganization={() => {
-          setProjectsPage(false);
-          setOrganizationPage(true);
-          setActiveEntry(undefined);
-          setSearchOpen(false);
-          setQuery("");
-          setCurrentProject("");
-        }}
+        onRecovery={() => nav.setRecoveryOpen(true)}
+        onAddSubproject={projectActions.addSubproject}
+        onAddProject={() => projectActions.editProject("")}
+        onEditProject={projectActions.editProject}
+        onDeleteProject={projectActions.deleteProject}
+        onProjectStatus={projectActions.transition}
+        onProjects={() => nav.openManagementPage("projects")}
+        connectionLabel={data.connectionLabel}
+        energy={data.energy}
+        timingUnavailable={data.organization.timing?.available === false}
+        onRetryTiming={() => void data.loadOrganization()}
+        onElixir={() => void data.restoreEnergy()}
+        onAdd={taskActions.openQuickAdd}
+        onEntry={nav.openEntry}
+        onView={nav.selectView}
+        onProject={nav.selectProject}
+        onOrganization={() => nav.openManagementPage("organization")}
       />
 
-      <div className="workspace-main min-h-dvh" data-sidebar-open={navOpen}>
+      <div className="workspace-main min-h-dvh" data-sidebar-open={nav.navOpen}>
         <WorkspaceToolbar
-          navOpen={navOpen}
-          searchOpen={searchOpen}
-          query={query}
-          loading={loading}
-          busy={busy}
-          onOpenNav={() => setNavigation(true)}
-          onOpenCommand={() => setCommandOpen(true)}
-          onToggleSearch={() => setSearchOpen((prev) => !prev)}
-          onRefresh={() => void reloadAll()}
+          navOpen={nav.navOpen}
+          searchOpen={nav.searchOpen}
+          query={nav.query}
+          loading={data.loading}
+          busy={data.busy}
+          onOpenNav={() => nav.setNavigation(true)}
+          onOpenCommand={() => nav.setCommandOpen(true)}
+          onToggleSearch={() => nav.setSearchOpen((prev) => !prev)}
+          onRefresh={() => void data.reloadAll()}
         />
 
-        <main className="workspace-frame pb-16 pt-2">
-          {searchOpen && (
-            <div className="mb-3 max-w-sm">
-              <InputGroup>
-                <InputGroupAddon>
-                  <Search className="size-3.5 text-muted-foreground" />
-                </InputGroupAddon>
-                <InputGroupInput
-                  id="task-search"
-                  autoFocus
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="搜索任务..."
-                  aria-label="搜索任务"
-                />
-                {query && (
-                  <InputGroupButton
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label="清除搜索"
-                    onClick={() => setQuery("")}
-                  >
-                    <X className="size-3.5" />
-                  </InputGroupButton>
-                )}
-              </InputGroup>
-            </div>
-          )}
-
-          <Tabs
-            value={layout}
-            onValueChange={(next) =>
-              setLayout(next === "board" ? "board" : "list")
-            }
-          >
-            <WorkspaceHeading
-              view={view}
-              now={now}
-              currentProject={currentProject}
-              organizationPage={organizationPage}
-              projectsPage={projectsPage}
-              specialPage={specialPage}
-              organizationReady={organizationReady}
-              organizationSaving={organizationSaving}
-              busy={busy}
-              activeEntry={
-                activeEntry
-                  ? { kind: activeEntry.kind, id: activeEntry.item.id }
-                  : undefined
-              }
-              activeItem={activeItem}
-              currentProjectFocus={currentProjectFocus}
-              projectOutcome={projectOutcome}
-              projectDescription={projectDescription}
-              viewCounts={viewCounts}
-              viewMenuOpen={viewMenuOpen}
-              setViewMenuOpen={setViewMenuOpen}
-              onSelectProject={selectProject}
-              onSelectView={selectView}
-              onTransitionProject={transition}
-              onAddSubproject={addSubproject}
-              onStartEditDesc={() => {
-                setHeaderDescDraft(projectDescription || "");
-                setEditingHeaderDesc(true);
-              }}
-              onStartEditOutcome={() => {
-                setHeaderOutcomeDraft(projectOutcome || "");
-                setEditingHeaderOutcome(true);
-              }}
-              onEditProject={editProject}
-              onDeleteProject={deleteProject}
-              onManageOrganization={() => {
-                setProjectsPage(false);
-                setOrganizationPage(true);
-                setActiveEntry(undefined);
-                setCurrentProject("");
-              }}
-            />
-
-            {currentProject && !organizationPage && (
-              <ProjectInlineMeta
-                currentProject={currentProject}
-                revision={organization.revision}
-                currentProjectRecord={currentProjectRecord}
-                isFocus={Boolean(currentProjectFocus)}
-                disabled={busy || organizationSaving || !organizationReady}
-                editingOutcome={editingHeaderOutcome}
-                setEditingOutcome={setEditingHeaderOutcome}
-                outcomeDraft={headerOutcomeDraft}
-                setOutcomeDraft={setHeaderOutcomeDraft}
-                editingDesc={editingHeaderDesc}
-                setEditingDesc={setEditingHeaderDesc}
-                descDraft={headerDescDraft}
-                setDescDraft={setHeaderDescDraft}
-                onSaveProject={changeOrganization}
-              />
-            )}
-
-            {notice && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <span>{notice}</span>
-                  <div className="flex items-center gap-2">
-                    {/energy exhausted|精力已耗尽/i.test(notice) && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2.5 text-xs"
-                        disabled={organizationSaving}
-                        onClick={() => void restoreEnergy()}
-                      >
-                        恢复 +30 精力
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 px-2.5 text-xs"
-                      disabled={loading || busy}
-                      onClick={() => void reloadAll()}
-                    >
-                      {needsCheck ? "刷新并检查" : "重试"}
-                    </Button>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {organizationPage ? (
-              projectsPage ? (
-                <div className="space-y-8">
-                  <FocusOverview
-                    data={organization}
-                    tasks={tasks}
-                    loading={loading}
-                    disabled={boardDisabled}
-                    error={organizationError}
-                    onChooseProject={() => setFocusPickerOpen(true)}
-                    onPause={(name) => transition(name, "later")}
-                    onComplete={(name) => transition(name, "completed")}
-                    onOpen={selectProject}
-                    onEdit={editProject}
-                    onAddTask={(name, nextDraft) =>
-                      openEditor(undefined, {
-                        description: "",
-                        tags: [],
-                        ...(nextDraft || {}),
-                        project: name,
-                      })
-                    }
-                    onCreateTask={(input, name) =>
-                      createTaskInView({ ...input, project: name })
-                    }
-                    onSelectNext={(name, nextUuid) =>
-                      void saveProjectField(name, { nextTask: nextUuid })
-                    }
-                    onUpdateOutcome={(name, outcome) =>
-                      saveProjectField(name, { outcome })
-                    }
-                    renderTask={(task, extraActions) =>
-                      renderTask(task, extraActions, "list", 0)
-                    }
-                  />
-                  <ProjectManager
-                    data={organization}
-                    projects={filterProjects}
-                    error={organizationError}
-                    loading={loading}
-                    disabled={boardDisabled}
-                    onOpen={selectProject}
-                    onAdd={() => editProject("")}
-                    onAddChild={addSubproject}
-                    onEdit={editProject}
-                    onDelete={deleteProject}
-                    onStatus={transition}
-                    onReload={() => void loadOrganization()}
-                  />
-                </div>
-              ) : (
-                <OrganizationManager
-                  data={organization}
-                  error={organizationError}
-                  busy={organizationSaving}
-                  loading={loading}
-                  blocked={organizationBlocked || needsCheck}
-                  onChange={changeOrganization}
-                  onOpen={(entry) => openEntry(entry)}
-                  onReload={loadOrganization}
-                />
-              )
-            ) : (
-              <>
-                <TabsContent value="list" className="mt-0 min-w-0">
-                  <Suspense
-                    fallback={
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Spinner className="size-4" />
-                        加载列表…
-                      </div>
-                    }
-                  >
-                    <TaskBoard
-                      layout="list"
-                      initialScrollLeft={boardScroll.current}
-                      onScrollPositionChange={(position) => {
-                        boardScroll.current = position;
-                      }}
-                      tasks={topLevelVisible}
-                      allTasks={tasks}
-                      board={organization.board || defaultBoard()}
-                      revision={organization.revision}
-                      saving={organizationSaving}
-                      blocked={
-                        organizationBlocked || needsCheck || !organizationReady
-                      }
-                      error={organizationError}
-                      onChange={changeBoard}
-                      onReload={reloadBoard}
-                      onClearError={() => setOrganizationError("")}
-                      loading={loading}
-                      loaded={loaded}
-                      disabled={boardDisabled}
-                      renderTask={renderTask}
-                      onMove={(task, columnId, beforeUuid, parentUuid) =>
-                        moveTask(task, columnId, beforeUuid, true, parentUuid)
-                      }
-                      onCreateTask={createTaskInView}
-                      projects={filterProjects}
-                      availableLabels={organization.tags}
-                      project={currentProject}
-                      defaultProject={currentProject}
-                      defaultDue={view === "today" ? taskDate(new Date()) : ""}
-                      todaySplit={
-                        view === "today" && !currentProject && !activeEntry
-                      }
-                      onRescheduleOverdue={rescheduleOverdueToToday}
-                      canAddTask={
-                        view !== "completed" &&
-                        (!activeEntry || activeEntry.kind === "tag")
-                      }
-                      canAddSection={
-                        view !== "completed" &&
-                        !activeEntry &&
-                        !(view === "today" && !currentProject)
-                      }
-                      hasSearch={Boolean(query.trim())}
-                      onClearSearch={() => setQuery("")}
-                      onAdd={(nextDraft) => openEditor(undefined, nextDraft)}
-                    />
-                  </Suspense>
-                </TabsContent>
-
-                <TabsContent value="board" className="mt-0 min-w-0">
-                  <Suspense
-                    fallback={
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Spinner className="size-4" />
-                        加载看板…
-                      </div>
-                    }
-                  >
-                    <TaskBoard
-                      layout="board"
-                      initialScrollLeft={boardScroll.current}
-                      onScrollPositionChange={(position) => {
-                        boardScroll.current = position;
-                      }}
-                      tasks={topLevelVisible}
-                      allTasks={tasks}
-                      board={organization.board || defaultBoard()}
-                      revision={organization.revision}
-                      saving={organizationSaving}
-                      blocked={
-                        organizationBlocked || needsCheck || !organizationReady
-                      }
-                      error={organizationError}
-                      onChange={changeBoard}
-                      onReload={reloadBoard}
-                      onClearError={() => setOrganizationError("")}
-                      loading={loading}
-                      loaded={loaded}
-                      disabled={boardDisabled}
-                      renderTask={renderTask}
-                      onMove={(task, columnId, beforeUuid, parentUuid) =>
-                        moveTask(task, columnId, beforeUuid, true, parentUuid)
-                      }
-                      onCreateTask={createTaskInView}
-                      projects={filterProjects}
-                      availableLabels={organization.tags}
-                      project={currentProject}
-                      defaultProject={currentProject}
-                      defaultDue={view === "today" ? taskDate(new Date()) : ""}
-                      canAddTask={
-                        view !== "completed" &&
-                        (!activeEntry || activeEntry.kind === "tag")
-                      }
-                      canAddSection={view !== "completed" && !activeEntry}
-                      hasSearch={Boolean(query.trim())}
-                      onClearSearch={() => setQuery("")}
-                      onAdd={(nextDraft) => openEditor(undefined, nextDraft)}
-                    />
-                  </Suspense>
-                </TabsContent>
-              </>
-            )}
-          </Tabs>
-        </main>
+        <WorkspaceContent
+          searchOpen={nav.searchOpen}
+          query={nav.query}
+          onQueryChange={nav.setQuery}
+          layout={nav.layout}
+          onLayoutChange={nav.setLayout}
+          boardScroll={nav.boardScroll}
+          view={nav.view}
+          now={data.now}
+          currentProject={nav.currentProject}
+          organizationPage={nav.organizationPage}
+          projectsPage={nav.projectsPage}
+          specialPage={nav.specialPage}
+          organization={data.organization}
+          organizationError={data.organizationError}
+          organizationReady={data.organizationReady}
+          organizationSaving={data.organizationSaving}
+          organizationBlocked={data.organizationBlocked}
+          busy={data.busy}
+          loading={data.loading}
+          loaded={data.loaded}
+          needsCheck={data.needsCheck}
+          notice={data.notice}
+          boardDisabled={workspaceLocked}
+          tasks={data.tasks}
+          topLevelVisible={topLevelVisible}
+          filterProjects={filterProjects}
+          activeEntry={nav.activeEntry}
+          activeItem={activeItem}
+          currentProjectRecord={projectActions.currentProjectRecord}
+          currentProjectFocus={projectActions.currentProjectFocus}
+          projectOutcome={projectOutcome}
+          projectDescription={projectDescription}
+          viewCounts={viewCounts}
+          viewMenuOpen={nav.viewMenuOpen}
+          setViewMenuOpen={nav.setViewMenuOpen}
+          editingHeaderOutcome={projectActions.editingHeaderOutcome}
+          setEditingHeaderOutcome={projectActions.setEditingHeaderOutcome}
+          headerOutcomeDraft={projectActions.headerOutcomeDraft}
+          setHeaderOutcomeDraft={projectActions.setHeaderOutcomeDraft}
+          editingHeaderDesc={projectActions.editingHeaderDesc}
+          setEditingHeaderDesc={projectActions.setEditingHeaderDesc}
+          headerDescDraft={projectActions.headerDescDraft}
+          setHeaderDescDraft={projectActions.setHeaderDescDraft}
+          onOpenFocusPicker={() => projectActions.setFocusPickerOpen(true)}
+          onSelectProject={nav.selectProject}
+          onSelectView={nav.selectView}
+          onOpenEntry={nav.openEntry}
+          onOpenOrganization={() =>
+            nav.openManagementPage("organization", false)
+          }
+          onTransitionProject={projectActions.transition}
+          onAddSubproject={projectActions.addSubproject}
+          onEditProject={projectActions.editProject}
+          onDeleteProject={projectActions.deleteProject}
+          onChangeOrganization={data.changeOrganization}
+          onSaveProjectField={saveProjectField}
+          onLoadOrganization={data.loadOrganization}
+          onClearOrganizationError={() => data.setOrganizationError("")}
+          onChangeBoard={taskActions.changeBoard}
+          onReloadBoard={taskActions.reloadBoard}
+          onReloadAll={data.reloadAll}
+          onRestoreEnergy={data.restoreEnergy}
+          onRescheduleOverdue={data.rescheduleOverdueToToday}
+          onOpenEditor={taskActions.openEditor}
+          onMoveTask={(task, columnId, beforeUuid, parentUuid) =>
+            taskActions.moveTask(task, columnId, beforeUuid, true, parentUuid)
+          }
+          onCreateTaskInView={taskActions.createTaskInView}
+          renderTask={renderTask}
+        />
       </div>
 
       <WorkspaceModals
-        commandOpen={commandOpen}
-        setCommandOpen={setCommandOpen}
-        layout={layout}
-        currentProject={currentProject}
-        organizationPage={organizationPage}
-        organization={organization}
-        organizationError={organizationError}
-        organizationReady={organizationReady}
-        organizationSaving={organizationSaving}
-        organizationBlocked={organizationBlocked}
-        organizationGeneration={organizationGeneration}
+        {...taskActions}
+        {...projectActions}
+        commandOpen={nav.commandOpen}
+        setCommandOpen={nav.setCommandOpen}
+        layout={nav.layout}
+        currentProject={nav.currentProject}
+        organizationPage={nav.organizationPage}
+        organization={data.organization}
+        organizationError={data.organizationError}
+        organizationReady={data.organizationReady}
+        organizationSaving={data.organizationSaving}
+        organizationBlocked={data.organizationBlocked}
+        organizationGeneration={data.organizationGeneration}
         filterProjects={filterProjects}
-        tasks={tasks}
-        busy={busy}
-        loading={loading}
-        needsCheck={needsCheck}
-        notice={notice}
-        setNeedsCheck={setNeedsCheck}
-        writeLock={writeLock}
-        recoveryOpen={recoveryOpen}
-        setRecoveryOpen={setRecoveryOpen}
-        quickOpen={quickOpen}
-        setQuickOpen={setQuickOpen}
-        quickProject={quickProject}
-        setQuickProject={setQuickProject}
-        quickError={quickError}
-        setQuickError={setQuickError}
-        openQuickAdd={openQuickAdd}
-        toastOpen={toastOpen}
-        setToastOpen={setToastOpen}
-        toastVersion={toastVersion}
-        undoTask={undoTask}
-        addedProject={addedProject}
-        onToastAction={() => handleToastAction(selectProject)}
-        open={open}
-        setOpen={setOpen}
-        seriesUuid={seriesUuid}
-        setSeriesUuid={setSeriesUuid}
-        editing={editing}
-        setEditing={setEditing}
+        tasks={data.tasks}
+        busy={data.busy}
+        loading={data.loading}
+        needsCheck={data.needsCheck}
+        notice={data.notice}
+        setNeedsCheck={data.setNeedsCheck}
+        writeLock={data.writeLock}
+        recoveryOpen={nav.recoveryOpen}
+        setRecoveryOpen={nav.setRecoveryOpen}
         editingParent={editingParent}
         subtasksMap={subtasksMap}
-        draft={draft}
-        setDraft={setDraft}
-        due={due}
-        setDue={setDue}
-        tags={tags}
-        setTags={setTags}
-        formError={formError}
-        setFormError={setFormError}
-        editingProject={editingProject}
-        setEditingProject={setEditingProject}
-        newProjectParent={newProjectParent}
-        focusPickerOpen={focusPickerOpen}
-        setFocusPickerOpen={setFocusPickerOpen}
-        transitionProject={transitionProject}
-        setTransitionProject={setTransitionProject}
-        deletingProject={deletingProject}
-        setDeletingProject={setDeletingProject}
+        onToastAction={() => taskActions.handleToastAction(nav.selectProject)}
         onToggleLayout={() =>
-          setLayout((prev) => (prev === "list" ? "board" : "list"))
+          nav.setLayout((prev) => (prev === "list" ? "board" : "list"))
         }
-        onSelectView={selectView}
-        onSelectProject={selectProject}
-        onSelectEntry={openEntry}
-        onOpenOrganization={() => {
-          setProjectsPage(false);
-          setOrganizationPage(true);
-          setActiveEntry(undefined);
-          setSearchOpen(false);
-          setQuery("");
-          setCurrentProject("");
-        }}
-        onEditProject={editProject}
-        onTransitionProject={transition}
-        onOpenEditor={openEditor}
-        applyViewDefaults={applyViewDefaults}
-        onCreateTaskInView={createTaskInView}
-        onCreateSubtask={createSubtask}
-        onToggleTask={toggleTask}
-        onUnlinkSubtask={unlinkSubtask}
-        onDeleteTask={deleteTask}
-        onSubmitTaskForm={submitTaskForm}
-        onMutate={mutate}
-        onChangeOrganization={changeOrganization}
-        onSetOrganization={setOrganization}
-        onSetOrganizationError={setOrganizationError}
-        onSetOrganizationSaving={setOrganizationSaving}
-        onLoadOrganization={loadOrganization}
-        onReloadAll={reloadAll}
+        onSelectView={nav.selectView}
+        onSelectProject={nav.selectProject}
+        onSelectEntry={nav.openEntry}
+        onOpenOrganization={() => nav.openManagementPage("organization")}
+        onEditProject={projectActions.editProject}
+        onTransitionProject={projectActions.transition}
+        onOpenEditor={taskActions.openEditor}
+        onCreateTaskInView={taskActions.createTaskInView}
+        onCreateSubtask={taskActions.createSubtask}
+        onToggleTask={taskActions.toggleTask}
+        onUnlinkSubtask={taskActions.unlinkSubtask}
+        onDeleteTask={taskActions.deleteTask}
+        onSubmitTaskForm={taskActions.submitTaskForm}
+        onMutate={data.mutate}
+        onChangeOrganization={data.changeOrganization}
+        onSetOrganization={data.setOrganization}
+        onSetOrganizationError={data.setOrganizationError}
+        onSetOrganizationSaving={data.setOrganizationSaving}
+        onLoadOrganization={data.loadOrganization}
+        onReloadAll={data.reloadAll}
       />
     </ProjectColorsProvider>
   );

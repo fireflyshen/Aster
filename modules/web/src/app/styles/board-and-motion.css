@@ -1,0 +1,240 @@
+.workspace-frame {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+.workspace-sidebar {
+  transform: translateX(-100%);
+  transition: transform var(--sidebar-duration) var(--sidebar-easing);
+}
+.workspace-sidebar[data-state="open"] {
+  transform: translateX(0);
+}
+.workspace-main {
+  transition: margin-left var(--sidebar-duration) var(--sidebar-easing);
+}
+@media (min-width: 768px) {
+  .workspace-frame {
+    padding-inline: 1.5rem;
+  }
+  .workspace-main[data-sidebar-open="true"] {
+    margin-left: var(--sidebar-width);
+  }
+}
+
+.task-add-button {
+  @apply -mx-2.5 mt-0.5 flex h-11 w-[calc(100%+1.25rem)] items-center justify-start gap-2.5 rounded-lg px-2.5 text-sm font-normal text-muted-foreground transition-colors hover:bg-(--row-hover) hover:text-foreground has-[>svg]:px-2.5 md:-mx-3 md:h-9 md:w-[calc(100%+1.5rem)] md:px-3 md:has-[>svg]:px-3;
+}
+
+/* A project is one navigation row, including its disclosure and menu. */
+[data-project-nav] {
+  border-radius: calc(var(--radius) - 2px);
+  transition: background-color 150ms ease;
+}
+[data-project-nav][data-selected="true"] {
+  background-color: var(--navigation-selected);
+  color: var(--navigation-selected-ink);
+}
+.workspace-sidebar [data-variant="navigation"][aria-current="page"] {
+  background-color: var(--navigation-selected);
+  color: var(--navigation-selected-ink);
+  font-weight: 500;
+}
+.workspace-sidebar
+  [data-variant="navigation"][aria-current="page"]
+  svg:not([style]) {
+  color: var(--navigation-selected-ink);
+}
+[data-project-nav] > button,
+[data-project-nav] > button:hover {
+  background-color: transparent;
+}
+[data-task-surface]:not(.board-card *):not([data-variant="card"]),
+.board-card[data-compact="true"],
+.project-manager-row,
+[data-organization-row] {
+  position: relative;
+  border-radius: var(--radius-lg);
+  transition: background-color 140ms ease;
+}
+[data-task-surface]:not(.board-card *):not([data-variant="card"])::after,
+.board-card[data-compact="true"]::after,
+.project-manager-row::after,
+[data-organization-row]::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0.625rem;
+  bottom: 0;
+  height: 1px;
+  background-color: var(--border);
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+@media (min-width: 768px) {
+  [data-task-surface]:not(.board-card *):not([data-variant="card"])::after,
+  .board-card[data-compact="true"]::after,
+  .project-manager-row::after,
+  [data-organization-row]::after {
+    inset-inline: 0.75rem;
+  }
+}
+@media (hover: hover) {
+  [data-project-nav]:not([data-selected="true"]):hover {
+    background-color: var(--navigation-hover);
+  }
+  [data-task-surface]:not(.board-card *):not([data-variant="card"]):hover,
+  .board-card[data-compact="true"]:hover,
+  .project-manager-row:hover,
+  [data-organization-row]:hover {
+    background-color: var(--row-hover);
+  }
+  [data-task-surface]:not(.board-card *):not(
+      [data-variant="card"]
+    ):hover::after,
+  .board-card[data-compact="true"]:hover::after,
+  .board-card[data-compact="true"]:has(
+      + .board-card[data-compact="true"]:hover
+    )::after,
+  .project-manager-row:hover::after,
+  .project-manager-row:has(+ .project-manager-row:hover)::after,
+  [data-organization-row]:hover::after,
+  [data-organization-row]:has(+ [data-organization-row]:hover)::after {
+    opacity: 0;
+  }
+  .board-card[data-compact="true"] [data-task-surface]:hover {
+    background-color: transparent;
+  }
+}
+.board-card[data-compact="true"] [data-task-surface] {
+  background-color: transparent;
+}
+.board-card:has([data-completion="leaving"]) {
+  opacity: 0;
+  max-height: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  border-width: 0 !important;
+  pointer-events: none;
+  overflow: hidden;
+  transform: scale(0.96) translateX(6px);
+  transition:
+    opacity 180ms ease,
+    max-height 220ms cubic-bezier(0.4, 0, 0.2, 1) 40ms,
+    margin-bottom 220ms cubic-bezier(0.4, 0, 0.2, 1) 40ms,
+    padding 220ms cubic-bezier(0.4, 0, 0.2, 1) 40ms,
+    transform 180ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Acknowledgement is immediate; removal waits for a confirmed server response. */
+.task-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows 220ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+.task-row > div {
+  min-width: 0;
+}
+.task-row[data-completion="leaving"] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateX(6px);
+  pointer-events: none;
+}
+.task-complete {
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+.task-complete:enabled:active {
+  transform: scale(0.9);
+}
+.task-complete[data-state="checked"] {
+  animation: task-pop 220ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+@keyframes task-pop {
+  0% {
+    transform: scale(0.85);
+  }
+  55% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.task-complete:enabled:hover [data-slot="checkbox-indicator"] {
+  opacity: 0.75;
+}
+.task-row[data-completion="checking"] [data-slot="checkbox-indicator"] {
+  animation: task-check 180ms ease-out;
+}
+@keyframes task-check {
+  from {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-row,
+  .task-complete {
+    transition: none;
+  }
+  .task-row [data-slot="checkbox-indicator"] {
+    animation: none;
+  }
+}
+
+.task-check-preview {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+@media (hover: hover) {
+  .task-check-target:hover .task-check-preview {
+    opacity: 0.65;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-check-preview {
+    transition: none;
+  }
+}
+
+.board-card {
+  animation: board-card-arrive 160ms ease-out;
+}
+@keyframes board-card-arrive {
+  from {
+    opacity: 0.6;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .board-card {
+    animation: none;
+    transition: none;
+  }
+}

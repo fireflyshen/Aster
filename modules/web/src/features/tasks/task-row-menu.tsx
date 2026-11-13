@@ -118,7 +118,7 @@ export function TaskRowMenu({
                 }}
                 className="size-8 rounded-md"
               >
-                <Sun className="size-4 text-emerald-500" />
+                <Sun className="size-4 text-(--due-today)" />
               </Button>
               <Button
                 type="button"
@@ -132,7 +132,7 @@ export function TaskRowMenu({
                 }}
                 className="size-8 rounded-md"
               >
-                <Sunrise className="size-4 text-amber-500" />
+                <Sunrise className="size-4 text-(--due-tomorrow)" />
               </Button>
               <Button
                 type="button"
@@ -146,7 +146,7 @@ export function TaskRowMenu({
                 }}
                 className="size-8 rounded-md"
               >
-                <Armchair className="size-4 text-blue-500" />
+                <Armchair className="size-4 text-(--priority-3)" />
               </Button>
               <Button
                 type="button"
@@ -160,7 +160,7 @@ export function TaskRowMenu({
                 }}
                 className="size-8 rounded-md"
               >
-                <ArrowRight className="size-4 text-violet-500" />
+                <ArrowRight className="size-4 text-(--due-upcoming)" />
               </Button>
               <Button
                 type="button"

@@ -1,2 +1,6 @@
+packages:
+  - modules/desktop
+  - modules/server
+
 allowBuilds:
   esbuild: false

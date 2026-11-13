@@ -1,0 +1,252 @@
+/* Each task owns its rule; nesting changes only the left inset. */
+.board-card[data-compact="true"],
+[data-task-surface][data-variant="list"] {
+  border-radius: 0;
+  background: transparent;
+}
+.board-card[data-compact="true"]::after {
+  display: none;
+}
+[data-task-surface][data-variant="list"] {
+  position: relative;
+}
+[data-task-surface][data-variant="list"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border);
+  opacity: 1;
+  pointer-events: none;
+}
+.board-card[data-compact="true"]:hover,
+.board-card[data-compact="true"]:focus-within,
+[data-task-surface][data-variant="list"]:hover,
+[data-task-surface][data-variant="list"]:focus-within {
+  background: transparent;
+}
+[data-task-surface][data-variant="list"]:hover::after {
+  opacity: 1;
+}
+[data-task-surface][data-variant="list"] > div {
+  position: relative;
+  gap: 10px;
+}
+[data-variant="list"] .task-row-gutter {
+  position: absolute;
+  left: -48px;
+  width: 44px;
+  height: 20px;
+  top: 0;
+  margin-top: 9px;
+}
+[data-variant="list"] .task-row-gutter [data-drag-handle] {
+  position: absolute;
+  right: 24px;
+  touch-action: none;
+}
+[data-variant="list"] .task-row-gutter button {
+  position: absolute;
+  right: 0;
+}
+.task-drop-indicator {
+  position: fixed;
+  inset: 0 auto auto 0;
+  height: 2px;
+  z-index: 1000;
+  background: var(--primary);
+  pointer-events: none;
+  will-change: transform;
+  border-radius: 2px;
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 1px 6px color-mix(in srgb, var(--primary) 26%, transparent);
+}
+.task-drop-indicator::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--background);
+}
+.task-drag-preview {
+  --drag-tilt: 1.25deg;
+  --drag-scale: 1.012;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--foreground) 16%, var(--border));
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow:
+    0 16px 36px #00000026,
+    0 3px 8px #00000012;
+  cursor: grabbing;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: var(--drag-origin-x, 50%) var(--drag-origin-y, 20px);
+  transform: rotate(var(--drag-tilt)) scale(var(--drag-scale));
+  animation: task-drag-lift 140ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: transform;
+}
+.task-drag-preview[data-layout="board"] {
+  --drag-tilt: 2.5deg;
+  --drag-scale: 1.025;
+  padding: 12px;
+  border-radius: 8px;
+}
+.dark .task-drag-preview {
+  box-shadow:
+    0 18px 40px #00000070,
+    0 0 0 1px #ffffff0a;
+}
+.task-drag-preview-content {
+  min-width: 0;
+}
+.task-drag-preview [data-task-surface] {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+.task-drag-preview [data-task-surface]::after {
+  display: none;
+}
+.task-drag-preview [data-settling],
+.task-drag-preview[data-settling] {
+  animation: none;
+  transform: none;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 180ms ease;
+  box-shadow: none;
+}
+@keyframes task-drag-lift {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+  to {
+    transform: rotate(var(--drag-tilt)) scale(var(--drag-scale));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-drag-preview {
+    animation: none;
+    transform: none;
+    transition: none;
+  }
+}
+[data-board-scroll][data-drag-active] {
+  scroll-snap-type: none;
+  user-select: none;
+}
+[data-board-scroll][data-drag-active] .board-card {
+  animation: none;
+}
+[data-drop-content] {
+  min-height: 28px;
+}
+[data-variant="list"] .task-row-check {
+  margin-top: 10px;
+}
+[data-variant="list"] [data-task-drag-surface] {
+  min-height: 38px;
+  padding-block: 9px;
+}
+[data-variant="list"] [data-task-details] {
+  margin-top: 3px;
+  gap: 4px 9px;
+  font-size: 12px;
+  line-height: 16px;
+}
+[data-variant="list"] [data-task-details] button {
+  background: transparent;
+  padding: 0;
+  font-weight: 400;
+}
+[data-variant="list"] [data-task-note-preview] {
+  margin-top: 1px;
+  -webkit-line-clamp: 1;
+  line-height: 18px;
+}
+.task-subtree {
+  margin-left: 28px;
+}
+.task-add-button {
+  margin: 2px 0 0;
+  width: 100%;
+  height: 36px;
+  padding-inline: 0;
+  gap: 10px;
+  border-radius: 0;
+  font-size: 14px;
+}
+.task-add-button:hover {
+  background: transparent;
+}
+.task-add-button > svg {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+.task-add-button:hover > svg {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.task-add-section {
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.task-add-section:hover,
+.task-add-section:focus-within {
+  opacity: 1;
+}
+[data-task-menu] {
+  border-radius: 7px;
+  border-color: var(--input);
+  box-shadow: var(--floating-shadow);
+}
+[data-task-menu] [data-variant="navigation"] {
+  height: 32px;
+  color: var(--foreground);
+  font-size: 13px;
+  padding-inline: 9px;
+  border-radius: 4px;
+}
+[data-task-menu] [data-variant="navigation"] svg {
+  width: 16px;
+  height: 16px;
+  color: var(--muted-foreground);
+}
+[data-task-menu] [aria-label^="Delete task"] {
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  color: var(--destructive);
+}
+[data-task-menu] [aria-label^="Delete task"] svg {
+  color: inherit;
+}
+[data-todoist-composer="edit"][data-compact="true"] .task-composer-shell {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--card);
+}
+[data-todoist-composer="edit"][data-compact="true"]
+  [data-composer-note]:placeholder-shown {
+  display: none;
+}
+[data-todoist-composer="edit"] .task-composer-actions button {
+  width: 28px;
+  padding: 0;
+}
+.task-composer-toolbar > div:first-child {
+  gap: 4px;
+}
+.task-composer-toolbar [data-variant="outline"] {
+  background: transparent;
+  font-size: 12px;
+}

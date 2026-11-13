@@ -90,12 +90,12 @@ export function TaskMetaChips({
   const pMeta = priorityOption(task.priority);
 
   const dueColorClass = overdue
-    ? "font-medium text-[#d1453b]"
+    ? "font-medium text-(--priority-1)"
     : isDueToday
-      ? "font-medium text-[#058527] dark:text-[#25b84c]"
+      ? "font-medium text-(--due-today)"
       : isDueTomorrow
-        ? "font-medium text-[#eb8909]"
-        : "text-[#a970ff]";
+        ? "font-medium text-(--due-tomorrow)"
+        : "text-(--due-upcoming)";
 
   return (
     <div
