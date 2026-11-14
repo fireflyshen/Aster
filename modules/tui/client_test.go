@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 func fakeSSH(t *testing.T, reply string) (Client, string) {
@@ -514,3 +516,103 @@ func TestSubtaskDescriptionQuickPriorityAndDueSubmit(t *testing.T) {
 		t.Fatalf("expected clear preset empty, got %q %v", cleared, ok)
 	}
 }
+
+func assertContinuousBackground(t *testing.T, rendered string) {
+	t.Helper()
+	csi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	locs := csi.FindAllStringIndex(rendered, -1)
+	if len(locs) == 0 {
+		t.Fatalf("expected ANSI background escapes in %q", rendered)
+	}
+	bgOn := false
+	pos := 0
+	for _, loc := range locs {
+		if text := rendered[pos:loc[0]]; text != "" && !bgOn {
+			t.Fatalf(
+				"uncolored/no-bg segment %q in selected row %q",
+				text,
+				rendered,
+			)
+		}
+		code := rendered[loc[0]:loc[1]]
+		if strings.Contains(code, "48;") {
+			bgOn = true
+		} else if code == "\x1b[0m" {
+			bgOn = false
+		}
+		pos = loc[1]
+	}
+	if tail := rendered[pos:]; tail != "" && !bgOn {
+		t.Fatalf("trailing no-bg text %q in %q", tail, rendered)
+	}
+}
+
+func TestSelectionBackgroundIsContinuousAndSubtaskTreeAligned(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+	csi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+	for _, dark := range []bool{false, true} {
+		lipgloss.SetHasDarkBackground(dark)
+		m := sampleModel()
+		m.org.Descriptions = map[string]string{"child": "存在描述内容"}
+		m.tasks[2].Priority = "M"
+		now := time.Now()
+		f := renderFrame{
+			now: now,
+			idx: m.viewIdx(),
+		}
+		f.visible = f.idx.visibleTasks(m, now)
+
+		// Non-last child: Line 1 has ├─ and P2 (without [P2]); Line 2 keeps ▎ + │ + clean continuous BG + ● project before ≡.
+		nonLast := row{
+			kind:      "task",
+			id:        m.tasks[2].UUID,
+			title:     "裸固定宽度整型与 size_t (4.6)",
+			task:      m.tasks[2],
+			depth:     1,
+			lastChild: false,
+		}
+		lines := m.renderTaskLines(f, nonLast, 68, true)
+		if len(lines) != 2 {
+			t.Fatalf("expected 2 lines for task with metadata, got %d", len(lines))
+		}
+		for li, line := range lines {
+			assertContinuousBackground(t, line)
+			if got := lipgloss.Width(line); got != 68 {
+				t.Fatalf("dark=%v line %d expected width 68, got %d", dark, li+1, got)
+			}
+		}
+		plain1 := csi.ReplaceAllString(lines[0], "")
+		plain2 := csi.ReplaceAllString(lines[1], "")
+		if !strings.HasPrefix(plain1, "▎ ├─ ○ P2 裸固定宽度整型") || strings.Contains(plain1, "[P2]") {
+			t.Fatalf("unexpected Line 1 layout: %q", plain1)
+		}
+		if !strings.HasPrefix(plain2, "▎ │    ● Work.Child") || !strings.Contains(plain2, "≡") {
+			t.Fatalf("expected ▎ │ continuous tree + aligned project before ≡ on Line 2, got %q", plain2)
+		}
+
+		// Last child: Line 2 keeps ▎ + blank tree gutter without │.
+		last := nonLast
+		last.lastChild = true
+		lastLines := m.renderTaskLines(f, last, 68, true)
+		assertContinuousBackground(t, lastLines[1])
+		if plain := csi.ReplaceAllString(lastLines[1], ""); !strings.HasPrefix(plain, "▎      ● Work.Child") {
+			t.Fatalf("expected blank tree gutter after ▎ for last child, got %q", plain)
+		}
+
+		// CJK clipping inside renderSpans never exceeds target width even at odd byte boundaries.
+		tight := renderSpans(
+			[]styledSpan{span("▎ ", accent), span("超长中文任务标题测试截断", inkStyle())},
+			11,
+			11,
+			true,
+		)
+		assertContinuousBackground(t, tight)
+		if lipgloss.Width(tight) > 11 {
+			t.Fatalf("tight span exceeded width 11: %d", lipgloss.Width(tight))
+		}
+	}
+}
+
+func inkStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(ink) }

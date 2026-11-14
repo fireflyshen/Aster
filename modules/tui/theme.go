@@ -12,20 +12,20 @@ import (
 
 // Scientific low-halation adaptive palette aligned with Aster Web (Light: Soft Morning Cloud & Dusty Sapphire; Dark: Midnight Graphite & Periwinkle Mist).
 var (
-	ink         = lipgloss.AdaptiveColor{Light: "#232733", Dark: "#E2E5ED"}
-	inkSoft     = lipgloss.AdaptiveColor{Light: "#4B5263", Dark: "#B4BBC9"}
-	muted       = lipgloss.AdaptiveColor{Light: "#767D8F", Dark: "#7C8394"}
-	line        = lipgloss.AdaptiveColor{Light: "#D7DCE5", Dark: "#2F3542"}
-	brand       = lipgloss.AdaptiveColor{Light: "#3F63AB", Dark: "#6D8CE0"}
-	selectedBG  = lipgloss.AdaptiveColor{Light: "#E8EFFB", Dark: "#222A3B"}
-	selectedFG  = lipgloss.AdaptiveColor{Light: "#1F3B78", Dark: "#E8EEFF"}
-	p1Color     = lipgloss.AdaptiveColor{Light: "#B83B3B", Dark: "#E27272"}
-	p2Color     = lipgloss.AdaptiveColor{Light: "#B26121", Dark: "#DF9A52"}
-	p3Color     = lipgloss.AdaptiveColor{Light: "#3F63AB", Dark: "#7BA4F0"}
-	okColor     = lipgloss.AdaptiveColor{Light: "#2F7D56", Dark: "#62BA8A"}
-	warnColor   = lipgloss.AdaptiveColor{Light: "#A66A20", Dark: "#D4A054"}
-	dangerColor = lipgloss.AdaptiveColor{Light: "#B83B3B", Dark: "#E27272"}
-	timerColor  = lipgloss.AdaptiveColor{Light: "#2A7A68", Dark: "#5AC8AE"}
+	ink         = lipgloss.AdaptiveColor{Light: "#1D2230", Dark: "#E5E9F2"}
+	inkSoft     = lipgloss.AdaptiveColor{Light: "#42495C", Dark: "#B6BECE"}
+	muted       = lipgloss.AdaptiveColor{Light: "#616A7D", Dark: "#848DA1"}
+	line        = lipgloss.AdaptiveColor{Light: "#D5DBE6", Dark: "#2E3443"}
+	brand       = lipgloss.AdaptiveColor{Light: "#3459B2", Dark: "#7395EB"}
+	selectedBG  = lipgloss.AdaptiveColor{Light: "#EAF0FC", Dark: "#232C40"}
+	selectedFG  = lipgloss.AdaptiveColor{Light: "#183068", Dark: "#EEF3FF"}
+	p1Color     = lipgloss.AdaptiveColor{Light: "#C03939", Dark: "#E87474"}
+	p2Color     = lipgloss.AdaptiveColor{Light: "#B35D17", Dark: "#E39B4F"}
+	p3Color     = lipgloss.AdaptiveColor{Light: "#3459B2", Dark: "#7AA4F5"}
+	okColor     = lipgloss.AdaptiveColor{Light: "#25734E", Dark: "#5FC28B"}
+	warnColor   = lipgloss.AdaptiveColor{Light: "#9F6319", Dark: "#D9A452"}
+	dangerColor = lipgloss.AdaptiveColor{Light: "#C03939", Dark: "#E87474"}
+	timerColor  = lipgloss.AdaptiveColor{Light: "#207866", Dark: "#58CCA8"}
 
 	accent   = lipgloss.NewStyle().Foreground(brand).Bold(true)
 	dim      = lipgloss.NewStyle().Foreground(muted)
@@ -143,31 +143,49 @@ func priorityColor(priority string) lipgloss.AdaptiveColor {
 	}
 }
 
-func priorityBadge(priority string) string {
+func priorityCode(priority string) string {
 	switch priority {
 	case "H":
-		return lipgloss.NewStyle().Foreground(p1Color).Bold(true).Render("P1")
+		return "P1"
 	case "M":
-		return lipgloss.NewStyle().Foreground(p2Color).Bold(true).Render("P2")
+		return "P2"
 	case "L":
-		return lipgloss.NewStyle().Foreground(p3Color).Render("P3")
+		return "P3"
 	default:
 		return ""
 	}
 }
 
-func statusGlyph(t Task, waiting bool) string {
+func priorityStyle(priority string, mutedTone bool) lipgloss.Style {
+	if mutedTone {
+		return lipgloss.NewStyle().Foreground(muted)
+	}
+	return lipgloss.NewStyle().
+		Foreground(priorityColor(priority)).
+		Bold(priority == "H" || priority == "M")
+}
+
+// statusMeta resolves the single-cell task status glyph, color, and bold weight shared by list, board, and inspector views.
+func statusMeta(t Task, waiting bool) (string, lipgloss.AdaptiveColor, bool) {
 	if t.Status == "completed" {
-		return lipgloss.NewStyle().Foreground(okColor).Render("✓")
+		return "✓", okColor, false
 	}
 	if t.Start != "" {
-		return lipgloss.NewStyle().Foreground(timerColor).Bold(true).Render("▶")
+		return "▶", timerColor, true
 	}
 	if waiting {
-		return lipgloss.NewStyle().Foreground(warnColor).Render("◴")
+		return "◴", warnColor, false
 	}
-	c := priorityColor(t.Priority)
-	return lipgloss.NewStyle().Foreground(c).Render("○")
+	return "○", priorityColor(t.Priority), false
+}
+
+func statusGlyph(t Task, waiting bool) string {
+	glyph, col, bold := statusMeta(t, waiting)
+	st := lipgloss.NewStyle().Foreground(col)
+	if bold {
+		st = st.Bold(true)
+	}
+	return st.Render(glyph)
 }
 
 func dueLabel(
@@ -231,4 +249,72 @@ func energyMeter(remaining, maxVal float64, bars int) string {
 	gauge := strings.Repeat("▮", filled) + strings.Repeat("▱", bars-filled)
 	return lipgloss.NewStyle().Foreground(color).Bold(true).
 		Render(fmt.Sprintf("⚡ %.0f/%.0f %s", remaining, maxVal, gauge))
+}
+
+type styledSpan struct {
+	text  string
+	style lipgloss.Style
+}
+
+func span(text string, style lipgloss.Style) styledSpan {
+	return styledSpan{text: text, style: style}
+}
+
+func clipSpans(spans []styledSpan, maxWidth int) ([]styledSpan, int) {
+	maxWidth = max(1, maxWidth)
+	out := make([]styledSpan, 0, len(spans))
+	used := 0
+	for _, sp := range spans {
+		if sp.text == "" {
+			continue
+		}
+		w := lipgloss.Width(sp.text)
+		if used+w <= maxWidth {
+			out = append(out, sp)
+			used += w
+			continue
+		}
+		rem := maxWidth - used
+		if rem > 0 {
+			tr := ansi.Truncate(sp.text, rem, "…")
+			if tr != "" {
+				out = append(out, styledSpan{text: tr, style: sp.style})
+				used += lipgloss.Width(tr)
+			}
+		}
+		break
+	}
+	return out, used
+}
+
+// renderSpans joins spans within maxWidth, paints continuous selection background across every segment and padding cell, and pads to totalWidth.
+func renderSpans(spans []styledSpan, maxWidth, totalWidth int, selected bool) string {
+	totalWidth = max(1, totalWidth)
+	clipped, used := clipSpans(spans, min(max(1, maxWidth), totalWidth))
+	var b strings.Builder
+	for _, sp := range clipped {
+		st := sp.style
+		if selected {
+			st = st.Background(selectedBG)
+		}
+		b.WriteString(st.Render(sp.text))
+	}
+	if pad := max(0, totalWidth-used); pad > 0 {
+		padStyle := lipgloss.NewStyle()
+		if selected {
+			padStyle = padStyle.Background(selectedBG)
+		}
+		b.WriteString(padStyle.Render(strings.Repeat(" ", pad)))
+	}
+	return b.String()
+}
+
+func sectionRule(title string, width int) string {
+	t := accent.Render(title)
+	tw := lipgloss.Width(t)
+	ruleW := width - tw - 1
+	if ruleW < 3 {
+		return t
+	}
+	return t + " " + lipgloss.NewStyle().Foreground(line).Render(strings.Repeat("─", ruleW))
 }
