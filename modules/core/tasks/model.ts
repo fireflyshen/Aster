@@ -1,196 +1,222 @@
 export interface TaskwarriorAnnotation {
-  entry?: string;
-  description: string;
+    entry?: string;
+    description: string;
 }
 
 export interface TaskwarriorTask {
-  uuid: string;
-  id?: number;
-  description: string;
-  status: string;
-  project?: string;
-  tags: string[];
-  priority?: string;
-  urgency: number;
-  due?: Date;
-  scheduled?: Date;
-  wait?: Date;
-  until?: Date;
-  start?: Date;
-  end?: Date;
-  recur?: string;
-  parent?: string;
-  depends: string[];
-  annotations: TaskwarriorAnnotation[];
+    uuid: string;
+    id?: number;
+    description: string;
+    status: string;
+    project?: string;
+    tags: string[];
+    priority?: string;
+    urgency: number;
+    due?: Date;
+    scheduled?: Date;
+    wait?: Date;
+    until?: Date;
+    start?: Date;
+    end?: Date;
+    recur?: string;
+    parent?: string;
+    depends: string[];
+    annotations: TaskwarriorAnnotation[];
 }
 
 export type TaskwarriorTaskGroup = "overdue" | "today" | "pending" | "waiting";
-export type TaskView = "pending" | "today" | "waiting" | "completed";
+export type TaskView =
+    "pending" | "today" | "urgency" | "waiting" | "completed";
 
 interface ExportedTask {
-  uuid?: unknown;
-  id?: unknown;
-  description?: unknown;
-  status?: unknown;
-  project?: unknown;
-  tags?: unknown;
-  priority?: unknown;
-  urgency?: unknown;
-  due?: unknown;
-  scheduled?: unknown;
-  wait?: unknown;
-  until?: unknown;
-  start?: unknown;
-  end?: unknown;
-  recur?: unknown;
-  parent?: unknown;
-  depends?: unknown;
-  annotations?: unknown;
+    uuid?: unknown;
+    id?: unknown;
+    description?: unknown;
+    status?: unknown;
+    project?: unknown;
+    tags?: unknown;
+    priority?: unknown;
+    urgency?: unknown;
+    due?: unknown;
+    scheduled?: unknown;
+    wait?: unknown;
+    until?: unknown;
+    start?: unknown;
+    end?: unknown;
+    recur?: unknown;
+    parent?: unknown;
+    depends?: unknown;
+    annotations?: unknown;
 }
 
 function parseJsonArray(output: string): ExportedTask[] {
-  const start = output.indexOf("[");
-  const end = output.lastIndexOf("]");
-  if (start < 0 || end < start)
-    throw new Error("Taskwarrior returned invalid export data.");
-  const value = JSON.parse(output.slice(start, end + 1)) as unknown;
-  if (!Array.isArray(value))
-    throw new Error("Taskwarrior export was not a task list.");
-  return value as ExportedTask[];
+    const start = output.indexOf("[");
+    const end = output.lastIndexOf("]");
+    if (start < 0 || end < start)
+        throw new Error("Taskwarrior returned invalid export data.");
+    const value = JSON.parse(output.slice(start, end + 1)) as unknown;
+    if (!Array.isArray(value))
+        throw new Error("Taskwarrior export was not a task list.");
+    return value as ExportedTask[];
 }
 
 export function parseTaskwarriorDate(value: unknown): Date | undefined {
-  if (typeof value !== "string" || !value.trim()) return undefined;
-  const compact = value.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
-  const date = compact
-    ? new Date(
-        Date.UTC(
-          Number(compact[1]),
-          Number(compact[2]) - 1,
-          Number(compact[3]),
-          Number(compact[4]),
-          Number(compact[5]),
-          Number(compact[6]),
-        ),
-      )
-    : new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+    if (typeof value !== "string" || !value.trim()) return undefined;
+    const compact = value.match(
+        /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/,
+    );
+    const date = compact
+        ? new Date(
+              Date.UTC(
+                  Number(compact[1]),
+                  Number(compact[2]) - 1,
+                  Number(compact[3]),
+                  Number(compact[4]),
+                  Number(compact[5]),
+                  Number(compact[6]),
+              ),
+          )
+        : new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 function strings(value: unknown): string[] {
-  if (Array.isArray(value))
-    return value.filter((item): item is string => typeof item === "string");
-  return typeof value === "string" && value
-    ? value
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean)
-    : [];
+    if (Array.isArray(value))
+        return value.filter((item): item is string => typeof item === "string");
+    return typeof value === "string" && value
+        ? value
+              .split(",")
+              .map((item) => item.trim())
+              .filter(Boolean)
+        : [];
 }
 
 function annotations(value: unknown): TaskwarriorAnnotation[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object") return [];
-    const candidate = item as { entry?: unknown; description?: unknown };
-    if (typeof candidate.description !== "string") return [];
-    return [
-      {
-        entry:
-          typeof candidate.entry === "string" ? candidate.entry : undefined,
-        description: candidate.description,
-      },
-    ];
-  });
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((item) => {
+        if (!item || typeof item !== "object") return [];
+        const candidate = item as { entry?: unknown; description?: unknown };
+        if (typeof candidate.description !== "string") return [];
+        return [
+            {
+                entry:
+                    typeof candidate.entry === "string"
+                        ? candidate.entry
+                        : undefined,
+                description: candidate.description,
+            },
+        ];
+    });
 }
 
 /** Converts raw Taskwarrior JSON task records into sorted typed task objects with parsed dates. */
 export function hydrateTaskwarriorTasks(records: unknown[]): TaskwarriorTask[] {
-  const tasks: TaskwarriorTask[] = [];
-  for (const rawRecord of records) {
-    if (!rawRecord || typeof rawRecord !== "object") continue;
-    const raw = rawRecord as ExportedTask;
-    if (typeof raw.uuid !== "string" || typeof raw.description !== "string")
-      continue;
-    tasks.push({
-      uuid: raw.uuid,
-      id: typeof raw.id === "number" ? raw.id : undefined,
-      description: raw.description,
-      status: typeof raw.status === "string" ? raw.status : "pending",
-      project: typeof raw.project === "string" ? raw.project : undefined,
-      tags: strings(raw.tags),
-      priority: typeof raw.priority === "string" ? raw.priority : undefined,
-      urgency: typeof raw.urgency === "number" ? raw.urgency : 0,
-      due: parseTaskwarriorDate(raw.due),
-      scheduled: parseTaskwarriorDate(raw.scheduled),
-      wait: parseTaskwarriorDate(raw.wait),
-      until: parseTaskwarriorDate(raw.until),
-      start: parseTaskwarriorDate(raw.start),
-      end: parseTaskwarriorDate(raw.end),
-      recur: typeof raw.recur === "string" ? raw.recur : undefined,
-      parent: typeof raw.parent === "string" ? raw.parent : undefined,
-      depends: strings(raw.depends),
-      annotations: annotations(raw.annotations),
-    });
-  }
-  return tasks.sort(
-    (left, right) =>
-      (right.end?.getTime() ?? 0) - (left.end?.getTime() ?? 0) ||
-      right.urgency - left.urgency ||
-      (left.due?.getTime() ?? Number.MAX_SAFE_INTEGER) -
-        (right.due?.getTime() ?? Number.MAX_SAFE_INTEGER) ||
-      (left.id ?? Number.MAX_SAFE_INTEGER) -
-        (right.id ?? Number.MAX_SAFE_INTEGER),
-  );
+    const tasks: TaskwarriorTask[] = [];
+    for (const rawRecord of records) {
+        if (!rawRecord || typeof rawRecord !== "object") continue;
+        const raw = rawRecord as ExportedTask;
+        if (typeof raw.uuid !== "string" || typeof raw.description !== "string")
+            continue;
+        tasks.push({
+            uuid: raw.uuid,
+            id: typeof raw.id === "number" ? raw.id : undefined,
+            description: raw.description,
+            status: typeof raw.status === "string" ? raw.status : "pending",
+            project: typeof raw.project === "string" ? raw.project : undefined,
+            tags: strings(raw.tags),
+            priority:
+                typeof raw.priority === "string" ? raw.priority : undefined,
+            urgency: typeof raw.urgency === "number" ? raw.urgency : 0,
+            due: parseTaskwarriorDate(raw.due),
+            scheduled: parseTaskwarriorDate(raw.scheduled),
+            wait: parseTaskwarriorDate(raw.wait),
+            until: parseTaskwarriorDate(raw.until),
+            start: parseTaskwarriorDate(raw.start),
+            end: parseTaskwarriorDate(raw.end),
+            recur: typeof raw.recur === "string" ? raw.recur : undefined,
+            parent: typeof raw.parent === "string" ? raw.parent : undefined,
+            depends: strings(raw.depends),
+            annotations: annotations(raw.annotations),
+        });
+    }
+    return tasks.sort(
+        (left, right) =>
+            (right.end?.getTime() ?? 0) - (left.end?.getTime() ?? 0) ||
+            right.urgency - left.urgency ||
+            (left.due?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+                (right.due?.getTime() ?? Number.MAX_SAFE_INTEGER) ||
+            (left.id ?? Number.MAX_SAFE_INTEGER) -
+                (right.id ?? Number.MAX_SAFE_INTEGER),
+    );
 }
 
 export function parseTaskwarriorTasks(output: string): TaskwarriorTask[] {
-  return hydrateTaskwarriorTasks(parseJsonArray(output));
+    return hydrateTaskwarriorTasks(parseJsonArray(output));
 }
 
 export function taskGroup(
-  task: TaskwarriorTask,
-  now = new Date(),
+    task: TaskwarriorTask,
+    now = new Date(),
 ): TaskwarriorTaskGroup {
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  );
-  const startOfTomorrow = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-  );
-  if (task.wait ? task.wait > now : task.status === "waiting") return "waiting";
-  if (task.due && task.due < startOfToday) return "overdue";
-  if (task.due && task.due < startOfTomorrow) return "today";
-  return "pending";
+    const startOfToday = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+    );
+    const startOfTomorrow = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+    );
+    if (task.wait ? task.wait > now : task.status === "waiting")
+        return "waiting";
+    if (task.due && task.due < startOfToday) return "overdue";
+    if (task.due && task.due < startOfTomorrow) return "today";
+    return "pending";
+}
+
+export function compareTasksByUrgency(
+    left: TaskwarriorTask,
+    right: TaskwarriorTask,
+): number {
+    return (
+        (right.urgency ?? 0) - (left.urgency ?? 0) ||
+        (left.due?.getTime() ?? Number.MAX_SAFE_INTEGER) -
+            (right.due?.getTime() ?? Number.MAX_SAFE_INTEGER) ||
+        (left.id ?? Number.MAX_SAFE_INTEGER) -
+            (right.id ?? Number.MAX_SAFE_INTEGER)
+    );
 }
 
 export function tasksForView(
-  tasks: TaskwarriorTask[],
-  view: TaskView,
-  now = new Date(),
+    tasks: TaskwarriorTask[],
+    view: TaskView,
+    now = new Date(),
 ): TaskwarriorTask[] {
-  return tasks.filter((task) => {
-    if (view === "completed") return task.status === "completed";
-    if (task.status !== "pending" && task.status !== "waiting") return false;
-    const group = taskGroup(task, now);
-    if (view === "today") return group === "overdue" || group === "today";
-    if (view === "waiting") return group === "waiting";
-    return true;
-  });
+    const filtered = tasks.filter((task) => {
+        if (view === "completed") return task.status === "completed";
+        if (task.status !== "pending" && task.status !== "waiting")
+            return false;
+        const group = taskGroup(task, now);
+        if (view === "today") return group === "overdue" || group === "today";
+        if (view === "urgency") return group !== "waiting";
+        if (view === "waiting") return group === "waiting";
+        return true;
+    });
+    return view === "urgency"
+        ? [...filtered].sort(compareTasksByUrgency)
+        : filtered;
 }
 
 export function isCompactTaskDate(value: unknown): value is string {
-  if (typeof value !== "string" || !/^\d{8}T\d{6}Z$/.test(value)) return false;
-  const date = parseTaskwarriorDate(value);
-  return (
-    !!date &&
-    date
-      .toISOString()
-      .replace(/[-:]/g, "")
-      .replace(/\.\d{3}/, "") === value
-  );
+    if (typeof value !== "string" || !/^\d{8}T\d{6}Z$/.test(value))
+        return false;
+    const date = parseTaskwarriorDate(value);
+    return (
+        !!date &&
+        date
+            .toISOString()
+            .replace(/[-:]/g, "")
+            .replace(/\.\d{3}/, "") === value
+    );
 }

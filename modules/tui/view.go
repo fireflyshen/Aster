@@ -3,10 +3,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type renderFrame struct {
@@ -173,6 +175,13 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 	if pCode := priorityCode(t.Priority); pCode != "" && t.Status != "completed" {
 		groups = append(groups, []styledSpan{span(pCode, priorityStyle(t.Priority, false))})
 	}
+	if t.Urgency > 0 && t.Status != "completed" {
+		uStyle := dim
+		if t.Urgency >= 10 {
+			uStyle = lipgloss.NewStyle().Foreground(warnColor)
+		}
+		groups = append(groups, []styledSpan{span(fmt.Sprintf("%.1f分", t.Urgency), uStyle)})
+	}
 	if t.Start != "" && !td.start.IsZero() && t.Status != "completed" {
 		groups = append(groups, []styledSpan{
 			span(
@@ -331,7 +340,7 @@ func (m model) list(w, h int, f renderFrame) string {
 	rs := f.rows
 	rowW := max(4, w-4)
 	header := len(lines)
-	available := max(3, h-header-5)
+	available := max(3, h-header-4)
 	type block struct {
 		index int
 		lines []string
@@ -496,6 +505,105 @@ func (m model) emptyMessage() string {
 	return "当前视图没有任务。按 a 新建任务，或按 A 一句话捕捉。"
 }
 
+var tuiURLRe = regexp.MustCompile(`https?://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+`)
+
+func trimTrailingURLPunct(raw string, start, end int) int {
+	for end > start {
+		s := raw[start:end]
+		last := s[len(s)-1]
+		isClose := false
+		switch last {
+		case '.', ',', ';', ':', '!', '?':
+			isClose = true
+		case ')':
+			isClose = strings.Count(s, ")") > strings.Count(s, "(")
+		case ']':
+			isClose = strings.Count(s, "]") > strings.Count(s, "[")
+		}
+		if isClose {
+			end--
+			continue
+		}
+		var trimmedCJK bool
+		for _, suffix := range []string{"。", "，", "；", "：", "！", "？", "）", "】"} {
+			if strings.HasSuffix(s, suffix) {
+				end -= len(suffix)
+				trimmedCJK = true
+				break
+			}
+		}
+		if !trimmedCJK {
+			break
+		}
+	}
+	return end
+}
+
+func wrapStyledText(desc string, width int, baseSt, linkSt lipgloss.Style) []string {
+	width = max(1, width)
+	normalized := strings.ReplaceAll(strings.ReplaceAll(desc, "\r\n", "\n"), "\r", "\n")
+	rawLines := strings.Split(strings.TrimSpace(normalized), "\n")
+	var result []string
+	blankRun := 0
+	for _, rawLine := range rawLines {
+		trimmed := strings.TrimSpace(rawLine)
+		if trimmed == "" {
+			if blankRun == 0 && len(result) > 0 {
+				result = append(result, "")
+			}
+			blankRun++
+			continue
+		}
+		blankRun = 0
+		line := clean(trimmed)
+		linkMask := make([]bool, len(line))
+		for _, loc := range tuiURLRe.FindAllStringIndex(line, -1) {
+			end := trimTrailingURLPunct(line, loc[0], loc[1])
+			for i := loc[0]; i < end; i++ {
+				linkMask[i] = true
+			}
+		}
+		var b strings.Builder
+		curW := 0
+		flushSeg := func(seg string, isLink bool) {
+			if seg == "" {
+				return
+			}
+			if isLink {
+				b.WriteString(linkSt.Render(seg))
+			} else {
+				b.WriteString(baseSt.Render(seg))
+			}
+		}
+		segStart := 0
+		segIsLink := false
+		for pos, r := range line {
+			rw := max(1, ansi.StringWidth(string(r)))
+			rLink := linkMask[pos]
+			if curW > 0 && curW+rw > width {
+				flushSeg(line[segStart:pos], segIsLink)
+				result = append(result, b.String())
+				b.Reset()
+				curW = 0
+				segStart = pos
+				segIsLink = rLink
+			} else if pos == 0 {
+				segIsLink = rLink
+			} else if rLink != segIsLink {
+				flushSeg(line[segStart:pos], segIsLink)
+				segStart = pos
+				segIsLink = rLink
+			}
+			curW += rw
+		}
+		if segStart < len(line) {
+			flushSeg(line[segStart:], segIsLink)
+		}
+		result = append(result, b.String())
+	}
+	return result
+}
+
 func (m model) inspector(w, h int, f renderFrame) string {
 	r := f.cur
 	var lines []string
@@ -506,6 +614,10 @@ func (m model) inspector(w, h int, f renderFrame) string {
 		}
 	}
 	add := func(s string) { addStyled(softText, s) }
+	descLinkSt := lipgloss.NewStyle().Foreground(p3Color).Underline(true)
+	addRich := func(s string) {
+		lines = append(lines, wrapStyledText(s, bodyW, softText, descLinkSt)...)
+	}
 	kv := func(label, val string, valColor lipgloss.AdaptiveColor) {
 		padW := max(1, 8-lipgloss.Width(label))
 		lbl := dim.Render(label + strings.Repeat(" ", padW))
@@ -581,6 +693,13 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			}
 			kv("优先级", pText, priorityColor(t.Priority))
 		}
+		if t.Urgency > 0 {
+			uCol := inkSoft
+			if t.Urgency >= 10 {
+				uCol = warnColor
+			}
+			kv("紧迫", fmt.Sprintf("%.2f 分", t.Urgency), uCol)
+		}
 		if len(t.Tags) > 0 {
 			kv("标签", "#"+strings.Join(t.Tags, "  #"), brand)
 		}
@@ -607,7 +726,7 @@ func (m model) inspector(w, h int, f renderFrame) string {
 		// Task description (Aster org.descriptions)
 		lines = append(lines, "", sectionRule("任务描述", bodyW))
 		if desc := strings.TrimSpace(m.org.Descriptions[t.UUID]); desc != "" {
-			addStyled(softText, desc)
+			addRich(desc)
 		} else {
 			lines = append(lines, dim.Render("暂无描述 · 按 D 编辑"))
 		}
@@ -668,7 +787,11 @@ func (m model) inspector(w, h int, f renderFrame) string {
 		for _, p := range f.idx.activeProjects {
 			if inProject(t.Project, p.Name) {
 				lines = append(lines, "", sectionRule("◎ "+p.Name, bodyW))
-				add("完成目标：" + p.Outcome)
+				if strings.TrimSpace(p.Outcome) != "" {
+					addRich("完成目标：" + strings.TrimSpace(p.Outcome))
+				} else if strings.TrimSpace(p.Description) != "" {
+					addRich(p.Description)
+				}
 				if p.NextTask == t.UUID {
 					lines = append(
 						lines,
@@ -686,7 +809,7 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			lines = append(lines, dim.Render("暂无备注 · : 追加备注"))
 		}
 		for _, n := range t.Annotations {
-			add("• " + n.Description)
+			addRich("• " + n.Description)
 			lines = append(lines, "")
 		}
 		lines = append(lines, "", dim.Render(clip("UUID  "+t.UUID, bodyW)))
@@ -695,11 +818,11 @@ func (m model) inspector(w, h int, f renderFrame) string {
 		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), p.Name)
 		kv("状态", p.Status, brand)
 		lines = append(lines, "")
-		if p.Outcome != "" {
-			add("完成目标：" + p.Outcome)
+		if strings.TrimSpace(p.Outcome) != "" {
+			addRich("完成目标：" + p.Outcome)
 		}
-		if p.Description != "" {
-			add("描述：" + p.Description)
+		if strings.TrimSpace(p.Description) != "" {
+			addRich("描述：" + p.Description)
 		}
 		if p.NextTask != "" {
 			if nt, ok := f.idx.tasksByUUID[p.NextTask]; ok {
@@ -710,7 +833,7 @@ func (m model) inspector(w, h int, f renderFrame) string {
 	case "filter", "tag":
 		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.item.Name)
 		if r.item.Description != "" {
-			add(r.item.Description)
+			addRich(r.item.Description)
 		}
 		if r.item.Expression != "" {
 			add(r.item.Expression)
@@ -733,7 +856,7 @@ func (m model) inspector(w, h int, f renderFrame) string {
 	return panelWithRight(
 		"详情",
 		"PgUp/PgDn",
-		window(lines, m.detailScroll, max(1, h-5)),
+		window(lines, m.detailScroll, max(1, h-4)),
 		w,
 		h,
 		w < 76 && m.detail && !m.navFocus,
@@ -946,9 +1069,6 @@ func (m model) View() string {
 		Foreground(brand).
 		Bold(true).
 		Render("  ◈ ASTER")
-	header := brandMark +
-		lipgloss.NewStyle().Foreground(line).Render("  ›  ") +
-		softText.Bold(true).Render(clean(m.title()))
 
 	var rightParts []string
 	if idx.anyRunning {
@@ -984,6 +1104,10 @@ func (m model) View() string {
 		rightParts = append(rightParts, dim.Render(m.client.Host))
 	}
 	right := strings.Join(rightParts, dim.Render("  ·  "))
+	titleBudget := max(4, w-lipgloss.Width(brandMark)-lipgloss.Width(right)-9)
+	header := brandMark +
+		lipgloss.NewStyle().Foreground(line).Render("  ›  ") +
+		softText.Bold(true).Render(clip(clean(m.title()), titleBudget))
 	pad := max(1, w-lipgloss.Width(header)-lipgloss.Width(right)-2)
 	header += strings.Repeat(" ", pad) + right
 
@@ -1058,34 +1182,54 @@ func (m model) View() string {
 			Render("! 写入锁定 · ")
 	}
 
-	left := "  " + stateDot + softText.Render(clean(m.message))
-	leftW := lipgloss.Width(left)
-
-	var shortcuts string
-	if m.board && m.taskView() {
-		shortcuts = "Tab 切焦点   ←→ 切列   j/k 选卡   Space 折展   x 完成   s 计时   a 新建   b 列表   ? 帮助  "
-	} else {
-		shortcuts = "Tab/←→ 切焦点   j/k 移动   Space 折展   x 完成   s 计时   a 新建   S 子任务   : 菜单   ? 帮助  "
+	type keyHint struct{ key, label string }
+	renderHints := func(hs []keyHint) string {
+		parts := make([]string, len(hs))
+		for i, hint := range hs {
+			parts[i] = softText.Render(hint.key) + " " + dim.Render(hint.label)
+		}
+		return strings.Join(parts, "  ") + "  "
 	}
-
-	if leftW+lipgloss.Width(shortcuts) > w {
-		if m.board && m.taskView() {
-			shortcuts = "←→ 切列   Space 折展   x 完成   a 新建   b 列表   ? 帮助  "
-		} else {
-			shortcuts = "Tab 切焦点   Space 折展   x 完成   a 新建   ? 帮助  "
+	var tiers [][]keyHint
+	if m.navFocus || !m.taskView() {
+		tiers = [][]keyHint{
+			{{"Tab", "切区"}, {"j/k", "选"}, {"Enter", "打开"}, {"a", "新建"}, {":", "菜单"}, {"?", "帮助"}},
+			{{"Enter", "打开"}, {":", "菜单"}, {"?", "帮助"}},
+			{{"?", "帮助"}},
+		}
+	} else if m.board {
+		tiers = [][]keyHint{
+			{{"Tab", "切区"}, {"←→", "列"}, {"j/k", "卡"}, {"Space", "折展"}, {"x", "完成"}, {"a", "新建"}, {"b", "列表"}, {"?", "帮助"}},
+			{{"←→", "列"}, {"x", "完成"}, {"b", "列表"}, {"?", "帮助"}},
+			{{"?", "帮助"}},
+		}
+	} else {
+		tiers = [][]keyHint{
+			{{"Tab", "切区"}, {"j/k", "选"}, {"Space", "折展"}, {"x", "完成"}, {"s", "计时"}, {"a", "新建"}, {"S", "子"}, {":", "菜单"}, {"?", "帮助"}},
+			{{"Space", "折展"}, {"x", "完成"}, {"a", "新建"}, {":", "菜单"}, {"?", "帮助"}},
+			{{"?", "帮助"}},
 		}
 	}
-	if leftW+lipgloss.Width(shortcuts) > w {
-		shortcuts = "? 帮助  "
-	}
 
-	gap := max(1, w-leftW-lipgloss.Width(shortcuts))
+	left := "  " + stateDot + softText.Render(clean(m.message))
+	leftW := lipgloss.Width(left)
+	hintsStr := ""
+	for _, tier := range tiers {
+		candidate := renderHints(tier)
+		if leftW+lipgloss.Width(candidate)+2 <= w {
+			hintsStr = candidate
+			break
+		}
+	}
 	footerLine := left
-	if w-leftW >= lipgloss.Width(shortcuts)+1 {
-		footerLine = left + strings.Repeat(" ", gap) + dim.Render(shortcuts)
+	if hintsStr != "" {
+		gap := max(2, w-leftW-lipgloss.Width(hintsStr))
+		footerLine = left + strings.Repeat(" ", gap) + hintsStr
+	} else {
+		footerLine = clip(left, w)
 	}
 
-	output := header + "\n" + body + "\n" + clip(footerLine, w)
+	output := header + "\n" + body + "\n" + footerLine
 	lines := strings.Split(output, "\n")
 	for i := range lines {
 		lines[i] = clip(lines[i], w)
@@ -1100,12 +1244,17 @@ func (m model) boardView(w, h int, f renderFrame) string {
 		colSet[c.ID] = true
 	}
 	count := max(1, min(len(cols), w/28))
-	colW := (w - 2) / count
+	baseW := w / count
+	extra := w % count
 	start := max(0, min(m.boardColumn-count/2, len(cols)-count))
 	end := min(len(cols), start+count)
-	cardW := max(4, colW-4)
 	var panes []string
 	for i := start; i < end; i++ {
+		colW := baseW
+		if i-start < extra {
+			colW++
+		}
+		cardW := max(4, colW-4)
 		c := cols[i]
 		ts, depth, lastChild := f.idx.groupedTasks(m, f.visible, c.ID, colSet)
 		var lines []string

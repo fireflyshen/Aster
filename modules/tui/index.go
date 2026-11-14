@@ -232,6 +232,8 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 			match = unfinished && !td.due.IsZero() &&
 				td.due.Before(todayEnd) &&
 				!td.wait.After(now)
+		case m.view == "urgency":
+			match = unfinished && !td.wait.After(now)
 		case m.view == "active":
 			match = unfinished && t.Start != ""
 		case m.view == "waiting":
@@ -295,6 +297,12 @@ func (idx viewIndex) groupedTasks(
 	}
 	fallback := len(idx.orderRank) + 1
 	sort.SliceStable(sorted, func(i, j int) bool {
+		if m.view == "urgency" {
+			if sorted[i].Urgency != sorted[j].Urgency {
+				return sorted[i].Urgency > sorted[j].Urgency
+			}
+			return sorted[i].Description < sorted[j].Description
+		}
 		ri := idx.rank(sorted[i], fallback)
 		rj := idx.rank(sorted[j], fallback)
 		if ri != rj {

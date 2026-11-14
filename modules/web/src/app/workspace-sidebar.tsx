@@ -1,5 +1,10 @@
 import { OrganizationIcon, TodayCalendarIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import type { EnergySummary } from "@core/workspace/energy";
 import {
     FOCUS_LIMIT,
@@ -17,10 +22,12 @@ import { cn } from "cn";
 import {
     Archive,
     Asterisk,
+    Check,
     ChevronDown,
     CircleCheck,
     Clock3,
     DatabaseBackup,
+    Flame,
     Inbox,
     PanelLeft,
     Plus,
@@ -28,6 +35,7 @@ import {
     Target,
 } from "lucide-react";
 import { useState } from "react";
+import type { CompleteBehavior } from "./hooks/use-workspace-navigation";
 import {
     SidebarEnergyMeter,
     SidebarFavorites,
@@ -39,6 +47,7 @@ export const views: Record<View, string> = {
     pending: "收件箱",
     today: "今天",
     focus: "焦点",
+    urgency: "紧迫排行",
     later: "稍后",
     waiting: "等待中",
     completed: "已完成",
@@ -48,6 +57,7 @@ const viewOrder: View[] = [
     "pending",
     "today",
     "focus",
+    "urgency",
     "later",
     "waiting",
     "completed",
@@ -71,6 +81,10 @@ const viewMeta: Record<
     focus: {
         icon: Target,
         colorClass: "text-(--due-tomorrow)",
+    },
+    urgency: {
+        icon: Flame,
+        colorClass: "text-[#c46a2b] dark:text-[#e39660]",
     },
     later: {
         icon: Archive,
@@ -122,6 +136,8 @@ type WorkspaceSidebarProps = {
     onProject: (project: string) => void;
     onOrganization: () => void;
     onRecovery: () => void;
+    completeBehavior?: CompleteBehavior;
+    onCompleteBehaviorChange?: (next: CompleteBehavior) => void;
 };
 
 /** Persistent navigation drawer housing views, favorites, focus/later projects, and energy meter. */
@@ -158,8 +174,11 @@ export function WorkspaceSidebar({
     onProject,
     onOrganization,
     onRecovery,
+    completeBehavior = "hide",
+    onCompleteBehaviorChange,
 }: WorkspaceSidebarProps) {
     const [laterCollapsed, setLaterCollapsed] = useState(false);
+    const [prefsOpen, setPrefsOpen] = useState(false);
     const disabled = busy || organizationSaving;
     const closeOnMobile = () => {
         if (innerWidth < 768) onOpenChange(false);
@@ -179,15 +198,66 @@ export function WorkspaceSidebar({
     return (
         <WorkspaceNavigation open={navOpen} onOpenChange={onOpenChange}>
             <div className="sidebar-account flex h-14 items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                    <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                        <Asterisk className="size-[18px]" strokeWidth={1.8} />
-                    </span>
-                    <span className="text-sm font-semibold tracking-tight text-foreground">
-                        Aster
-                    </span>
-                    <ChevronDown className="size-3 text-muted-foreground" />
-                </div>
+                <Popover open={prefsOpen} onOpenChange={setPrefsOpen}>
+                    <PopoverTrigger asChild>
+                        <button
+                            type="button"
+                            aria-label="工作区偏好设置"
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-navigation-hover outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        >
+                            <span className="flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                                <Asterisk
+                                    className="size-[18px]"
+                                    strokeWidth={1.8}
+                                />
+                            </span>
+                            <span className="text-sm font-semibold tracking-tight text-foreground">
+                                Aster
+                            </span>
+                            <ChevronDown className="size-3 text-muted-foreground" />
+                        </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-56 p-1.5">
+                        <div className="px-2 py-1 text-[11px] font-medium text-muted-foreground">
+                            点击完成任务后
+                        </div>
+                        <Button
+                            type="button"
+                            variant="navigation"
+                            className="h-8 w-full justify-between px-2 text-xs font-normal"
+                            onClick={() => {
+                                onCompleteBehaviorChange?.("hide");
+                                setPrefsOpen(false);
+                            }}
+                        >
+                            <span>让任务消失</span>
+                            <Check
+                                className={cn(
+                                    "size-3.5",
+                                    completeBehavior !== "hide" && "invisible",
+                                )}
+                            />
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="navigation"
+                            className="h-8 w-full justify-between px-2 text-xs font-normal"
+                            onClick={() => {
+                                onCompleteBehaviorChange?.("strikethrough");
+                                setPrefsOpen(false);
+                            }}
+                        >
+                            <span>保留并加删除线</span>
+                            <Check
+                                className={cn(
+                                    "size-3.5",
+                                    completeBehavior !== "strikethrough" &&
+                                        "invisible",
+                                )}
+                            />
+                        </Button>
+                    </PopoverContent>
+                </Popover>
                 <Button
                     id="sidebar-close"
                     variant="ghost"

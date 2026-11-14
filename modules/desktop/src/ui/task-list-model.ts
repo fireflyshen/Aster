@@ -1,4 +1,5 @@
 import { Color, Icon, type List } from "@raycast/api";
+import { formatDescriptionPreview } from "../../../core/tasks/description.ts";
 import {
     taskGroup,
     type TaskView,
@@ -32,6 +33,7 @@ export const VIEWS: Array<{
     { id: "later", title: "Later" },
     { id: "pending", title: "All Pending" },
     { id: "today", title: "Today & Overdue" },
+    { id: "urgency", title: "Urgency · Top Score" },
     { id: "inbox", title: "Inbox" },
     { id: "active", title: "In Progress" },
     { id: "waiting", title: "Waiting" },
@@ -60,6 +62,7 @@ export function displayDate(date: Date): string {
 export function isCustomFilterView(filter: string): boolean {
     return (
         filter === "focus" ||
+        filter === "urgency" ||
         filter === "expression" ||
         filter.startsWith("filter:") ||
         filter.startsWith("column:")
@@ -142,10 +145,11 @@ export function taskAccessories(
             tooltip: `${subStats.done} of ${subStats.total} subtasks completed · Press Enter to open`,
         });
     }
-    if (organization?.descriptions?.[task.uuid]?.trim()) {
+    const desc = organization?.descriptions?.[task.uuid]?.trim();
+    if (desc) {
         accessories.push({
             icon: Icon.Document,
-            tooltip: "Has task description",
+            tooltip: formatDescriptionPreview(desc),
         });
     }
 
@@ -183,6 +187,16 @@ export function taskAccessories(
                 value: priorityBadgeLabel(task.priority),
                 color: priorityTagColor(task.priority),
             },
+        });
+    }
+    if (
+        task.status !== "completed" &&
+        Number.isFinite(task.urgency) &&
+        task.urgency > 0
+    ) {
+        accessories.push({
+            text: `${task.urgency.toFixed(1)}分`,
+            tooltip: `Taskwarrior Urgency: ${task.urgency.toFixed(2)}`,
         });
     }
     const date =

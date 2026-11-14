@@ -632,4 +632,81 @@ func TestSelectionBackgroundIsContinuousAndSubtaskTreeAligned(t *testing.T) {
 	}
 }
 
+func TestCompactSingleLineFooterAndDescriptionWrapping(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	lipgloss.SetHasDarkBackground(false)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+	csi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+	m := sampleModel()
+	m.width = 110
+	m.height = 24
+	m.message = "已连接 dmit"
+	view := m.View()
+	lines := strings.Split(view, "\n")
+	if len(lines) != 24 {
+		t.Fatalf("expected exact 24 terminal lines, got %d", len(lines))
+	}
+	if !strings.HasPrefix(csi.ReplaceAllString(lines[22], ""), "╰") {
+		t.Fatalf("expected panel bottom border immediately above single-line footer (row 23), got %q", csi.ReplaceAllString(lines[22], ""))
+	}
+	footer := csi.ReplaceAllString(lines[23], "")
+	if !strings.Contains(footer, "已连接 dmit") || !strings.Contains(footer, "? 帮助") {
+		t.Fatalf("expected compact single-line status + hints, got %q", footer)
+	}
+
+	// Long multi-line URL description wraps cleanly within inspector column budget and collapses excessive blank lines.
+	desc := "教材《Learn C++ 中文版》\n\n\nhttps://hanxiaomax.github.io/Learncpp_CN/（打不开用 Gitee: https://gitee.com/johannlee/Learncpp_CN）"
+	wrapped := wrapStyledText(desc, 33, softText, lipgloss.NewStyle().Foreground(p3Color).Underline(true))
+	if len(wrapped) < 3 {
+		t.Fatalf("expected multi-line wrapped description, got %+v", wrapped)
+	}
+	blankCount := 0
+	for i, ln := range wrapped {
+		if lipgloss.Width(ln) > 33 {
+			t.Fatalf("wrapped line %d exceeded width 33: %d (%q)", i, lipgloss.Width(ln), ln)
+		}
+		if strings.TrimSpace(csi.ReplaceAllString(ln, "")) == "" {
+			blankCount++
+		}
+	}
+	if blankCount != 1 {
+		t.Fatalf("expected collapsed single blank paragraph separator, got %d blanks in %+v", blankCount, wrapped)
+	}
+}
+
+func TestUrgencyViewSortingAndScoreDisplay(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	lipgloss.SetHasDarkBackground(false)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+	csi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+	m := sampleModel()
+	m.view = "urgency"
+	m.tasks = []Task{
+		{UUID: "low", Description: "低分任务", Status: "pending", Urgency: 2.3},
+		{UUID: "wait", Description: "未来等待", Status: "waiting", Wait: "20990101T000000Z", Urgency: 25.0},
+		{UUID: "high", Description: "高分紧急任务", Status: "pending", Priority: "H", Urgency: 12.4},
+		{UUID: "done", Description: "已完成", Status: "completed", Urgency: 30.0},
+	}
+
+	vis := m.visible()
+	cols := m.columns()
+	if len(cols) != 1 || cols[0].ID != "unsectioned" {
+		t.Fatalf("expected flat single urgency column, got %+v", cols)
+	}
+	idx := m.viewIdx()
+	ordered, _, _ := idx.groupedTasks(m, vis, "unsectioned")
+	if len(ordered) != 2 || ordered[0].UUID != "high" || ordered[1].UUID != "low" {
+		t.Fatalf("expected actionable tasks sorted descending by urgency [high, low], got %+v", ordered)
+	}
+
+	f := renderFrame{now: time.Now(), idx: idx}
+	spans := m.taskMetaSpans(f, row{kind: "task", task: ordered[0]}, false)
+	rendered := csi.ReplaceAllString(renderSpans(spans, 60, 60, false), "")
+	if !strings.Contains(rendered, "12.4分") {
+		t.Fatalf("expected urgency score 12.4分 in task metadata, got %q", rendered)
+	}
+}
+
 func inkStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(ink) }

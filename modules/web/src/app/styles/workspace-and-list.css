@@ -47,7 +47,6 @@
   overflow-wrap: anywhere;
 }
 [data-variant="card"] [data-task-description-preview] {
-  overflow-wrap: anywhere;
   line-height: 18px;
 }
 [data-variant="card"] [data-task-details] {

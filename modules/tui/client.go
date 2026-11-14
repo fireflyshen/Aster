@@ -35,6 +35,7 @@ type Task struct {
 	Status      string   `json:"status"`
 	Due         string   `json:"due"`
 	Priority    string   `json:"priority"`
+	Urgency     float64  `json:"urgency"`
 	Tags        []string `json:"tags"`
 	Start       string   `json:"start"`
 	Annotations []Note   `json:"annotations"`

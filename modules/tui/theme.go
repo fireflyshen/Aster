@@ -53,8 +53,9 @@ func disableColor()               { lipgloss.SetColorProfile(termenv.Ascii) }
 func clip(s string, w int) string { return ansi.Truncate(s, max(1, w), "…") }
 
 func wrap(s string, w int) string {
+	normalized := strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
 	var out []string
-	for _, part := range strings.Split(s, "\n") {
+	for _, part := range strings.Split(normalized, "\n") {
 		out = append(
 			out,
 			lipgloss.NewStyle().Width(max(1, w)).Render(clean(part)),

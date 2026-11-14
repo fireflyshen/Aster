@@ -193,6 +193,7 @@ func (m model) nav() []entry {
 		{"focus", "◎  Focus"},
 		{"inbox", "▣  收件箱"},
 		{"today", "◷  今天与逾期"},
+		{"urgency", "◈  紧迫排行"},
 		{"active", "▶  进行中"},
 		{"all", "≡  全部任务"},
 		{"waiting", "◴  等待中"},
@@ -269,6 +270,8 @@ func (m model) columns() []Column {
 			}
 		}
 		return cols
+	case m.view == "urgency":
+		return []Column{{ID: "unsectioned", Name: "紧迫排行"}}
 	default:
 		for _, c := range m.org.Board.Columns {
 			if c.Project == "" {

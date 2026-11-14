@@ -1,5 +1,6 @@
 import { Action, ActionPanel, Detail, List } from "@raycast/api";
 import type { ReactNode } from "react";
+import { formatMarkdownDescription } from "../../../core/tasks/description.ts";
 import type { TaskwarriorTask } from "../../../core/tasks/model.ts";
 import { formatDuration } from "../../../core/workspace/energy.ts";
 import {
@@ -42,7 +43,10 @@ export function buildTaskDetailMarkdown({
         sections.push(`> Part of **${markdownText(parentTask.description)}**`);
     }
     if (description?.trim()) {
-        sections.push(`## Description\n\n${description.trim()}`);
+        const formatted = formatMarkdownDescription(description);
+        if (formatted) {
+            sections.push(`## Description\n\n${formatted}`);
+        }
     }
     if (subtasks.length) {
         const done = subtasks.filter(
@@ -64,7 +68,10 @@ export function buildTaskDetailMarkdown({
         sections.push(`## Subtasks (${done}/${subtasks.length})\n\n${list}`);
     }
     if (projectDescription?.trim()) {
-        sections.push(`## Project\n\n${markdownText(projectDescription)}`);
+        const formatted = formatMarkdownDescription(projectDescription);
+        if (formatted) {
+            sections.push(`## Project\n\n${formatted}`);
+        }
     }
     if (task.annotations.length) {
         const annotationText = task.annotations
