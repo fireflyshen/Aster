@@ -9,7 +9,6 @@ import { createWorkspaceGate } from "./workspace-gate.ts";
 import { createBackupRestore } from "./backup-restore.ts";
 import { createTaskActions } from "./task-actions.ts";
 import { createRecoveryService } from "./recovery.ts";
-import { createAuthorization } from "./auth.ts";
 import { createOrganizationService } from "./organization-service.ts";
 import { startWorkspaceSocket } from "./workspace-ipc.ts";
 import { createApiHandler } from "./task-routes.ts";
@@ -18,11 +17,6 @@ import { createWorkspaceHandlers } from "./workspace-api.ts";
 const development = process.env.NODE_ENV === "development";
 const sshTarget = process.env.SSH_TARGET ?? (development ? "dmit" : undefined);
 const origin = process.env.PUBLIC_ORIGIN || "http://localhost:4180";
-const team = process.env.CF_ACCESS_TEAM_DOMAIN;
-const audience = process.env.CF_ACCESS_AUD;
-if (process.env.NODE_ENV === "production" && (!team || !audience)) {
-  throw new Error("Access configuration required");
-}
 
 const organizationFile = resolve(
   process.env.ORGANIZATION_FILE || "data/organization.json",
@@ -41,7 +35,6 @@ const service = createTaskService({
     process.env.TASKRC ?? (sshTarget ? "/etc/taskwarrior/taskrc" : undefined),
   sshTarget,
 });
-const authorized = createAuthorization(team, audience);
 const organization = createOrganizationService(service, organizationFile);
 const recovery = createRecoveryService(service, organization, recoveryFile);
 const taskAction = createTaskActions(service, organization, recovery);
@@ -68,7 +61,6 @@ const handlers = createWorkspaceHandlers({
 });
 
 const handleApi = createApiHandler({
-  authorized,
   origin,
   enter: gate.enter,
   handlers,

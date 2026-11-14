@@ -35,7 +35,24 @@ export function TaskEditor({
   location?: string;
 }) {
   const desktop = useDesktop();
-  const mobileContent = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
+  const onOpenAutoFocus = (event: Event) => {
+    opener.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    if (detail) {
+      event.preventDefault();
+      content.current?.focus({ preventScroll: true });
+    }
+  };
+  const onCloseAutoFocus = (event: Event) => {
+    if (opener.current?.isConnected) {
+      event.preventDefault();
+      opener.current.focus({ preventScroll: true });
+    }
+  };
   const Header = desktop ? DialogHeader : SheetHeader;
   const Title = desktop ? DialogTitle : SheetTitle;
   const Description = desktop ? DialogDescription : SheetDescription;
@@ -52,7 +69,9 @@ export function TaskEditor({
               ) : (
                 <Hash className="size-4 shrink-0" strokeWidth={1.6} />
               )}
-              <span>{isInboxLocation ? "收件箱" : location}</span>
+              <span className="min-w-0 truncate" title={location}>
+                {isInboxLocation ? "收件箱" : location}
+              </span>
             </>
           ) : (
             title
@@ -66,9 +85,22 @@ export function TaskEditor({
   const preventClose = (event: Event) => {
     if (busy) event.preventDefault();
   };
+  const handleEscape = (event: KeyboardEvent) => {
+    if (
+      busy ||
+      event.isComposing ||
+      event.keyCode === 229 ||
+      (event.target instanceof Element &&
+        event.target.closest("[data-editor-local-escape]"))
+    )
+      event.preventDefault();
+  };
   return desktop ? (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        ref={content}
+        onOpenAutoFocus={onOpenAutoFocus}
+        onCloseAutoFocus={onCloseAutoFocus}
         data-editor-layout="desktop"
         data-task-detail={detail}
         showCloseButton={!busy}
@@ -76,7 +108,7 @@ export function TaskEditor({
           "task-editor-dialog flex max-h-[calc(100dvh-3rem)] w-[calc(100vw-3rem)] flex-col gap-0 overflow-hidden rounded-xl p-0",
           detail ? "sm:max-w-[864px]" : "sm:max-w-[680px]",
         )}
-        onEscapeKeyDown={preventClose}
+        onEscapeKeyDown={handleEscape}
         onPointerDownOutside={preventClose}
       >
         {body}
@@ -85,19 +117,15 @@ export function TaskEditor({
   ) : (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        ref={mobileContent}
+        ref={content}
         data-editor-layout="mobile"
         data-task-detail={detail}
         side="bottom"
-        onOpenAutoFocus={(event) => {
-          if (detail) {
-            event.preventDefault();
-            mobileContent.current?.focus({ preventScroll: true });
-          }
-        }}
+        onOpenAutoFocus={onOpenAutoFocus}
+        onCloseAutoFocus={onCloseAutoFocus}
         showCloseButton={!busy}
         className="mx-auto max-h-[calc(100dvh-0.75rem)] max-w-xl gap-0 overflow-hidden rounded-t-xl p-0"
-        onEscapeKeyDown={preventClose}
+        onEscapeKeyDown={handleEscape}
         onPointerDownOutside={preventClose}
       >
         {body}

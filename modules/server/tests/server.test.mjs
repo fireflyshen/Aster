@@ -5,8 +5,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { once } from "node:events";
-import { createServer, request as httpRequest } from "node:http";
-import { generateKeyPairSync, sign } from "node:crypto";
+import { request as httpRequest } from "node:http";
 import { createWorkspaceClient } from "../../core/workspace/client.ts";
 
 const builtClientIndex = new URL(
@@ -68,39 +67,20 @@ async function start(env) {
     },
   };
 }
-test("production API rejects absent and forged Access credentials", async () => {
+test("production server serves client with CSP and allows API without Access credentials", async () => {
+  const dir = await mkdtemp(tmpdir() + "/aster-prod-");
+  const command = dir + "/task";
+  await writeFile(
+    command,
+    `#!${process.execPath}\nconsole.log(process.argv.includes('--version')?'3.5.0':process.argv.includes('export')?'[]':'');`,
+    { mode: 0o755 },
+  );
   const s = await start({
     NODE_ENV: "production",
-    CF_ACCESS_TEAM_DOMAIN: "https://example.cloudflareaccess.com",
-    CF_ACCESS_AUD: "test-audience",
+    TASK_COMMAND: command,
   });
   try {
-    for (const headers of [
-      {},
-      { "cf-access-jwt-assertion": "eyJhbGciOiJub25lIn0.e30." },
-    ])
-      for (const route of [
-        "api/tasks",
-        "api/workspace",
-        "api/recovery",
-        "api/backup/points",
-        "api/backup/download?id=bad",
-      ])
-        assert.equal((await fetch(s.url + route, { headers })).status, 401);
-    for (const route of ["api/backup/preview", "api/backup/restore"])
-      assert.equal(
-        (
-          await fetch(s.url + route, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Origin: "https://aster.example",
-            },
-            body: "{}",
-          })
-        ).status,
-        401,
-      );
+    assert.equal((await fetch(s.url + "api/tasks")).status, 200);
     const response = await fetch(s.url);
     assert.equal(response.status, 200);
     assert.match(
@@ -110,6 +90,7 @@ test("production API rejects absent and forged Access credentials", async () => 
     assert.equal((await fetch(s.url + "../server.mjs")).status, 404);
   } finally {
     await s.close();
+    await rm(dir, { recursive: true, force: true });
   }
 });
 test("HTTP writes enforce origin, UUID and fields; task text remains one argument", async () => {
@@ -190,78 +171,6 @@ test("HTTP writes enforce origin, UUID and fields; task text remains one argumen
     assert.equal((await preview.json()).task.project, "工作");
   } finally {
     await s.close();
-    await rm(dir, { recursive: true, force: true });
-  }
-});
-test("signed Access tokens require valid signature, audience and expiry", async () => {
-  const { privateKey, publicKey } = generateKeyPairSync("rsa", {
-    modulusLength: 2048,
-  });
-  const jwk = {
-    ...publicKey.export({ format: "jwk" }),
-    kid: "test-key",
-    alg: "RS256",
-    use: "sig",
-  };
-  const certs = createServer((req, res) => {
-    res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ keys: [jwk] }));
-  });
-  certs.listen(0, "127.0.0.1");
-  await once(certs, "listening");
-  const issuer = `http://127.0.0.1:${certs.address().port}`;
-  const dir = await mkdtemp(tmpdir() + "/aster-auth-");
-  const command = dir + "/task";
-  await writeFile(
-    command,
-    `#!${process.execPath}\nconsole.log(process.argv.includes('--version')?'3.5.0':process.argv.includes('export')?'[]':'');`,
-    { mode: 0o755 },
-  );
-  const s = await start({
-    NODE_ENV: "production",
-    CF_ACCESS_TEAM_DOMAIN: issuer,
-    CF_ACCESS_AUD: "aster",
-    TASK_COMMAND: command,
-  });
-  const token = (overrides) => {
-    const header = Buffer.from(
-      JSON.stringify({ alg: "RS256", kid: "test-key" }),
-    ).toString("base64url");
-    const payload = Buffer.from(
-      JSON.stringify({
-        iss: issuer,
-        aud: ["aster"],
-        exp: Math.floor(Date.now() / 1000) + 60,
-        ...overrides,
-      }),
-    ).toString("base64url");
-    const data = header + "." + payload;
-    return (
-      data +
-      "." +
-      sign("RSA-SHA256", Buffer.from(data), privateKey).toString("base64url")
-    );
-  };
-  const get = (jwt) =>
-    fetch(s.url + "api/tasks", {
-      headers: { "cf-access-jwt-assertion": jwt },
-    });
-  try {
-    assert.equal((await get(token({}))).status, 200);
-    assert.equal((await get(token({ aud: ["other"] }))).status, 401);
-    assert.equal((await get(token({ exp: 1 }))).status, 401);
-    assert.equal(
-      (await get(token({ nbf: Date.now() / 1000 + 3600 }))).status,
-      401,
-    );
-    const parts = token({}).split(".");
-    const signature = Buffer.from(parts[2], "base64url");
-    signature[0] ^= 1;
-    parts[2] = signature.toString("base64url");
-    assert.equal((await get(parts.join("."))).status, 401);
-  } finally {
-    await s.close();
-    await new Promise((resolve) => certs.close(resolve));
     await rm(dir, { recursive: true, force: true });
   }
 });

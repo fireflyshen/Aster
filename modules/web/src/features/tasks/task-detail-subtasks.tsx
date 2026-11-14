@@ -4,7 +4,7 @@ import { Spinner } from "@/components/ui/spinner";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { ArrowUpRight, Plus, Trash2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useLayoutEffect, useState, type FormEvent } from "react";
 import { TaskCheckbox } from "./task-checkbox";
 
 type TaskDetailSubtasksProps = {
@@ -16,6 +16,7 @@ type TaskDetailSubtasksProps = {
   onDeleteSubtask?: (subtaskUuid: string) => void;
   onUnlinkSubtask?: (subtaskUuid: string) => void;
   onOpenSubtask?: (subtask: Task) => void;
+  onDirtyChange: (dirty: boolean) => void;
 };
 
 /** Interactive subtask list and inline subtask creator inside the task detail modal. */
@@ -28,10 +29,15 @@ export function TaskDetailSubtasks({
   onDeleteSubtask,
   onUnlinkSubtask,
   onOpenSubtask,
+  onDirtyChange,
 }: TaskDetailSubtasksProps) {
   const [title, setTitle] = useState("");
   const [adding, setAdding] = useState(false);
   const [inputOpen, setInputOpen] = useState(false);
+  useLayoutEffect(
+    () => onDirtyChange(Boolean(title.trim())),
+    [title, onDirtyChange],
+  );
   const doneCount = subtasks.filter(
     (item) => item.status === "completed",
   ).length;
@@ -39,7 +45,7 @@ export function TaskDetailSubtasks({
   async function submit(event?: FormEvent) {
     if (event) event.preventDefault();
     const trimmed = title.trim();
-    if (!trimmed || !onAddSubtask || adding) return;
+    if (!trimmed || !onAddSubtask || adding || disabled) return;
     setAdding(true);
     try {
       const ok = await onAddSubtask({
@@ -91,6 +97,7 @@ export function TaskDetailSubtasks({
                   {onOpenSubtask ? (
                     <button
                       type="button"
+                      disabled={disabled}
                       onClick={() => onOpenSubtask(subtask)}
                       className={cn(
                         "flex-1 cursor-pointer truncate text-left text-sm font-normal hover:underline",
@@ -111,7 +118,7 @@ export function TaskDetailSubtasks({
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1 opacity-80 transition-opacity md:opacity-0 md:group-hover/subtask:opacity-100">
+                <div className="flex items-center gap-1 opacity-80 transition-opacity md:opacity-0 md:group-hover/subtask:opacity-100 md:group-focus-within/subtask:opacity-100">
                   {onUnlinkSubtask && (
                     <Button
                       type="button"
@@ -163,14 +170,23 @@ export function TaskDetailSubtasks({
         <div className="flex items-center gap-2 rounded-lg border border-border bg-transparent p-2">
           <input
             type="text"
+            aria-label="子任务名称"
+            data-editor-local-escape
+            maxLength={2000}
             autoFocus
             placeholder="子任务名称…"
             value={title}
             disabled={disabled || adding}
             onChange={(event) => setTitle(event.target.value)}
             onKeyDown={(event) => {
+              if (
+                event.nativeEvent.isComposing ||
+                event.nativeEvent.keyCode === 229
+              )
+                return;
               if (event.key === "Escape") {
                 event.preventDefault();
+                event.stopPropagation();
                 setInputOpen(false);
               }
               if (
@@ -179,6 +195,7 @@ export function TaskDetailSubtasks({
                 event.nativeEvent.keyCode !== 229
               ) {
                 event.preventDefault();
+                event.stopPropagation();
                 void submit();
               }
             }}
@@ -189,6 +206,7 @@ export function TaskDetailSubtasks({
             variant="ghost"
             size="sm"
             className="h-7 shrink-0 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+            disabled={disabled || adding}
             onClick={() => {
               setInputOpen(false);
               setTitle("");
@@ -203,7 +221,14 @@ export function TaskDetailSubtasks({
             disabled={!title.trim() || disabled || adding}
             onClick={() => void submit()}
           >
-            {adding ? <Spinner className="size-3.5" /> : "添加"}
+            {adding ? (
+              <>
+                <Spinner className="size-3.5" />
+                <span className="sr-only">添加子任务中</span>
+              </>
+            ) : (
+              "添加"
+            )}
           </Button>
         </div>
       )}

@@ -362,7 +362,7 @@ export function App() {
         onUnlinkSubtask={taskActions.unlinkSubtask}
         onDeleteTask={taskActions.deleteTask}
         onSubmitTaskForm={taskActions.submitTaskForm}
-        onMutate={data.mutate}
+        onMutate={taskActions.mutateWithOrigin}
         onChangeOrganization={data.changeOrganization}
         onSetOrganization={data.setOrganization}
         onSetOrganizationError={data.setOrganizationError}

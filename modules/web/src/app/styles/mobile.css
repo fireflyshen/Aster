@@ -285,6 +285,19 @@
   .task-detail-main {
     padding: 18px 16px 24px;
   }
+  .task-detail-main #task-description-input,
+  .task-detail-comments textarea,
+  .task-detail-subtasks input {
+    font-size: 16px !important;
+  }
+  .task-detail-comments button,
+  .task-detail-subtasks button {
+    min-height: 44px;
+  }
+  .task-detail-comments button[aria-label],
+  .task-detail-subtasks button[aria-label] {
+    min-width: 44px;
+  }
   .task-detail-title {
     gap: 8px;
   }

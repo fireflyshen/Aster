@@ -46,7 +46,7 @@ export function QuickAdd({
   onClearError: () => void;
   onCheck: () => void;
   onAdd: (task: TaskInput & { taskDescription?: string }) => Promise<boolean>;
-  onEdit: (task: TaskInput) => void;
+  onEdit: (task: TaskInput & { taskDescription?: string }) => void;
   projects: string[];
   availableLabels?: SavedTag[];
   defaultProject?: string;
@@ -111,7 +111,7 @@ export function QuickAdd({
   }
 
   function editForm() {
-    onEdit(parsed.task);
+    onEdit({ ...parsed.task, taskDescription: note.trim() });
     resetState();
     onClearError();
   }
@@ -230,6 +230,8 @@ export function QuickAdd({
                   if (
                     (e.metaKey || e.ctrlKey) &&
                     e.key.toLowerCase() === "e" &&
+                    !e.nativeEvent.isComposing &&
+                    e.nativeEvent.keyCode !== 229 &&
                     !locked &&
                     !parsed.errors.length
                   ) {

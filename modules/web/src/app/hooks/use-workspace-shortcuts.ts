@@ -44,13 +44,29 @@ export function useWorkspaceShortcuts({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.keyCode === 229 ||
+        event.repeat
+      )
+        return;
+      const overlayOpen = document.querySelector(
+        '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-state="open"][data-slot="popover-content"]',
+      );
+      if (
         (event.metaKey || event.ctrlKey) &&
         !event.altKey &&
         !event.shiftKey &&
         event.key.toLowerCase() === "k"
       ) {
-        event.preventDefault();
-        if (!busy && !organizationSaving && !open && !quickOpen) {
+        if (
+          !busy &&
+          !organizationSaving &&
+          !open &&
+          !quickOpen &&
+          (!overlayOpen || commandOpen)
+        ) {
+          event.preventDefault();
           setCommandOpen((value) => !value);
         }
         return;
@@ -58,18 +74,13 @@ export function useWorkspaceShortcuts({
 
       const target = event.target;
       if (
-        event.defaultPrevented ||
-        event.isComposing ||
-        event.repeat ||
         event.ctrlKey ||
         event.metaKey ||
         event.altKey ||
         open ||
         commandOpen ||
         quickOpen ||
-        document.querySelector(
-          '[role="dialog"], [role="alertdialog"], [data-state="open"][data-slot="select-content"], [data-state="open"][data-slot="popover-content"]',
-        ) ||
+        overlayOpen ||
         (target instanceof Element &&
           target.closest(
             'input, textarea, select, [contenteditable="true"], [role="combobox"]',
@@ -100,15 +111,7 @@ export function useWorkspaceShortcuts({
 
       if (key === "b" && !organizationPage && !busy && !organizationSaving) {
         event.preventDefault();
-        setLayout((current) => {
-          const next = current === "list" ? "board" : "list";
-          try {
-            localStorage.setItem("aster.task-layout", next);
-          } catch {
-            /* Layout still works without browser storage. */
-          }
-          return next;
-        });
+        setLayout((current) => (current === "list" ? "board" : "list"));
       }
 
       if (key === "m" && innerWidth >= 768) {

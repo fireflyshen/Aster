@@ -3,8 +3,21 @@ import { SeriesEditor } from "@/features/tasks/series-editor";
 import { TaskEditor } from "@/features/tasks/task-editor";
 import { TaskForm } from "@/features/tasks/task-form";
 import { TaskToast } from "@/features/tasks/task-toast";
-import { api } from "@/lib/api";
-import type { Organization } from "@core/workspace/organization";
+import { useEditorGuard } from "@/features/tasks/use-editor-guard";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import type {
+  Organization,
+  OrganizationChange,
+} from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import type { FormEvent, MutableRefObject } from "react";
 import type { UndoState } from "../hooks/use-task-actions";
@@ -14,6 +27,8 @@ export type TaskWorkspaceDialogsProps = {
   currentProject: string;
   organization: Organization;
   organizationSaving: boolean;
+  organizationError: string;
+  organizationBlocked: boolean;
   filterProjects: string[];
   busy: boolean;
   loading: boolean;
@@ -40,7 +55,7 @@ export type TaskWorkspaceDialogsProps = {
   setEditing: (task: Task | undefined) => void;
   editingParent?: Task;
   subtasksMap: Map<string, Task[]>;
-  draft: TaskInput;
+  draft: TaskInput & { taskDescription?: string };
   setDraft: (draft: TaskInput) => void;
   due: string;
   setDue: (due: string) => void;
@@ -59,13 +74,19 @@ export type TaskWorkspaceDialogsProps = {
   onToggleTask: (task: Task, completed: boolean) => Promise<boolean>;
   onUnlinkSubtask: (childUuid: string) => Promise<boolean>;
   onDeleteTask: (task: Task, origin?: "editor") => Promise<boolean>;
-  onSubmitTaskForm: (event: FormEvent) => void;
+  onSubmitTaskForm: (
+    event: FormEvent,
+    keepOpen?: boolean,
+    taskDescription?: string,
+  ) => void;
   onMutate: (
     route: string,
     data: unknown,
     origin?: "editor" | "quick" | "notes",
   ) => Promise<boolean>;
   onSetOrganization: React.Dispatch<React.SetStateAction<Organization>>;
+  onChangeOrganization: (change: OrganizationChange) => Promise<boolean>;
+  onReloadAll: () => Promise<Organization | undefined>;
 };
 
 /** Renders quick-add, toast undo, full task detail editor, and recurring series dialogs. */
@@ -74,6 +95,8 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
     currentProject,
     organization,
     organizationSaving,
+    organizationError,
+    organizationBlocked,
     filterProjects,
     busy,
     loading,
@@ -117,8 +140,17 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
     onDeleteTask,
     onSubmitTaskForm,
     onMutate,
-    onSetOrganization,
+    onChangeOrganization,
+    onReloadAll,
   } = props;
+
+  const editorBusy = busy || organizationSaving;
+  const guard = useEditorGuard(open, editorBusy);
+  const closeEditor = () =>
+    guard.requestLeave(() => {
+      setOpen(false);
+      setSeriesUuid("");
+    });
 
   return (
     <>
@@ -174,14 +206,14 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
 
       <TaskEditor
         open={open}
-        busy={busy}
+        busy={editorBusy}
         detail={Boolean(editing) && !seriesUuid}
         location={editing?.project || "收件箱"}
         title={seriesUuid ? "编辑重复任务" : editing ? "编辑任务" : "添加任务"}
         onOpenChange={(value) => {
           if (!writeLock.current) {
-            setOpen(value);
-            if (!value) setSeriesUuid("");
+            if (value) setOpen(true);
+            else closeEditor();
           }
         }}
       >
@@ -234,20 +266,20 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
             }
             draft={draft}
             taskDescription={
-              editing ? organization.descriptions?.[editing.uuid] || "" : ""
+              editing
+                ? organization.descriptions?.[editing.uuid] || ""
+                : draft.taskDescription || ""
             }
             onDescriptionChange={
               editing
-                ? async (nextDescription) => {
-                    const saved = await api<Organization>("organization", {
+                ? (nextDescription) =>
+                    onChangeOrganization({
                       revision: organization.revision,
                       kind: "description",
                       action: "set",
                       uuid: editing.uuid,
                       description: nextDescription,
-                    });
-                    onSetOrganization(saved);
-                  }
+                    })
                 : undefined
             }
             onAddComment={
@@ -258,7 +290,9 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
                       {
                         uuid: editing.uuid,
                         action: "edit",
-                        task: taskEditPayload(editing, { note: commentText }),
+                        task: taskEditPayload(editing, {
+                          note: commentText,
+                        }),
                       },
                       "notes",
                     );
@@ -286,10 +320,18 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
             due={due}
             tags={tags}
             availableLabels={organization.tags}
-            formError={formError}
-            busy={busy}
-            needsCheck={needsCheck}
-            onCheck={() => setOpen(false)}
+            formError={
+              formError || organizationError || (needsCheck ? notice : "")
+            }
+            busy={editorBusy}
+            needsCheck={needsCheck || organizationBlocked}
+            onCheck={closeEditor}
+            onReload={() =>
+              void onReloadAll().then((result) => {
+                if (result) setFormError("");
+              })
+            }
+            onDirtyChange={guard.setDirty}
             parentTask={editingParent}
             subtasks={editing ? subtasksMap.get(editing.uuid) || [] : []}
             onAddSubtask={
@@ -308,14 +350,20 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
             }
             onUnlinkSubtask={(childUuid) => void onUnlinkSubtask(childUuid)}
             onNavigateToParent={
-              editingParent ? () => onOpenEditor(editingParent) : undefined
+              editingParent
+                ? () => guard.requestLeave(() => onOpenEditor(editingParent))
+                : undefined
             }
-            onOpenSubtask={(child) => onOpenEditor(child)}
+            onOpenSubtask={(child) =>
+              guard.requestLeave(() => onOpenEditor(child))
+            }
             onDraftChange={setDraft}
             onDueChange={setDue}
             onTagsChange={setTags}
             onClearError={() => setFormError("")}
-            onEditSeries={setSeriesUuid}
+            onEditSeries={(uuid) =>
+              guard.requestLeave(() => setSeriesUuid(uuid))
+            }
             onRemoveNote={async (entry, description) => {
               if (!editing) return false;
               const saved = await onMutate(
@@ -349,6 +397,36 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
           />
         )}
       </TaskEditor>
+      <AlertDialog
+        open={guard.confirming}
+        onOpenChange={(value) => {
+          if (!value) guard.cancel();
+        }}
+      >
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            guard.restoreFocus();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>放弃未保存的更改？</AlertDialogTitle>
+            <AlertDialogDescription>
+              任务编辑、描述，以及尚未发送的评论或子任务会被放弃。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>继续编辑</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={editorBusy}
+              onClick={guard.discard}
+            >
+              放弃更改
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

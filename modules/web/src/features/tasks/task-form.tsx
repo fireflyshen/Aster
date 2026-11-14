@@ -7,7 +7,13 @@ import { taskDate } from "@core/tasks/quick-task";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { AlignLeft, ChevronRight } from "lucide-react";
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { FormattedDescription } from "./description-content";
 import { TaskCheckbox } from "./task-checkbox";
 import { toDueDay } from "./task-date";
@@ -41,11 +47,17 @@ type TaskFormProps = {
   onTagsChange: (tags: string) => void;
   onClearError: () => void;
   onCheck: () => void;
+  onReload: () => void;
+  onDirtyChange: (dirty: boolean) => void;
   onDelete: () => void;
   onEditSeries: (uuid: string) => void;
   onRemoveNote: (entry: string, description: string) => Promise<boolean>;
   onToggleTask?: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (
+    event: FormEvent<HTMLFormElement>,
+    keepOpen?: boolean,
+    taskDescription?: string,
+  ) => void;
 };
 
 /** Orchestrates the task detail / editing form and right-side properties rail. */
@@ -75,6 +87,8 @@ export function TaskForm({
   onTagsChange,
   onClearError,
   onCheck,
+  onReload,
+  onDirtyChange,
   onDelete,
   onEditSeries,
   onRemoveNote,
@@ -86,57 +100,99 @@ export function TaskForm({
   );
   const [editingDescription, setEditingDescription] = useState(false);
   const [savingDescription, setSavingDescription] = useState(false);
+  const [descriptionError, setDescriptionError] = useState("");
+  const [commentDirty, setCommentDirty] = useState(false);
+  const [subtaskDirty, setSubtaskDirty] = useState(false);
+  const descriptionLock = useRef(false);
+  const initialDraft = useRef(JSON.stringify({ draft, due, tags }));
 
   useEffect(() => {
-    if (!editingDescription) {
+    if (editing && !editingDescription) {
       setDescriptionDraft(taskDescription || "");
     }
-  }, [taskDescription, editingDescription]);
+  }, [taskDescription, editingDescription, editing]);
 
   async function handleSaveDescription() {
+    if (busy || needsCheck || descriptionLock.current) return false;
     if (!onDescriptionChange) {
       setEditingDescription(false);
-      return;
+      return true;
     }
+    descriptionLock.current = true;
     setSavingDescription(true);
+    setDescriptionError("");
     try {
-      await onDescriptionChange(descriptionDraft.trim());
+      const saved = await onDescriptionChange(descriptionDraft.trim());
+      if (saved === false) return false;
       setEditingDescription(false);
+      return true;
+    } catch (error) {
+      setDescriptionError(
+        error instanceof Error ? error.message : "描述保存失败，请重试。",
+      );
+      return false;
     } finally {
+      descriptionLock.current = false;
       setSavingDescription(false);
     }
   }
 
   function handleCancelDescription() {
     setDescriptionDraft(taskDescription || "");
+    setDescriptionError("");
     setEditingDescription(false);
   }
 
   const originalDue = editing?.due ? toDueDay(editing.due) : "";
-  const changed =
-    !editing ||
-    draft.description !== editing.description ||
-    (draft.project || "") !== (editing.project || "") ||
-    (draft.priority || "") !== (editing.priority || "") ||
-    (draft.recur || "") !== (editing.recur || "") ||
-    (draft.until || "") !==
-      (editing.until ? taskDate(new Date(editing.until)) : "") ||
-    due !== originalDue ||
-    tags !== editing.tags.join(", ") ||
-    descriptionDraft.trim() !== (taskDescription || "").trim() ||
-    !!draft.note?.trim();
+  const taskChanged = editing
+    ? draft.description !== editing.description ||
+      (draft.project || "") !== (editing.project || "") ||
+      (draft.priority || "") !== (editing.priority || "") ||
+      (draft.recur || "") !== (editing.recur || "") ||
+      (draft.until || "") !==
+        (editing.until ? taskDate(new Date(editing.until)) : "") ||
+      due !== originalDue ||
+      tags !== editing.tags.join(", ") ||
+      !!draft.note?.trim()
+    : Boolean(draft.description.trim() || draft.note?.trim()) ||
+      JSON.stringify({ draft, due, tags }) !== initialDraft.current;
+  const descriptionChanged =
+    descriptionDraft.trim() !== (taskDescription || "").trim();
+  const changed = taskChanged || descriptionChanged;
+  const dirty = changed || commentDirty || subtaskDirty;
 
-  const locked = busy || needsCheck;
+  useLayoutEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
+
+  const locked = busy || needsCheck || savingDescription;
+  const error = descriptionError || formError;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (locked || descriptionLock.current) return;
+    if (
+      editing &&
+      draft.description.trim() &&
+      descriptionChanged &&
+      !(await handleSaveDescription())
+    )
+      return;
+    onSubmit(
+      event,
+      commentDirty || subtaskDirty,
+      editing ? undefined : descriptionDraft.trim(),
+    );
+  }
 
   return (
     <form
       noValidate
-      onSubmit={onSubmit}
+      onSubmit={(event) => void submit(event)}
       className="task-detail-form flex min-h-0 flex-1 flex-col"
       onKeyDown={(event) => {
         if (
           event.key === "Enter" &&
           (event.metaKey || event.ctrlKey) &&
+          !event.defaultPrevented &&
           !event.nativeEvent.isComposing &&
           event.nativeEvent.keyCode !== 229
         ) {
@@ -202,6 +258,7 @@ export function TaskForm({
                     event.nativeEvent.keyCode !== 229
                   ) {
                     event.preventDefault();
+                    event.stopPropagation();
                     event.currentTarget.form?.requestSubmit();
                   }
                 }}
@@ -221,15 +278,24 @@ export function TaskForm({
                       <AlignLeft className="mt-1 size-4 shrink-0 text-muted-foreground" />
                       <Textarea
                         id="task-description-input"
+                        aria-label="任务描述"
+                        data-editor-local-escape
                         autoFocus
                         placeholder="描述"
                         value={descriptionDraft}
-                        onChange={(event) =>
-                          setDescriptionDraft(event.target.value)
-                        }
+                        onChange={(event) => {
+                          setDescriptionDraft(event.target.value);
+                          setDescriptionError("");
+                        }}
                         onKeyDown={(event) => {
+                          if (
+                            event.nativeEvent.isComposing ||
+                            event.nativeEvent.keyCode === 229
+                          )
+                            return;
                           if (event.key === "Escape") {
                             event.preventDefault();
+                            event.stopPropagation();
                             handleCancelDescription();
                           }
                           if (
@@ -237,6 +303,7 @@ export function TaskForm({
                             (event.metaKey || event.ctrlKey)
                           ) {
                             event.preventDefault();
+                            event.stopPropagation();
                             void handleSaveDescription();
                           }
                         }}
@@ -264,7 +331,10 @@ export function TaskForm({
                         className="h-7 rounded-[6px] px-3 text-xs font-semibold shadow-none"
                       >
                         {savingDescription ? (
-                          <Spinner className="size-3" />
+                          <>
+                            <Spinner className="size-3" />
+                            <span className="sr-only">保存描述中</span>
+                          </>
                         ) : (
                           "保存"
                         )}
@@ -274,15 +344,30 @@ export function TaskForm({
                 ) : (
                   <div
                     role="button"
-                    tabIndex={0}
-                    onClick={() => setEditingDescription(true)}
+                    aria-label="编辑任务描述"
+                    aria-disabled={locked}
+                    tabIndex={locked ? -1 : 0}
+                    onClick={(event) => {
+                      if (
+                        !locked &&
+                        !(
+                          event.target instanceof Element &&
+                          event.target.closest("a")
+                        )
+                      )
+                        setEditingDescription(true);
+                    }}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
+                      if (
+                        event.target === event.currentTarget &&
+                        !locked &&
+                        (event.key === "Enter" || event.key === " ")
+                      ) {
                         event.preventDefault();
                         setEditingDescription(true);
                       }
                     }}
-                    className="-ml-1.5 flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/40"
+                    className="-ml-1.5 flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-ring aria-disabled:cursor-default"
                   >
                     <AlignLeft className="mt-0.5 size-4 shrink-0 text-muted-foreground/65" />
                     {descriptionDraft.trim() ? (
@@ -310,6 +395,7 @@ export function TaskForm({
               onDeleteSubtask={onDeleteSubtask}
               onUnlinkSubtask={onUnlinkSubtask}
               onOpenSubtask={onOpenSubtask}
+              onDirtyChange={setSubtaskDirty}
             />
           )}
 
@@ -318,22 +404,24 @@ export function TaskForm({
             disabled={locked}
             onAddComment={onAddComment}
             onRemoveNote={onRemoveNote}
+            onDirtyChange={setCommentDirty}
           />
 
-          {formError && (
+          {error && (
             <Alert id="editor-error" variant="destructive" className="mt-4">
-              <AlertDescription className="flex items-center gap-2">
-                <span>{formError}</span>
-                {needsCheck && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    onClick={() => onCheck()}
-                    className="h-auto p-0 text-current"
-                  >
-                    关闭并刷新任务
-                  </Button>
-                )}
+              <AlertDescription className="flex flex-wrap items-start gap-x-3 gap-y-2">
+                <span className="min-w-0 flex-1 basis-full [overflow-wrap:anywhere] md:basis-auto">
+                  {error}
+                </span>
+                <Button
+                  type="button"
+                  variant="link"
+                  disabled={busy || savingDescription}
+                  onClick={onReload}
+                  className="h-auto p-0 text-current"
+                >
+                  刷新核对并保留草稿
+                </Button>
               </AlertDescription>
             </Alert>
           )}
@@ -356,7 +444,7 @@ export function TaskForm({
         />
       </div>
 
-      {(changed || busy || Boolean(formError)) && (
+      {(!editing || changed || busy || Boolean(error)) && (
         <div
           data-editor-actions
           className="flex shrink-0 items-center justify-between gap-4 border-t border-border/70 px-5 pt-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom))] md:py-3.5"
@@ -365,7 +453,7 @@ export function TaskForm({
             <Button
               type="button"
               variant="secondary"
-              disabled={busy}
+              disabled={busy || savingDescription}
               onClick={() => onCheck()}
               className="h-8 rounded-[6px]"
             >
@@ -376,7 +464,14 @@ export function TaskForm({
               disabled={locked}
               className="h-8 min-w-18 rounded-[6px]"
             >
-              {busy ? <Spinner className="size-4" /> : "保存"}
+              {busy || savingDescription ? (
+                <>
+                  <Spinner className="size-4" />
+                  <span>保存中</span>
+                </>
+              ) : (
+                "保存"
+              )}
             </Button>
           </div>
         </div>

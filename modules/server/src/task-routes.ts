@@ -14,7 +14,6 @@ export {
 export type JsonResponder = (status: number, data: unknown) => void;
 
 export interface ApiRouterDeps {
-  authorized: (req: IncomingMessage) => Promise<boolean>;
   origin: string;
   enter: () => () => void;
   handlers: WorkspaceHandlers;
@@ -27,9 +26,9 @@ function hasValidJsonOrigin(req: IncomingMessage, origin: string): boolean {
   );
 }
 
-/** Builds the authenticated HTTP adapter over the unified workspace route table. */
+/** Builds the HTTP adapter over the unified workspace route table. */
 export function createApiHandler(deps: ApiRouterDeps) {
-  const { authorized, origin, enter, handlers } = deps;
+  const { origin, enter, handlers } = deps;
   const routes = createWorkspaceRoutes(handlers);
 
   return async (
@@ -38,11 +37,6 @@ export function createApiHandler(deps: ApiRouterDeps) {
     route: string,
     send: JsonResponder,
   ): Promise<void> => {
-    if (!(await authorized(req))) {
-      send(401, { error: "Session expired. Reopen this page to sign in." });
-      return;
-    }
-
     if (req.method === "POST" && !hasValidJsonOrigin(req, origin)) {
       send(403, { error: "Invalid request origin" });
       return;

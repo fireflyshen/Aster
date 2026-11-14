@@ -3,7 +3,7 @@ import { Spinner } from "@/components/ui/spinner";
 import type { Task } from "@shared/tasks";
 import { cn } from "cn";
 import { ChevronDown, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useId, useState } from "react";
 import { formatCommentTime } from "./task-date";
 
 type TaskDetailCommentsProps = {
@@ -11,6 +11,7 @@ type TaskDetailCommentsProps = {
   disabled: boolean;
   onAddComment?: (text: string) => Promise<boolean>;
   onRemoveNote: (entry: string, description: string) => Promise<boolean>;
+  onDirtyChange: (dirty: boolean) => void;
 };
 
 /** Expandable task activity comments with a Todoist-style bordered comment box. */
@@ -19,15 +20,22 @@ export function TaskDetailComments({
   disabled,
   onAddComment,
   onRemoveNote,
+  onDirtyChange,
 }: TaskDetailCommentsProps) {
   const [expanded, setExpanded] = useState(true);
   const [focused, setFocused] = useState(false);
   const [text, setText] = useState("");
   const [posting, setPosting] = useState(false);
+  const contentId = useId();
+
+  useLayoutEffect(
+    () => onDirtyChange(Boolean(text.trim())),
+    [text, onDirtyChange],
+  );
 
   async function postComment() {
     const trimmed = text.trim();
-    if (!trimmed || !onAddComment || posting) return;
+    if (!trimmed || !onAddComment || posting || disabled) return;
     setPosting(true);
     try {
       const ok = await onAddComment(trimmed);
@@ -44,6 +52,8 @@ export function TaskDetailComments({
     <div className="task-detail-comments mt-6 border-t border-border/70 pt-4">
       <button
         type="button"
+        aria-expanded={expanded}
+        aria-controls={contentId}
         onClick={() => setExpanded((prev) => !prev)}
         className="mb-3 flex cursor-pointer select-none items-center gap-1.5 text-xs font-medium text-foreground transition-colors hover:text-muted-foreground"
       >
@@ -62,7 +72,7 @@ export function TaskDetailComments({
       </button>
 
       {expanded && (
-        <div className="space-y-3.5">
+        <div id={contentId} className="space-y-3.5">
           {annotations.length > 0 && (
             <div className="space-y-3">
               {annotations.map((note, index) => (
@@ -77,7 +87,7 @@ export function TaskDetailComments({
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold text-foreground">
-                          Apple用户
+                          任务评论
                         </span>
                         <span className="text-[11px] text-muted-foreground">
                           {formatCommentTime(note.entry)}
@@ -88,7 +98,7 @@ export function TaskDetailComments({
                           type="button"
                           variant="ghost"
                           size="icon-xs"
-                          className="size-6 text-muted-foreground transition-opacity hover:text-destructive md:opacity-0 md:group-hover/comment:opacity-100"
+                          className="size-6 text-muted-foreground transition-opacity hover:text-destructive md:opacity-0 md:group-hover/comment:opacity-100 md:group-focus-within/comment:opacity-100"
                           aria-label={`删除评论 ${index + 1}`}
                           disabled={disabled}
                           onClick={() =>
@@ -113,8 +123,10 @@ export function TaskDetailComments({
               <div className="mt-1 flex size-7 shrink-0 select-none items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground">
                 A
               </div>
-              <div className="flex-1 rounded-[10px] border border-border bg-transparent p-2.5 transition-colors focus-within:border-foreground/35">
+              <div className="min-w-0 flex-1 rounded-[10px] border border-border bg-transparent p-2.5 transition-colors focus-within:border-foreground/35">
                 <textarea
+                  aria-label="评论内容"
+                  data-editor-local-escape
                   rows={focused || text ? 2 : 1}
                   placeholder="评论"
                   value={text}
@@ -123,16 +135,23 @@ export function TaskDetailComments({
                   onChange={(event) => setText(event.target.value)}
                   onKeyDown={(event) => {
                     if (
+                      event.nativeEvent.isComposing ||
+                      event.nativeEvent.keyCode === 229
+                    )
+                      return;
+                    if (
                       event.key === "Enter" &&
                       (event.metaKey || event.ctrlKey) &&
                       !event.nativeEvent.isComposing &&
                       event.nativeEvent.keyCode !== 229
                     ) {
                       event.preventDefault();
+                      event.stopPropagation();
                       void postComment();
                     }
                     if (event.key === "Escape" && !text.trim()) {
                       event.preventDefault();
+                      event.stopPropagation();
                       setFocused(false);
                       event.currentTarget.blur();
                     }
@@ -161,7 +180,14 @@ export function TaskDetailComments({
                       onClick={() => void postComment()}
                       className="h-7 rounded-[6px] px-3 text-xs font-semibold shadow-none"
                     >
-                      {posting ? <Spinner className="size-3.5" /> : "评论"}
+                      {posting ? (
+                        <>
+                          <Spinner className="size-3.5" />
+                          <span className="sr-only">发送评论中</span>
+                        </>
+                      ) : (
+                        "评论"
+                      )}
                     </Button>
                   </div>
                 )}

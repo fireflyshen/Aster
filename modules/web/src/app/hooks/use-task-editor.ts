@@ -73,7 +73,7 @@ export function useTaskEditor({
   );
 
   const submitTaskForm = useCallback(
-    (event: FormEvent) => {
+    (event: FormEvent, keepOpen = false, taskDescription?: string) => {
       event.preventDefault();
       if (writeLock.current || needsCheck) return;
       if (!draft.description.trim()) {
@@ -98,11 +98,26 @@ export function useTaskEditor({
       };
       void mutate(
         editing ? "action" : "tasks",
-        editing ? { uuid: editing.uuid, action: "edit", task } : task,
+        editing
+          ? { uuid: editing.uuid, action: "edit", task }
+          : { ...task, taskDescription },
         "editor",
         undefined,
         {
-          onSuccess: () => setOpen(false),
+          onSuccess: () => {
+            if (keepOpen && editing) {
+              setEditing({
+                ...editing,
+                ...task,
+                tags: task.tags || [],
+                due: date?.toISOString(),
+                until: isoDueFromInput(task.until) || undefined,
+              });
+              setDraft({ ...task, note: "" });
+              setTags((task.tags || []).join(", "));
+              setFormError("");
+            } else setOpen(false);
+          },
           onError: (msg) => setFormError(msg),
         },
       );

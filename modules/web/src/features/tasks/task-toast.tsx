@@ -35,7 +35,7 @@ export function TaskToast({
             type="button"
             onClick={onAction}
             disabled={disabled}
-            className="cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-semibold text-[#e69530] transition-colors hover:bg-white/8 hover:text-[#f0a84a] focus:outline-none"
+            className="cursor-pointer rounded px-1.5 py-0.5 text-[13px] font-semibold text-[#e69530] transition-colors hover:bg-white/8 hover:text-[#f0a84a] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-default disabled:opacity-50"
           >
             {actionLabel}
           </button>
@@ -44,7 +44,7 @@ export function TaskToast({
           <button
             type="button"
             aria-label="关闭通知"
-            className="flex size-6 cursor-pointer items-center justify-center rounded text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+            className="flex size-6 cursor-pointer items-center justify-center rounded text-white/60 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <X className="size-3.5" />
           </button>

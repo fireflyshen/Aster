@@ -1,4 +1,3 @@
-import { api } from "@/lib/api";
 import type { EnergySummary } from "@core/workspace/energy";
 import type {
   Organization,
@@ -86,6 +85,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
     ) =>
       mutate(route, data, origin, beforeApply, {
         onSuccess: (src) => {
+          if (src === "editor" || src === "notes") setFormError("");
           if (src === "editor") setOpen(false);
           if (src === "quick") setQuickOpen(false);
         },
@@ -218,28 +218,29 @@ export function useTaskActions(deps: TaskActionsDeps) {
 
   const saveInlineTask = useCallback(
     async (task: Task, nextTask: TaskInput & { taskDescription?: string }) => {
+      if (writeLock.current || needsCheck) return false;
+      if (
+        nextTask.taskDescription !== undefined &&
+        nextTask.taskDescription !==
+          (organization.descriptions?.[task.uuid] || "")
+      ) {
+        const descriptionSaved = await changeOrganization({
+          revision: organization.revision,
+          kind: "description",
+          action: "set",
+          uuid: task.uuid,
+          description: nextTask.taskDescription,
+        });
+        if (!descriptionSaved) return false;
+      }
       const saved = await mutateWithOrigin("action", {
         uuid: task.uuid,
         action: "edit",
         task: nextTask,
       });
-      if (saved && nextTask.taskDescription !== undefined) {
-        try {
-          const latest = await api<Organization>("organization", {
-            revision: organization.revision,
-            kind: "description",
-            action: "set",
-            uuid: task.uuid,
-            description: nextTask.taskDescription,
-          });
-          setOrganization(latest);
-        } catch {
-          /* Description syncs on next reload. */
-        }
-      }
       return Boolean(saved);
     },
-    [mutateWithOrigin, organization.revision, setOrganization],
+    [mutateWithOrigin, organization, changeOrganization, writeLock, needsCheck],
   );
 
   const patchTaskFields = useCallback(

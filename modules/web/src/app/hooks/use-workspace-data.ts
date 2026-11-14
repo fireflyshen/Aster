@@ -193,6 +193,7 @@ export function useWorkspaceData({
         if (
           change.kind !== "board" &&
           change.kind !== "energy" &&
+          change.kind !== "description" &&
           !(await load())
         ) {
           setNeedsCheck(true);

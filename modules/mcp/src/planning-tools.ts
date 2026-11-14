@@ -203,9 +203,7 @@ export function registerPlanningTools({
               (task) => task.end && task.end >= completedCutoff,
             )
           : []
-      ).sort(
-        (a, b) => (b.end?.getTime() ?? 0) - (a.end?.getTime() ?? 0),
-      );
+      ).sort((a, b) => (b.end?.getTime() ?? 0) - (a.end?.getTime() ?? 0));
 
       const projects = (organization.projects || []).filter(
         (project) => !scopeProject || inProject(project.name, scopeProject),
@@ -240,7 +238,8 @@ export function registerPlanningTools({
       for (const column of columns) groupedByColumn.set(column.id, []);
       for (const task of openRoots) {
         const colId = taskColumnId(task, board);
-        const list = groupedByColumn.get(colId) || groupedByColumn.get(UNSECTIONED);
+        const list =
+          groupedByColumn.get(colId) || groupedByColumn.get(UNSECTIONED);
         list?.push(task);
       }
 

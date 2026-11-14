@@ -522,12 +522,8 @@ test("task_patch preserves omitted fields and planning tools build digests and m
     filters: [],
     tags: [],
     board: {
-      columns: [
-        { id: "col-1", name: "Phase 1", project: "Study" },
-      ],
-      placements: [
-        { uuid, columnId: "col-1" },
-      ],
+      columns: [{ id: "col-1", name: "Phase 1", project: "Study" }],
+      placements: [{ uuid, columnId: "col-1" }],
       order: [uuid],
     },
     subtasks: {
@@ -632,11 +628,14 @@ test("task_patch preserves omitted fields and planning tools build digests and m
         const idx = orgState.projects.findIndex(
           (p: any) => p.name === body.item.name,
         );
-        if (idx >= 0) orgState.projects[idx] = { ...orgState.projects[idx], ...body.item };
+        if (idx >= 0)
+          orgState.projects[idx] = { ...orgState.projects[idx], ...body.item };
         else orgState.projects.push(body.item);
       }
       if (body.kind === "project" && body.action === "status") {
-        const p = orgState.projects.find((item: any) => item.name === body.name);
+        const p = orgState.projects.find(
+          (item: any) => item.name === body.name,
+        );
         if (p) p.status = body.status;
       }
       return structuredClone(orgState);
@@ -691,7 +690,10 @@ test("task_patch preserves omitted fields and planning tools build digests and m
     assert.equal(digest.sections[0].name, "No section");
     assert.equal(digest.sections[0].tasks[0].uuid, uuid3);
     assert.equal(digest.sections[1].name, "Phase 1");
-    assert.equal(digest.sections[1].tasks[0].taskDescription, "Parent study guide");
+    assert.equal(
+      digest.sections[1].tasks[0].taskDescription,
+      "Parent study guide",
+    );
     assert.deepEqual(digest.sections[1].tasks[0].subtaskProgress, {
       done: 1,
       total: 1,
@@ -748,10 +750,10 @@ test("task_patch preserves omitted fields and planning tools build digests and m
     assert.equal(moveCall![2].columnId, "col-new");
 
     const prompts = await client.listPrompts();
-    assert.deepEqual(
-      prompts.prompts.map((p) => p.name).sort(),
-      ["aster_daily_review", "aster_takeover_plan"],
-    );
+    assert.deepEqual(prompts.prompts.map((p) => p.name).sort(), [
+      "aster_daily_review",
+      "aster_takeover_plan",
+    ]);
     const promptResult = await client.getPrompt({
       name: "aster_takeover_plan",
       arguments: { project: "Study" },
