@@ -4,10 +4,7 @@ import type { TaskwarriorTask } from "../tasks/model.ts";
 import type { TaskService } from "../tasks/service.ts";
 import { defaultBoard } from "../workspace/board.ts";
 import type { WorkspaceClient } from "../workspace/client.ts";
-import {
-  countProjectTasks,
-  isCompletedProject,
-} from "../workspace/focus.ts";
+import { countProjectTasks, isCompletedProject } from "../workspace/focus.ts";
 import type { Organization } from "../workspace/organization.ts";
 import { loadTaskViewWithCatalog } from "../workspace/task-views.ts";
 
@@ -126,9 +123,7 @@ test("loadTaskViewWithCatalog focus view shows tasks even when active Focus proj
     {} as TaskService,
     "focus",
     makeOrg({
-      projects: [
-        { name: "HostV1", description: "", status: "active" },
-      ],
+      projects: [{ name: "HostV1", description: "", status: "active" }],
     }),
     "",
     fakeClient,

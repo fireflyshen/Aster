@@ -243,26 +243,24 @@ export function TaskListScreen({
         title={title}
         subtitle={title ? String(entries.length) : undefined}
       >
-        {entries.map(
-          ({ task, parentTask, children, orphanedFromParent }) => (
-            <TaskListRow
-              key={task.uuid}
-              task={task}
-              group={group}
-              parentTask={parentTask}
-              subtasks={children}
-              showParentBreadcrumb={orphanedFromParent}
-              showInspector={showInspector}
-              subtaskMeta={subtaskMeta}
-              service={service}
-              client={workspace.client}
-              organization={organization}
-              board={board}
-              actions={taskActions}
-              commonProps={commonActionProps}
-            />
-          ),
-        )}
+        {entries.map(({ task, parentTask, children, orphanedFromParent }) => (
+          <TaskListRow
+            key={task.uuid}
+            task={task}
+            group={group}
+            parentTask={parentTask}
+            subtasks={children}
+            showParentBreadcrumb={orphanedFromParent}
+            showInspector={showInspector}
+            subtaskMeta={subtaskMeta}
+            service={service}
+            client={workspace.client}
+            organization={organization}
+            board={board}
+            actions={taskActions}
+            commonProps={commonActionProps}
+          />
+        ))}
       </List.Section>
     );
   }
@@ -274,9 +272,7 @@ export function TaskListScreen({
     return targetGroups.map((group) => {
       const items = taskSubset.filter(
         (task) =>
-          group === "all" ||
-          group === "completed" ||
-          taskGroup(task) === group,
+          group === "all" || group === "completed" || taskGroup(task) === group,
       );
       return renderSectionEntries(
         group,

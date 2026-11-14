@@ -90,11 +90,20 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 			countStyle = lipgloss.NewStyle().Foreground(brand)
 		}
 
-		maxTitleW := max(4, rowW-lipgloss.Width(prefix)-lipgloss.Width(countText))
+		maxTitleW := max(
+			4,
+			rowW-lipgloss.Width(prefix)-lipgloss.Width(countText),
+		)
 		clippedLabel := clip(label, maxTitleW)
 		gap := max(
 			0,
-			rowW-lipgloss.Width(prefix)-lipgloss.Width(clippedLabel)-lipgloss.Width(countText),
+			rowW-lipgloss.Width(
+				prefix,
+			)-lipgloss.Width(
+				clippedLabel,
+			)-lipgloss.Width(
+				countText,
+			),
 		)
 		spans := []styledSpan{
 			span(prefix, prefixStyle),
@@ -126,13 +135,16 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 	}
 	showProject := t.Project != ""
 	if showProject {
-		if strings.HasPrefix(m.view, "project:") && t.Project == strings.TrimPrefix(m.view, "project:") {
+		if strings.HasPrefix(m.view, "project:") &&
+			t.Project == strings.TrimPrefix(m.view, "project:") {
 			showProject = false
-		} else if m.view == "focus" && len(f.idx.activeProjects) == 1 && t.Project == f.idx.activeProjects[0].Name {
+		} else if m.view == "focus" && len(f.idx.activeProjects) == 1 &&
+			t.Project == f.idx.activeProjects[0].Name {
 			showProject = false
 		} else if r.depth > 0 {
 			if pid := f.idx.parentOf[t.UUID]; pid != "" {
-				if pt, ok := f.idx.tasksByUUID[pid]; ok && pt.Project == t.Project {
+				if pt, ok := f.idx.tasksByUUID[pid]; ok &&
+					pt.Project == t.Project {
 					showProject = false
 				}
 			}
@@ -172,15 +184,24 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 		}
 		groups = append(groups, []styledSpan{span(subText, subStyle)})
 	}
-	if pCode := priorityCode(t.Priority); pCode != "" && t.Status != "completed" {
-		groups = append(groups, []styledSpan{span(pCode, priorityStyle(t.Priority, false))})
+	if pCode := priorityCode(
+		t.Priority,
+	); pCode != "" &&
+		t.Status != "completed" {
+		groups = append(
+			groups,
+			[]styledSpan{span(pCode, priorityStyle(t.Priority, false))},
+		)
 	}
 	if t.Urgency > 0 && t.Status != "completed" {
 		uStyle := dim
 		if t.Urgency >= 10 {
 			uStyle = lipgloss.NewStyle().Foreground(warnColor)
 		}
-		groups = append(groups, []styledSpan{span(fmt.Sprintf("%.1f分", t.Urgency), uStyle)})
+		groups = append(
+			groups,
+			[]styledSpan{span(fmt.Sprintf("%.1f分", t.Urgency), uStyle)},
+		)
 	}
 	if t.Start != "" && !td.start.IsZero() && t.Status != "completed" {
 		groups = append(groups, []styledSpan{
@@ -317,9 +338,14 @@ func (m model) list(w, h int, f renderFrame) string {
 				dot := lipgloss.NewStyle().
 					Foreground(swatchColor(p.Color)).
 					Render("●")
-				part := dot + " " + lipgloss.NewStyle().Foreground(ink).Bold(true).Render(clean(p.Name))
+				part := dot + " " + lipgloss.NewStyle().
+					Foreground(ink).
+					Bold(true).
+					Render(clean(p.Name))
 				if p.Outcome != "" && len(active) == 1 && w > 48 {
-					part += dim.Render(" — " + clip(clean(p.Outcome), max(8, w/4)))
+					part += dim.Render(
+						" — " + clip(clean(p.Outcome), max(8, w/4)),
+					)
 				}
 				parts = append(parts, part)
 			}
@@ -365,7 +391,9 @@ func (m model) list(w, h int, f renderFrame) string {
 			if selected {
 				marker = "▎ "
 				markerStyle = accent
-				titleStyle = lipgloss.NewStyle().Foreground(selectedFG).Bold(true)
+				titleStyle = lipgloss.NewStyle().
+					Foreground(selectedFG).
+					Bold(true)
 				cntStyle = lipgloss.NewStyle().Foreground(brand).Bold(true)
 			}
 			countText := fmt.Sprintf(" %d", r.count)
@@ -380,7 +408,10 @@ func (m model) list(w, h int, f renderFrame) string {
 			if !selected && rowW-usedW >= 6 {
 				spans = append(
 					spans,
-					span("  "+strings.Repeat("─", rowW-usedW-2), lipgloss.NewStyle().Foreground(line)),
+					span(
+						"  "+strings.Repeat("─", rowW-usedW-2),
+						lipgloss.NewStyle().Foreground(line),
+					),
 				)
 			}
 			ls = []string{renderSpans(spans, rowW, rowW, selected)}
@@ -394,7 +425,9 @@ func (m model) list(w, h int, f renderFrame) string {
 			if selected {
 				marker = "▎ "
 				markerStyle = accent
-				titleStyle = lipgloss.NewStyle().Foreground(selectedFG).Bold(true)
+				titleStyle = lipgloss.NewStyle().
+					Foreground(selectedFG).
+					Bold(true)
 				subStyle = lipgloss.NewStyle().Foreground(muted)
 			}
 			line1Spans := []styledSpan{span(marker, markerStyle)}
@@ -407,7 +440,10 @@ func (m model) list(w, h int, f renderFrame) string {
 			if dotColor != "" {
 				line1Spans = append(
 					line1Spans,
-					span("● ", lipgloss.NewStyle().Foreground(swatchColor(dotColor))),
+					span(
+						"● ",
+						lipgloss.NewStyle().Foreground(swatchColor(dotColor)),
+					),
 				)
 			}
 			line1Spans = append(line1Spans, span(clean(r.title), titleStyle))
@@ -505,7 +541,9 @@ func (m model) emptyMessage() string {
 	return "当前视图没有任务。按 a 新建任务，或按 A 一句话捕捉。"
 }
 
-var tuiURLRe = regexp.MustCompile(`https?://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+`)
+var tuiURLRe = regexp.MustCompile(
+	`https?://[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+`,
+)
 
 func trimTrailingURLPunct(raw string, start, end int) int {
 	for end > start {
@@ -539,9 +577,17 @@ func trimTrailingURLPunct(raw string, start, end int) int {
 	return end
 }
 
-func wrapStyledText(desc string, width int, baseSt, linkSt lipgloss.Style) []string {
+func wrapStyledText(
+	desc string,
+	width int,
+	baseSt, linkSt lipgloss.Style,
+) []string {
 	width = max(1, width)
-	normalized := strings.ReplaceAll(strings.ReplaceAll(desc, "\r\n", "\n"), "\r", "\n")
+	normalized := strings.ReplaceAll(
+		strings.ReplaceAll(desc, "\r\n", "\n"),
+		"\r",
+		"\n",
+	)
 	rawLines := strings.Split(strings.TrimSpace(normalized), "\n")
 	var result []string
 	blankRun := 0
@@ -750,7 +796,8 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			limit := min(len(children), 12)
 			for i := 0; i < limit; i++ {
 				if ct, ok := f.idx.tasksByUUID[children[i]]; ok {
-					ctWait := ct.Status == "waiting" || f.idx.dates[ct.UUID].wait.After(f.now)
+					ctWait := ct.Status == "waiting" ||
+						f.idx.dates[ct.UUID].wait.After(f.now)
 					cMark, cCol, cBold := statusMeta(ct, ctWait)
 					markSt := lipgloss.NewStyle().Foreground(cCol)
 					if cBold {
@@ -762,10 +809,17 @@ func (m model) inspector(w, h int, f renderFrame) string {
 					}
 					pPrefix := ""
 					if p := priorityCode(ct.Priority); p != "" {
-						pPrefix = priorityStyle(ct.Priority, ct.Status == "completed").
-							Render(p) + " "
+						pPrefix = priorityStyle(
+							ct.Priority,
+							ct.Status == "completed",
+						).
+							Render(p) +
+							" "
 					}
-					availW := max(4, bodyW-3-lipgloss.Width(priorityCode(ct.Priority))-1)
+					availW := max(
+						4,
+						bodyW-3-lipgloss.Width(priorityCode(ct.Priority))-1,
+					)
 					if priorityCode(ct.Priority) == "" {
 						availW = max(4, bodyW-3)
 					}
@@ -908,7 +962,9 @@ func (m model) overlay(w, h int) string {
 			if selected {
 				marker = "▎ "
 				markerStyle = accent
-				labelStyle = lipgloss.NewStyle().Foreground(selectedFG).Bold(true)
+				labelStyle = lipgloss.NewStyle().
+					Foreground(selectedFG).
+					Bold(true)
 			}
 			lines = append(
 				lines,
@@ -963,7 +1019,11 @@ func (m model) overlay(w, h int) string {
 				}
 				ls = append(
 					ls,
-					"  "+valStyle.Render(clip(value, max(4, bodyWidth-6)))+dim.Render("  ▾"),
+					"  "+valStyle.Render(
+						clip(value, max(4, bodyWidth-6)),
+					)+dim.Render(
+						"  ▾",
+					),
 				)
 			} else if f.multiline {
 				a := f.area
@@ -1193,20 +1253,52 @@ func (m model) View() string {
 	var tiers [][]keyHint
 	if m.navFocus || !m.taskView() {
 		tiers = [][]keyHint{
-			{{"Tab", "切区"}, {"j/k", "选"}, {"Enter", "打开"}, {"a", "新建"}, {":", "菜单"}, {"?", "帮助"}},
+			{
+				{"Tab", "切区"},
+				{"j/k", "选"},
+				{"Enter", "打开"},
+				{"a", "新建"},
+				{":", "菜单"},
+				{"?", "帮助"},
+			},
 			{{"Enter", "打开"}, {":", "菜单"}, {"?", "帮助"}},
 			{{"?", "帮助"}},
 		}
 	} else if m.board {
 		tiers = [][]keyHint{
-			{{"Tab", "切区"}, {"←→", "列"}, {"j/k", "卡"}, {"Space", "折展"}, {"x", "完成"}, {"a", "新建"}, {"b", "列表"}, {"?", "帮助"}},
+			{
+				{"Tab", "切区"},
+				{"←→", "列"},
+				{"j/k", "卡"},
+				{"Space", "折展"},
+				{"x", "完成"},
+				{"a", "新建"},
+				{"b", "列表"},
+				{"?", "帮助"},
+			},
 			{{"←→", "列"}, {"x", "完成"}, {"b", "列表"}, {"?", "帮助"}},
 			{{"?", "帮助"}},
 		}
 	} else {
 		tiers = [][]keyHint{
-			{{"Tab", "切区"}, {"j/k", "选"}, {"Space", "折展"}, {"x", "完成"}, {"s", "计时"}, {"a", "新建"}, {"S", "子"}, {":", "菜单"}, {"?", "帮助"}},
-			{{"Space", "折展"}, {"x", "完成"}, {"a", "新建"}, {":", "菜单"}, {"?", "帮助"}},
+			{
+				{"Tab", "切区"},
+				{"j/k", "选"},
+				{"Space", "折展"},
+				{"x", "完成"},
+				{"s", "计时"},
+				{"a", "新建"},
+				{"S", "子"},
+				{":", "菜单"},
+				{"?", "帮助"},
+			},
+			{
+				{"Space", "折展"},
+				{"x", "完成"},
+				{"a", "新建"},
+				{":", "菜单"},
+				{"?", "帮助"},
+			},
 			{{"?", "帮助"}},
 		}
 	}
@@ -1307,7 +1399,9 @@ func (m model) boardView(w, h int, f renderFrame) string {
 				if completed {
 					titleSt = lipgloss.NewStyle().Foreground(selectedFG)
 				} else {
-					titleSt = lipgloss.NewStyle().Foreground(selectedFG).Bold(true)
+					titleSt = lipgloss.NewStyle().
+						Foreground(selectedFG).
+						Bold(true)
 				}
 			}
 			for li, titleLine := range wrapped {

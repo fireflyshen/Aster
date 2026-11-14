@@ -53,7 +53,11 @@ func disableColor()               { lipgloss.SetColorProfile(termenv.Ascii) }
 func clip(s string, w int) string { return ansi.Truncate(s, max(1, w), "…") }
 
 func wrap(s string, w int) string {
-	normalized := strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\r", "\n")
+	normalized := strings.ReplaceAll(
+		strings.ReplaceAll(s, "\r\n", "\n"),
+		"\r",
+		"\n",
+	)
 	var out []string
 	for _, part := range strings.Split(normalized, "\n") {
 		out = append(
@@ -297,7 +301,11 @@ func clipSpans(spans []styledSpan, maxWidth int) ([]styledSpan, int) {
 }
 
 // renderSpans joins spans within maxWidth, paints continuous selection background across every segment and padding cell, and pads to totalWidth.
-func renderSpans(spans []styledSpan, maxWidth, totalWidth int, selected bool) string {
+func renderSpans(
+	spans []styledSpan,
+	maxWidth, totalWidth int,
+	selected bool,
+) string {
 	totalWidth = max(1, totalWidth)
 	clipped, used := clipSpans(spans, min(max(1, maxWidth), totalWidth))
 	var b strings.Builder
@@ -320,7 +328,9 @@ func renderSpans(spans []styledSpan, maxWidth, totalWidth int, selected bool) st
 
 func sectionRule(title string, width int) string {
 	if title == "" {
-		return lipgloss.NewStyle().Foreground(line).Render(strings.Repeat("─", max(1, width)))
+		return lipgloss.NewStyle().
+			Foreground(line).
+			Render(strings.Repeat("─", max(1, width)))
 	}
 	t := accent.Render(title)
 	tw := lipgloss.Width(t)
@@ -328,5 +338,7 @@ func sectionRule(title string, width int) string {
 	if ruleW < 3 {
 		return t
 	}
-	return t + " " + lipgloss.NewStyle().Foreground(line).Render(strings.Repeat("─", ruleW))
+	return t + " " + lipgloss.NewStyle().
+		Foreground(line).
+		Render(strings.Repeat("─", ruleW))
 }

@@ -464,7 +464,9 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 	}
 	for _, c := range cols {
 		items, depth, lastChild := idx.groupedTasks(m, ts, c.ID, colSet)
-		if !m.board && m.query == "" && c.ID == "unsectioned" && len(items) == 0 && len(cols) > 1 {
+		if !m.board && m.query == "" && c.ID == "unsectioned" &&
+			len(items) == 0 &&
+			len(cols) > 1 {
 			continue
 		}
 		out = append(out, row{

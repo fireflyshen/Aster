@@ -60,14 +60,10 @@ export function FocusProjects({
     error: loadError,
     isLoading,
     revalidate,
-  } = usePromise(
-    async () => (workspace ? workspace.load() : undefined),
-    [],
-    {
-      execute: !!workspace,
-      onError: () => undefined,
-    },
-  );
+  } = usePromise(async () => (workspace ? workspace.load() : undefined), [], {
+    execute: !!workspace,
+    onError: () => undefined,
+  });
   const [saving, setSaving] = useState(false);
   const busy = useRef(false);
   const [blocked, setBlocked] = useState(false);
