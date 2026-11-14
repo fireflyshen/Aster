@@ -18,6 +18,7 @@ import {
   Clock3,
   Flag,
   Flame,
+  Inbox,
   MessageSquare,
   Repeat2,
 } from "lucide-react";
@@ -51,6 +52,8 @@ export function TaskMetaChips({
   overdue,
   disabled,
   showProject,
+  showInbox = false,
+  sectionName,
   started,
   timingUnavailable,
   trackedSeconds,
@@ -71,6 +74,8 @@ export function TaskMetaChips({
   overdue: boolean;
   disabled: boolean;
   showProject: boolean;
+  showInbox?: boolean;
+  sectionName?: string;
   started: boolean;
   timingUnavailable: boolean;
   trackedSeconds?: number;
@@ -377,15 +382,23 @@ export function TaskMetaChips({
         );
       })}
 
-      {showProject && task.project && (
+      {showProject && (task.project || showInbox) && (
         <span
+          data-task-meta="location"
           className={cn(
             "inline-flex min-w-0 shrink-0 items-center gap-1 text-[12px] text-muted-foreground/85 whitespace-nowrap",
             variant === "list" && "ml-auto",
           )}
         >
-          <span className="truncate max-w-[140px]">{task.project}</span>
-          <ProjectIcon name={task.project} className="size-3 shrink-0" />
+          <span className="truncate max-w-[200px]">
+            {task.project || "收件箱"}
+            {sectionName ? ` / ${sectionName}` : ""}
+          </span>
+          {task.project ? (
+            <ProjectIcon name={task.project} className="size-3 shrink-0" />
+          ) : (
+            <Inbox className="size-3 shrink-0 opacity-80" strokeWidth={1.6} />
+          )}
         </span>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { toDueDay } from "@/features/tasks/task-date";
 import { TaskRow } from "@/features/tasks/task-row";
 import { TaskColumnPicker } from "@/features/tasks/task-column-picker";
+import { taskColumnId, UNSECTIONED } from "@core/workspace/board";
 import type { Organization } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { format } from "date-fns";
@@ -21,6 +22,7 @@ export type TaskRenderFn = (
 interface UseTaskRendererOptions {
   now: Date;
   currentProject: string;
+  showInboxLocation?: boolean;
   organization: Organization;
   filterProjects: string[];
   subtasksMap: Map<string, Task[]>;
@@ -54,6 +56,7 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
   const {
     now,
     currentProject,
+    showInboxLocation = false,
     organization,
     filterProjects,
     subtasksMap,
@@ -100,6 +103,17 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
         ? renderSubtaskWrapper(child, renderPlainChild)
         : renderPlainChild(child);
 
+    const taskProject = task.project || "";
+    const colId = organization.board
+      ? taskColumnId(task, organization.board)
+      : UNSECTIONED;
+    const sectionName =
+      colId !== UNSECTIONED
+        ? organization.board?.columns.find(
+            (c) => c.id === colId && (c.project || "") === taskProject,
+          )?.name
+        : undefined;
+
     return (
       <TaskRow
         key={task.uuid}
@@ -125,7 +139,7 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
               <TaskColumnPicker
                 task={task}
                 board={organization.board}
-                project={currentProject}
+                project={currentProject || taskProject}
                 disabled={rowDisabled}
                 onMove={(columnId) => void moveTask(task, columnId)}
               />
@@ -135,6 +149,8 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
         trackedSeconds={taskTrackedSeconds(task)}
         timingUnavailable={organization.timing?.available === false}
         showProject={!currentProject}
+        showInbox={showInboxLocation}
+        sectionName={sectionName}
         variant={variant}
         transition={isRowTransition ? completion : undefined}
         subtasks={subtasks}

@@ -11,6 +11,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrganizationManager } from "@/features/organization/organization-manager";
 import { FocusOverview } from "@/features/projects/focus-overview";
 import { ProjectManager } from "@/features/projects/project-manager";
+import { useFilterGroupBy } from "../hooks/use-filter-group-by";
 import { taskDate } from "@core/tasks/quick-task";
 import { defaultBoard, type BoardChange } from "@core/workspace/board";
 import type { ProjectStatus } from "@core/workspace/focus";
@@ -190,6 +191,15 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     renderTask,
   } = props;
 
+  const [groupBy, setGroupBy] = useFilterGroupBy(
+    activeEntry ? `${activeEntry.kind}:${activeEntry.item.id}` : undefined,
+  );
+  const virtualGroupTitle =
+    activeItem && "expression" in activeItem
+      ? activeItem.expression
+      : activeItem?.name ||
+        (activeEntry?.kind === "filter" ? "过滤器" : "标签");
+
   return (
     <main className="workspace-frame pb-16 pt-2">
       {searchOpen && (
@@ -245,6 +255,9 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
               : undefined
           }
           activeItem={activeItem}
+          activeCount={topLevelVisible.length}
+          groupBy={activeEntry ? groupBy : undefined}
+          onGroupByChange={activeEntry ? setGroupBy : undefined}
           currentProjectFocus={currentProjectFocus}
           projectOutcome={projectOutcome}
           projectDescription={projectDescription}
@@ -436,6 +449,8 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                 preserveTaskOrder={
                   view === "urgency" && !currentProject && !activeEntry
                 }
+                virtualGroupBy={activeEntry ? groupBy : undefined}
+                virtualGroupTitle={virtualGroupTitle}
                 onRescheduleOverdue={
                   layout === "list" ? onRescheduleOverdue : undefined
                 }

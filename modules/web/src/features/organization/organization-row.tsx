@@ -11,27 +11,33 @@ import {
   type SavedTag,
 } from "@core/workspace/organization";
 import { cn } from "cn";
-import { Ellipsis, Heart, Pencil, Trash2 } from "lucide-react";
+import { Ellipsis, Eye, EyeOff, Heart, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { OrganizationEntry } from "./organization-types";
 
 type OrganizationRowProps = {
   entry: OrganizationEntry;
   disabled: boolean;
+  isBuiltin?: boolean;
+  isHidden?: boolean;
   onOpen: (entry: OrganizationEntry) => void;
-  onEdit: (entry: OrganizationEntry) => void;
-  onDelete: (entry: OrganizationEntry) => void;
+  onEdit?: (entry: OrganizationEntry) => void;
+  onDelete?: (entry: OrganizationEntry) => void;
   onFavorite: (entry: OrganizationEntry) => void;
+  onToggleHide?: (entry: OrganizationEntry) => void;
 };
 
 /** Renders a single saved filter or tag row with favorite button and overflow menu. */
 export function OrganizationRow({
   entry,
   disabled,
+  isBuiltin = false,
+  isHidden = false,
   onOpen,
   onEdit,
   onDelete,
   onFavorite,
+  onToggleHide,
 }: OrganizationRowProps) {
   const { kind, item } = entry;
   const Icon = kind === "filter" ? FilterIcon : LabelIcon;
@@ -70,10 +76,10 @@ export function OrganizationRow({
         disabled={disabled}
         aria-label={
           item.favorite
-            ? `Remove ${item.name} from favorites`
-            : `Add ${item.name} to favorites`
+            ? `取消收藏: ${item.name}`
+            : `添加到收藏: ${item.name}`
         }
-        title={item.favorite ? "Remove from favorites" : "Add to favorites"}
+        title={item.favorite ? "取消收藏" : "添加到收藏"}
         onClick={() => onFavorite(entry)}
         className={cn(
           "ml-1 size-7 transition-opacity",
@@ -84,12 +90,42 @@ export function OrganizationRow({
       >
         <Heart className={cn("size-3.5", item.favorite && "fill-current")} />
       </Button>
+      {onToggleHide && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled}
+          aria-label={
+            isHidden
+              ? `取消隐藏: ${item.name}`
+              : `隐藏: ${item.name}`
+          }
+          title={isHidden ? "取消隐藏" : "隐藏"}
+          onClick={() => onToggleHide(entry)}
+          className={cn(
+            "ml-1 size-7 text-muted-foreground transition-opacity",
+            isHidden
+              ? "opacity-100"
+              : "md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+          )}
+        >
+          {isHidden ? (
+            <Eye className="size-3.5" />
+          ) : (
+            <EyeOff className="size-3.5" />
+          )}
+        </Button>
+      )}
       <RowMenu
         entry={entry}
         disabled={disabled}
-        onEdit={() => onEdit(entry)}
-        onDelete={() => onDelete(entry)}
+        isBuiltin={isBuiltin}
+        isHidden={isHidden}
+        onEdit={onEdit ? () => onEdit(entry) : undefined}
+        onDelete={onDelete ? () => onDelete(entry) : undefined}
         onFavorite={() => onFavorite(entry)}
+        onToggleHide={onToggleHide ? () => onToggleHide(entry) : undefined}
       />
     </div>
   );
@@ -98,17 +134,45 @@ export function OrganizationRow({
 function RowMenu({
   entry,
   disabled,
+  isBuiltin,
+  isHidden,
   onEdit,
   onFavorite,
+  onToggleHide,
   onDelete,
 }: {
   entry: OrganizationEntry;
   disabled: boolean;
-  onEdit: () => void;
+  isBuiltin: boolean;
+  isHidden: boolean;
+  onEdit?: () => void;
   onFavorite: () => void;
-  onDelete: () => void;
+  onToggleHide?: () => void;
+  onDelete?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const items = [
+    ...(onEdit && !isBuiltin
+      ? [{ label: "编辑", Icon: Pencil, run: onEdit }]
+      : []),
+    {
+      label: entry.item.favorite ? "取消收藏" : "添加到收藏",
+      Icon: Heart,
+      run: onFavorite,
+    },
+    ...(onToggleHide
+      ? [
+          {
+            label: isHidden ? "取消隐藏" : "隐藏",
+            Icon: isHidden ? Eye : EyeOff,
+            run: onToggleHide,
+          },
+        ]
+      : []),
+    ...(onDelete && !isBuiltin
+      ? [{ label: "删除", Icon: Trash2, run: onDelete }]
+      : []),
+  ];
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -138,15 +202,7 @@ function RowMenu({
           }
         }}
       >
-        {[
-          { label: "编辑", Icon: Pencil, run: onEdit },
-          {
-            label: entry.item.favorite ? "取消收藏" : "添加到收藏",
-            Icon: Heart,
-            run: onFavorite,
-          },
-          { label: "删除", Icon: Trash2, run: onDelete },
-        ].map(({ label, Icon, run }) => (
+        {items.map(({ label, Icon, run }) => (
           <Button
             key={label}
             variant="ghost"

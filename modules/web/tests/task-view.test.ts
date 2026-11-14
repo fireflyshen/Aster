@@ -155,4 +155,42 @@ test("filterVisibleTasks properly scopes focus, later, today, urgency, and strik
     urgencyFiltered.map((t: { uuid: string }) => t.uuid),
     ["l1", "f1", "f2", "cp1"],
   );
+
+  const tagged = makeTask("t1", "Work task", { tags: ["Work"] });
+  const untagged = makeTask("t2", "Other task", { tags: [] });
+  const completedTagged = makeTask("t3", "Done work task", {
+    tags: ["Work"],
+    status: "completed",
+  });
+  assert.deepEqual(
+    filterVisibleTasks({
+      tasks: [tagged, untagged, completedTagged],
+      view: "pending",
+      activeItem: { id: "tag:work", name: "Work", color: "blue", favorite: false },
+      inbox: false,
+      currentProject: "",
+      query: "",
+      keepCompleted: false,
+    }).map((t: { uuid: string }) => t.uuid),
+    ["t1"],
+  );
+  assert.deepEqual(
+    filterVisibleTasks({
+      tasks: [tagged, completedTagged],
+      view: "pending",
+      activeItem: {
+        id: "builtin:completed-7d",
+        name: "近 7 天已完成",
+        description: "",
+        expression: "status:completed end.after:today-7d",
+        color: "mint",
+        favorite: false,
+      },
+      inbox: false,
+      currentProject: "",
+      query: "",
+      keepCompleted: false,
+    }).map((t: { uuid: string }) => t.uuid),
+    ["t1", "t3"],
+  );
 });

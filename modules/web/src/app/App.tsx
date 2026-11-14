@@ -40,6 +40,8 @@ export function App() {
     organization: data.organization,
     tasks: data.tasks,
     projects: data.projects,
+    isPartialScope:
+      nav.scope.startsWith("filter=") || nav.scope === "scope=completed",
   });
 
   const taskActions = useTaskActions({
@@ -140,6 +142,8 @@ export function App() {
   const renderTask = useTaskRenderer({
     now: data.now,
     currentProject: nav.currentProject,
+    showInboxLocation:
+      Boolean(nav.activeEntry) || (nav.view !== "pending" && !nav.currentProject),
     organization: data.organization,
     filterProjects,
     subtasksMap,

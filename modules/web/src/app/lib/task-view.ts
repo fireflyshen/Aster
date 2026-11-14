@@ -227,15 +227,20 @@ export function filterVisibleTasks({
   keepCompleted?: boolean;
 }): Task[] {
   const needle = query.trim().toLocaleLowerCase();
+  const isFilterItem = Boolean(activeItem && "expression" in activeItem);
+  const isTagItem = Boolean(activeItem && !("expression" in activeItem));
   return tasks.filter((task) => {
     const isCompleting = completingUuid === task.uuid;
     if (
       view !== "completed" &&
-      !activeItem &&
+      !isFilterItem &&
       task.status === "completed" &&
       !isCompleting &&
       !keepCompleted
     ) {
+      return false;
+    }
+    if (isTagItem && !task.tags.includes(activeItem!.name)) {
       return false;
     }
     if (view === "completed" && task.status !== "completed" && !isCompleting) {

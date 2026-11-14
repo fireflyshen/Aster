@@ -1,6 +1,17 @@
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectIcon } from "@/features/projects/project-icon";
+import {
+  TASK_GROUP_OPTIONS,
+  type TaskGroupBy,
+} from "@/features/tasks/task-grouping";
 import type { ProjectStatus } from "@core/workspace/focus";
 import type {
   SavedFilter,
@@ -128,6 +139,9 @@ type WorkspaceHeadingProps = {
   busy: boolean;
   activeEntry?: { kind: "filter" | "tag"; id: string };
   activeItem?: SavedFilter | SavedTag;
+  activeCount?: number;
+  groupBy?: TaskGroupBy;
+  onGroupByChange?: (next: TaskGroupBy) => void;
   currentProjectFocus?: SavedProject;
   projectOutcome?: string;
   projectDescription?: string;
@@ -160,6 +174,9 @@ export function WorkspaceHeading({
   busy,
   activeEntry,
   activeItem,
+  activeCount,
+  groupBy = "none",
+  onGroupByChange,
   currentProjectFocus,
   projectOutcome,
   projectDescription,
@@ -190,6 +207,16 @@ export function WorkspaceHeading({
       : "过滤器&标签"
     : activeItem?.name ||
       (currentProject ? projectLeaf(currentProject) : views[view]);
+  const filterSubtitle =
+    !organizationPage &&
+    activeEntry?.kind === "filter" &&
+    activeItem &&
+    "expression" in activeItem
+      ? activeItem.description &&
+        !activeItem.description.includes(activeItem.expression)
+        ? `${activeItem.description} · ${activeItem.expression}`
+        : activeItem.description || activeItem.expression
+      : undefined;
   const disabled = busy || organizationSaving;
 
   return (
@@ -251,6 +278,11 @@ export function WorkspaceHeading({
                 {viewCounts.pending ?? 0}
               </span>
             )}
+            {!organizationPage && activeItem && activeCount !== undefined && (
+              <span className="text-xs font-medium text-muted-foreground/80 tabular-nums">
+                {activeCount}
+              </span>
+            )}
             {currentProject && !organizationPage && !activeItem && (
               <Button
                 type="button"
@@ -286,10 +318,45 @@ export function WorkspaceHeading({
               {format(now, "M月d日 · EEEE", { locale: zhCN })}
             </p>
           )}
+          {filterSubtitle && (
+            <p
+              className="mt-0.5 truncate text-xs text-muted-foreground"
+              title={
+                activeItem && "expression" in activeItem
+                  ? activeItem.expression
+                  : filterSubtitle
+              }
+            >
+              {filterSubtitle}
+            </p>
+          )}
         </div>
 
         {!organizationPage && !specialPage && (
-          <div className="workspace-view-controls flex shrink-0 items-center gap-1">
+          <div className="workspace-view-controls flex shrink-0 items-center gap-1.5">
+            {activeEntry && onGroupByChange && (
+              <Select
+                value={groupBy}
+                disabled={disabled}
+                onValueChange={(value) => onGroupByChange(value as TaskGroupBy)}
+              >
+                <SelectTrigger
+                  aria-label="分组方式"
+                  className="h-8 gap-1.5 border-border/70 bg-transparent px-2.5 text-xs font-normal shadow-none hover:bg-accent"
+                >
+                  <span className="text-muted-foreground">分组:</span>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {TASK_GROUP_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <TabsList
               aria-label="布局模式"
               className="h-8 group-data-[orientation=horizontal]/tabs:h-8"
@@ -322,6 +389,8 @@ export function WorkspaceHeading({
               view={view}
               completeBehavior={completeBehavior}
               onCompleteBehaviorChange={onCompleteBehaviorChange}
+              groupBy={groupBy}
+              onGroupByChange={onGroupByChange}
               currentProject={currentProject}
               organizationReady={organizationReady}
               disabled={disabled}

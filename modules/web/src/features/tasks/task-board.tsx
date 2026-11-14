@@ -25,6 +25,7 @@ import { columnDisplayName } from "./board-helpers";
 import type { DropPosition } from "./drag-model";
 import { InlineColumnCreator } from "./inline-column-creator";
 import { TaskDragLayer } from "./task-drag-layer";
+import { buildTaskGroups, type TaskGroupBy } from "./task-grouping";
 import { TodaySplitView } from "./today-split-view";
 import { useBoardDnd } from "./use-board-dnd";
 
@@ -62,6 +63,8 @@ type TaskBoardProps = {
   defaultDue?: string;
   todaySplit?: boolean;
   preserveTaskOrder?: boolean;
+  virtualGroupBy?: TaskGroupBy;
+  virtualGroupTitle?: string;
   onRescheduleOverdue?: (overdueTasks: Task[]) => Promise<void>;
   canAddTask?: boolean;
   canAddSection?: boolean;
@@ -99,6 +102,8 @@ export function TaskBoard({
   defaultDue = "",
   todaySplit = false,
   preserveTaskOrder = false,
+  virtualGroupBy,
+  virtualGroupTitle = "全部任务",
   onRescheduleOverdue,
   canAddTask = true,
   canAddSection,
@@ -125,10 +130,25 @@ export function TaskBoard({
   }>();
   const scrollArea = useRef<HTMLDivElement>(null);
   const currentProj = project ?? defaultProject ?? "";
-  const projectColumns = preserveTaskOrder
-    ? []
-    : board.columns.filter((item) => (item.project || "") === currentProj);
-  const columns = [unsectionedColumn, ...projectColumns];
+  const isVirtualGrouped = virtualGroupBy !== undefined;
+  const virtualGroups = useMemo(
+    () =>
+      isVirtualGrouped
+        ? buildTaskGroups(tasks, virtualGroupBy, virtualGroupTitle)
+        : undefined,
+    [isVirtualGrouped, tasks, virtualGroupBy, virtualGroupTitle],
+  );
+  const projectColumns =
+    preserveTaskOrder || isVirtualGrouped
+      ? []
+      : board.columns.filter((item) => (item.project || "") === currentProj);
+  const columns = useMemo(
+    () =>
+      virtualGroups
+        ? virtualGroups.map((group) => group.column)
+        : [unsectionedColumn, ...projectColumns],
+    [virtualGroups, projectColumns],
+  );
   const visibleColumnIds = useMemo(
     () => new Set(columns.map((item) => item.id)),
     [columns],
@@ -139,7 +159,7 @@ export function TaskBoard({
     if (scrollArea.current) {
       scrollArea.current.scrollLeft = initialScrollLeft;
     }
-  }, [initialScrollLeft, projectColumns.length]);
+  }, [initialScrollLeft, columns.length]);
 
   const { sensors, accessibility } = useBoardDnd(layout, columns);
 
@@ -223,9 +243,14 @@ export function TaskBoard({
         </div>
       )}
 
-      {loaded && !loading && !tasks.length && !hasSearch && !canAddTask && (
-        <p className="py-8 text-sm text-muted-foreground">暂无已完成任务。</p>
-      )}
+      {loaded &&
+        !loading &&
+        !tasks.length &&
+        !hasSearch &&
+        !canAddTask &&
+        !isVirtualGrouped && (
+          <p className="py-8 text-sm text-muted-foreground">暂无已完成任务。</p>
+        )}
 
       <DndContext
         sensors={sensors}
@@ -273,16 +298,20 @@ export function TaskBoard({
               />
             ) : (
               columns.map((column, index) => {
-                const items = preserveTaskOrder
-                  ? tasks
-                  : columnTasks(
-                      tasks,
-                      displayBoard,
-                      column.id,
-                      visibleColumnIds,
-                    );
+                const items = virtualGroups
+                  ? virtualGroups[index].items
+                  : preserveTaskOrder
+                    ? tasks
+                    : columnTasks(
+                        tasks,
+                        displayBoard,
+                        column.id,
+                        visibleColumnIds,
+                      );
                 const isUnsectioned = column.id === UNSECTIONED;
-                const showColumnHeader = layout === "board" || !isUnsectioned;
+                const showColumnHeader = isVirtualGrouped
+                  ? layout === "board" || virtualGroupBy !== "none"
+                  : layout === "board" || !isUnsectioned;
                 return (
                   <BoardColumn
                     key={column.id}
@@ -293,6 +322,7 @@ export function TaskBoard({
                     total={projectColumns.length}
                     disabled={disabled}
                     showHeader={showColumnHeader}
+                    readOnly={isVirtualGrouped}
                     onEdit={() => openEditor(column)}
                     onShift={(direction) => {
                       onClearError();
@@ -309,24 +339,30 @@ export function TaskBoard({
                       setDeleting({ column, revision });
                     }}
                   >
-                    {items.length === 0 && !hasCustomColumns && (
-                      <div className="flex flex-col items-center justify-center py-10 text-center">
-                        <div className="relative mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
-                          <Inbox className="size-6" strokeWidth={1.5} />
+                    {items.length === 0 &&
+                      !hasCustomColumns &&
+                      (canAddTask || isVirtualGrouped) && (
+                        <div className="flex flex-col items-center justify-center py-10 text-center">
+                          <div className="relative mb-3 flex size-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground">
+                            <Inbox className="size-6" strokeWidth={1.5} />
+                          </div>
+                          <h3 className="text-sm font-medium text-foreground">
+                            暂无任务
+                          </h3>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {canAddTask
+                              ? "在下方添加任务以开始"
+                              : "当前过滤条件下没有匹配的任务"}
+                          </p>
                         </div>
-                        <h3 className="text-sm font-medium text-foreground">
-                          暂无任务
-                        </h3>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          在下方添加任务以开始
-                        </p>
-                      </div>
-                    )}
+                      )}
                     {items.map((task) => (
                       <BoardCard
                         key={task.uuid}
                         compact={layout === "list"}
-                        interactive={canAddTask && !preserveTaskOrder}
+                        interactive={
+                          !isVirtualGrouped && canAddTask && !preserveTaskOrder
+                        }
                         task={task}
                         column={column}
                         disabled={disabled}
@@ -346,7 +382,11 @@ export function TaskBoard({
                                   compact
                                   isSubtask
                                   disabled={disabled}
-                                  interactive={canAddTask}
+                                  interactive={
+                                    !isVirtualGrouped &&
+                                    canAddTask &&
+                                    !preserveTaskOrder
+                                  }
                                   saving={moving?.uuid === child.uuid}
                                 >
                                   {defaultRender(child)}

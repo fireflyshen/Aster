@@ -42,6 +42,8 @@ export type TaskRowProps = {
   trackedSeconds?: number;
   timingUnavailable?: boolean;
   showProject?: boolean;
+  showInbox?: boolean;
+  sectionName?: string;
   variant?: "list" | "card";
   transition?: { checked: boolean; phase: "checking" | "leaving" };
   subtasks?: Task[];
@@ -75,6 +77,8 @@ export function TaskRow({
   trackedSeconds,
   timingUnavailable = false,
   showProject = true,
+  showInbox = false,
+  sectionName,
   transition,
   variant = "list",
   subtasks = [],
@@ -159,7 +163,7 @@ export function TaskRow({
     (variant === "list" && extraActions),
   );
   const hasDetails = !!(
-    (showProject && task.project) ||
+    (showProject && (task.project || showInbox)) ||
     task.due ||
     task.recur ||
     task.annotations.length ||
@@ -396,6 +400,8 @@ export function TaskRow({
                   overdue={overdue}
                   disabled={disabled}
                   showProject={showProject}
+                  showInbox={showInbox}
+                  sectionName={sectionName}
                   started={started}
                   timingUnavailable={timingUnavailable}
                   trackedSeconds={trackedSeconds}

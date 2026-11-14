@@ -4,7 +4,7 @@ import type {
 } from "@core/workspace/organization";
 import { projectNames } from "@core/workspace/projects";
 import type { Task, View } from "@shared/tasks";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   computeSubtaskHierarchy,
   computeViewCounts,
@@ -19,11 +19,13 @@ export function useWorkspaceHierarchy({
   organization,
   tasks,
   projects,
+  isPartialScope = false,
 }: {
   activeEntry: ActiveEntry | undefined;
   organization: Organization;
   tasks: Task[];
   projects: string[];
+  isPartialScope?: boolean;
 }) {
   const activeItem = useMemo(() => {
     if (!activeEntry) return undefined;
@@ -61,7 +63,14 @@ export function useWorkspaceHierarchy({
     [projects, organization.projects],
   );
 
-  const viewCounts = useMemo(() => computeViewCounts(tasks), [tasks]);
+  const liveCounts = useMemo(() => computeViewCounts(tasks), [tasks]);
+  const [preservedCounts, setPreservedCounts] = useState<
+    Partial<Record<View, number>>
+  >({});
+  useEffect(() => {
+    if (!isPartialScope) setPreservedCounts(liveCounts);
+  }, [isPartialScope, liveCounts]);
+  const viewCounts = isPartialScope ? preservedCounts : liveCounts;
 
   return {
     activeItem,

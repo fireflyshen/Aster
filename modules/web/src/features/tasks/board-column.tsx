@@ -27,6 +27,7 @@ type BoardColumnProps = {
   total: number;
   disabled: boolean;
   showHeader?: boolean;
+  readOnly?: boolean;
   onEdit: () => void;
   onShift: (direction: "left" | "right") => void;
   onDelete: () => void;
@@ -42,6 +43,7 @@ export function BoardColumn({
   total,
   disabled,
   showHeader = true,
+  readOnly = false,
   onEdit,
   onShift,
   onDelete,
@@ -102,7 +104,7 @@ export function BoardColumn({
                 </span>
               </button>
               <div className="flex-1" />
-              {column.id !== UNSECTIONED && (
+              {!readOnly && column.id !== UNSECTIONED && (
                 <ColumnMenu
                   compact
                   title={title}
@@ -125,7 +127,7 @@ export function BoardColumn({
               <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
                 {count}
               </span>
-              {column.id !== UNSECTIONED && (
+              {!readOnly && column.id !== UNSECTIONED && (
                 <ColumnMenu
                   compact={false}
                   title={title}

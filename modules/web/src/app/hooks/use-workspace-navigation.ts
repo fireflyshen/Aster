@@ -213,11 +213,13 @@ export function useWorkspaceNavigation() {
   }, []);
 
   const scope =
-    view === "completed" && !currentProject && !activeEntry && !organizationPage
-      ? ("scope=completed" as const)
-      : completeBehavior === "strikethrough"
-        ? ("scope=all" as const)
-        : ("scope=pending" as const);
+    !organizationPage && activeEntry?.kind === "filter"
+      ? `filter=${encodeURIComponent((activeEntry.item as SavedFilter).expression)}`
+      : view === "completed" && !currentProject && !activeEntry && !organizationPage
+        ? ("scope=completed" as const)
+        : completeBehavior === "strikethrough"
+          ? ("scope=all" as const)
+          : ("scope=pending" as const);
 
   const specialPage = Boolean(organizationPage || projectsPage || activeEntry);
 

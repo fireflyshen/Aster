@@ -1,5 +1,6 @@
 import { FilterIcon, LabelIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { useBuiltinFilterPrefs } from "@/features/organization/builtin-filter-prefs";
 import { ProjectTree } from "@/features/projects/project-tree";
 import { formatDuration, type EnergySummary } from "@core/workspace/energy";
 import type { ProjectStatus } from "@core/workspace/focus";
@@ -29,10 +30,13 @@ export function SidebarFavorites({
     item: SavedFilter | SavedTag;
   }) => void;
 }) {
-  const hasFavorites =
-    organization.filters.some((item) => item.favorite) ||
-    organization.tags.some((item) => item.favorite);
-  if (!hasFavorites) return null;
+  const { builtinFilters } = useBuiltinFilterPrefs();
+  const favoriteFilters = [
+    ...organization.filters.filter((item) => item.favorite),
+    ...builtinFilters.filter((item) => item.favorite),
+  ];
+  const favoriteTags = organization.tags.filter((item) => item.favorite);
+  if (!favoriteFilters.length && !favoriteTags.length) return null;
 
   return (
     <>
@@ -40,30 +44,26 @@ export function SidebarFavorites({
         收藏
       </p>
       <nav aria-label="收藏" className="space-y-0.5">
-        {organization.filters
-          .filter((item) => item.favorite)
-          .map((item) => (
-            <Button
-              key={item.id}
-              variant="navigation"
-              disabled={disabled}
-              aria-current={
-                !organizationPage && activeEntry?.id === item.id
-                  ? "page"
-                  : undefined
-              }
-              onClick={() => onEntry({ kind: "filter", item })}
-            >
-              <FilterIcon
-                className="size-[18px]"
-                style={{ color: itemColor(item.color) }}
-              />
-              <span className="truncate">{item.name}</span>
-            </Button>
-          ))}
-        {organization.tags
-          .filter((item) => item.favorite)
-          .map((item) => (
+        {favoriteFilters.map((item) => (
+          <Button
+            key={item.id}
+            variant="navigation"
+            disabled={disabled}
+            aria-current={
+              !organizationPage && activeEntry?.id === item.id
+                ? "page"
+                : undefined
+            }
+            onClick={() => onEntry({ kind: "filter", item })}
+          >
+            <FilterIcon
+              className="size-[18px]"
+              style={{ color: itemColor(item.color) }}
+            />
+            <span className="truncate">{item.name}</span>
+          </Button>
+        ))}
+        {favoriteTags.map((item) => (
             <Button
               key={item.id}
               variant="navigation"

@@ -24,6 +24,10 @@ import {
   Trash2,
 } from "lucide-react";
 import type { CompleteBehavior } from "../hooks/use-workspace-navigation";
+import {
+  TASK_GROUP_OPTIONS,
+  type TaskGroupBy,
+} from "@/features/tasks/task-grouping";
 import { views } from "../workspace-sidebar";
 
 type WorkspaceHeadingMenuProps = {
@@ -32,6 +36,8 @@ type WorkspaceHeadingMenuProps = {
   view: View;
   completeBehavior?: CompleteBehavior;
   onCompleteBehaviorChange?: (next: CompleteBehavior) => void;
+  groupBy?: TaskGroupBy;
+  onGroupByChange?: (next: TaskGroupBy) => void;
   currentProject: string;
   organizationReady: boolean;
   disabled: boolean;
@@ -57,6 +63,8 @@ export function WorkspaceHeadingMenu({
   view,
   completeBehavior = "hide",
   onCompleteBehaviorChange,
+  groupBy = "none",
+  onGroupByChange,
   currentProject,
   organizationReady,
   disabled,
@@ -206,6 +214,34 @@ export function WorkspaceHeadingMenu({
             <Pencil className="size-3.5" />
             管理{activeEntry?.kind === "filter" ? "过滤器" : "标签"}
           </Button>
+        )}
+
+        {activeEntry && onGroupByChange && (
+          <>
+            <div className="my-1 border-t border-border/60" />
+            <p className="px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+              分组
+            </p>
+            {TASK_GROUP_OPTIONS.map((option) => (
+              <Button
+                key={option.value}
+                variant="navigation"
+                className="h-8 text-xs"
+                onClick={() => {
+                  onGroupByChange(option.value);
+                  onOpenChange(false);
+                }}
+              >
+                <Check
+                  className={cn(
+                    "size-3.5",
+                    groupBy !== option.value && "invisible",
+                  )}
+                />
+                {option.label}
+              </Button>
+            ))}
+          </>
         )}
 
         {!currentProject &&

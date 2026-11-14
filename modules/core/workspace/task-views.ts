@@ -12,6 +12,7 @@ import {
   type WorkspaceTaskQuery,
 } from "./client.ts";
 import { focusProject, inProject, isCompletedProject } from "./focus.ts";
+import { findBuiltinFilter } from "./builtin-filters.ts";
 import type { Organization } from "./organization.ts";
 
 /** Executes a task query through the shared workspace server when reachable, returning tasks and any project catalog included by the server. */
@@ -105,9 +106,10 @@ export async function loadTaskViewWithCatalog(
     return { ...result, allTasks: result.tasks };
   }
   if (view.startsWith("filter:")) {
-    const filter = organization?.filters.find(
-      (item) => item.id === view.slice(7),
-    );
+    const filterId = view.slice(7);
+    const filter =
+      organization?.filters.find((item) => item.id === filterId) ??
+      findBuiltinFilter(filterId);
     if (!filter) {
       throw new Error(
         "Saved filter unavailable. Refresh the web workspace or choose another view.",

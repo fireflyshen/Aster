@@ -36,6 +36,7 @@ import {
   Plus,
   Target,
 } from "lucide-react";
+import { useBuiltinFilterPrefs } from "@/features/organization/builtin-filter-prefs";
 import { views } from "./workspace-sidebar";
 
 const viewIcons = {
@@ -92,6 +93,11 @@ export function CommandPalette({
   onRecovery: () => void;
   onEditTask: (task: Task) => void;
 }) {
+  const { builtinFilters, hiddenIds, sectionHidden } = useBuiltinFilterPrefs();
+  const visibleBuiltinFilters = sectionHidden
+    ? []
+    : builtinFilters.filter((item) => !hiddenIds.has(item.id));
+  const allFilters = [...organization.filters, ...visibleBuiltinFilters];
   const run = (action: () => void) => {
     onOpenChange(false);
     action();
@@ -257,11 +263,11 @@ export function CommandPalette({
           </>
         )}
 
-        {(organization.filters.length > 0 || organization.tags.length > 0) && (
+        {(allFilters.length > 0 || organization.tags.length > 0) && (
           <>
             <CommandSeparator className="my-1" />
             <CommandGroup heading="过滤器&标签">
-              {organization.filters.map((item) => (
+              {allFilters.map((item) => (
                 <CommandItem
                   key={`filter-${item.id}`}
                   value={`Filter 过滤器 ${item.name} ${item.expression}`}
