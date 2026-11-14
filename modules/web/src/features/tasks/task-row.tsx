@@ -101,10 +101,14 @@ export function TaskRow({
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const rowRef = useRef<HTMLElement>(null);
+  const canExpandSubtasks = variant !== "card";
+  const effectiveSubtasksExpanded = canExpandSubtasks && subtasksExpanded;
 
   useEffect(() => {
-    if (expandSubtasks !== undefined) setSubtasksExpanded(true);
-  }, [expandSubtasks]);
+    if (canExpandSubtasks && expandSubtasks !== undefined) {
+      setSubtasksExpanded(true);
+    }
+  }, [canExpandSubtasks, expandSubtasks]);
 
   useEffect(() => {
     if (!drawerPinned) return;
@@ -140,7 +144,10 @@ export function TaskRow({
   ).length;
   const hasMoreMenu = Boolean(
     (!completed &&
-      (onDueChange || onPriorityChange || onSaveInline || onAddSubtask)) ||
+      (onDueChange ||
+        onPriorityChange ||
+        onSaveInline ||
+        (canExpandSubtasks && onAddSubtask))) ||
     isSubtask ||
     onDelete,
   );
@@ -176,8 +183,9 @@ export function TaskRow({
     }
   }
 
-  const subtreeNode = (totalSubtasks > 0 || isAddingSubtask) &&
-    subtasksExpanded && (
+  const subtreeNode = canExpandSubtasks &&
+    (totalSubtasks > 0 || isAddingSubtask) &&
+    effectiveSubtasksExpanded && (
       <TaskRowSubtree
         parentTask={task}
         variant={variant}
@@ -394,10 +402,14 @@ export function TaskRow({
                   availableLabels={availableLabels}
                   totalSubtasks={totalSubtasks}
                   completedSubtasks={completedSubtasks}
-                  subtasksExpanded={subtasksExpanded}
+                  subtasksExpanded={effectiveSubtasksExpanded}
                   priorityChipOpen={priorityChipOpen}
                   onPriorityChipOpenChange={setPriorityChipOpen}
-                  onToggleSubtasks={() => setSubtasksExpanded((v) => !v)}
+                  onToggleSubtasks={
+                    canExpandSubtasks
+                      ? () => setSubtasksExpanded((v) => !v)
+                      : undefined
+                  }
                   onEdit={onEdit}
                   onDueChange={onDueChange}
                   onPriorityChange={onPriorityChange}
@@ -430,7 +442,7 @@ export function TaskRow({
                 onDueChange={onDueChange}
                 onPriorityChange={onPriorityChange}
                 onStartAddSubtask={
-                  onAddSubtask
+                  canExpandSubtasks && onAddSubtask
                     ? () => {
                         setSubtasksExpanded(true);
                         setIsAddingSubtask(true);

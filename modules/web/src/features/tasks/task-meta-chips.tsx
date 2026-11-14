@@ -80,7 +80,7 @@ export function TaskMetaChips({
   subtasksExpanded: boolean;
   priorityChipOpen: boolean;
   onPriorityChipOpenChange: (open: boolean) => void;
-  onToggleSubtasks: () => void;
+  onToggleSubtasks?: () => void;
   onEdit: () => void;
   onDueChange?: (due: string) => void;
   onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
@@ -153,57 +153,73 @@ export function TaskMetaChips({
           </span>
         ))}
 
-      {totalSubtasks > 0 && (
-        <button
-          type="button"
-          data-no-drag
-          aria-expanded={subtasksExpanded}
-          aria-label={`${subtasksExpanded ? "收起" : "展开"}子任务: ${task.description}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleSubtasks();
-          }}
-          title={`${completedSubtasks}/${totalSubtasks} 个子任务`}
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1 h-4.5 rounded-[4px] px-1 -mx-1 text-[12px] leading-none text-muted-foreground/85 hover:text-foreground hover:bg-muted transition-colors cursor-pointer select-none whitespace-nowrap",
-            subtasksExpanded &&
-              variant === "card" &&
-              "bg-muted/80 text-foreground",
-          )}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-            className="size-3.5 shrink-0 opacity-80"
-            aria-hidden="true"
+      {totalSubtasks > 0 &&
+        (onToggleSubtasks ? (
+          <button
+            type="button"
+            data-no-drag
+            aria-expanded={subtasksExpanded}
+            aria-label={`${subtasksExpanded ? "收起" : "展开"}子任务: ${task.description}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSubtasks();
+            }}
+            title={`${completedSubtasks}/${totalSubtasks} 个子任务`}
+            className="inline-flex shrink-0 items-center gap-1 h-4.5 rounded-[4px] px-1 -mx-1 text-[12px] leading-none text-muted-foreground/85 hover:text-foreground hover:bg-muted transition-colors cursor-pointer select-none whitespace-nowrap"
           >
-            <path d="M4.5 2A2.5 2.5 0 0 1 5 6.95V8.5a2.5 2.5 0 0 0 2.336 2.495L7.5 11h1.55a2.5 2.5 0 1 1 0 1H7.5a3.5 3.5 0 0 1-3.495-3.308L4 8.5V6.95A2.5 2.5 0 0 1 4.5 2m7 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3m-7-7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3" />
-          </svg>
-          <span className="tabular-nums">
-            {completedSubtasks}/{totalSubtasks}
-          </span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="12"
-            height="12"
-            viewBox="0 0 16 16"
-            fill="none"
-            className={cn(
-              "size-3 shrink-0 opacity-65 transition-transform duration-150",
-              subtasksExpanded && "rotate-90",
-            )}
-            aria-hidden="true"
-          >
-            <path
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
               fill="currentColor"
-              d="M5.646 4.354a.5.5 0 1 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L9.293 8z"
-            />
-          </svg>
-        </button>
-      )}
+              className="size-3.5 shrink-0 opacity-80"
+              aria-hidden="true"
+            >
+              <path d="M4.5 2A2.5 2.5 0 0 1 5 6.95V8.5a2.5 2.5 0 0 0 2.336 2.495L7.5 11h1.55a2.5 2.5 0 1 1 0 1H7.5a3.5 3.5 0 0 1-3.495-3.308L4 8.5V6.95A2.5 2.5 0 0 1 4.5 2m7 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3m-7-7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3" />
+            </svg>
+            <span className="tabular-nums">
+              {completedSubtasks}/{totalSubtasks}
+            </span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              className={cn(
+                "size-3 shrink-0 opacity-65 transition-transform duration-150",
+                subtasksExpanded && "rotate-90",
+              )}
+              aria-hidden="true"
+            >
+              <path
+                fill="currentColor"
+                d="M5.646 4.354a.5.5 0 1 1 .708-.708l4 4a.5.5 0 0 1 0 .708l-4 4a.5.5 0 0 1-.708-.708L9.293 8z"
+              />
+            </svg>
+          </button>
+        ) : (
+          <span
+            title={`${completedSubtasks}/${totalSubtasks} 个子任务`}
+            className="inline-flex shrink-0 items-center gap-1 h-4.5 text-[12px] leading-none text-muted-foreground/85 select-none whitespace-nowrap"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              className="size-3.5 shrink-0 opacity-80"
+              aria-hidden="true"
+            >
+              <path d="M4.5 2A2.5 2.5 0 0 1 5 6.95V8.5a2.5 2.5 0 0 0 2.336 2.495L7.5 11h1.55a2.5 2.5 0 1 1 0 1H7.5a3.5 3.5 0 0 1-3.495-3.308L4 8.5V6.95A2.5 2.5 0 0 1 4.5 2m7 8a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3m-7-7a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3" />
+            </svg>
+            <span className="tabular-nums">
+              {completedSubtasks}/{totalSubtasks}
+            </span>
+          </span>
+        ))}
 
       {!!task.annotations.length && (
         <span
