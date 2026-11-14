@@ -987,7 +987,7 @@ func (m model) View() string {
 	pad := max(1, w-lipgloss.Width(header)-lipgloss.Width(right)-2)
 	header += strings.Repeat(" ", pad) + right
 
-	contentHeight := h - 4
+	contentHeight := max(5, h-2)
 	var body string
 	if m.help {
 		body = lipgloss.Place(
@@ -1057,11 +1057,35 @@ func (m model) View() string {
 			Bold(true).
 			Render("! 写入锁定 · ")
 	}
-	footer := dim.Render(
-		"  Tab/←→ 切焦点   j/k 移动   Space 折展   x 完成   s 计时   a 新建   S 子任务   : 菜单   ? 帮助",
-	)
-	message := clip("  "+stateDot+softText.Render(clean(m.message)), w)
-	output := header + "\n" + body + "\n" + footer + "\n" + message
+
+	left := "  " + stateDot + softText.Render(clean(m.message))
+	leftW := lipgloss.Width(left)
+
+	var shortcuts string
+	if m.board && m.taskView() {
+		shortcuts = "Tab 切焦点   ←→ 切列   j/k 选卡   Space 折展   x 完成   s 计时   a 新建   b 列表   ? 帮助  "
+	} else {
+		shortcuts = "Tab/←→ 切焦点   j/k 移动   Space 折展   x 完成   s 计时   a 新建   S 子任务   : 菜单   ? 帮助  "
+	}
+
+	if leftW+lipgloss.Width(shortcuts) > w {
+		if m.board && m.taskView() {
+			shortcuts = "←→ 切列   Space 折展   x 完成   a 新建   b 列表   ? 帮助  "
+		} else {
+			shortcuts = "Tab 切焦点   Space 折展   x 完成   a 新建   ? 帮助  "
+		}
+	}
+	if leftW+lipgloss.Width(shortcuts) > w {
+		shortcuts = "? 帮助  "
+	}
+
+	gap := max(1, w-leftW-lipgloss.Width(shortcuts))
+	footerLine := left
+	if w-leftW >= lipgloss.Width(shortcuts)+1 {
+		footerLine = left + strings.Repeat(" ", gap) + dim.Render(shortcuts)
+	}
+
+	output := header + "\n" + body + "\n" + clip(footerLine, w)
 	lines := strings.Split(output, "\n")
 	for i := range lines {
 		lines[i] = clip(lines[i], w)
@@ -1182,23 +1206,19 @@ func (m model) boardView(w, h int, f renderFrame) string {
 		if len(ts) == 0 {
 			lines = append(lines, dim.Render("暂无任务"))
 		}
-		offset = max(0, selectedLine-(h-7))
+		offset = max(0, selectedLine-(h-6))
 		panes = append(
 			panes,
 			panelWithRight(
 				c.Name,
 				fmt.Sprintf("%d", len(ts)),
-				window(lines, offset, h-5),
+				window(lines, offset, h-4),
 				colW,
-				h-1,
+				h,
 				i == m.boardColumn && !m.navFocus,
 			),
 		)
 	}
-	content := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		panes...) + "\n" + dim.Render(
-		" ← → 切列 · ↑↓ 选卡 · m 移动 · S 子任务 · b 列表",
-	)
+	content := lipgloss.JoinHorizontal(lipgloss.Top, panes...)
 	return lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Render(content)
 }
