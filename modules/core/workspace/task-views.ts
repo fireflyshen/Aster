@@ -11,7 +11,7 @@ import {
   type WorkspaceClient,
   type WorkspaceTaskQuery,
 } from "./client.ts";
-import { focusProject, inProject } from "./focus.ts";
+import { focusProject, inProject, isCompletedProject } from "./focus.ts";
 import type { Organization } from "./organization.ts";
 
 /** Executes a task query through the shared workspace server when reachable, returning tasks and any project catalog included by the server. */
@@ -160,14 +160,29 @@ export async function loadTaskViewWithCatalog(
         "Shared Focus unavailable. Refresh before choosing projects.",
       );
     }
+    const filtered = activeTasks.filter((task) =>
+      view === "focus"
+        ? !!focusProject(task.project, organization.projects)
+        : !!task.project &&
+          !focusProject(task.project, organization.projects) &&
+          !isCompletedProject(task.project, organization.projects),
+    );
+    const ordered =
+      view === "focus"
+        ? [...filtered].sort(
+            (a, b) =>
+              Number(
+                focusProject(b.project, organization.projects)?.nextTask ===
+                  b.uuid,
+              ) -
+              Number(
+                focusProject(a.project, organization.projects)?.nextTask ===
+                  a.uuid,
+              ),
+          )
+        : filtered;
     return {
-      tasks: activeTasks.filter((task) =>
-        view === "focus"
-          ? focusProject(task.project, organization.projects)?.nextTask ===
-            task.uuid
-          : !!task.project &&
-            !focusProject(task.project, organization.projects),
-      ),
+      tasks: ordered,
       allTasks: tasks,
       projects,
     };

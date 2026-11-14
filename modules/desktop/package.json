@@ -96,6 +96,13 @@
       "mode": "view"
     },
     {
+      "name": "projects",
+      "title": "Focus & Projects",
+      "subtitle": "Aster",
+      "description": "Open project task lists and manage up to three active Focus projects",
+      "mode": "view"
+    },
+    {
       "name": "quick-add",
       "title": "Quick Add Task",
       "subtitle": "Aster",

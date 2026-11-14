@@ -5,7 +5,14 @@ import {
     type TaskView,
     type TaskwarriorTask,
 } from "../../../core/tasks/model.ts";
+import {
+    type BoardState,
+    columnTasks,
+    inheritSubtaskColumns,
+    unsectionedColumn,
+} from "../../../core/workspace/board.ts";
 import { formatDuration } from "../../../core/workspace/energy.ts";
+import { focusProject, projectStatus } from "../../../core/workspace/focus.ts";
 import {
     itemColor,
     type Organization,
@@ -29,14 +36,14 @@ export const VIEWS: Array<{
     id: TaskView | "focus" | "later" | "inbox" | "active";
     title: string;
 }> = [
-    { id: "focus", title: "Focus · Next Steps" },
-    { id: "later", title: "Later" },
-    { id: "pending", title: "All Pending" },
+    { id: "pending", title: "All Tasks" },
     { id: "today", title: "Today & Overdue" },
+    { id: "focus", title: "Focus" },
     { id: "urgency", title: "Urgency · Top Score" },
     { id: "inbox", title: "Inbox" },
     { id: "active", title: "In Progress" },
     { id: "waiting", title: "Waiting" },
+    { id: "later", title: "Later" },
     { id: "completed", title: "Completed" },
 ];
 
@@ -61,12 +68,65 @@ export function displayDate(date: Date): string {
 /** Returns whether a filter ID renders a single ungrouped list instead of due sections. */
 export function isCustomFilterView(filter: string): boolean {
     return (
-        filter === "focus" ||
         filter === "urgency" ||
         filter === "expression" ||
         filter.startsWith("filter:") ||
         filter.startsWith("column:")
     );
+}
+
+export interface ProjectColumnSection {
+    id: string;
+    title: string;
+    entries: TaskSectionEntry[];
+}
+
+/** Groups a project's tasks into its custom board columns when configured, returning null to fall back to due groups. */
+export function buildProjectColumnSections(
+    tasks: TaskwarriorTask[],
+    allTasks: TaskwarriorTask[],
+    board: BoardState,
+    projectName: string,
+    subtaskMeta: SubtaskMeta,
+    organization?: Organization,
+): ProjectColumnSection[] | null {
+    const projectColumns = board.columns.filter(
+        (column) => (column.project || "") === projectName,
+    );
+    if (projectColumns.length === 0) return null;
+    const effectiveBoard = organization
+        ? inheritSubtaskColumns(board, allTasks, organization.subtasks || {})
+        : board;
+    const columns = [unsectionedColumn, ...projectColumns];
+    const visibleIds = new Set(columns.map((column) => column.id));
+    return columns
+        .map((column) => ({
+            id: column.id,
+            title: column.name,
+            entries: selectSectionTasks(
+                columnTasks(tasks, effectiveBoard, column.id, visibleIds),
+                subtaskMeta,
+            ),
+        }))
+        .filter((section) => section.entries.length > 0);
+}
+
+/** Separates pinned Focus next-step tasks from the rest of the active Focus tasks. */
+export function partitionFocusTasks(
+    tasks: TaskwarriorTask[],
+    organization?: Organization,
+): { nextSteps: TaskwarriorTask[]; rest: TaskwarriorTask[] } {
+    const projects = organization?.projects || [];
+    const nextSteps: TaskwarriorTask[] = [];
+    const rest: TaskwarriorTask[] = [];
+    for (const task of tasks) {
+        if (focusProject(task.project, projects)?.nextTask === task.uuid) {
+            nextSteps.push(task);
+        } else {
+            rest.push(task);
+        }
+    }
+    return { nextSteps, rest };
 }
 
 function isSameCalendarDay(a: Date, b: Date): boolean {
@@ -249,18 +309,20 @@ export function taskItemIcon(
     return Icon.Circle;
 }
 
-/** Computes the navigation title displaying timer/energy status and connection label. */
+/** Computes the navigation title displaying optional section, timer/energy status, and connection label. */
 export function listNavigationTitle(
     connectionLabel: string,
     organization: Organization | undefined,
+    sectionTitle?: string,
 ): string {
+    const prefix = sectionTitle || "My Tasks";
     if (organization?.timing?.available === false) {
-        return `My Tasks · Timer unavailable · ${connectionLabel}`;
+        return `${prefix} · Timer unavailable · ${connectionLabel}`;
     }
     if (organization?.energy) {
-        return `My Tasks · ⚡ ${organization.energy.remaining}/${organization.energy.max} · ${connectionLabel}`;
+        return `${prefix} · ⚡ ${organization.energy.remaining}/${organization.energy.max} · ${connectionLabel}`;
     }
-    return `My Tasks · ${connectionLabel}`;
+    return `${prefix} · ${connectionLabel}`;
 }
 
 /** Computes empty-state title and optional description for the current view state. */
@@ -270,19 +332,30 @@ export function emptyViewCopy(
     error: Error | undefined,
     organization: Organization | undefined,
 ): { title: string; description: string | undefined } {
+    const hasActiveFocus = (organization?.projects || []).some(
+        (project) => projectStatus(project) === "active",
+    );
     const title = error
         ? "Could Not Load Tasks"
         : isLoading
           ? "Loading Tasks…"
           : filter === "focus" && organization
-            ? "Choose Your Next Step"
-            : filter === "completed"
-              ? "No Completed Tasks"
-              : "No Tasks in This View";
+            ? hasActiveFocus
+                ? "No Open Tasks in Focus"
+                : "Choose Focus Projects"
+            : filter.startsWith("project:")
+              ? "No Open Tasks in Project"
+              : filter === "completed"
+                ? "No Completed Tasks"
+                : "No Tasks in This View";
     const description =
         error?.message ||
         (filter === "focus" && organization
-            ? "Use Manage Focus Projects to choose up to three projects and their next tasks."
-            : undefined);
+            ? hasActiveFocus
+                ? "Add a task to your Focus projects (⌘N) or Switch View (⌘P)."
+                : "Press Enter on Manage Focus & Projects or pick up to three active projects."
+            : filter.startsWith("project:")
+              ? "Press ⌘N to add a task in this project, or Switch View (⌘P) for All Tasks."
+              : undefined);
     return { title, description };
 }

@@ -16,6 +16,7 @@ import {
 } from "../../../core/workspace/board.ts";
 import type { WorkspaceClient } from "../../../core/workspace/client.ts";
 import type { Organization } from "../../../core/workspace/organization.ts";
+import { projectPath } from "../../../core/workspace/projects.ts";
 import CheckConnection from "./connection-check";
 import { FilterForm } from "./filter-form";
 import { FocusProjects } from "./focus-projects";
@@ -27,6 +28,7 @@ import { QuickCapture } from "./quick-capture";
 import { TaskDetail } from "./task-detail";
 import { NotesList, RecoveryListView, SeriesForm } from "./task-extras";
 import { TaskForm } from "./task-form";
+import { VIEWS } from "./task-list-model";
 import type { useTaskListActions } from "./use-task-list-actions";
 
 export type TaskActionsController = ReturnType<typeof useTaskListActions>;
@@ -37,12 +39,19 @@ export interface CommonTaskActionsProps {
     workspaceError: Error | undefined;
     organization: Organization | undefined;
     knownProjects?: string[];
+    defaultProject?: string;
+    currentView?: string;
     expression: string;
     undoTask: TaskwarriorTask | undefined;
     showInspector?: boolean;
     subtaskParentTask?: TaskwarriorTask;
     onToggleInspector?: () => void;
     renderSubtaskScreen?: (target: TaskwarriorTask) => ReactNode;
+    renderProjectScreen?: (
+        projectName: string,
+        onMutated?: () => Promise<unknown>,
+    ) => ReactNode;
+    onSelectView?: (view: string) => void;
     onApplyExpression?: (value: string) => void;
     onRefreshAll: () => Promise<unknown>;
     onUndo: () => Promise<void>;
@@ -56,11 +65,15 @@ export function CommonTaskActions({
     workspaceError,
     organization,
     knownProjects,
+    defaultProject,
+    currentView,
     expression,
     undoTask,
     showInspector,
     subtaskParentTask,
     onToggleInspector,
+    renderProjectScreen,
+    onSelectView,
     onApplyExpression,
     onRefreshAll,
     onUndo,
@@ -92,6 +105,9 @@ export function CommonTaskActions({
                     target={
                         <QuickCapture
                             service={service}
+                            initialExpression={
+                                defaultProject ? `#${defaultProject} ` : ""
+                            }
                             onSaved={onRefreshAll}
                         />
                     }
@@ -110,10 +126,63 @@ export function CommonTaskActions({
                         workspace={client}
                         labels={organization?.tags}
                         knownProjects={knownProjects}
+                        initialInput={
+                            defaultProject
+                                ? {
+                                      description: "",
+                                      project: defaultProject,
+                                      priority: "",
+                                      tags: [],
+                                  }
+                                : undefined
+                        }
                         onSaved={onRefreshAll}
                     />
                 }
             />
+            {onSelectView ? (
+                <ActionPanel.Submenu
+                    title="Switch View"
+                    icon={Icon.AppWindowGrid3x3}
+                    shortcut={{
+                        macOS: { modifiers: ["cmd", "shift"], key: "v" },
+                        Windows: { modifiers: ["ctrl", "shift"], key: "v" },
+                    }}
+                >
+                    <ActionPanel.Section title="Views">
+                        {VIEWS.map((view) => (
+                            <Action
+                                key={view.id}
+                                title={view.title}
+                                icon={
+                                    currentView === view.id
+                                        ? Icon.Checkmark
+                                        : Icon.List
+                                }
+                                onAction={() => onSelectView(view.id)}
+                            />
+                        ))}
+                    </ActionPanel.Section>
+                    {knownProjects?.length ? (
+                        <ActionPanel.Section title="Projects">
+                            {knownProjects.map((project) => (
+                                <Action
+                                    key={project}
+                                    title={projectPath(project)}
+                                    icon={
+                                        currentView === `project:${project}`
+                                            ? Icon.Checkmark
+                                            : Icon.Hashtag
+                                    }
+                                    onAction={() =>
+                                        onSelectView(`project:${project}`)
+                                    }
+                                />
+                            ))}
+                        </ActionPanel.Section>
+                    ) : null}
+                </ActionPanel.Submenu>
+            ) : null}
             {onToggleInspector ? (
                 <Action
                     title={showInspector ? "Hide Inspector" : "Show Inspector"}
@@ -157,7 +226,7 @@ export function CommonTaskActions({
             ) : null}
             {client && organization ? (
                 <Action.Push
-                    title="Manage Focus Projects"
+                    title="Focus & Projects"
                     icon={Icon.BullsEye}
                     target={
                         <FocusProjects
@@ -165,6 +234,7 @@ export function CommonTaskActions({
                             initial={organization}
                             service={service}
                             onSaved={onRefreshAll}
+                            renderProjectScreen={renderProjectScreen}
                         />
                     }
                 />

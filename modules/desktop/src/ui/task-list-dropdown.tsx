@@ -29,7 +29,11 @@ export function TaskViewDropdown({
   projects,
 }: TaskViewDropdownProps) {
   return (
-    <List.Dropdown tooltip="View Tasks" value={filter} onChange={onChange}>
+    <List.Dropdown
+      tooltip="Switch View (⌘P)"
+      value={filter}
+      onChange={onChange}
+    >
       <List.Dropdown.Section title="Views">
         {VIEWS.map((view) => (
           <List.Dropdown.Item

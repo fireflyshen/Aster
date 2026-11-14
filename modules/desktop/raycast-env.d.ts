@@ -30,6 +30,8 @@ declare type Preferences = ExtensionPreferences
 declare namespace Preferences {
   /** Preferences accessible in the `my-tasks` command */
   export type MyTasks = ExtensionPreferences & {}
+  /** Preferences accessible in the `projects` command */
+  export type Projects = ExtensionPreferences & {}
   /** Preferences accessible in the `quick-add` command */
   export type QuickAdd = ExtensionPreferences & {}
 }
@@ -37,6 +39,8 @@ declare namespace Preferences {
 declare namespace Arguments {
   /** Arguments passed to the `my-tasks` command */
   export type MyTasks = {}
+  /** Arguments passed to the `projects` command */
+  export type Projects = {}
   /** Arguments passed to the `quick-add` command */
   export type QuickAdd = {
   /** Task tomorrow #Work @focus p1 */

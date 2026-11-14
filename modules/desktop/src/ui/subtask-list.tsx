@@ -1,6 +1,6 @@
 import { ActionPanel, Icon, List } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { taskGroup, type TaskwarriorTask } from "../../../core/tasks/model.ts";
 import type { TaskService } from "../../../core/tasks/service.ts";
 import { defaultBoard } from "../../../core/workspace/board.ts";
@@ -24,6 +24,10 @@ export interface SubtaskListProps {
   service: TaskService;
   showInspector: boolean;
   onToggleInspector: () => void;
+  renderProjectScreen?: (
+    projectName: string,
+    onMutated?: () => Promise<unknown>,
+  ) => ReactNode;
   onParentRefresh: () => Promise<unknown>;
 }
 
@@ -37,6 +41,7 @@ export function SubtaskList({
   service,
   showInspector,
   onToggleInspector,
+  renderProjectScreen,
   onParentRefresh,
 }: SubtaskListProps) {
   const [inspector, setInspector] = useState(showInspector);
@@ -125,6 +130,7 @@ export function SubtaskList({
       service={service}
       showInspector={inspector}
       onToggleInspector={handleToggleInspector}
+      renderProjectScreen={renderProjectScreen}
       onParentRefresh={actions.refreshAll}
     />
   );
@@ -141,6 +147,7 @@ export function SubtaskList({
     subtaskParentTask: parent,
     onToggleInspector: handleToggleInspector,
     renderSubtaskScreen,
+    renderProjectScreen,
     onRefreshAll: actions.refreshAll,
     onUndo: actions.undo,
     onRestoreElixir: actions.restoreElixir,
