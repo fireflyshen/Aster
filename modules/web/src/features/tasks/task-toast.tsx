@@ -21,7 +21,7 @@ export function TaskToast({
   disabled?: boolean;
 }) {
   return (
-    <Toast.Provider duration={4500} swipeDirection="down">
+    <Toast.Provider duration={6000} swipeDirection="down">
       <Toast.Root
         open={open}
         onOpenChange={onOpenChange}
@@ -50,7 +50,7 @@ export function TaskToast({
           </button>
         </Toast.Close>
       </Toast.Root>
-      <Toast.Viewport className="fixed bottom-4 left-4 z-[1000] m-0 w-auto max-w-[calc(100vw-2rem)] list-none outline-none" />
+      <Toast.Viewport className="task-toast-viewport fixed bottom-4 left-4 z-[1000] m-0 w-auto max-w-[calc(100vw-2rem)] list-none outline-none" />
     </Toast.Provider>
   );
 }

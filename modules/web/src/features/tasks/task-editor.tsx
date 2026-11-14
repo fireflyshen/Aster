@@ -13,16 +13,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Hash, Inbox } from "lucide-react";
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
+import { useDesktop } from "@/lib/use-desktop";
 import { cn } from "cn";
-
-const desktopQuery = "(min-width: 768px)";
-function subscribe(callback: () => void) {
-  const media = window.matchMedia(desktopQuery);
-  media.addEventListener("change", callback);
-  return () => media.removeEventListener("change", callback);
-}
-const desktopSnapshot = () => window.matchMedia(desktopQuery).matches;
 
 export function TaskEditor({
   open,
@@ -41,7 +34,8 @@ export function TaskEditor({
   detail?: boolean;
   location?: string;
 }) {
-  const desktop = useSyncExternalStore(subscribe, desktopSnapshot, () => false);
+  const desktop = useDesktop();
+  const mobileContent = useRef<HTMLDivElement>(null);
   const Header = desktop ? DialogHeader : SheetHeader;
   const Title = desktop ? DialogTitle : SheetTitle;
   const Description = desktop ? DialogDescription : SheetDescription;
@@ -91,9 +85,16 @@ export function TaskEditor({
   ) : (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        ref={mobileContent}
         data-editor-layout="mobile"
         data-task-detail={detail}
         side="bottom"
+        onOpenAutoFocus={(event) => {
+          if (detail) {
+            event.preventDefault();
+            mobileContent.current?.focus({ preventScroll: true });
+          }
+        }}
         showCloseButton={!busy}
         className="mx-auto max-h-[calc(100dvh-0.75rem)] max-w-xl gap-0 overflow-hidden rounded-t-xl p-0"
         onEscapeKeyDown={preventClose}

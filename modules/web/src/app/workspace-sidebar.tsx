@@ -200,7 +200,10 @@ export function WorkspaceSidebar({
       </div>
       <Button
         variant="ghost"
-        onClick={onAdd}
+        onClick={() => {
+          closeOnMobile();
+          onAdd();
+        }}
         disabled={busy || needsCheck}
         aria-keyshortcuts="Q"
         className="sidebar-add h-9 w-full justify-start gap-2.5 px-2 font-semibold text-(--navigation-selected-ink) hover:bg-navigation-hover hover:text-(--navigation-selected-ink) has-[>svg]:px-2"
@@ -215,7 +218,10 @@ export function WorkspaceSidebar({
       </Button>
       <Button
         variant="navigation"
-        onClick={onSearch}
+        onClick={() => {
+          closeOnMobile();
+          onSearch();
+        }}
         aria-keyshortcuts="Meta+K Control+K"
         className="sidebar-search"
       >
@@ -278,7 +284,10 @@ export function WorkspaceSidebar({
         organizationPage={organizationPage}
         activeEntry={activeEntry}
         disabled={disabled}
-        onEntry={onEntry}
+        onEntry={(entry) => {
+          closeOnMobile();
+          onEntry(entry);
+        }}
       />
       <SidebarProjectsSection
         organization={organization}
@@ -295,11 +304,26 @@ export function WorkspaceSidebar({
           onProjects();
           closeOnMobile();
         }}
-        onAddProject={onAddProject}
-        onAddSubproject={onAddSubproject}
-        onEditProject={onEditProject}
-        onDeleteProject={onDeleteProject}
-        onProjectStatus={onProjectStatus}
+        onAddProject={() => {
+          closeOnMobile();
+          onAddProject();
+        }}
+        onAddSubproject={(name) => {
+          closeOnMobile();
+          onAddSubproject(name);
+        }}
+        onEditProject={(name) => {
+          closeOnMobile();
+          onEditProject(name);
+        }}
+        onDeleteProject={(name) => {
+          closeOnMobile();
+          onDeleteProject(name);
+        }}
+        onProjectStatus={(name, status) => {
+          closeOnMobile();
+          onProjectStatus(name, status);
+        }}
         onSelectProject={(name) => {
           onProject(name);
           closeOnMobile();

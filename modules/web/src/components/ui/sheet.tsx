@@ -58,6 +58,7 @@ function SheetContent({
       <SheetOverlay />
       <SheetPrimitive.Content
         data-slot="sheet-content"
+        data-side={side}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-background shadow-modal ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:animate-in data-[state=open]:duration-200",
           side === "right" &&
@@ -75,6 +76,7 @@ function SheetContent({
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close
+            data-slot="sheet-close"
             aria-label="Close"
             className="absolute top-3 right-3 inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none md:size-8 [&_svg]:pointer-events-none [&_svg]:size-4"
           >

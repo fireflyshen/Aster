@@ -15,6 +15,7 @@ import {
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { dragInputPoint } from "./drag-input";
 import type { Task } from "@shared/tasks";
 import {
   projectDrop,
@@ -214,9 +215,11 @@ export function TaskDragLayer({
     setPreview(undefined);
   }
   useEffect(() => {
-    const pointer = (event: PointerEvent) => {
+    const pointer = (event: Event) => {
       if (!session.current || session.current.keyboard) return;
-      session.current.point = { x: event.clientX, y: event.clientY };
+      const point = dragInputPoint(event);
+      if (!point) return;
+      session.current.point = point;
       schedule();
     };
     const invalidate = () => {
@@ -226,6 +229,7 @@ export function TaskDragLayer({
       }
     };
     document.addEventListener("pointermove", pointer, { passive: true });
+    document.addEventListener("touchmove", pointer, { passive: true });
     document.addEventListener("scroll", invalidate, {
       capture: true,
       passive: true,
@@ -235,6 +239,7 @@ export function TaskDragLayer({
     if (area.current) observer.observe(area.current);
     return () => {
       document.removeEventListener("pointermove", pointer);
+      document.removeEventListener("touchmove", pointer);
       document.removeEventListener("scroll", invalidate, true);
       window.removeEventListener("resize", invalidate);
       observer.disconnect();
@@ -255,13 +260,12 @@ export function TaskDragLayer({
         layout === "list"
           ? surface.getBoundingClientRect()
           : source.getBoundingClientRect();
-      const keyboard = !("clientX" in event.activatorEvent);
-      const origin = keyboard
-        ? { x: rect.left, y: rect.top + rect.height / 2 }
-        : {
-            x: Number((event.activatorEvent as PointerEvent).clientX),
-            y: Number((event.activatorEvent as PointerEvent).clientY),
-          };
+      const inputPoint = dragInputPoint(event.activatorEvent);
+      const keyboard = !inputPoint;
+      const origin = inputPoint ?? {
+        x: rect.left,
+        y: rect.top + rect.height / 2,
+      };
       let parent = source.parentElement?.closest("[data-task-card]");
       let depth = 0;
       while (parent) {

@@ -1,12 +1,6 @@
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
-import { useSyncExternalStore, type ReactNode } from "react";
-
-const desktopSnapshot = () => window.matchMedia("(min-width: 768px)").matches;
-function subscribe(callback: () => void) {
-  const media = window.matchMedia("(min-width: 768px)");
-  media.addEventListener("change", callback);
-  return () => media.removeEventListener("change", callback);
-}
+import { type ReactNode } from "react";
+import { useDesktop } from "@/lib/use-desktop";
 
 export function WorkspaceNavigation({
   open,
@@ -17,7 +11,7 @@ export function WorkspaceNavigation({
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
 }) {
-  const desktop = useSyncExternalStore(subscribe, desktopSnapshot, () => false);
+  const desktop = useDesktop();
   const contentClass =
     "flex flex-col overflow-y-auto bg-sidebar px-3 pb-3 [&>*]:shrink-0";
   if (desktop) {
@@ -41,6 +35,10 @@ export function WorkspaceNavigation({
         side="left"
         aria-describedby={undefined}
         showCloseButton={false}
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          document.getElementById("sidebar-close")?.focus();
+        }}
         className={`${contentClass} w-[280px] gap-0 border-0 pt-[env(safe-area-inset-top)] pb-[max(0.75rem,env(safe-area-inset-bottom))] data-[state=open]:duration-200 data-[state=closed]:duration-200`}
       >
         <SheetTitle className="sr-only">Workspace navigation</SheetTitle>

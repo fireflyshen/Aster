@@ -7,7 +7,7 @@ import {
   type KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
 import type { ComponentProps } from "react";
-import { SmartPointerSensor } from "./smart-pointer-sensor";
+import { SmartPointerSensor, SmartTouchSensor } from "./smart-pointer-sensor";
 
 type BoardAccessibility = NonNullable<
   ComponentProps<typeof DndContext>["accessibility"]
@@ -53,6 +53,9 @@ export function useBoardDnd(layout: "board" | "list", columns: Column[]) {
   const sensors = useSensors(
     useSensor(SmartPointerSensor, {
       activationConstraint: { distance: 5 },
+    }),
+    useSensor(SmartTouchSensor, {
+      activationConstraint: { delay: 280, tolerance: 8 },
     }),
     useSensor(KeyboardSensor, { coordinateGetter: keyboardCoordinates }),
   );

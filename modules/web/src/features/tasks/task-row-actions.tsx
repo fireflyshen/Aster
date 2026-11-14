@@ -85,7 +85,6 @@ export function TaskRowActions({
           : "opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100",
       )}
     >
-      {variant === "list" && extraActions}
       {variant === "list" && !completed && onInlineEdit && (
         <Button
           type="button"
@@ -235,6 +234,9 @@ export function TaskRowActions({
           onUnlinkSubtask={onUnlinkSubtask}
           onEdit={onEdit}
           onDelete={onDelete}
+          onToggleStart={onToggleStart}
+          timingUnavailable={timingUnavailable}
+          extraActions={extraActions}
         />
       )}
     </div>

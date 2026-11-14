@@ -68,6 +68,14 @@ export function BoardCard({
         }
         listeners?.onPointerDown?.(event);
       }}
+      onTouchStart={(event) => {
+        if (
+          (event.target as Element).closest("[data-task-card]") ===
+          event.currentTarget
+        ) {
+          listeners?.onTouchStart?.(event);
+        }
+      }}
       className={cn(
         "board-card group/card relative [&:has(:focus-visible)]:bg-(--row-hover)",
         compact
