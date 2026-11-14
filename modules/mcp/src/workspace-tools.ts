@@ -114,11 +114,15 @@ export function registerWorkspaceTools({
 
   register(
     "column_save",
-    "Create/rename shared list group/board column. New column id is empty string.",
+    "Create/rename shared list group/board column, optionally scoped to a project. New column id is empty string.",
     {
       revision: revisionSchema,
       column: z
-        .object({ id: z.string(), name: z.string().min(1).max(60) })
+        .object({
+          id: z.string(),
+          name: z.string().min(1).max(60),
+          project: z.string().max(200).optional(),
+        })
         .strict(),
     },
     false,
@@ -147,15 +151,62 @@ export function registerWorkspaceTools({
 
   register(
     "board_task_move",
-    "Move/sort task in shared list/board. columnId=unsectioned for no group; beforeUuid=null appends. Never changes completion or timer state.",
+    "Move/sort task subtree in shared list/board. columnId=unsectioned for no group; beforeUuid=null appends. Optional parentUuid nests or promotes (null) atomically. Never changes completion or timer state.",
     {
       revision: revisionSchema,
       uuid: uuidSchema,
       columnId: z.string(),
       beforeUuid: uuidSchema.nullable(),
+      parentUuid: uuidSchema.nullable().optional(),
     },
     false,
     (i) => org({ kind: "board", action: "task.move", ...i }),
+  );
+
+  register(
+    "subtask_link",
+    "Link childUuid as a subtask under parentUuid so clients show nested checklists (e.g. 0/3). Cycles and self-links are rejected.",
+    {
+      revision: revisionSchema,
+      childUuid: uuidSchema,
+      parentUuid: uuidSchema,
+    },
+    false,
+    (i) => org({ kind: "subtask", action: "link", ...i }),
+  );
+
+  register(
+    "subtask_unlink",
+    "Promote subtask childUuid back to a top-level task without deleting or modifying Taskwarrior fields.",
+    {
+      revision: revisionSchema,
+      childUuid: uuidSchema,
+    },
+    false,
+    (i) => org({ kind: "subtask", action: "unlink", ...i }),
+  );
+
+  register(
+    "task_description_set",
+    "Set or clear (empty string) a task's rich Markdown body description (acceptance criteria, links, study guide) displayed across Web, TUI, and Desktop.",
+    {
+      revision: revisionSchema,
+      uuid: uuidSchema,
+      description: z.string().max(20000),
+    },
+    false,
+    (i) => org({ kind: "description", action: "set", ...i }),
+  );
+
+  register(
+    "task_description_delete",
+    "Delete the stored Markdown description for a task.",
+    {
+      revision: revisionSchema,
+      uuid: uuidSchema,
+    },
+    false,
+    (i) => org({ kind: "description", action: "delete", ...i }),
   );
 
   register(

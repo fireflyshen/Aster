@@ -18,6 +18,27 @@ const taskSchema = z
   })
   .strict();
 
+const taskCreateSchema = taskSchema
+  .extend({
+    parentUuid: uuidSchema.optional(),
+    taskDescription: z.string().max(20000).optional(),
+  })
+  .strict();
+
+const taskPatchSchema = z
+  .object({
+    uuid: uuidSchema,
+    description: z.string().min(1).max(2000).optional(),
+    tags: z.array(z.string().min(1).max(80)).max(30).optional(),
+    project: z.string().max(200).optional(),
+    due: dateSchema.optional(),
+    priority: z.enum(["", "H", "M", "L"]).optional(),
+    recur: z.string().max(200).optional(),
+    until: dateSchema.optional(),
+    note: z.string().max(8000).optional(),
+  })
+  .strict();
+
 const TASK_ACTION_DESCRIPTIONS: Record<string, string> = {
   complete: "Complete task",
   reopen: "Reopen completed task",
@@ -34,6 +55,34 @@ function compactIsoDate(value: string | undefined): string {
         .replace(/[-:]/g, "")
         .replace(/\.\d{3}Z$/, "Z")
     : "";
+}
+
+function buildEditInput(found: any) {
+  return {
+    description: found.description,
+    tags: found.tags,
+    project: found.project || "",
+    due: compactIsoDate(found.due),
+    priority: found.priority || "",
+    ...(found.recur !== undefined ? { recur: found.recur } : {}),
+    ...(found.until !== undefined
+      ? { until: compactIsoDate(found.until) }
+      : {}),
+  };
+}
+
+async function fetchTaskByUuid(
+  get: McpToolRegistrar["get"],
+  uuid: string,
+): Promise<any> {
+  const result = await get(
+    "/api/tasks?filter=" + encodeURIComponent("uuid:" + uuid),
+  );
+  const found = result.tasks.find((t: any) => t.uuid === uuid);
+  if (!found) {
+    throw new Error("Task not found. Deleted tasks use recovery_list.");
+  }
+  return found;
 }
 
 /** Registers Taskwarrior task and recurrence MCP tools. */
@@ -62,26 +111,10 @@ export function registerTaskTools({
     { uuid: uuidSchema },
     true,
     async (i) => {
-      const result = await get(
-        "/api/tasks?filter=" + encodeURIComponent("uuid:" + i.uuid),
-      );
-      const found = result.tasks.find((t: any) => t.uuid === i.uuid);
-      if (!found) {
-        throw new Error("Task not found. Deleted tasks use recovery_list.");
-      }
+      const found = await fetchTaskByUuid(get, i.uuid);
       return {
         ...found,
-        editInput: {
-          description: found.description,
-          tags: found.tags,
-          project: found.project || "",
-          due: compactIsoDate(found.due),
-          priority: found.priority || "",
-          ...(found.recur !== undefined ? { recur: found.recur } : {}),
-          ...(found.until !== undefined
-            ? { until: compactIsoDate(found.until) }
-            : {}),
-        },
+        editInput: buildEditInput(found),
       };
     },
   );
@@ -96,8 +129,8 @@ export function registerTaskTools({
 
   register(
     "task_create",
-    "Create task with optional repeat rule and initial note. Dates compact UTC. Read tasks after success; never retry unknown results.",
-    { task: taskSchema },
+    "Create task with optional repeat rule, initial note, parentUuid (subtask link) and rich Markdown taskDescription. Dates compact UTC. Read tasks after success; never retry unknown results.",
+    { task: taskCreateSchema },
     false,
     (i) => post("/api/tasks", i.task),
     false,
@@ -109,6 +142,35 @@ export function registerTaskTools({
     { uuid: uuidSchema, task: taskSchema },
     false,
     (i) => post("/api/action", { action: "edit", ...i }),
+  );
+
+  register(
+    "task_patch",
+    "Partially update selected fields (e.g. reschedule due, priority, tags, project, or append note) without clearing omitted fields. Fetches current task first; never auto-retries unknown results.",
+    taskPatchSchema.shape,
+    false,
+    async (i) => {
+      const { uuid, ...patch } = i;
+      if (Object.values(patch).every((value) => value === undefined)) {
+        throw new Error("Provide at least one field to update.");
+      }
+      const found = await fetchTaskByUuid(get, uuid);
+      const base = buildEditInput(found);
+      const next = {
+        ...base,
+        ...(patch.description !== undefined
+          ? { description: patch.description }
+          : {}),
+        ...(patch.tags !== undefined ? { tags: patch.tags } : {}),
+        ...(patch.project !== undefined ? { project: patch.project } : {}),
+        ...(patch.due !== undefined ? { due: patch.due } : {}),
+        ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
+        ...(patch.recur !== undefined ? { recur: patch.recur } : {}),
+        ...(patch.until !== undefined ? { until: patch.until } : {}),
+        ...(patch.note !== undefined ? { note: patch.note } : {}),
+      };
+      return post("/api/action", { action: "edit", uuid, task: next });
+    },
   );
 
   for (const [action, summary] of Object.entries(TASK_ACTION_DESCRIPTIONS)) {

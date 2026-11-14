@@ -35,11 +35,22 @@ ASTER_SSH_TARGET=dmit npm run start:mcp
 
 也可以设置 `ASTER_SOCKET=/absolute/path/workspace.sock` 直接访问本地或已转发的 socket，此时忽略 SSH 配置。只配置连接你打算授权给 AI 使用的工作区；工具可以修改任务并执行数据恢复。
 
+## AI 接管项目建议工作流
+
+针对“AI 全面制定计划/拆解任务，我只管在客户端勾完成”的使用方式，本次已内置以下能力：
+
+1. **一次掌握全貌**：调用 `project_digest`（可传 `project`），一次拿到当前 `revision`、项目分栏、父子任务树、任务正文 `taskDescription`、高 `urgency` 优先级、逾期/今日待办以及最近已勾选完成的任务列表。
+2. **批量落盘阶段计划**：调用 `plan_apply`，一步完成项目元信息/激活、按项目创建阶段栏目、创建父任务与子任务并写入 Markdown `taskDescription`、挂载到对应阶段栏，以及设置 `nextTask`。
+3. **安全局部微调**：用 `task_patch` 只改部分字段（如顺延 `due`、调整 `priority` 或追加 `note`），不会误清项目或原有标签；`task_create`、`subtask_link`/`subtask_unlink`、`task_description_set`、`column_save`（带 `project`）和 `board_task_move`（带 `parentUuid`）也全部支持完整细粒度操作。
+4. **内置 Prompts**：客户端如支持 MCP Prompts，可直接选用 `aster_takeover_plan`（接管规划）或 `aster_daily_review`（进度复盘重排）。
+
+> 如果你的 AI Bot（如 Grok Bot）部署在 `dmit` VPS 本机而非你的 Mac 上，可改为配置 `ASTER_SOCKET=/opt/aster/data/workspace.sock` 直连本机 Unix socket（无需再走 SSH 转发）。
+
 ## 使用约定
 
-1. 先 `workspace_get` 读取项目、Focus、标签、过滤器、栏目、精力和 revision。
+1. 先 `project_digest`（或 `workspace_get`）读取项目、Focus、标签、过滤器、栏目、精力和 revision。
 2. `tasks_list` 支持 Taskwarrior 条件；例如 `status:pending`、`status:waiting`、`due:today`、`project:Work`、`project:`（Inbox）、`description.contains:报告`。默认返回未完成和已完成任务；已删除任务用 `recovery_list`。
-3. 编辑任务先 `task_get`，复制返回的 `editInput` 并修改目标字段，再传给 `task_edit`。这是完整编辑，省略 project/due/priority 会清空对应字段。现有备注、依赖和其他未支持编辑的原生属性由业务服务保留；`note` 是新增备注，不要把原有备注再次提交。
+3. 局部修改优先用 `task_patch`（保留未传入字段）；完整替换才使用 `task_edit`（先 `task_get`，复制 `editInput` 修改后提交；省略 project/due/priority 会清空对应字段，`note` 为追加）。
 4. 组织资料写入传入刚读取的 revision。成功返回最新资料和 revision；409 冲突应重新读取并核对意图，不自动覆盖。
 5. 日期输入为 UTC `YYYYMMDDTHHmmssZ`，空字符串表示清除。`quick_preview` 用服务器时区解析一句话，返回 task/tokens/errors；检查后再创建。
 6. 栏目移动不改变完成状态；项目完成也不完成其任务。撤销完成/重开分别用 task_reopen/task_complete；撤销移动需要读取最新 revision 后显式移回。
