@@ -37,6 +37,7 @@ type WorkspaceHeadingMenuProps = {
   completeBehavior?: CompleteBehavior;
   onCompleteBehaviorChange?: (next: CompleteBehavior) => void;
   groupBy?: TaskGroupBy;
+  groupOptions?: readonly { value: TaskGroupBy; label: string }[];
   onGroupByChange?: (next: TaskGroupBy) => void;
   currentProject: string;
   organizationReady: boolean;
@@ -64,6 +65,7 @@ export function WorkspaceHeadingMenu({
   completeBehavior = "hide",
   onCompleteBehaviorChange,
   groupBy = "none",
+  groupOptions = TASK_GROUP_OPTIONS,
   onGroupByChange,
   currentProject,
   organizationReady,
@@ -216,13 +218,13 @@ export function WorkspaceHeadingMenu({
           </Button>
         )}
 
-        {activeEntry && onGroupByChange && (
+        {onGroupByChange && (
           <>
             <div className="my-1 border-t border-border/60" />
             <p className="px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
               分组
             </p>
-            {TASK_GROUP_OPTIONS.map((option) => (
+            {groupOptions.map((option) => (
               <Button
                 key={option.value}
                 variant="navigation"

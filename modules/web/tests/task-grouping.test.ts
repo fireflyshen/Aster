@@ -22,7 +22,7 @@ const compiled = esbuild.buildSync({
 });
 
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString("base64")}`;
-const { buildTaskGroups } = await import(moduleUrl);
+const { buildTaskGroups, groupOptionsForContext } = await import(moduleUrl);
 
 const makeTask = (
   uuid: string,
@@ -107,5 +107,82 @@ test("buildTaskGroups groups tasks by due date, project, priority, and label", (
   assert.deepEqual(
     byLabel.map((g: { column: { name: string } }) => g.column.name),
     ["@Code", "@Urgent", "无标签"],
+  );
+});
+
+test("buildTaskGroups splits Today into overdue (only when present) and today date column", () => {
+  const now = new Date("2026-11-15T10:00:00");
+
+  const emptyToday = buildTaskGroups([], "today", "今天", now);
+  assert.equal(emptyToday.length, 1);
+  assert.equal(emptyToday[0].column.id, "group:today:today");
+  assert.match(emptyToday[0].column.name, /^11月15日 · 今天 · /);
+  assert.equal(emptyToday[0].items.length, 0);
+
+  const onlyToday = buildTaskGroups(
+    [makeTask("t1", { due: "2026-11-15" })],
+    "today",
+    "今天",
+    now,
+  );
+  assert.equal(onlyToday.length, 1);
+  assert.equal(onlyToday[0].column.id, "group:today:today");
+
+  const mixed = buildTaskGroups(
+    [
+      makeTask("old", { due: "2026-11-14" }),
+      makeTask("now", { due: "2026-11-15" }),
+    ],
+    "today",
+    "今天",
+    now,
+  );
+  assert.deepEqual(
+    mixed.map((g: { column: { id: string; name: string } }) => g.column.id),
+    ["group:today:overdue", "group:today:today"],
+  );
+  assert.equal(mixed[0].column.name, "逾期");
+  assert.deepEqual(
+    mixed[0].items.map((t: { uuid: string }) => t.uuid),
+    ["old"],
+  );
+  assert.deepEqual(
+    mixed[1].items.map((t: { uuid: string }) => t.uuid),
+    ["now"],
+  );
+});
+
+test("buildTaskGroups groups completed tasks by completion date descending with fallback", () => {
+  const now = new Date("2026-11-15T10:00:00");
+  const groups = buildTaskGroups(
+    [
+      makeTask("older", { status: "completed", end: "2026-11-11" }),
+      makeTask("today", { status: "completed", end: "2026-11-15" }),
+      makeTask("unknown", { status: "completed", end: "" }),
+      makeTask("yesterday", { status: "completed", end: "2026-11-14" }),
+    ],
+    "completed",
+    "已完成",
+    now,
+  );
+  assert.equal(groups.length, 4);
+  assert.match(groups[0].column.name, /^11月15日 · 今天 · /);
+  assert.match(groups[1].column.name, /^11月14日 · 昨天 · /);
+  assert.match(groups[2].column.name, /^11月11日 · /);
+  assert.equal(groups[3].column.name, "未知日期");
+});
+
+test("groupOptionsForContext tailors options per view context", () => {
+  assert.deepEqual(
+    groupOptionsForContext("today").map((o: { value: string }) => o.value),
+    ["today", "none", "project", "priority", "label"],
+  );
+  assert.deepEqual(
+    groupOptionsForContext("completed").map((o: { value: string }) => o.value),
+    ["completed", "none", "project", "priority", "label"],
+  );
+  assert.deepEqual(
+    groupOptionsForContext("default").map((o: { value: string }) => o.value),
+    ["none", "due", "project", "priority", "label"],
   );
 });

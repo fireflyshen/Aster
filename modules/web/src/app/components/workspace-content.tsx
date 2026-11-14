@@ -11,7 +11,13 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrganizationManager } from "@/features/organization/organization-manager";
 import { FocusOverview } from "@/features/projects/focus-overview";
 import { ProjectManager } from "@/features/projects/project-manager";
+import {
+  groupOptionsForContext,
+  type TaskGroupBy,
+  type TaskGroupContext,
+} from "@/features/tasks/task-grouping";
 import { useFilterGroupBy } from "../hooks/use-filter-group-by";
+import { views } from "../workspace-sidebar";
 import { taskDate } from "@core/tasks/quick-task";
 import { defaultBoard, type BoardChange } from "@core/workspace/board";
 import type { ProjectStatus } from "@core/workspace/focus";
@@ -191,14 +197,36 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     renderTask,
   } = props;
 
+  const isProjectOwned =
+    !activeEntry && (Boolean(currentProject) || view === "pending");
+  const groupContext: TaskGroupContext =
+    !activeEntry && !currentProject && view === "today"
+      ? "today"
+      : !activeEntry && !currentProject && view === "completed"
+        ? "completed"
+        : "default";
+  const defaultGroupBy: TaskGroupBy =
+    groupContext === "today"
+      ? "today"
+      : groupContext === "completed"
+        ? "completed"
+        : "none";
+  const groupOptions = groupOptionsForContext(groupContext);
   const [groupBy, setGroupBy] = useFilterGroupBy(
-    activeEntry ? `${activeEntry.kind}:${activeEntry.item.id}` : undefined,
+    activeEntry
+      ? `${activeEntry.kind}:${activeEntry.item.id}`
+      : !isProjectOwned
+        ? `view:${view}`
+        : undefined,
+    defaultGroupBy,
+    groupOptions,
   );
-  const virtualGroupTitle =
-    activeItem && "expression" in activeItem
+  const virtualGroupTitle = activeEntry
+    ? activeItem && "expression" in activeItem
       ? activeItem.expression
       : activeItem?.name ||
-        (activeEntry?.kind === "filter" ? "过滤器" : "标签");
+        (activeEntry.kind === "filter" ? "过滤器" : "标签")
+    : views[view];
 
   return (
     <main className="workspace-frame pb-16 pt-2">
@@ -256,8 +284,9 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           }
           activeItem={activeItem}
           activeCount={topLevelVisible.length}
-          groupBy={activeEntry ? groupBy : undefined}
-          onGroupByChange={activeEntry ? setGroupBy : undefined}
+          groupBy={!isProjectOwned ? groupBy : undefined}
+          groupOptions={!isProjectOwned ? groupOptions : undefined}
+          onGroupByChange={!isProjectOwned ? setGroupBy : undefined}
           currentProjectFocus={currentProjectFocus}
           projectOutcome={projectOutcome}
           projectDescription={projectDescription}
@@ -444,28 +473,24 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                   layout === "list" &&
                   view === "today" &&
                   !currentProject &&
-                  !activeEntry
+                  !activeEntry &&
+                  groupBy === "today"
                 }
                 preserveTaskOrder={
                   view === "urgency" && !currentProject && !activeEntry
                 }
-                virtualGroupBy={activeEntry ? groupBy : undefined}
+                virtualGroupBy={!isProjectOwned ? groupBy : undefined}
                 virtualGroupTitle={virtualGroupTitle}
                 onRescheduleOverdue={
-                  layout === "list" ? onRescheduleOverdue : undefined
+                  view === "today" && !currentProject && !activeEntry
+                    ? onRescheduleOverdue
+                    : undefined
                 }
                 canAddTask={
                   view !== "completed" &&
                   (!activeEntry || activeEntry.kind === "tag")
                 }
-                canAddSection={
-                  view !== "completed" &&
-                  !(view === "urgency" && !currentProject) &&
-                  !activeEntry &&
-                  !(layout === "board"
-                    ? false
-                    : view === "today" && !currentProject)
-                }
+                canAddSection={isProjectOwned && view !== "completed"}
                 hasSearch={Boolean(query.trim())}
                 onClearSearch={() => onQueryChange("")}
                 onAdd={(nextDraft) => onOpenEditor(undefined, nextDraft)}

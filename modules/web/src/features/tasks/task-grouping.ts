@@ -4,7 +4,22 @@ import { addDays, format, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { toDueDay } from "./task-date";
 
-export type TaskGroupBy = "none" | "due" | "project" | "priority" | "label";
+export type TaskGroupBy =
+  | "none"
+  | "today"
+  | "completed"
+  | "due"
+  | "project"
+  | "priority"
+  | "label";
+
+export type TaskGroupContext = "today" | "completed" | "default";
+
+const COMMON_GROUP_OPTIONS: readonly { value: TaskGroupBy; label: string }[] = [
+  { value: "project", label: "项目" },
+  { value: "priority", label: "优先级" },
+  { value: "label", label: "标签" },
+];
 
 export const TASK_GROUP_OPTIONS: readonly {
   value: TaskGroupBy;
@@ -12,10 +27,29 @@ export const TASK_GROUP_OPTIONS: readonly {
 }[] = [
   { value: "none", label: "无" },
   { value: "due", label: "截止日期" },
-  { value: "project", label: "项目" },
-  { value: "priority", label: "优先级" },
-  { value: "label", label: "标签" },
+  ...COMMON_GROUP_OPTIONS,
 ];
+
+/** Returns grouping dropdown options tailored to the active view context. */
+export function groupOptionsForContext(
+  context: TaskGroupContext = "default",
+): readonly { value: TaskGroupBy; label: string }[] {
+  if (context === "today") {
+    return [
+      { value: "today", label: "默认 (逾期/今天)" },
+      { value: "none", label: "无" },
+      ...COMMON_GROUP_OPTIONS,
+    ];
+  }
+  if (context === "completed") {
+    return [
+      { value: "completed", label: "完成日期" },
+      { value: "none", label: "无" },
+      ...COMMON_GROUP_OPTIONS,
+    ];
+  }
+  return TASK_GROUP_OPTIONS;
+}
 
 export type TaskGroup = {
   column: BoardColumn;
@@ -25,6 +59,7 @@ export type TaskGroup = {
 function formatDueGroupLabel(dueDay: string, now: Date): string {
   const todayStr = format(now, "yyyy-MM-dd");
   const tomorrowStr = format(addDays(now, 1), "yyyy-MM-dd");
+  const yesterdayStr = format(addDays(now, -1), "yyyy-MM-dd");
   const date = parseISO(dueDay);
   const currentYear = now.getFullYear();
   const base =
@@ -34,7 +69,50 @@ function formatDueGroupLabel(dueDay: string, now: Date): string {
   const weekday = format(date, "EEE", { locale: zhCN });
   if (dueDay === todayStr) return `${base} · 今天 · ${weekday}`;
   if (dueDay === tomorrowStr) return `${base} · 明天 · ${weekday}`;
+  if (dueDay === yesterdayStr) return `${base} · 昨天 · ${weekday}`;
   return `${base} · ${weekday}`;
+}
+
+function buildDayGroups(
+  tasks: Task[],
+  now: Date,
+  options: {
+    getRawDate: (task: Task) => string | undefined;
+    idPrefix: string;
+    fallbackId: string;
+    fallbackName: string;
+    descending?: boolean;
+  },
+): TaskGroup[] {
+  const buckets = new Map<string, Task[]>();
+  const missing: Task[] = [];
+  for (const task of tasks) {
+    const day = toDueDay(options.getRawDate(task));
+    if (!day) {
+      missing.push(task);
+      continue;
+    }
+    const list = buckets.get(day) || [];
+    list.push(task);
+    buckets.set(day, list);
+  }
+  const keys = [...buckets.keys()].sort((a, b) =>
+    options.descending ? b.localeCompare(a) : a.localeCompare(b),
+  );
+  const groups: TaskGroup[] = keys.map((day) => ({
+    column: {
+      id: `${options.idPrefix}:${day}`,
+      name: formatDueGroupLabel(day, now),
+    },
+    items: buckets.get(day) || [],
+  }));
+  if (missing.length) {
+    groups.push({
+      column: { id: options.fallbackId, name: options.fallbackName },
+      items: missing,
+    });
+  }
+  return groups;
 }
 
 /** Groups filtered tasks into read-only virtual columns for list and board views. */
@@ -44,6 +122,35 @@ export function buildTaskGroups(
   defaultGroupTitle: string,
   now = new Date(),
 ): TaskGroup[] {
+  if (groupBy === "today") {
+    const todayStr = format(now, "yyyy-MM-dd");
+    const overdue: Task[] = [];
+    const todayItems: Task[] = [];
+    for (const task of tasks) {
+      const dueDay = toDueDay(task.due);
+      if (dueDay && dueDay < todayStr && task.status !== "completed") {
+        overdue.push(task);
+      } else {
+        todayItems.push(task);
+      }
+    }
+    const groups: TaskGroup[] = [];
+    if (overdue.length > 0) {
+      groups.push({
+        column: { id: "group:today:overdue", name: "逾期" },
+        items: overdue,
+      });
+    }
+    groups.push({
+      column: {
+        id: "group:today:today",
+        name: formatDueGroupLabel(todayStr, now),
+      },
+      items: todayItems,
+    });
+    return groups;
+  }
+
   if (groupBy === "none" || tasks.length === 0) {
     return [
       {
@@ -54,34 +161,22 @@ export function buildTaskGroups(
   }
 
   if (groupBy === "due") {
-    const buckets = new Map<string, Task[]>();
-    const noDue: Task[] = [];
-    for (const task of tasks) {
-      const dueDay = toDueDay(task.due);
-      if (!dueDay) {
-        noDue.push(task);
-        continue;
-      }
-      const list = buckets.get(dueDay) || [];
-      list.push(task);
-      buckets.set(dueDay, list);
-    }
-    const groups: TaskGroup[] = [...buckets.keys()]
-      .sort((a, b) => a.localeCompare(b))
-      .map((dueDay) => ({
-        column: {
-          id: `group:due:${dueDay}`,
-          name: formatDueGroupLabel(dueDay, now),
-        },
-        items: buckets.get(dueDay) || [],
-      }));
-    if (noDue.length) {
-      groups.push({
-        column: { id: "group:due:none", name: "无截止日期" },
-        items: noDue,
-      });
-    }
-    return groups;
+    return buildDayGroups(tasks, now, {
+      getRawDate: (task) => task.due,
+      idPrefix: "group:due",
+      fallbackId: "group:due:none",
+      fallbackName: "无截止日期",
+    });
+  }
+
+  if (groupBy === "completed") {
+    return buildDayGroups(tasks, now, {
+      getRawDate: (task) => task.end,
+      idPrefix: "group:completed",
+      fallbackId: "group:completed:unknown",
+      fallbackName: "未知日期",
+      descending: true,
+    });
   }
 
   if (groupBy === "project") {

@@ -7,6 +7,8 @@ const CHANGE_EVENT = "aster:filter-group-by-changed";
 function isTaskGroupBy(value: unknown): value is TaskGroupBy {
   return (
     value === "none" ||
+    value === "today" ||
+    value === "completed" ||
     value === "due" ||
     value === "project" ||
     value === "priority" ||
@@ -30,11 +32,15 @@ function readGroupMap(): Record<string, TaskGroupBy> {
   }
 }
 
-function writeGroupBy(entryKey: string, value: TaskGroupBy): void {
+function writeGroupBy(
+  entryKey: string,
+  value: TaskGroupBy,
+  defaultGroupBy: TaskGroupBy,
+): void {
   if (typeof window === "undefined") return;
   try {
     const current = readGroupMap();
-    if (value === "none") delete current[entryKey];
+    if (value === defaultGroupBy) delete current[entryKey];
     else current[entryKey] = value;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
     window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
@@ -43,17 +49,34 @@ function writeGroupBy(entryKey: string, value: TaskGroupBy): void {
   }
 }
 
-/** Persists per-entry grouping preference (defaulting to `"none"`). */
+function resolveGroupBy(
+  entryKey: string | undefined,
+  defaultGroupBy: TaskGroupBy,
+  allowed?: readonly { value: TaskGroupBy }[],
+): TaskGroupBy {
+  if (!entryKey) return defaultGroupBy;
+  const stored = readGroupMap()[entryKey];
+  if (!stored) return defaultGroupBy;
+  if (allowed && !allowed.some((option) => option.value === stored)) {
+    return defaultGroupBy;
+  }
+  return stored;
+}
+
+/** Persists per-entry grouping preference (with customizable default). */
 export function useFilterGroupBy(
   entryKey: string | undefined,
+  defaultGroupBy: TaskGroupBy = "none",
+  allowedOptions?: readonly { value: TaskGroupBy }[],
 ): [TaskGroupBy, (next: TaskGroupBy) => void] {
+  const allowedKey = allowedOptions?.map((o) => o.value).join(",");
   const [groupBy, setGroupByState] = useState<TaskGroupBy>(() =>
-    entryKey ? readGroupMap()[entryKey] || "none" : "none",
+    resolveGroupBy(entryKey, defaultGroupBy, allowedOptions),
   );
 
   useEffect(() => {
     const sync = () => {
-      setGroupByState(entryKey ? readGroupMap()[entryKey] || "none" : "none");
+      setGroupByState(resolveGroupBy(entryKey, defaultGroupBy, allowedOptions));
     };
     sync();
     window.addEventListener(CHANGE_EVENT, sync);
@@ -62,15 +85,16 @@ export function useFilterGroupBy(
       window.removeEventListener(CHANGE_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
-  }, [entryKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entryKey, defaultGroupBy, allowedKey]);
 
   const setGroupBy = useCallback(
     (next: TaskGroupBy) => {
       if (!entryKey) return;
-      writeGroupBy(entryKey, next);
+      writeGroupBy(entryKey, next, defaultGroupBy);
       setGroupByState(next);
     },
-    [entryKey],
+    [entryKey, defaultGroupBy],
   );
 
   return [groupBy, setGroupBy];

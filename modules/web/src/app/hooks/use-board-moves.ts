@@ -190,7 +190,11 @@ export function useBoardMoves(deps: BoardMovesDeps) {
           /* Task saved; description syncs on reload. */
         }
       }
-      if (columnId && columnId !== UNSECTIONED) {
+      if (
+        columnId &&
+        columnId !== UNSECTIONED &&
+        !columnId.startsWith("group:")
+      ) {
         try {
           const latest = await api<Organization>("organization", {
             kind: "board",

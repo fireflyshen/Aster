@@ -128,6 +128,7 @@ export function TaskBoard({
     column: Column;
     revision: number;
   }>();
+  const [rescheduling, setRescheduling] = useState(false);
   const scrollArea = useRef<HTMLDivElement>(null);
   const currentProj = project ?? defaultProject ?? "";
   const isVirtualGrouped = virtualGroupBy !== undefined;
@@ -193,6 +194,7 @@ export function TaskBoard({
   }
 
   const showSectionCreator =
+    !isVirtualGrouped &&
     canAddTask &&
     (canAddSection ??
       (Boolean(currentProj) || (!todaySplit && layout === "list")));
@@ -312,6 +314,28 @@ export function TaskBoard({
                 const showColumnHeader = isVirtualGrouped
                   ? layout === "board" || virtualGroupBy !== "none"
                   : layout === "board" || !isUnsectioned;
+                const headerAction =
+                  column.id === "group:today:overdue" &&
+                  onRescheduleOverdue &&
+                  items.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={disabled || rescheduling}
+                      onClick={async () => {
+                        setRescheduling(true);
+                        try {
+                          await onRescheduleOverdue(items);
+                        } finally {
+                          setRescheduling(false);
+                        }
+                      }}
+                      className="h-6 px-2 text-xs font-medium text-primary hover:bg-primary/10 hover:text-primary"
+                    >
+                      {rescheduling ? "调整中…" : "重新安排"}
+                    </Button>
+                  ) : undefined;
                 return (
                   <BoardColumn
                     key={column.id}
@@ -323,6 +347,7 @@ export function TaskBoard({
                     disabled={disabled}
                     showHeader={showColumnHeader}
                     readOnly={isVirtualGrouped}
+                    headerAction={headerAction}
                     onEdit={() => openEditor(column)}
                     onShift={(direction) => {
                       onClearError();
@@ -352,7 +377,9 @@ export function TaskBoard({
                           <p className="mt-0.5 text-xs text-muted-foreground">
                             {canAddTask
                               ? "在下方添加任务以开始"
-                              : "当前过滤条件下没有匹配的任务"}
+                              : hasSearch
+                                ? "当前过滤条件下没有匹配的任务"
+                                : "当前视图下暂无任务"}
                           </p>
                         </div>
                       )}
@@ -396,24 +423,41 @@ export function TaskBoard({
                         )}
                       </BoardCard>
                     ))}
-                    {canAddTask && (
+                    {canAddTask && column.id !== "group:today:overdue" && (
                       <TodoistTaskComposer
                         mode="add"
                         compact={layout === "list"}
                         disabled={disabled}
                         ariaLabel={`在${columnDisplayName(column)}中添加任务`}
                         placeholder={
-                          column.id !== UNSECTIONED
+                          column.id !== UNSECTIONED &&
+                          column.id !== "group:none" &&
+                          column.id !== "group:today:today"
                             ? `在“${columnDisplayName(column)}”中添加任务…`
                             : "添加任务（支持 #项目, @标签, 明天, p1）"
                         }
-                        defaultProject={defaultProject}
-                        defaultDue={defaultDue}
+                        defaultProject={
+                          column.id.startsWith("group:project:")
+                            ? column.id === "group:project:inbox"
+                              ? ""
+                              : column.name
+                            : defaultProject
+                        }
+                        defaultDue={
+                          column.id.startsWith("group:due:") &&
+                          column.id !== "group:due:none"
+                            ? column.id.slice("group:due:".length)
+                            : defaultDue
+                        }
                         projects={projects}
                         availableLabels={availableLabels}
                         onSubmitTask={
                           onCreateTask
-                            ? (task) => onCreateTask(task, column.id)
+                            ? (task) =>
+                                onCreateTask(
+                                  task,
+                                  isVirtualGrouped ? UNSECTIONED : column.id,
+                                )
                             : undefined
                         }
                         onOpenFullEditor={onAdd}

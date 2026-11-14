@@ -28,6 +28,7 @@ type BoardColumnProps = {
   disabled: boolean;
   showHeader?: boolean;
   readOnly?: boolean;
+  headerAction?: ReactNode;
   onEdit: () => void;
   onShift: (direction: "left" | "right") => void;
   onDelete: () => void;
@@ -44,6 +45,7 @@ export function BoardColumn({
   disabled,
   showHeader = true,
   readOnly = false,
+  headerAction,
   onEdit,
   onShift,
   onDelete,
@@ -104,6 +106,7 @@ export function BoardColumn({
                 </span>
               </button>
               <div className="flex-1" />
+              {headerAction}
               {!readOnly && column.id !== UNSECTIONED && (
                 <ColumnMenu
                   compact
@@ -127,6 +130,9 @@ export function BoardColumn({
               <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
                 {count}
               </span>
+              {headerAction && (
+                <div className="ml-auto flex items-center">{headerAction}</div>
+              )}
               {!readOnly && column.id !== UNSECTIONED && (
                 <ColumnMenu
                   compact={false}

@@ -141,6 +141,7 @@ type WorkspaceHeadingProps = {
   activeItem?: SavedFilter | SavedTag;
   activeCount?: number;
   groupBy?: TaskGroupBy;
+  groupOptions?: readonly { value: TaskGroupBy; label: string }[];
   onGroupByChange?: (next: TaskGroupBy) => void;
   currentProjectFocus?: SavedProject;
   projectOutcome?: string;
@@ -176,6 +177,7 @@ export function WorkspaceHeading({
   activeItem,
   activeCount,
   groupBy = "none",
+  groupOptions = TASK_GROUP_OPTIONS,
   onGroupByChange,
   currentProjectFocus,
   projectOutcome,
@@ -334,7 +336,7 @@ export function WorkspaceHeading({
 
         {!organizationPage && !specialPage && (
           <div className="workspace-view-controls flex shrink-0 items-center gap-1.5">
-            {activeEntry && onGroupByChange && (
+            {onGroupByChange && (
               <Select
                 value={groupBy}
                 disabled={disabled}
@@ -348,7 +350,7 @@ export function WorkspaceHeading({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent align="end">
-                  {TASK_GROUP_OPTIONS.map((option) => (
+                  {groupOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -390,6 +392,7 @@ export function WorkspaceHeading({
               completeBehavior={completeBehavior}
               onCompleteBehaviorChange={onCompleteBehaviorChange}
               groupBy={groupBy}
+              groupOptions={groupOptions}
               onGroupByChange={onGroupByChange}
               currentProject={currentProject}
               organizationReady={organizationReady}
