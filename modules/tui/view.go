@@ -122,7 +122,21 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 			[]styledSpan{span("↳ "+clip(clean(r.parentTitle), 18), dim)},
 		)
 	}
-	if t.Project != "" {
+	showProject := t.Project != ""
+	if showProject {
+		if strings.HasPrefix(m.view, "project:") && t.Project == strings.TrimPrefix(m.view, "project:") {
+			showProject = false
+		} else if m.view == "focus" && len(f.idx.activeProjects) == 1 && t.Project == f.idx.activeProjects[0].Name {
+			showProject = false
+		} else if r.depth > 0 {
+			if pid := f.idx.parentOf[t.UUID]; pid != "" {
+				if pt, ok := f.idx.tasksByUUID[pid]; ok && pt.Project == t.Project {
+					showProject = false
+				}
+			}
+		}
+	}
+	if showProject {
 		c := muted
 		if p, ok := f.idx.projByName[t.Project]; ok && p.Color != "" {
 			c = swatchColor(p.Color)
@@ -144,13 +158,20 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 		}
 	}
 	if st, ok := f.idx.subStats[t.UUID]; ok && st.total > 0 {
-		subStyle := lipgloss.NewStyle().Foreground(brand)
-		subText := fmt.Sprintf("%d/%d", st.done, st.total)
+		arrow := "▸ "
+		if m.expandedSubtasks[t.UUID] || m.query != "" {
+			arrow = "▾ "
+		}
+		subStyle := softText
+		subText := fmt.Sprintf("%s%d/%d", arrow, st.done, st.total)
 		if st.done == st.total {
 			subStyle = lipgloss.NewStyle().Foreground(okColor)
-			subText = "✓ " + subText
+			subText = arrow + fmt.Sprintf("✓ %d/%d", st.done, st.total)
 		}
 		groups = append(groups, []styledSpan{span(subText, subStyle)})
+	}
+	if pCode := priorityCode(t.Priority); pCode != "" && t.Status != "completed" {
+		groups = append(groups, []styledSpan{span(pCode, priorityStyle(t.Priority, false))})
 	}
 	if t.Start != "" && !td.start.IsZero() && t.Status != "completed" {
 		groups = append(groups, []styledSpan{
@@ -218,7 +239,7 @@ func (m model) renderTaskLines(
 	}
 	tree := ""
 	metaTree := ""
-	treeColor := line
+	treeColor := treeLine
 	if selected {
 		treeColor = muted
 	}
@@ -226,11 +247,10 @@ func (m model) renderTaskLines(
 	if r.depth > 0 {
 		if r.lastChild {
 			tree = "└─ "
-			metaTree = "   "
 		} else {
 			tree = "├─ "
-			metaTree = "│  "
 		}
+		metaTree = "   "
 	}
 
 	glyphText, glyphColor, glyphBold := statusMeta(t, waiting)
@@ -256,15 +276,8 @@ func (m model) renderTaskLines(
 		span(tree, treeStyle),
 		span(glyphText, glyphStyle),
 		span(" ", titleStyle),
+		span(clean(r.title), titleStyle),
 	}
-	if pCode := priorityCode(t.Priority); pCode != "" {
-		line1Spans = append(
-			line1Spans,
-			span(pCode, priorityStyle(t.Priority, completed)),
-			span(" ", titleStyle),
-		)
-	}
-	line1Spans = append(line1Spans, span(clean(r.title), titleStyle))
 	out := []string{renderSpans(line1Spans, width, width, selected)}
 
 	if metaSpans := m.taskMetaSpans(f, r, selected); len(metaSpans) > 0 {
@@ -286,24 +299,26 @@ func (m model) list(w, h int, f renderFrame) string {
 	var lines []string
 	if m.view == "focus" {
 		active := f.idx.activeProjects
-		lines = append(
-			lines,
-			softText.Render(fmt.Sprintf("◎ Focus 聚焦 · %d / 3", len(active))),
-		)
-		for _, p := range active {
-			dot := lipgloss.NewStyle().
-				Foreground(swatchColor(p.Color)).
-				Render("●")
-			lineText := dot + " " + accent.Render(clean(p.Name))
-			if p.Outcome != "" && w > 28 {
-				lineText += dim.Render("  — " + clean(p.Outcome))
-			}
-			lines = append(lines, clip(lineText, w-5))
-		}
+		bannerW := max(10, w-5)
 		if len(active) == 0 {
-			lines = append(lines, dim.Render("按 p 选择聚焦项目，或按 Tab 切换工作区"))
+			lines = append(lines, dim.Render("按 p 选择聚焦项目（最多 3 个），或按 Tab 切换工作区"))
+		} else {
+			var parts []string
+			for _, p := range active {
+				dot := lipgloss.NewStyle().
+					Foreground(swatchColor(p.Color)).
+					Render("●")
+				part := dot + " " + lipgloss.NewStyle().Foreground(ink).Bold(true).Render(clean(p.Name))
+				if p.Outcome != "" && len(active) == 1 && w > 48 {
+					part += dim.Render(" — " + clip(clean(p.Outcome), max(8, w/4)))
+				}
+				parts = append(parts, part)
+			}
+			summary := softText.Render(fmt.Sprintf("◎ 焦点 %d/3", len(active))) +
+				dim.Render("  ·  ") + strings.Join(parts, dim.Render("  ·  "))
+			lines = append(lines, clip(summary, bannerW))
 		}
-		lines = append(lines, "")
+		lines = append(lines, sectionRule("", bannerW), "")
 	}
 	if m.query != "" {
 		lines = append(
@@ -397,6 +412,10 @@ func (m model) list(w, h int, f renderFrame) string {
 			}
 		}
 		blocks = append(blocks, block{i, ls})
+		if r.kind == "task" && r.depth > 0 && r.lastChild &&
+			i+1 < len(rs) && rs[i+1].kind == "task" && rs[i+1].depth == 0 {
+			blocks = append(blocks, block{-1, []string{""}})
+		}
 	}
 	offset := 0
 	used := 0
@@ -982,7 +1001,7 @@ func (m model) View() string {
 					[]string{
 						"Tab / ← →        切换左侧导航 / 右侧任务区",
 						"↑ ↓ / j k        上下选择条目",
-						"Enter / Space    详情 / 打开项目 / 折叠分组",
+						"Enter / Space    详情 / 打开项目 / 折展分组或子任务",
 						": / Ctrl+K       搜索并执行所有操作",
 						"a / A / S        新建任务 / 一句话 / 添加子任务",
 						"e / D / x / s    编辑 / 任务描述 / 完成 / 计时",
@@ -1039,7 +1058,7 @@ func (m model) View() string {
 			Render("! 写入锁定 · ")
 	}
 	footer := dim.Render(
-		"  Tab/←→ 切焦点   j/k 移动   x 完成   s 计时   a 新建   S 子任务   !/@ 优先级/改期   : 菜单   ? 帮助",
+		"  Tab/←→ 切焦点   j/k 移动   Space 折展   x 完成   s 计时   a 新建   S 子任务   : 菜单   ? 帮助",
 	)
 	message := clip("  "+stateDot+softText.Render(clean(m.message)), w)
 	output := header + "\n" + body + "\n" + footer + "\n" + message
@@ -1052,6 +1071,10 @@ func (m model) View() string {
 
 func (m model) boardView(w, h int, f renderFrame) string {
 	cols := m.columns()
+	colSet := make(map[string]bool, len(cols))
+	for _, c := range cols {
+		colSet[c.ID] = true
+	}
 	count := max(1, min(len(cols), w/28))
 	colW := (w - 2) / count
 	start := max(0, min(m.boardColumn-count/2, len(cols)-count))
@@ -1060,7 +1083,7 @@ func (m model) boardView(w, h int, f renderFrame) string {
 	var panes []string
 	for i := start; i < end; i++ {
 		c := cols[i]
-		ts, depth, lastChild := f.idx.groupedTasks(m, f.visible, c.ID)
+		ts, depth, lastChild := f.idx.groupedTasks(m, f.visible, c.ID, colSet)
 		var lines []string
 		offset := 0
 		selectedLine := 0
@@ -1083,13 +1106,12 @@ func (m model) boardView(w, h int, f renderFrame) string {
 			if depth[t.UUID] > 0 {
 				if lastChild[t.UUID] {
 					tree = "└ "
-					metaTree = "  "
 				} else {
 					tree = "├ "
-					metaTree = "│ "
 				}
+				metaTree = "  "
 			}
-			treeColor := line
+			treeColor := treeLine
 			if selected {
 				treeColor = muted
 			}
@@ -1099,11 +1121,7 @@ func (m model) boardView(w, h int, f renderFrame) string {
 			if markBold {
 				markSt = markSt.Bold(true)
 			}
-			prio := priorityCode(t.Priority)
 			prefixLen := lipgloss.Width(marker + tree + mark + " ")
-			if prio != "" {
-				prefixLen += lipgloss.Width(prio + " ")
-			}
 			wrapped := strings.Split(
 				wrap(t.Description, max(4, cardW-prefixLen)),
 				"\n",
@@ -1128,15 +1146,8 @@ func (m model) boardView(w, h int, f renderFrame) string {
 						span(tree, treeSt),
 						span(mark, markSt),
 						span(" ", titleSt),
+						span(titleLine, titleSt),
 					)
-					if prio != "" {
-						rowSpans = append(
-							rowSpans,
-							span(prio, priorityStyle(t.Priority, completed)),
-							span(" ", titleSt),
-						)
-					}
-					rowSpans = append(rowSpans, span(titleLine, titleSt))
 				} else {
 					rowSpans = append(
 						rowSpans,

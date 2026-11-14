@@ -10,22 +10,24 @@ import (
 	"github.com/muesli/termenv"
 )
 
-// Scientific low-halation adaptive palette aligned with Aster Web (Light: Soft Morning Cloud & Dusty Sapphire; Dark: Midnight Graphite & Periwinkle Mist).
+// Neutral warm-balanced surfaces paired with softened eye-comfort Todoist task semantics and swatches.
 var (
-	ink         = lipgloss.AdaptiveColor{Light: "#1D2230", Dark: "#E5E9F2"}
-	inkSoft     = lipgloss.AdaptiveColor{Light: "#42495C", Dark: "#B6BECE"}
-	muted       = lipgloss.AdaptiveColor{Light: "#616A7D", Dark: "#848DA1"}
-	line        = lipgloss.AdaptiveColor{Light: "#D5DBE6", Dark: "#2E3443"}
-	brand       = lipgloss.AdaptiveColor{Light: "#3459B2", Dark: "#7395EB"}
-	selectedBG  = lipgloss.AdaptiveColor{Light: "#EAF0FC", Dark: "#232C40"}
-	selectedFG  = lipgloss.AdaptiveColor{Light: "#183068", Dark: "#EEF3FF"}
-	p1Color     = lipgloss.AdaptiveColor{Light: "#C03939", Dark: "#E87474"}
-	p2Color     = lipgloss.AdaptiveColor{Light: "#B35D17", Dark: "#E39B4F"}
-	p3Color     = lipgloss.AdaptiveColor{Light: "#3459B2", Dark: "#7AA4F5"}
-	okColor     = lipgloss.AdaptiveColor{Light: "#25734E", Dark: "#5FC28B"}
-	warnColor   = lipgloss.AdaptiveColor{Light: "#9F6319", Dark: "#D9A452"}
-	dangerColor = lipgloss.AdaptiveColor{Light: "#C03939", Dark: "#E87474"}
-	timerColor  = lipgloss.AdaptiveColor{Light: "#207866", Dark: "#58CCA8"}
+	ink           = lipgloss.AdaptiveColor{Light: "#202022", Dark: "#EBEAE6"}
+	inkSoft       = lipgloss.AdaptiveColor{Light: "#4D4C48", Dark: "#B8B6B0"}
+	muted         = lipgloss.AdaptiveColor{Light: "#76746E", Dark: "#8B8983"}
+	line          = lipgloss.AdaptiveColor{Light: "#DBD9D2", Dark: "#333336"}
+	treeLine      = lipgloss.AdaptiveColor{Light: "#CFCDC6", Dark: "#424246"}
+	brand         = lipgloss.AdaptiveColor{Light: "#3F4146", Dark: "#C9C7C0"}
+	selectedBG    = lipgloss.AdaptiveColor{Light: "#EDEBE5", Dark: "#2C2C30"}
+	selectedFG    = lipgloss.AdaptiveColor{Light: "#1B1B1D", Dark: "#F3F2EE"}
+	p1Color       = lipgloss.AdaptiveColor{Light: "#C9443B", Dark: "#EB6F66"}
+	p2Color       = lipgloss.AdaptiveColor{Light: "#D17A15", Dark: "#E69530"}
+	p3Color       = lipgloss.AdaptiveColor{Light: "#366DB8", Dark: "#6598E0"}
+	okColor       = lipgloss.AdaptiveColor{Light: "#1E7E40", Dark: "#43B366"}
+	tomorrowColor = lipgloss.AdaptiveColor{Light: "#B56712", Dark: "#E69530"}
+	warnColor     = lipgloss.AdaptiveColor{Light: "#B56712", Dark: "#E69530"}
+	dangerColor   = lipgloss.AdaptiveColor{Light: "#C9443B", Dark: "#EB6F66"}
+	timerColor    = lipgloss.AdaptiveColor{Light: "#1B829C", Dark: "#3DAEC9"}
 
 	accent   = lipgloss.NewStyle().Foreground(brand).Bold(true)
 	dim      = lipgloss.NewStyle().Foreground(muted)
@@ -33,18 +35,18 @@ var (
 )
 
 var swatches = map[string]lipgloss.AdaptiveColor{
-	"berry":  {Light: "#A33D6E", Dark: "#D978A4"},
-	"red":    {Light: "#B83B3B", Dark: "#E27272"},
-	"orange": {Light: "#B26121", Dark: "#DF9A52"},
-	"yellow": {Light: "#A67D1A", Dark: "#D9B24C"},
-	"olive":  {Light: "#6D7B2A", Dark: "#A7B85A"},
-	"lime":   {Light: "#527D2C", Dark: "#8EC25E"},
-	"green":  {Light: "#2F7D56", Dark: "#62BA8A"},
-	"mint":   {Light: "#277A65", Dark: "#55C4A6"},
-	"teal":   {Light: "#287382", Dark: "#58B8CC"},
-	"blue":   {Light: "#3F63AB", Dark: "#6D8CE0"},
-	"purple": {Light: "#6B51A6", Dark: "#9E84D9"},
-	"gray":   muted,
+	"berry":  {Light: "#B52D6E", Dark: "#DE5B97"},
+	"red":    {Light: "#C9443B", Dark: "#EB6F66"},
+	"orange": {Light: "#D67814", Dark: "#ED9536"},
+	"yellow": {Light: "#BD8D08", Dark: "#E6C232"},
+	"olive":  {Light: "#7A8724", Dark: "#A6B348"},
+	"lime":   {Light: "#55942C", Dark: "#7EC252"},
+	"green":  {Light: "#1E7E40", Dark: "#43B366"},
+	"mint":   {Light: "#2C9484", Dark: "#5FC2B2"},
+	"teal":   {Light: "#1B829C", Dark: "#3DAEC9"},
+	"blue":   {Light: "#366DB8", Dark: "#6598E0"},
+	"purple": {Light: "#6D46B8", Dark: "#A67FE3"},
+	"gray":   {Light: "#7D7B76", Dark: "#888681"},
 }
 
 func disableColor()               { lipgloss.SetColorProfile(termenv.Ascii) }
@@ -219,10 +221,16 @@ func dueLabel(
 		return "逾期 " + formatted, dangerColor
 	}
 	if targetDay.Equal(todayStart) {
-		return "今天 " + local.Format("15:04"), okColor
+		if local.Hour() != 0 || local.Minute() != 0 {
+			return "今天 " + local.Format("15:04"), okColor
+		}
+		return "今天", okColor
 	}
 	if targetDay.Equal(todayStart.AddDate(0, 0, 1)) {
-		return "明天 " + local.Format("15:04"), p2Color
+		if local.Hour() != 0 || local.Minute() != 0 {
+			return "明天 " + local.Format("15:04"), tomorrowColor
+		}
+		return "明天", tomorrowColor
 	}
 	return formatted, muted
 }
@@ -310,6 +318,9 @@ func renderSpans(spans []styledSpan, maxWidth, totalWidth int, selected bool) st
 }
 
 func sectionRule(title string, width int) string {
+	if title == "" {
+		return lipgloss.NewStyle().Foreground(line).Render(strings.Repeat("─", max(1, width)))
+	}
 	t := accent.Render(title)
 	tw := lipgloss.Width(t)
 	ruleW := width - tw - 1

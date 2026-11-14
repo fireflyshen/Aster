@@ -269,14 +269,27 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 	return out
 }
 
+func (idx viewIndex) effectiveColumnID(t Task, allowed map[string]bool) string {
+	col := idx.columnID(t)
+	if allowed != nil && !allowed[col] {
+		return "unsectioned"
+	}
+	return col
+}
+
 func (idx viewIndex) groupedTasks(
 	m model,
 	ts []Task,
 	col string,
+	allowed ...map[string]bool,
 ) ([]Task, map[string]int, map[string]bool) {
+	var colSet map[string]bool
+	if len(allowed) > 0 {
+		colSet = allowed[0]
+	}
 	var sorted []Task
 	for _, t := range ts {
-		if idx.columnID(t) == col {
+		if idx.effectiveColumnID(t, colSet) == col {
 			sorted = append(sorted, t)
 		}
 	}
@@ -324,6 +337,18 @@ func (idx viewIndex) groupedTasks(
 		}
 		out = append(out, t)
 		cs := children[t.UUID]
+		if m.query == "" && !m.expandedSubtasks[t.UUID] {
+			// Fold subtasks inside their parent row by default; mark hidden descendants so they do not re-emit flat.
+			var markHidden func(list []Task)
+			markHidden = func(list []Task) {
+				for _, child := range list {
+					emitted[child.UUID] = true
+					markHidden(children[child.UUID])
+				}
+			}
+			markHidden(cs)
+			return
+		}
 		for i, c := range cs {
 			if i == len(cs)-1 {
 				lastChild[c.UUID] = true
@@ -421,12 +446,19 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 	}
 	ts := idx.visibleTasks(m, now)
 	cols := m.columns()
+	colSet := make(map[string]bool, len(cols))
+	for _, c := range cols {
+		colSet[c.ID] = true
+	}
 	if m.board {
 		at := min(m.boardColumn, len(cols)-1)
 		cols = cols[at : at+1]
 	}
 	for _, c := range cols {
-		items, depth, lastChild := idx.groupedTasks(m, ts, c.ID)
+		items, depth, lastChild := idx.groupedTasks(m, ts, c.ID, colSet)
+		if !m.board && m.query == "" && c.ID == "unsectioned" && len(items) == 0 && len(cols) > 1 {
+			continue
+		}
 		out = append(out, row{
 			kind:   "group",
 			id:     c.ID,

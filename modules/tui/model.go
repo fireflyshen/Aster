@@ -64,6 +64,7 @@ type model struct {
 	navFocus, busy, blocked, board, detail, help bool
 	detailScroll, boardColumn                    int
 	collapsed                                    map[string]bool
+	expandedSubtasks                             map[string]bool
 	mode                                         string
 	search                                       textinput.Model
 	options                                      []choice
@@ -86,15 +87,16 @@ func newModel(c Client) model {
 	s.Placeholder = "输入关键词…"
 	s.Width = 64
 	return model{
-		client:      c,
-		view:        "focus",
-		width:       120,
-		height:      32,
-		busy:        true,
-		collapsed:   map[string]bool{},
-		draft:       map[string][]string{},
-		search:      s,
-		choiceField: -1,
+		client:           c,
+		view:             "focus",
+		width:            120,
+		height:           32,
+		busy:             true,
+		collapsed:        map[string]bool{},
+		expandedSubtasks: map[string]bool{},
+		draft:            map[string][]string{},
+		search:           s,
+		choiceField:      -1,
 	}
 }
 func clean(s string) string {
@@ -240,7 +242,41 @@ func (m model) visible() []Task {
 	return m.viewIdx().visibleTasks(m, time.Now())
 }
 func (m model) columns() []Column {
-	return append([]Column{{"unsectioned", "未分组"}}, m.org.Board.Columns...)
+	cols := []Column{{ID: "unsectioned", Name: "未分组"}}
+	idx := m.viewIdx()
+	switch {
+	case m.view == "columns":
+		return append(cols, m.org.Board.Columns...)
+	case strings.HasPrefix(m.view, "project:"):
+		proj := strings.TrimPrefix(m.view, "project:")
+		for _, c := range m.org.Board.Columns {
+			if c.Project == proj {
+				cols = append(cols, c)
+			}
+		}
+		return cols
+	case m.view == "focus":
+		for _, c := range m.org.Board.Columns {
+			if c.Project == "" {
+				cols = append(cols, c)
+				continue
+			}
+			for _, a := range idx.activeProjects {
+				if inProject(c.Project, a.Name) {
+					cols = append(cols, c)
+					break
+				}
+			}
+		}
+		return cols
+	default:
+		for _, c := range m.org.Board.Columns {
+			if c.Project == "" {
+				cols = append(cols, c)
+			}
+		}
+		return cols
+	}
 }
 func (m model) columnID(t Task) string {
 	return m.viewIdx().columnID(t)
@@ -550,9 +586,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if k == " " && m.current().kind == "group" {
-			m.collapsed[m.current().id] = !m.collapsed[m.current().id]
-			return m, nil
+		if k == " " {
+			r := m.current()
+			if r.kind == "group" && !m.board {
+				m.collapsed[r.id] = !m.collapsed[r.id]
+				return m, nil
+			}
+			if r.kind == "task" && len(m.viewIdx().childrenOf[r.id]) > 0 {
+				m.expandedSubtasks[r.id] = !m.expandedSubtasks[r.id]
+				return m, nil
+			}
 		}
 		actions := map[string]string{
 			"a": "task.new",

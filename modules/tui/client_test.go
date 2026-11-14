@@ -122,9 +122,9 @@ func sampleModel() model {
 		},
 	}
 	m.org.Board.Columns = []Column{
-		{"todo", "待办"},
-		{"doing", "进行中"},
-		{"done", "已交付"},
+		{ID: "todo", Name: "待办"},
+		{ID: "doing", Name: "进行中"},
+		{ID: "done", Name: "已交付"},
 	}
 	m.org.Board.Placements = []Placement{
 		{"parent", "doing"},
@@ -386,11 +386,31 @@ func TestSubtasksNestingOrphanPromotionAndActiveView(t *testing.T) {
 		Placement{UUID: "a", ColumnID: "todo"},
 	)
 
-	// Both subtasks inherit "todo" column and nest beneath "a".
+	// Both subtasks inherit "todo" column and stay collapsed beneath "a" by default until toggled with Space.
 	if got := m.columnID(m.tasks[len(m.tasks)-1]); got != "todo" {
 		t.Fatalf("expected subtask to inherit todo column, got %q", got)
 	}
 	rs := m.rows()
+	for _, r := range rs {
+		if r.id == "sub2" {
+			t.Fatalf("expected subtask folded under parent a by default, got %+v", r)
+		}
+		if r.id == "a" {
+			m.cursor = 0
+			for idx, rr := range rs {
+				if rr.id == "a" {
+					m.cursor = idx
+					break
+				}
+			}
+		}
+	}
+	if st := m.viewIdx().subStats["a"]; st.done != 1 || st.total != 2 {
+		t.Fatalf("unexpected subtask stats: %+v", st)
+	}
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+	m = next.(model)
+	rs = m.rows()
 	var sub2Row row
 	for _, r := range rs {
 		if r.id == "sub2" {
@@ -399,12 +419,9 @@ func TestSubtasksNestingOrphanPromotionAndActiveView(t *testing.T) {
 	}
 	if sub2Row.depth != 1 || !sub2Row.lastChild {
 		t.Fatalf(
-			"expected sub2 nested as last child (depth=1, lastChild=true), got %+v",
+			"expected sub2 nested as last child (depth=1, lastChild=true) after Space expand, got %+v",
 			sub2Row,
 		)
-	}
-	if st := m.viewIdx().subStats["a"]; st.done != 1 || st.total != 2 {
-		t.Fatalf("unexpected subtask stats: %+v", st)
 	}
 
 	// Searching only for sub2 promotes orphaned child to top-level depth 0 with parentTitle.
@@ -564,7 +581,7 @@ func TestSelectionBackgroundIsContinuousAndSubtaskTreeAligned(t *testing.T) {
 		}
 		f.visible = f.idx.visibleTasks(m, now)
 
-		// Non-last child: Line 1 has ├─ and P2 (without [P2]); Line 2 keeps ▎ + │ + clean continuous BG + ● project before ≡.
+		// Non-last child: Line 1 keeps clean ├─ ○ Title; Line 2 keeps aligned ● Work.Child + P2 + ≡ under continuous BG.
 		nonLast := row{
 			kind:      "task",
 			id:        m.tasks[2].UUID,
@@ -585,20 +602,20 @@ func TestSelectionBackgroundIsContinuousAndSubtaskTreeAligned(t *testing.T) {
 		}
 		plain1 := csi.ReplaceAllString(lines[0], "")
 		plain2 := csi.ReplaceAllString(lines[1], "")
-		if !strings.HasPrefix(plain1, "▎ ├─ ○ P2 裸固定宽度整型") || strings.Contains(plain1, "[P2]") {
+		if !strings.HasPrefix(plain1, "▎ ├─ ○ 裸固定宽度整型") || strings.Contains(plain1, "P2") {
 			t.Fatalf("unexpected Line 1 layout: %q", plain1)
 		}
-		if !strings.HasPrefix(plain2, "▎ │    ● Work.Child") || !strings.Contains(plain2, "≡") {
-			t.Fatalf("expected ▎ │ continuous tree + aligned project before ≡ on Line 2, got %q", plain2)
+		if !strings.HasPrefix(plain2, "▎      ● Work.Child") || !strings.Contains(plain2, "P2") || !strings.Contains(plain2, "≡") {
+			t.Fatalf("expected clean aligned Line 2 metadata with ● Work.Child, P2, ≡, got %q", plain2)
 		}
 
-		// Last child: Line 2 keeps ▎ + blank tree gutter without │.
+		// Last child: Line 2 keeps aligned blank tree gutter without vertical pipe.
 		last := nonLast
 		last.lastChild = true
 		lastLines := m.renderTaskLines(f, last, 68, true)
 		assertContinuousBackground(t, lastLines[1])
 		if plain := csi.ReplaceAllString(lastLines[1], ""); !strings.HasPrefix(plain, "▎      ● Work.Child") {
-			t.Fatalf("expected blank tree gutter after ▎ for last child, got %q", plain)
+			t.Fatalf("expected aligned blank gutter after ▎ for last child, got %q", plain)
 		}
 
 		// CJK clipping inside renderSpans never exceeds target width even at odd byte boundaries.

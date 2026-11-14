@@ -48,8 +48,9 @@ type Project struct {
 	NextTask    string `json:"nextTask"`
 }
 type Column struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Project string `json:"project,omitempty"`
 }
 type SavedItem struct {
 	ID          string `json:"id"`

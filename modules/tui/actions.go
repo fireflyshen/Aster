@@ -307,9 +307,11 @@ func (m *model) action(a string) tea.Cmd {
 		if r.kind != "task" {
 			return nil
 		}
-		cs := []choice{}
-		for _, c := range m.columns() {
-			cs = append(cs, choice{c.ID, c.Name, ""})
+		cs := []choice{{"unsectioned", "未分组", ""}}
+		for _, c := range m.org.Board.Columns {
+			if c.Project == "" || c.Project == r.task.Project {
+				cs = append(cs, choice{c.ID, c.Name, ""})
+			}
 		}
 		col := m.columnID(r.task)
 		return m.openForm(

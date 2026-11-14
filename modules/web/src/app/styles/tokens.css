@@ -22,50 +22,53 @@
   --color-navigation-selected: var(--navigation-selected);
   --shadow-floating: var(--floating-shadow);
   --shadow-modal: var(--modal-shadow);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 }
+
 :root {
   --sidebar-width: 280px;
   --sidebar-duration: 220ms;
   --sidebar-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
-  /* Light: Soft Morning Cloud & Dusty Sapphire — unified cool-mineral neutrality with zero glare */
-  --background: #f7f8fa;
-  --foreground: #232733;
+  /* Light: Warm-balanced soft paper surfaces & neutral obsidian accent — no icy glare, no muddy warmth */
+  --background: #faf9f7;
+  --foreground: #202022;
   --card: #ffffff;
-  --card-foreground: #232733;
+  --card-foreground: #202022;
   --popover: #ffffff;
-  --popover-foreground: #232733;
-  --primary: #3f63ab;
-  --primary-foreground: #ffffff;
-  --secondary: #eceff4;
-  --secondary-foreground: #232733;
-  --muted: #eceef3;
-  --muted-foreground: #5c6375;
-  --accent: #eaedf3;
-  --accent-foreground: #232733;
-  --destructive: #c2535a;
-  --border: #e5e7ef;
-  --input: #d5d9e4;
-  --ring: #3f63ab;
-  --sidebar: #eff1f5;
-  --navigation-hover: #e6e9f0;
-  --navigation-selected: #e6ebf7;
-  --navigation-selected-ink: #365599;
-  --row-hover: #f1f3f7;
-  --drag-cavity: #e3e6ee;
-  --drag-cavity-compact: #eaecef;
-  --priority-1: #c2535a;
-  --priority-2: #b6722d;
-  --priority-3: #3f63ab;
-  --priority-4: #7d8393;
-  --due-today: #2c7a5f;
-  --due-tomorrow: #b6722d;
-  --due-upcoming: #6d5ea6;
-  --floating-shadow: 0 6px 24px #181c281c, 0 1px 4px #181c280a;
-  --modal-shadow: 0 16px 56px #181c2824, 0 2px 8px #181c280d;
+  --popover-foreground: #202022;
+  --primary: #2d2e32;
+  --primary-foreground: #fafaf8;
+  --secondary: #eeede9;
+  --secondary-foreground: #202022;
+  --muted: #edebe7;
+  --muted-foreground: #686662;
+  --accent: #eae8e3;
+  --accent-foreground: #202022;
+  --destructive: #c9443b;
+  --border: #e5e3de;
+  --input: #d5d2cc;
+  --ring: #73716c;
+  --sidebar: #f3f2ef;
+  --navigation-hover: #e8e6e1;
+  --navigation-selected: #e5e2dc;
+  --navigation-selected-ink: #1e1e20;
+  --row-hover: #f2f0ec;
+  --drag-cavity: #e6e4de;
+  --drag-cavity-compact: #edece7;
+  /* Softened eye-comfort Todoist task semantic tokens */
+  --priority-1: #c9443b;
+  --priority-2: #d17a15;
+  --priority-3: #366db8;
+  --priority-4: #7d7b76;
+  --due-today: #1e7e40;
+  --due-tomorrow: #b56712;
+  --due-upcoming: #6d46b8;
+  --floating-shadow: 0 6px 24px #1c1a1614, 0 1px 4px #1c1a1608;
+  --modal-shadow: 0 16px 56px #1c1a161c, 0 2px 8px #1c1a160a;
   --radius: 0.5rem;
   font-family:
     "Inter",
@@ -79,40 +82,42 @@
     sans-serif;
   color-scheme: light;
 }
+
 .dark {
-  /* Dark: Midnight Graphite & Periwinkle Mist — Linear/Raycast neutral slate curve, zero halation */
-  --background: #18191e;
-  --foreground: #e2e5ed;
-  --card: #20222a;
-  --card-foreground: #e2e5ed;
-  --popover: #272a34;
-  --popover-foreground: #e2e5ed;
-  --primary: #4f72bf;
-  --primary-foreground: #f7f9fd;
-  --secondary: #272a34;
-  --secondary-foreground: #e2e5ed;
-  --muted: #23262f;
-  --muted-foreground: #8d93a5;
-  --accent: #262933;
-  --accent-foreground: #f2f4f8;
-  --destructive: #e07b80;
-  --border: #2c2f3a;
-  --input: #393d4b;
-  --ring: #7b9ce0;
-  --sidebar: #1c1e24;
-  --navigation-hover: #262933;
-  --navigation-selected: #242c40;
-  --navigation-selected-ink: #8caae8;
-  --row-hover: #20222b;
-  --drag-cavity: #2d313d;
-  --drag-cavity-compact: #272a35;
-  --priority-1: #df7a80;
-  --priority-2: #d89f5c;
-  --priority-3: #7e9fe2;
-  --priority-4: #7c8294;
-  --due-today: #61b898;
-  --due-tomorrow: #d89f5c;
-  --due-upcoming: #a396de;
+  /* Dark: Matte neutral carbon graphite surfaces — zero icy blue cast, zero halation */
+  --background: #1c1c1d;
+  --foreground: #ebeae6;
+  --card: #242426;
+  --card-foreground: #ebeae6;
+  --popover: #2c2c2f;
+  --popover-foreground: #ebeae6;
+  --primary: #e5e3de;
+  --primary-foreground: #1c1c1d;
+  --secondary: #2c2c2f;
+  --secondary-foreground: #ebeae6;
+  --muted: #262629;
+  --muted-foreground: #99968f;
+  --accent: #2a2a2d;
+  --accent-foreground: #f2f1ed;
+  --destructive: #eb6f66;
+  --border: #323235;
+  --input: #424246;
+  --ring: #8e8c86;
+  --sidebar: #202022;
+  --navigation-hover: #29292c;
+  --navigation-selected: #2e2e32;
+  --navigation-selected-ink: #f3f2ee;
+  --row-hover: #232326;
+  --drag-cavity: #303034;
+  --drag-cavity-compact: #29292c;
+  /* Softened eye-comfort Todoist task semantic tokens */
+  --priority-1: #eb6f66;
+  --priority-2: #e69530;
+  --priority-3: #6598e0;
+  --priority-4: #888681;
+  --due-today: #43b366;
+  --due-tomorrow: #e69530;
+  --due-upcoming: #a67fe3;
   --floating-shadow: 0 6px 24px #0000004d, 0 1px 4px #0000002e;
   --modal-shadow: 0 16px 56px #00000075, 0 2px 8px #00000038;
   color-scheme: dark;
