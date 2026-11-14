@@ -156,11 +156,12 @@ export function TaskRow({
     onDelete,
   );
   const hasRightActions = Boolean(
-    (variant === "list" &&
-      !completed &&
-      (onSaveInline || onToggleStart || onDueChange || onPriorityChange)) ||
-    hasMoreMenu ||
-    (variant === "list" && extraActions),
+    (!completed && onToggleStart) ||
+      (variant === "list" &&
+        !completed &&
+        (onSaveInline || onDueChange || onPriorityChange)) ||
+      hasMoreMenu ||
+      (variant === "list" && extraActions),
   );
   const hasDetails = !!(
     (showProject && (task.project || showInbox)) ||

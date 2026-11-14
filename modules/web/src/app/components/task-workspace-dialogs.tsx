@@ -72,6 +72,7 @@ export type TaskWorkspaceDialogsProps = {
   ) => Promise<boolean>;
   onCreateSubtask: (parentUuid: string, input: TaskInput) => Promise<boolean>;
   onToggleTask: (task: Task, completed: boolean) => Promise<boolean>;
+  onToggleStart?: (task: Task) => Promise<boolean>;
   onUnlinkSubtask: (childUuid: string) => Promise<boolean>;
   onDeleteTask: (task: Task, origin?: "editor") => Promise<boolean>;
   onSubmitTaskForm: (
@@ -136,6 +137,7 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
     onCreateTaskInView,
     onCreateSubtask,
     onToggleTask,
+    onToggleStart,
     onUnlinkSubtask,
     onDeleteTask,
     onSubmitTaskForm,
@@ -264,6 +266,24 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
                   }
                 : undefined
             }
+            timingUnavailable={organization.timing?.available === false}
+            onToggleStart={
+              editing && onToggleStart
+                ? () => {
+                    const target = editing;
+                    const wasStarted =
+                      Boolean(target.start) && target.status !== "completed";
+                    void onToggleStart(target).then((saved) => {
+                      if (saved) {
+                        setEditing({
+                          ...target,
+                          start: wasStarted ? "" : new Date().toISOString(),
+                        });
+                      }
+                    });
+                  }
+                : undefined
+            }
             draft={draft}
             taskDescription={
               editing
@@ -321,7 +341,9 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
             tags={tags}
             availableLabels={organization.tags}
             formError={
-              formError || organizationError || (needsCheck ? notice : "")
+              formError ||
+              organizationError ||
+              (needsCheck || /精力|计时/.test(notice) ? notice : "")
             }
             busy={editorBusy}
             needsCheck={needsCheck || organizationBlocked}

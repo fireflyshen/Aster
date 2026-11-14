@@ -17,7 +17,7 @@ import { recurrenceLabel } from "@core/tasks/recurrence";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
-import { Ellipsis, Flag, Plus, Trash2, X } from "lucide-react";
+import { Ellipsis, Flag, Play, Plus, Square, Trash2, X } from "lucide-react";
 import { DatePicker } from "./date-picker";
 import { LabelsPicker } from "./labels-picker";
 import { ProjectPicker } from "./project-picker";
@@ -32,6 +32,8 @@ type TaskDetailSidebarProps = {
   availableLabels: SavedTag[];
   editing?: Task;
   disabled: boolean;
+  timingUnavailable?: boolean;
+  onToggleStart?: () => void;
   onDraftChange: (draft: TaskInput) => void;
   onDueChange: (due: string) => void;
   onTagsChange: (tags: string) => void;
@@ -49,6 +51,8 @@ export function TaskDetailSidebar({
   availableLabels,
   editing,
   disabled,
+  timingUnavailable = false,
+  onToggleStart,
   onDraftChange,
   onDueChange,
   onTagsChange,
@@ -64,9 +68,48 @@ export function TaskDetailSidebar({
     availableLabels.map((item) => [item.name, itemColor(item.color)]),
   );
   const currentPriority = priorityOption(draft.priority || "");
+  const isStarted = Boolean(editing?.start) && editing?.status !== "completed";
 
   return (
     <aside className="task-detail-aside" aria-label="任务属性">
+      {editing && editing.status !== "completed" && onToggleStart && (
+        <div className="task-detail-properties">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label className="text-xs leading-4 font-medium text-muted-foreground">
+              进行状态
+            </Label>
+            <Button
+              type="button"
+              variant={isStarted ? "secondary" : "outline"}
+              disabled={disabled || (!isStarted && timingUnavailable)}
+              onClick={onToggleStart}
+              className={cn(
+                "h-9 w-full justify-start gap-2 px-2.5 text-xs shadow-none",
+                isStarted
+                  ? "border border-primary/25 bg-primary/8 font-medium text-foreground hover:bg-primary/14"
+                  : "border-border/80 bg-transparent font-normal text-foreground hover:bg-(--navigation-hover)",
+              )}
+            >
+              {isStarted ? (
+                <>
+                  <Square className="size-3 shrink-0 fill-current text-primary" />
+                  <span>正在进行中（停止计时）</span>
+                </>
+              ) : (
+                <>
+                  <Play className="size-3.5 shrink-0 text-muted-foreground" />
+                  <span>
+                    {timingUnavailable
+                      ? "计时不可用"
+                      : "设为正在进行（开始计时）"}
+                  </span>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="task-detail-properties">
         <div className="flex min-w-0 flex-col gap-1.5">
           <Label

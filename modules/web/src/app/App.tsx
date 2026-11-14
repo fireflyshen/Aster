@@ -363,6 +363,7 @@ export function App() {
         onCreateTaskInView={taskActions.createTaskInView}
         onCreateSubtask={taskActions.createSubtask}
         onToggleTask={taskActions.toggleTask}
+        onToggleStart={taskActions.toggleStartTask}
         onUnlinkSubtask={taskActions.unlinkSubtask}
         onDeleteTask={taskActions.deleteTask}
         onSubmitTaskForm={taskActions.submitTaskForm}

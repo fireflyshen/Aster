@@ -190,19 +190,19 @@ export function TaskRowActions({
           <MessageSquare className="size-3.5" strokeWidth={1.6} />
         </Button>
       )}
-      {variant === "list" && !completed && onToggleStart && (
+      {!completed && onToggleStart && (
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
           disabled={disabled || (!started && timingUnavailable)}
-          aria-label={`${started ? "停止计时" : "开始计时"}: ${task.description}`}
+          aria-label={`${started ? "停止正在进行" : "设为正在进行（开始计时）"}: ${task.description}`}
           title={
             !started && timingUnavailable
               ? "计时不可用"
               : started
-                ? "停止计时 (S)"
-                : "开始计时 (S)"
+                ? "正在进行中 — 点击停止计时 (S)"
+                : "设为正在进行 · 开始计时 (S)"
           }
           onClick={onToggleStart}
           className={cn(

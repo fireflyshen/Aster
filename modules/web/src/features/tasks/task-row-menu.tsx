@@ -253,7 +253,7 @@ export function TaskRowMenu({
               ) : (
                 <Play className="size-3.5" />
               )}
-              {task.start ? "停止计时" : "开始计时"}
+              {task.start ? "停止进行（停止计时）" : "设为正在进行（开始计时）"}
             </Button>
           )}
           {!completed && onStartAddSubtask && (

@@ -196,7 +196,7 @@
     right: -8px;
   }
   [data-variant="card"] [data-task-title] {
-    padding-right: 24px;
+    padding-right: 52px;
   }
   [data-variant="card"] .task-row-check {
     margin-top: -11px;
