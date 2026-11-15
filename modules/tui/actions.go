@@ -105,6 +105,7 @@ func (m *model) openActions() {
 	case "point":
 		add("point.export", "下载恢复前副本", "保存到本地文件")
 	}
+	m.openTimeActions(add)
 	add("task.new", "添加任务", "完整表单")
 	add("quick", "一句话捕捉", "中文日期 / #项目 / @标签 / p1")
 	add("focus.choose", "选择 Focus 项目", "最多三个，可选择替换")
@@ -124,10 +125,18 @@ func (m *model) action(a string) tea.Cmd {
 	r := m.current()
 	m.selected = r
 	readOnly := a == "expression" || a == "export" || a == "point.export" ||
-		a == "import" || a == "quick" || a == "task.priority" || a == "task.due"
+		a == "import" || a == "quick" || a == "task.priority" || a == "task.due" ||
+		a == "task.cost_detail" || a == "time.go.today" || a == "time.go.weekly" ||
+		a == "time.go.report" || a == "time.date.prev" || a == "time.date.next" ||
+		a == "time.date.today" || a == "time.date.pick" ||
+		a == "time.report.granularity" || a == "time.report.sort" ||
+		a == "time.report.group" || a == "time.bill.search"
 	if m.blocked && !readOnly {
 		m.message = "连接或写入状态待核对，请按 r 刷新"
 		return nil
+	}
+	if cmd, handled := m.timeAction(a); handled {
+		return cmd
 	}
 	if strings.HasPrefix(a, "focus:") {
 		name := strings.TrimPrefix(a, "focus:")

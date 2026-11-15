@@ -20,7 +20,9 @@ Aster 是一个基于 **Taskwarrior 3**
      filters、项目与任务 Markdown 说明及颜色。
    - **Time Ledger（SQLite WAL）**：独立
      `time.sqlite` + 恢复隔离屏障（`.barrier.json`）管理 24h 时间覆盖（`C + U = T`）、睡眠候选识别、待定位估记、跨小时检查点、两阶段 Taskwarrior 协调事务，以及**时间投入成本**（单一时薪单价、最初/追加预算快照、待核对金额隔离、周/月成本报告与只读 Bills 现金关联）。
-   - **基于项目与标签统计**：直接关联 Taskwarrior 已有项目与标签（`projectSnapshot` + `tags`），不再强制维护冗余的预制分类；睡眠时段自动按 `¥0` 计价并免除检查点提醒。
+   - **基于项目与标签统计**：直接关联 Taskwarrior 已有项目与标签（`projectSnapshot` +
+     `tags`），不再强制维护冗余的预制分类；睡眠时段自动按 `¥0`
+     计价并免除检查点提醒。
    - **TimingPlan 自动停止机制**：支持「预计用时」+「计划开始」+「最晚停止」的清晰边界，采用
      **手动开始 → 到限自动停止 → 确认或修正记录**
      流程；服务重启仍按原定时限准确结算，不会无故把计划直接变成已执行记录。详见
@@ -30,7 +32,8 @@ Aster 是一个基于 **Taskwarrior 3**
    - React 19 + shadcn/ui + Tailwind
      CSS，支持 Todoist 风格窄列表快速捕捉（`Q`）、行内编辑、树形子任务、List/Board 一体化视图、任务列表与详情内嵌投入成本及预算演化、Data
      & Recovery 备份恢复。
-   - 提供极简留白的 **Time Ledger（今日时间线 / 本周分布 / 成本报告 / 时间设置）**
+   - 提供极简留白的 **Time
+     Ledger（今日时间线 / 本周分布 / 成本报告 / 时间设置）**
      与顶部单行执行条、到限确认与修正弹窗。
 3. **AI / Grok Bot 接口（`modules/mcp`）**
    - 标准 MCP

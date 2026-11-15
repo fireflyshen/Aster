@@ -1295,7 +1295,10 @@ func (m model) View() string {
 							text += " · 暂计 " + formatCurrencyCny(provCents)
 						}
 					}
-					if cd, ok := formatAutoStopCountdown(act.AutoStopAt, now); ok {
+					if cd, ok := formatAutoStopCountdown(
+						act.AutoStopAt,
+						now,
+					); ok {
 						text += " · " + cd
 					}
 				}

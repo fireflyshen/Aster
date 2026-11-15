@@ -323,10 +323,7 @@ func (m *model) openTaskForm(kind string, t Task) tea.Cmd {
 	if kind == "task.edit" && t.UUID != "" {
 		desc = m.org.Descriptions[t.UUID]
 	}
-	return m.openForm(
-		kind,
-		title,
-		"Ctrl+S 保存；Tab 切换；日期使用本机时区。未修改日期保留原时间。",
+	fields := []field{
 		textField("任务名称", t.Description, "必填"),
 		selectField("项目", t.Project, m.projectChoices()),
 		textField(
@@ -363,6 +360,13 @@ func (m *model) openTaskForm(kind string, t Task) tea.Cmd {
 		),
 		areaField("追加备注", "", "已有备注保留，可在操作菜单中移除"),
 		areaField("任务描述", desc, "可选多行说明（与 Taskwarrior 备注独立同步）"),
+	}
+	fields = append(fields, m.taskBudgetFormFields(kind, t)...)
+	return m.openForm(
+		kind,
+		title,
+		"Ctrl+S 保存；Tab 切换；日期使用本机时区。未修改日期保留原时间。",
+		fields...,
 	)
 }
 func (m *model) openRepeatForm(t Task) tea.Cmd {
@@ -526,6 +530,19 @@ func (m *model) submit() (tea.Cmd, error) {
 		if e != nil {
 			return nil, e
 		}
+		var existingBudget *TaskCostSummary
+		if m.formKind == "task.edit" && r.task.UUID != "" {
+			if s, ok := lookupTaskCost(m.timerSnap, r.task.UUID); ok {
+				existingBudget = &s
+			}
+		}
+		applyBudget, budgetPayload, be := m.parseTaskFormBudget(
+			v,
+			existingBudget,
+		)
+		if be != nil {
+			return nil, be
+		}
 		desc := ""
 		if len(v) > 8 {
 			desc = strings.TrimSpace(v[8])
@@ -537,10 +554,31 @@ func (m *model) submit() (tea.Cmd, error) {
 			if desc != "" {
 				p["taskDescription"] = desc
 			}
-			return m.write("/api/tasks", p), nil
+			if !applyBudget {
+				return m.write("/api/tasks", p), nil
+			}
+			return func() tea.Msg {
+				var added struct {
+					OK   bool   `json:"ok"`
+					UUID string `json:"uuid"`
+				}
+				if err := m.client.post("/api/tasks", p, &added); err != nil {
+					return saved{err: err}
+				}
+				if added.UUID != "" {
+					budgetPayload["taskUuid"] = added.UUID
+					if err := m.client.mutate(
+						"/api/time/task-budget",
+						budgetPayload,
+					); err != nil {
+						return saved{message: "任务已创建，但预算设置失败：" + err.Error()}
+					}
+				}
+				return saved{message: "已创建任务并写入时间预算"}
+			}, nil
 		}
 		oldDesc := strings.TrimSpace(m.org.Descriptions[r.id])
-		if desc == oldDesc {
+		if desc == oldDesc && !applyBudget {
 			return action("edit", map[string]any{"task": p}), nil
 		}
 		editPayload := map[string]any{
@@ -563,13 +601,24 @@ func (m *model) submit() (tea.Cmd, error) {
 			if err := m.client.mutate("/api/action", editPayload); err != nil {
 				return saved{err: err}
 			}
-			if err := m.client.mutate(
-				"/api/organization",
-				descPayload,
-			); err != nil {
-				return saved{err: err}
+			if desc != oldDesc {
+				if err := m.client.mutate(
+					"/api/organization",
+					descPayload,
+				); err != nil {
+					return saved{err: err}
+				}
 			}
-			return saved{message: "已保存任务与描述"}
+			if applyBudget {
+				budgetPayload["taskUuid"] = r.task.UUID
+				if err := m.client.mutate(
+					"/api/time/task-budget",
+					budgetPayload,
+				); err != nil {
+					return saved{message: "任务已保存，但预算设置失败：" + err.Error()}
+				}
+			}
+			return saved{message: "已保存任务与成本设置"}
 		}, nil
 	case "task.description":
 		desc := strings.TrimSpace(v[0])
@@ -903,6 +952,10 @@ func (m *model) submit() (tea.Cmd, error) {
 			"/api/backup/restore",
 			map[string]any{"token": m.previewToken},
 		), nil
+	default:
+		if cmd, err, ok := m.submitTimeForm(v); ok {
+			return cmd, err
+		}
 	}
 	return nil, fmt.Errorf("未选择有效操作")
 }

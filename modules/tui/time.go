@@ -293,6 +293,7 @@ type TimeState struct {
 	Bills              []BillExpenseItem
 	BillTargetTaskUUID string
 	BillTargetActivity string
+	BillQuery          string
 	BillUnlinkChoices  []BillLink
 	EditingPlan        *TimingPlan
 	EditingSegment     *LocatedSegment
@@ -420,7 +421,8 @@ func highlightTaskListCost(snap *TimerSnapshot) bool {
 }
 
 func currentHourlyRateCents(snap *TimerSnapshot, policy *TimePolicy) int64 {
-	if policy != nil && policy.HourlyRateCents != nil && *policy.HourlyRateCents > 0 {
+	if policy != nil && policy.HourlyRateCents != nil &&
+		*policy.HourlyRateCents > 0 {
 		return *policy.HourlyRateCents
 	}
 	if snap != nil && snap.HourlyRateCents > 0 {
@@ -454,7 +456,8 @@ func displayedTaskCost(
 	if !ok {
 		return TaskCostSummary{}, false
 	}
-	if !isTiming || extraSecs <= 0 || snap == nil || snap.ActiveActivity == nil ||
+	if !isTiming || extraSecs <= 0 || snap == nil ||
+		snap.ActiveActivity == nil ||
 		isSleepActivity(snap.ActiveActivity) {
 		return sum, true
 	}
@@ -494,12 +497,21 @@ func displayedActiveCost(
 	started := date(act.StartedAt)
 	var confirmedSecs float64
 	if act.ConfirmedThrough != "" && !started.IsZero() {
-		if conf := date(act.ConfirmedThrough); !conf.IsZero() && !conf.Before(started) {
+		if conf := date(
+			act.ConfirmedThrough,
+		); !conf.IsZero() &&
+			!conf.Before(started) {
 			confirmedSecs = min(activeElapsed, conf.Sub(started).Seconds())
 		}
 	}
 	provSecs := max(0.0, activeElapsed-confirmedSecs)
-	return false, computeDurationCostCents(confirmedSecs, rate), computeDurationCostCents(provSecs, rate), true
+	return false, computeDurationCostCents(
+			confirmedSecs,
+			rate,
+		), computeDurationCostCents(
+			provSecs,
+			rate,
+		), true
 }
 
 func formatAutoStopCountdown(autoStopAt string, now time.Time) (string, bool) {
@@ -515,7 +527,11 @@ func formatAutoStopCountdown(autoStopAt string, now time.Time) (string, bool) {
 	if rem <= 0 {
 		return "已到 " + clock, true
 	}
-	return fmt.Sprintf("剩 %s · %s 停", formatDurationShort(rem.Seconds()), clock), true
+	return fmt.Sprintf(
+		"剩 %s · %s 停",
+		formatDurationShort(rem.Seconds()),
+		clock,
+	), true
 }
 
 func timingPlanStatusLabel(status string) string {
@@ -577,7 +593,10 @@ func formatProjectAndTags(project string, tags []string) string {
 	return strings.Join(parts, " ")
 }
 
-func parseTimeInputToSpec(input string, defaultDate string) (ms *int64, dateStr string, timeStr string, err error) {
+func parseTimeInputToSpec(
+	input string,
+	defaultDate string,
+) (ms *int64, dateStr string, timeStr string, err error) {
 	raw := strings.TrimSpace(input)
 	if raw == "" {
 		return nil, "", "", nil
@@ -589,14 +608,19 @@ func parseTimeInputToSpec(input string, defaultDate string) (ms *int64, dateStr 
 		}
 		h, eh := strconv.Atoi(parts[0])
 		minVal, em := strconv.Atoi(parts[1])
-		if eh != nil || em != nil || h < 0 || h > 23 || minVal < 0 || minVal > 59 {
+		if eh != nil || em != nil || h < 0 || h > 23 || minVal < 0 ||
+			minVal > 59 {
 			return nil, "", "", fmt.Errorf("小时(0-23)或分钟(0-59)无效")
 		}
 		clock := fmt.Sprintf("%02d:%02d", h, minVal)
 		return nil, defaultDate, clock, nil
 	}
 	for _, layout := range []string{"2006-01-02 15:04", "2006-01-02T15:04"} {
-		if parsed, e := time.ParseInLocation(layout, raw, time.Local); e == nil {
+		if parsed, e := time.ParseInLocation(
+			layout,
+			raw,
+			time.Local,
+		); e == nil {
 			v := parsed.UnixMilli()
 			return &v, "", "", nil
 		}
@@ -642,7 +666,8 @@ func parseYuanToCents(input string) (int64, error) {
 }
 
 func (m model) isTimeNavView() bool {
-	return m.view == "time.today" || m.view == "time.weekly" || m.view == "time.report"
+	return m.view == "time.today" || m.view == "time.weekly" ||
+		m.view == "time.report"
 }
 
 func (m model) effectiveTimeDate() string {
@@ -682,7 +707,11 @@ func (m model) loadTimeViewCmd(view string) tea.Cmd {
 		switch view {
 		case "time.today":
 			var daily DailyLedgerSummary
-			if err := c.request("/api/time/daily?date="+url.QueryEscape(d), nil, &daily); err != nil {
+			if err := c.request(
+				"/api/time/daily?date="+url.QueryEscape(d),
+				nil,
+				&daily,
+			); err != nil {
 				msg.err = err
 				return msg
 			}
@@ -694,7 +723,11 @@ func (m model) loadTimeViewCmd(view string) tea.Cmd {
 			msg.plans = plans.Plans
 		case "time.weekly":
 			var weekly WeeklyDistributionSummary
-			if err := c.request("/api/time/weekly?date="+url.QueryEscape(d), nil, &weekly); err != nil {
+			if err := c.request(
+				"/api/time/weekly?date="+url.QueryEscape(d),
+				nil,
+				&weekly,
+			); err != nil {
 				msg.err = err
 				return msg
 			}
@@ -724,7 +757,11 @@ func (m model) fetchTaskCostDetailCmd(taskUUID string) tea.Cmd {
 			return timeDataLoadedMsg{err: err}
 		}
 		var det TaskCostDetailResponse
-		if err := c.request("/api/time/task-detail?taskUuid="+url.QueryEscape(taskUUID), nil, &det); err != nil {
+		if err := c.request(
+			"/api/time/task-detail?taskUuid="+url.QueryEscape(taskUUID),
+			nil,
+			&det,
+		); err != nil {
 			return timeDataLoadedMsg{err: err}
 		}
 		var policy TimePolicy
@@ -786,7 +823,11 @@ func (m model) fetchPlanForExtendCmd(planID string) tea.Cmd {
 		var resp struct {
 			Plan TimingPlan `json:"plan"`
 		}
-		if err := c.request("/api/time/plan?id="+url.QueryEscape(planID), nil, &resp); err != nil {
+		if err := c.request(
+			"/api/time/plan?id="+url.QueryEscape(planID),
+			nil,
+			&resp,
+		); err != nil {
 			return timeDataLoadedMsg{err: err}
 		}
 		return timeDataLoadedMsg{openPlanExtend: &resp.Plan}
@@ -817,7 +858,8 @@ func (m model) handleTimeLoaded(msg timeDataLoadedMsg) (tea.Model, tea.Cmd) {
 	if msg.taskDetail != nil {
 		m.timeState.TaskDetail = msg.taskDetail
 		m.timeState.TaskDetailUUID = msg.taskDetailUUID
-		if msg.openPlanExtend == nil && !msg.openSettings && len(msg.bills) == 0 {
+		if msg.openPlanExtend == nil && !msg.openSettings &&
+			len(msg.bills) == 0 {
 			m.detail = true
 			m.message = "已加载任务成本与流水明细"
 		}
@@ -840,9 +882,19 @@ func (m model) handleTimeLoaded(msg timeDataLoadedMsg) (tea.Model, tea.Cmd) {
 			{"time.bill.search", "按关键词搜索 Bill 账单…", "向服务端查询更多历史支出"},
 		}
 		for i, b := range msg.bills {
-			label := fmt.Sprintf("%s  %s · %s", formatCurrencyCny(b.CnyAmountCents), fallbackStr(b.Payee, b.Narration, b.Account), b.PayTime)
-			hint := strings.TrimSpace(strings.Join([]string{b.Account, b.Narration}, " · "))
-			options = append(options, choice{fmt.Sprintf("time.bill.pick:%d", i), label, hint})
+			label := fmt.Sprintf(
+				"%s  %s · %s",
+				formatCurrencyCny(b.CnyAmountCents),
+				fallbackStr(b.Payee, b.Narration, b.Account),
+				b.PayTime,
+			)
+			hint := strings.TrimSpace(
+				strings.Join([]string{b.Account, b.Narration}, " · "),
+			)
+			options = append(
+				options,
+				choice{fmt.Sprintf("time.bill.pick:%d", i), label, hint},
+			)
 		}
 		m.choose(options, -1)
 		return m, nil
@@ -895,7 +947,10 @@ func (m *model) syncTimeExtraRows() {
 	rate := currentHourlyRateCents(m.timerSnap, m.timeState.Policy)
 	switch m.view {
 	case "time.today":
-		sub := fmt.Sprintf("时间单价 %s/h · [ 上一天 · ] 下一天 · . 今天 · , 设置", formatCurrencyCny(rate))
+		sub := fmt.Sprintf(
+			"时间单价 %s/h · [ 上一天 · ] 下一天 · . 今天 · , 设置",
+			formatCurrencyCny(rate),
+		)
 		if m.timeState.Daily != nil {
 			dl := m.timeState.Daily
 			sub = fmt.Sprintf(
@@ -926,9 +981,12 @@ func (m *model) syncTimeExtraRows() {
 					conf = " · 与已有记录重叠"
 				}
 				out = append(out, row{
-					kind:     "time.sleep_candidate",
-					id:       sc.Date,
-					title:    "睡眠候选 " + sc.Date + " (" + formatClockRangeMs(sc.StartMs, sc.EndMs) + ")",
+					kind: "time.sleep_candidate",
+					id:   sc.Date,
+					title: "睡眠候选 " + sc.Date + " (" + formatClockRangeMs(
+						sc.StartMs,
+						sc.EndMs,
+					) + ")",
 					subtitle: st + " · ¥0 · 免除 6h 检查点" + conf,
 				})
 			}
@@ -972,9 +1030,13 @@ func (m *model) syncTimeExtraRows() {
 				costText := formatCurrencyCny(seg.ConfirmedCostCents)
 				if seg.ProvisionalCostCents > 0 {
 					if seg.ConfirmedCostCents > 0 {
-						costText += " + 暂计 " + formatCurrencyCny(seg.ProvisionalCostCents)
+						costText += " + 暂计 " + formatCurrencyCny(
+							seg.ProvisionalCostCents,
+						)
 					} else {
-						costText = "暂计 " + formatCurrencyCny(seg.ProvisionalCostCents)
+						costText = "暂计 " + formatCurrencyCny(
+							seg.ProvisionalCostCents,
+						)
 					}
 				}
 				if strings.EqualFold(seg.CategoryID, "sleep") {
@@ -989,17 +1051,23 @@ func (m *model) syncTimeExtraRows() {
 				} else if seg.ReviewState == "conflict" {
 					flags += " · 冲突"
 				}
-				if seg.ExceededPlanSeconds != nil && *seg.ExceededPlanSeconds > 0 {
-					flags += " · 超出安排 " + formatDurationShort(*seg.ExceededPlanSeconds)
+				if seg.ExceededPlanSeconds != nil &&
+					*seg.ExceededPlanSeconds > 0 {
+					flags += " · 超出安排 " + formatDurationShort(
+						*seg.ExceededPlanSeconds,
+					)
 				}
 				scope := formatProjectAndTags(seg.ProjectSnapshot, seg.Tags)
 				if scope != "" {
 					scope = " · " + scope
 				}
 				out = append(out, row{
-					kind:  "time.segment",
-					id:    seg.ActivityID,
-					title: formatClockRangeMs(seg.StartMs, seg.EndMs) + "  " + seg.Title,
+					kind: "time.segment",
+					id:   seg.ActivityID,
+					title: formatClockRangeMs(
+						seg.StartMs,
+						seg.EndMs,
+					) + "  " + seg.Title,
 					subtitle: fmt.Sprintf(
 						"%s · %s%s%s",
 						costText,
@@ -1015,7 +1083,11 @@ func (m *model) syncTimeExtraRows() {
 		title := "本周项目与标签分布 · " + d
 		sub := "[ 上周 · ] 下周 · . 本周"
 		if w != nil {
-			title = fmt.Sprintf("本周项目与标签分布 · %s ~ %s", w.WeekStartDate, w.WeekEndDate)
+			title = fmt.Sprintf(
+				"本周项目与标签分布 · %s ~ %s",
+				w.WeekStartDate,
+				w.WeekEndDate,
+			)
 			sub = fmt.Sprintf(
 				"已确认 %s (%s) · 待核对 %s · 空白 %s",
 				formatCurrencyCny(w.ConfirmedCostCents),
@@ -1024,7 +1096,10 @@ func (m *model) syncTimeExtraRows() {
 				formatDurationShort(w.UnrecordedSeconds),
 			)
 		}
-		out = append(out, row{kind: "time.summary", id: d, title: title, subtitle: sub})
+		out = append(
+			out,
+			row{kind: "time.summary", id: d, title: title, subtitle: sub},
+		)
 		if w != nil {
 			for _, item := range sortedDistItems(w.ByProjectSeconds, w.ByProjectCostCents, false) {
 				pct := 0.0
@@ -1036,10 +1111,15 @@ func (m *model) syncTimeExtraRows() {
 					name = "未分配项目"
 				}
 				out = append(out, row{
-					kind:     "time.weekly_project",
-					id:       item.key,
-					title:    "项目 · " + name,
-					subtitle: fmt.Sprintf("%s · %s · 占比 %.0f%%", formatCurrencyCny(item.costCents), formatDurationShort(item.secs), pct),
+					kind:  "time.weekly_project",
+					id:    item.key,
+					title: "项目 · " + name,
+					subtitle: fmt.Sprintf(
+						"%s · %s · 占比 %.0f%%",
+						formatCurrencyCny(item.costCents),
+						formatDurationShort(item.secs),
+						pct,
+					),
 				})
 			}
 			for _, item := range sortedDistItems(w.ByTagSeconds, w.ByTagCostCents, true) {
@@ -1054,10 +1134,15 @@ func (m *model) syncTimeExtraRows() {
 					name = "#" + name
 				}
 				out = append(out, row{
-					kind:     "time.weekly_tag",
-					id:       item.key,
-					title:    "标签 · " + name,
-					subtitle: fmt.Sprintf("%s · %s · 占比 %.0f%%", formatCurrencyCny(item.costCents), formatDurationShort(item.secs), pct),
+					kind:  "time.weekly_tag",
+					id:    item.key,
+					title: "标签 · " + name,
+					subtitle: fmt.Sprintf(
+						"%s · %s · 占比 %.0f%%",
+						formatCurrencyCny(item.costCents),
+						formatDurationShort(item.secs),
+						pct,
+					),
 				})
 			}
 		}
@@ -1079,7 +1164,13 @@ func (m *model) syncTimeExtraRows() {
 		title := granLabel + "成本报告（" + groupLabel + " · " + sortLabel + "）"
 		sub := "w 切换周/月 · o 切换排序 · v 任务/项目 · [ / ] 翻期"
 		if rep != nil {
-			title = fmt.Sprintf("%s成本报告 %s ~ %s（%s）", granLabel, rep.PeriodStartDate, rep.PeriodEndDate, groupLabel)
+			title = fmt.Sprintf(
+				"%s成本报告 %s ~ %s（%s）",
+				granLabel,
+				rep.PeriodStartDate,
+				rep.PeriodEndDate,
+				groupLabel,
+			)
 			sub = fmt.Sprintf(
 				"时间 %s · 现金 %s · 综合 %s · 暂计 %s · %s",
 				formatCurrencyCny(rep.TotalPeriodConfirmedCostCents),
@@ -1089,13 +1180,18 @@ func (m *model) syncTimeExtraRows() {
 				sortLabel,
 			)
 		}
-		out = append(out, row{kind: "time.summary", id: d, title: title, subtitle: sub})
+		out = append(
+			out,
+			row{kind: "time.summary", id: d, title: title, subtitle: sub},
+		)
 		if rep != nil {
 			if groupBy == "project" {
 				for _, pr := range rep.ByProject {
 					overText := ""
 					if pr.OverInitialBudgetCents > 0 {
-						overText = " · 超出 " + formatCurrencyCny(pr.OverInitialBudgetCents)
+						overText = " · 超出 " + formatCurrencyCny(
+							pr.OverInitialBudgetCents,
+						)
 					}
 					out = append(out, row{
 						kind:  "time.report_project",
@@ -1116,9 +1212,13 @@ func (m *model) syncTimeExtraRows() {
 				for _, tr := range rep.ByTask {
 					budgetText := "未设预算"
 					if tr.OverInitialBudgetCents > 0 {
-						budgetText = "超出初预估 " + formatCurrencyCny(tr.OverInitialBudgetCents)
+						budgetText = "超出初预估 " + formatCurrencyCny(
+							tr.OverInitialBudgetCents,
+						)
 					} else if tr.HasBudget && tr.InitialBudgetCents != nil {
-						budgetText = "初预算 " + formatCurrencyCny(*tr.InitialBudgetCents)
+						budgetText = "初预算 " + formatCurrencyCny(
+							*tr.InitialBudgetCents,
+						)
 					}
 					scope := formatProjectAndTags(tr.ProjectSnapshot, tr.Tags)
 					if scope != "" {
@@ -1171,7 +1271,11 @@ type distItem struct {
 	costCents int64
 }
 
-func sortedDistItems(secs map[string]float64, costs map[string]int64, isTag bool) []distItem {
+func sortedDistItems(
+	secs map[string]float64,
+	costs map[string]int64,
+	isTag bool,
+) []distItem {
 	seen := map[string]bool{}
 	for k := range secs {
 		seen[k] = true
@@ -1256,7 +1360,10 @@ func (m model) renderTaskMetaTimeCost(
 	durBadge := func() styledSpan {
 		if !secsKnown {
 			if isTiming {
-				return span("▶ —", lipgloss.NewStyle().Foreground(timerColor).Bold(true))
+				return span(
+					"▶ —",
+					lipgloss.NewStyle().Foreground(timerColor).Bold(true),
+				)
 			}
 			if started {
 				return span("▷ —", dim)
@@ -1264,10 +1371,16 @@ func (m model) renderTaskMetaTimeCost(
 			return span("⧖ —", dim)
 		}
 		if isTiming {
-			return span("▶ "+formatDurationShort(secs), lipgloss.NewStyle().Foreground(timerColor).Bold(true))
+			return span(
+				"▶ "+formatDurationShort(secs),
+				lipgloss.NewStyle().Foreground(timerColor).Bold(true),
+			)
 		}
 		if started {
-			return span("▷ "+formatDurationShort(secs), lipgloss.NewStyle().Foreground(warnColor))
+			return span(
+				"▷ "+formatDurationShort(secs),
+				lipgloss.NewStyle().Foreground(warnColor),
+			)
 		}
 		if secs >= 60 {
 			return span("⧖ "+formatDurationShort(secs), dim)
@@ -1276,12 +1389,17 @@ func (m model) renderTaskMetaTimeCost(
 	}()
 
 	var costSpan styledSpan
-	hasActivityCost := sum.ConfirmedCostCents > 0 || sum.ProvisionalCostCents > 0
+	hasActivityCost := sum.ConfirmedCostCents > 0 ||
+		sum.ProvisionalCostCents > 0
 	if hasActivityCost {
 		var costText string
 		st := lipgloss.NewStyle().Foreground(ink).Bold(true)
 		if sum.ConfirmedCostCents > 0 && sum.ProvisionalCostCents > 0 {
-			costText = fmt.Sprintf("%s + 暂计 %s", formatCurrencyCny(sum.ConfirmedCostCents), formatCurrencyCny(sum.ProvisionalCostCents))
+			costText = fmt.Sprintf(
+				"%s + 暂计 %s",
+				formatCurrencyCny(sum.ConfirmedCostCents),
+				formatCurrencyCny(sum.ProvisionalCostCents),
+			)
 			if isTiming {
 				st = lipgloss.NewStyle().Foreground(timerColor).Bold(true)
 			}
@@ -1320,14 +1438,20 @@ func (m model) renderTaskMetaTimeCost(
 
 	if sum.OverInitialBudgetCents > 0 {
 		groups = append(groups, []styledSpan{
-			span("超出 "+formatCurrencyCny(sum.OverInitialBudgetCents), lipgloss.NewStyle().Foreground(dangerColor).Bold(true)),
+			span(
+				"超出 "+formatCurrencyCny(sum.OverInitialBudgetCents),
+				lipgloss.NewStyle().Foreground(dangerColor).Bold(true),
+			),
 		})
 	} else if !sum.HasBudget && hasActivityCost {
 		groups = append(groups, []styledSpan{span("未设预算", dim)})
 	}
 	if sum.LinkedCashCents > 0 {
 		groups = append(groups, []styledSpan{
-			span("现金 "+formatCurrencyCny(sum.LinkedCashCents), lipgloss.NewStyle().Foreground(inkSoft)),
+			span(
+				"现金 "+formatCurrencyCny(sum.LinkedCashCents),
+				lipgloss.NewStyle().Foreground(inkSoft),
+			),
 		})
 	}
 	return true, groups
@@ -1353,7 +1477,8 @@ func (m model) inspectTaskCostSection(
 		snap = m.org.TimerSnapshot
 	}
 	sum, ok := displayedTaskCost(snap, t.UUID, isTiming && canTick, extraSecs)
-	hasDetailed := m.timeState.TaskDetail != nil && strings.EqualFold(m.timeState.TaskDetailUUID, t.UUID)
+	hasDetailed := m.timeState.TaskDetail != nil &&
+		strings.EqualFold(m.timeState.TaskDetailUUID, t.UUID)
 	if !ok && hasDetailed {
 		sum = m.timeState.TaskDetail.Summary
 		ok = true
@@ -1363,7 +1488,11 @@ func (m model) inspectTaskCostSection(
 	}
 	*lines = append(*lines, "", sectionRule("投入成本与预算", bodyW))
 	if ok {
-		confVal := fmt.Sprintf("%s · %s", formatCurrencyCny(sum.ConfirmedCostCents), formatDurationShort(sum.ConfirmedSeconds))
+		confVal := fmt.Sprintf(
+			"%s · %s",
+			formatCurrencyCny(sum.ConfirmedCostCents),
+			formatDurationShort(sum.ConfirmedSeconds),
+		)
 		kv("已确认", confVal, ink)
 		if sum.ProvisionalCostCents > 0 || sum.ProvisionalSeconds > 0 {
 			provVal := fmt.Sprintf(
@@ -1386,16 +1515,31 @@ func (m model) inspectTaskCostSection(
 			}
 			budgetDisplay := fmt.Sprintf("当前 %s", currTxt)
 			if sum.CurrentAllowanceSeconds != nil {
-				budgetDisplay += " (" + formatDurationShort(*sum.CurrentAllowanceSeconds) + ")"
+				budgetDisplay += " (" + formatDurationShort(
+					*sum.CurrentAllowanceSeconds,
+				) + ")"
 			}
 			if sum.AddedBudgetCents > 0 {
-				budgetDisplay = fmt.Sprintf("最初 %s -> %s (+%s)", initTxt, budgetDisplay, formatCurrencyCny(sum.AddedBudgetCents))
+				budgetDisplay = fmt.Sprintf(
+					"最初 %s -> %s (+%s)",
+					initTxt,
+					budgetDisplay,
+					formatCurrencyCny(sum.AddedBudgetCents),
+				)
 			} else if initTxt != "—" && sum.CurrentAllowanceSeconds != nil {
-				budgetDisplay = fmt.Sprintf("%s (%s)", initTxt, formatDurationShort(*sum.CurrentAllowanceSeconds))
+				budgetDisplay = fmt.Sprintf(
+					"%s (%s)",
+					initTxt,
+					formatDurationShort(*sum.CurrentAllowanceSeconds),
+				)
 			}
 			kv("预算", budgetDisplay, inkSoft)
 			if sum.OverInitialBudgetCents > 0 {
-				kv("超出", "超出最初预估 "+formatCurrencyCny(sum.OverInitialBudgetCents), dangerColor)
+				kv(
+					"超出",
+					"超出最初预估 "+formatCurrencyCny(sum.OverInitialBudgetCents),
+					dangerColor,
+				)
 			}
 			if sum.PlannedStartAtMs != nil || sum.HardStopAtMs != nil {
 				win := ""
@@ -1412,10 +1556,16 @@ func (m model) inspectTaskCostSection(
 			}
 		}
 		if sum.LinkedCashCents > 0 {
-			kv("现金账单", formatCurrencyCny(sum.LinkedCashCents), inkSoft)
-			kv("综合投入", formatCurrencyCny(sum.CombinedCostCents), brand)
+			kv("现金", formatCurrencyCny(sum.LinkedCashCents), inkSoft)
+			kv("综合", formatCurrencyCny(sum.CombinedCostCents), brand)
 		}
-		kv("参考单价", formatCurrencyCny(normalizeHourlyRateCents(sum.CurrentHourlyRateCents))+"/h", muted)
+		kv(
+			"单价",
+			formatCurrencyCny(
+				normalizeHourlyRateCents(sum.CurrentHourlyRateCents),
+			)+"/h",
+			muted,
+		)
 	}
 	if !hasDetailed {
 		*lines = append(*lines, dim.Render("B 设预算 · P 建计划 · $ 联账单 · c 加载明细"))
@@ -1423,7 +1573,11 @@ func (m model) inspectTaskCostSection(
 	}
 	det := m.timeState.TaskDetail
 	if len(det.Plans) > 0 {
-		*lines = append(*lines, "", sectionRule(fmt.Sprintf("有界计划 %d", len(det.Plans)), bodyW))
+		*lines = append(
+			*lines,
+			"",
+			sectionRule(fmt.Sprintf("有界计划 %d", len(det.Plans)), bodyW),
+		)
 		for _, p := range det.Plans {
 			if p.Status == "archived" {
 				continue
@@ -1432,25 +1586,60 @@ func (m model) inspectTaskCostSection(
 			if p.RemainingSeconds != nil {
 				rem = " · 剩 " + formatDurationShort(*p.RemainingSeconds)
 			}
-			addStyled(lipgloss.NewStyle().Foreground(inkSoft), fmt.Sprintf("• [%s] %s · 已用 %s%s", timingPlanStatusLabel(p.Status), p.Title, formatDurationShort(p.ConsumedSeconds), rem))
+			addStyled(
+				lipgloss.NewStyle().Foreground(inkSoft),
+				fmt.Sprintf(
+					"• [%s] %s · 已用 %s%s",
+					timingPlanStatusLabel(p.Status),
+					p.Title,
+					formatDurationShort(p.ConsumedSeconds),
+					rem,
+				),
+			)
 		}
 	}
 	if len(det.Segments) > 0 {
-		*lines = append(*lines, "", sectionRule(fmt.Sprintf("时段明细 %d", len(det.Segments)), bodyW))
+		*lines = append(
+			*lines,
+			"",
+			sectionRule(fmt.Sprintf("时段明细 %d", len(det.Segments)), bodyW),
+		)
 		limit := min(6, len(det.Segments))
 		for i := len(det.Segments) - 1; i >= len(det.Segments)-limit; i-- {
 			seg := det.Segments[i]
 			costPart := formatCurrencyCny(seg.ConfirmedCostCents)
 			if seg.ProvisionalCostCents > 0 {
-				costPart += " + 暂计 " + formatCurrencyCny(seg.ProvisionalCostCents)
+				costPart += " + 暂计 " + formatCurrencyCny(
+					seg.ProvisionalCostCents,
+				)
 			}
-			add(fmt.Sprintf("• %s · %s · %s (%s)", formatClockRangeMs(seg.StartMs, seg.EndMs), costPart, formatDurationShort(seg.DurationSeconds), seg.ReviewState))
+			add(
+				fmt.Sprintf(
+					"• %s · %s · %s (%s)",
+					formatClockRangeMs(seg.StartMs, seg.EndMs),
+					costPart,
+					formatDurationShort(seg.DurationSeconds),
+					seg.ReviewState,
+				),
+			)
 		}
 	}
 	if len(det.BillLinks) > 0 {
-		*lines = append(*lines, "", sectionRule(fmt.Sprintf("关联现金账单 %d", len(det.BillLinks)), bodyW))
+		*lines = append(
+			*lines,
+			"",
+			sectionRule(fmt.Sprintf("关联现金账单 %d", len(det.BillLinks)), bodyW),
+		)
 		for _, bl := range det.BillLinks {
-			add(fmt.Sprintf("• %s  %s · %s (%s)", formatCurrencyCny(bl.CnyAmountCents), fallbackStr(bl.Payee, bl.Narration, bl.Account), bl.PayTime, bl.Account))
+			add(
+				fmt.Sprintf(
+					"• %s  %s · %s (%s)",
+					formatCurrencyCny(bl.CnyAmountCents),
+					fallbackStr(bl.Payee, bl.Narration, bl.Account),
+					bl.PayTime,
+					bl.Account,
+				),
+			)
 		}
 	}
 }
@@ -1497,7 +1686,8 @@ func (m model) inspectTimeRow(
 		if p.CurrentBudgetCents != nil {
 			kv("当前预算", formatCurrencyCny(*p.CurrentBudgetCents), ink)
 		}
-		if p.InitialBudgetCents != nil && p.CurrentBudgetCents != nil && *p.CurrentBudgetCents != *p.InitialBudgetCents {
+		if p.InitialBudgetCents != nil && p.CurrentBudgetCents != nil &&
+			*p.CurrentBudgetCents != *p.InitialBudgetCents {
 			kv("最初预估", formatCurrencyCny(*p.InitialBudgetCents), muted)
 		}
 		kv("已用额度", formatDurationShort(p.ConsumedSeconds), inkSoft)
@@ -1511,10 +1701,19 @@ func (m model) inspectTimeRow(
 			kv("最晚停止", formatDateTimeMs(*p.HardStopAtMs), warnColor)
 		}
 		if p.EffectiveAutoStopAtMs != nil {
-			kv("实际自动停", formatDateTimeMs(*p.EffectiveAutoStopAtMs)+" ("+p.EffectiveAutoStopBasis+")", timerColor)
+			kv(
+				"自动停",
+				formatDateTimeMs(
+					*p.EffectiveAutoStopAtMs,
+				)+" ("+p.EffectiveAutoStopBasis+")",
+				timerColor,
+			)
 		}
-		if scope := formatProjectAndTags(p.ProjectSnapshot, p.Tags); scope != "" {
-			kv("项目/标签", scope, inkSoft)
+		if scope := formatProjectAndTags(
+			p.ProjectSnapshot,
+			p.Tags,
+		); scope != "" {
+			kv("项目", scope, inkSoft)
 		}
 		if p.Note != "" {
 			*lines = append(*lines, "", sectionRule("备注", bodyW))
@@ -1536,22 +1735,49 @@ func (m model) inspectTimeRow(
 		if strings.EqualFold(seg.CategoryID, "sleep") {
 			kv("类型", "睡眠 ¥0（免除 6h 检查）", muted)
 		} else {
-			kv("已确认", fmt.Sprintf("%s (%s)", formatCurrencyCny(seg.ConfirmedCostCents), formatDurationShort(seg.ConfirmedSeconds)), ink)
+			kv(
+				"已确认",
+				fmt.Sprintf(
+					"%s (%s)",
+					formatCurrencyCny(seg.ConfirmedCostCents),
+					formatDurationShort(seg.ConfirmedSeconds),
+				),
+				ink,
+			)
 			if seg.ProvisionalCostCents > 0 || seg.ProvisionalSeconds > 0 {
-				kv("待核对", fmt.Sprintf("暂计 %s (%s)", formatCurrencyCny(seg.ProvisionalCostCents), formatDurationShort(seg.ProvisionalSeconds)), warnColor)
+				kv(
+					"待核对",
+					fmt.Sprintf(
+						"暂计 %s (%s)",
+						formatCurrencyCny(seg.ProvisionalCostCents),
+						formatDurationShort(seg.ProvisionalSeconds),
+					),
+					warnColor,
+				)
 			}
 			if seg.HourlyRateCents != nil {
 				kv("当时单价", formatCurrencyCny(*seg.HourlyRateCents)+"/h", muted)
 			}
 		}
 		kv("状态", seg.ReviewState, inkSoft)
-		if scope := formatProjectAndTags(seg.ProjectSnapshot, seg.Tags); scope != "" {
-			kv("项目/标签", scope, inkSoft)
+		if scope := formatProjectAndTags(
+			seg.ProjectSnapshot,
+			seg.Tags,
+		); scope != "" {
+			kv("项目", scope, inkSoft)
 		}
 		if seg.ExceededPlanSeconds != nil && *seg.ExceededPlanSeconds > 0 {
-			kv("超出安排", formatDurationShort(*seg.ExceededPlanSeconds), dangerColor)
+			kv(
+				"超出安排",
+				formatDurationShort(*seg.ExceededPlanSeconds),
+				dangerColor,
+			)
 		}
-		*lines = append(*lines, "", dim.Render("c 确认这段 · : 修正时间 / 关联项目与标签 / 联账单"))
+		*lines = append(
+			*lines,
+			"",
+			dim.Render("c 确认这段 · : 修正时间 / 关联项目与标签 / 联账单"),
+		)
 		return true
 	case "time.weekly_project", "time.weekly_tag":
 		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.title)
@@ -1562,33 +1788,100 @@ func (m model) inspectTimeRow(
 		if m.timeState.Report != nil {
 			for _, tr := range m.timeState.Report.ByTask {
 				if tr.TaskUUID == r.id {
-					addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), tr.Title)
+					addStyled(
+						lipgloss.NewStyle().Foreground(ink).Bold(true),
+						tr.Title,
+					)
 					*lines = append(*lines, "")
-					kv("本期投入", fmt.Sprintf("%s (%s)", formatCurrencyCny(tr.PeriodCostCents), formatDurationShort(tr.PeriodSeconds)), ink)
-					kv("任务累计", fmt.Sprintf("%s (%s)", formatCurrencyCny(tr.CumulativeCostCents), formatDurationShort(tr.CumulativeSeconds)), inkSoft)
-					if tr.PeriodProvisionalCostCents > 0 || tr.CumulativeProvisionalCostCents > 0 {
-						kv("待核对", fmt.Sprintf("本期暂计 %s / 累计暂计 %s", formatCurrencyCny(tr.PeriodProvisionalCostCents), formatCurrencyCny(tr.CumulativeProvisionalCostCents)), warnColor)
+					kv(
+						"本期投入",
+						fmt.Sprintf(
+							"%s (%s)",
+							formatCurrencyCny(tr.PeriodCostCents),
+							formatDurationShort(tr.PeriodSeconds),
+						),
+						ink,
+					)
+					kv(
+						"任务累计",
+						fmt.Sprintf(
+							"%s (%s)",
+							formatCurrencyCny(tr.CumulativeCostCents),
+							formatDurationShort(tr.CumulativeSeconds),
+						),
+						inkSoft,
+					)
+					if tr.PeriodProvisionalCostCents > 0 ||
+						tr.CumulativeProvisionalCostCents > 0 {
+						kv(
+							"待核对",
+							fmt.Sprintf(
+								"本期暂计 %s / 累计暂计 %s",
+								formatCurrencyCny(
+									tr.PeriodProvisionalCostCents,
+								),
+								formatCurrencyCny(
+									tr.CumulativeProvisionalCostCents,
+								),
+							),
+							warnColor,
+						)
 					}
 					if tr.HasBudget && tr.InitialBudgetCents != nil {
-						kv("最初预算", formatCurrencyCny(*tr.InitialBudgetCents), muted)
+						kv(
+							"最初预算",
+							formatCurrencyCny(*tr.InitialBudgetCents),
+							muted,
+						)
 					} else {
 						kv("最初预算", "未设预算", muted)
 					}
 					if tr.OverInitialBudgetCents > 0 {
-						kv("超出预估", formatCurrencyCny(tr.OverInitialBudgetCents), dangerColor)
+						kv(
+							"超出预估",
+							formatCurrencyCny(tr.OverInitialBudgetCents),
+							dangerColor,
+						)
 					}
 					kv("关联现金", formatCurrencyCny(tr.CashExpenseCents), inkSoft)
-					kv("综合投入", formatCurrencyCny(tr.CombinedCumulativeCostCents), brand)
+					kv(
+						"综合投入",
+						formatCurrencyCny(tr.CombinedCumulativeCostCents),
+						brand,
+					)
 					if len(tr.Segments) > 0 {
-						*lines = append(*lines, "", sectionRule("本期时段追溯", bodyW))
+						*lines = append(
+							*lines,
+							"",
+							sectionRule("本期时段追溯", bodyW),
+						)
 						for _, s := range tr.Segments {
-							add(fmt.Sprintf("• %s %s  %s (%s)", s.Date, formatClockRangeMs(s.StartMs, s.EndMs), formatCurrencyCny(s.ConfirmedCostCents), s.ReviewState))
+							add(
+								fmt.Sprintf(
+									"• %s %s  %s (%s)",
+									s.Date,
+									formatClockRangeMs(s.StartMs, s.EndMs),
+									formatCurrencyCny(s.ConfirmedCostCents),
+									s.ReviewState,
+								),
+							)
 						}
 					}
 					if len(tr.BillLinks) > 0 {
 						*lines = append(*lines, "", sectionRule("关联账单", bodyW))
 						for _, bl := range tr.BillLinks {
-							add(fmt.Sprintf("• %s %s · %s", formatCurrencyCny(bl.CnyAmountCents), fallbackStr(bl.Payee, bl.Narration, bl.Account), bl.PayTime))
+							add(
+								fmt.Sprintf(
+									"• %s %s · %s",
+									formatCurrencyCny(bl.CnyAmountCents),
+									fallbackStr(
+										bl.Payee,
+										bl.Narration,
+										bl.Account,
+									),
+									bl.PayTime,
+								),
+							)
 						}
 					}
 					return true
@@ -1602,22 +1895,52 @@ func (m model) inspectTimeRow(
 		if m.timeState.Report != nil {
 			for _, pr := range m.timeState.Report.ByProject {
 				if pr.ProjectKey == r.id {
-					addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), pr.ProjectName)
+					addStyled(
+						lipgloss.NewStyle().Foreground(ink).Bold(true),
+						pr.ProjectName,
+					)
 					*lines = append(*lines, "")
-					kv("本期时间", fmt.Sprintf("%s (%s)", formatCurrencyCny(pr.PeriodCostCents), formatDurationShort(pr.PeriodSeconds)), ink)
+					kv(
+						"本期时间",
+						fmt.Sprintf(
+							"%s (%s)",
+							formatCurrencyCny(pr.PeriodCostCents),
+							formatDurationShort(pr.PeriodSeconds),
+						),
+						ink,
+					)
 					kv("关联现金", formatCurrencyCny(pr.CashExpenseCents), inkSoft)
-					kv("综合投入", formatCurrencyCny(pr.CombinedPeriodCostCents), brand)
+					kv(
+						"综合投入",
+						formatCurrencyCny(pr.CombinedPeriodCostCents),
+						brand,
+					)
 					if pr.OverInitialBudgetCents > 0 {
-						kv("累计超出", formatCurrencyCny(pr.OverInitialBudgetCents), dangerColor)
+						kv(
+							"累计超出",
+							formatCurrencyCny(pr.OverInitialBudgetCents),
+							dangerColor,
+						)
 					}
 					kv("任务数", fmt.Sprintf("%d 项", pr.TaskCount), muted)
 					if len(pr.Segments) > 0 {
-						*lines = append(*lines, "", sectionRule("项目时段追溯", bodyW))
+						*lines = append(
+							*lines,
+							"",
+							sectionRule("项目时段追溯", bodyW),
+						)
 						for i, s := range pr.Segments {
 							if i >= 8 {
 								break
 							}
-							add(fmt.Sprintf("• %s %s · %s", s.Date, s.Title, formatCurrencyCny(s.ConfirmedCostCents)))
+							add(
+								fmt.Sprintf(
+									"• %s %s · %s",
+									s.Date,
+									s.Title,
+									formatCurrencyCny(s.ConfirmedCostCents),
+								),
+							)
 						}
 					}
 					return true
@@ -1645,9 +1968,14 @@ func (m *model) openTimeActions(add func(v, l, h string)) {
 			add("task.budget", "设置 / 追加 / 清除时间预算 (B)", "预计用时自动换算为 ¥ 成本预算")
 			add("time.plan.new", "为此任务新建有界计时计划 (P)", "设置预计时长、计划开始与最晚停止")
 			add("task.bill.link", "关联 Bill 现金支出 ($)", "只读检索账单，分列时间成本与现金")
-			if m.timeState.TaskDetail != nil && strings.EqualFold(m.timeState.TaskDetailUUID, r.id) &&
+			if m.timeState.TaskDetail != nil &&
+				strings.EqualFold(m.timeState.TaskDetailUUID, r.id) &&
 				len(m.timeState.TaskDetail.BillLinks) > 0 {
-				add("task.bill.unlink", "解除关联的 Bill 账单", "仅解除 Aster 侧引用，不改动 Bills 原账")
+				add(
+					"task.bill.unlink",
+					"解除关联的 Bill 账单",
+					"仅解除 Aster 侧引用，不改动 Bills 原账",
+				)
 			}
 		}
 	case "time.sleep_candidate":
@@ -1668,11 +1996,18 @@ func (m *model) openTimeActions(add func(v, l, h string)) {
 		}
 	case "time.segment":
 		if seg, ok := m.findSegmentByID(r.id); ok {
-			if seg.ProvisionalCostCents > 0 || seg.ProvisionalSeconds > 0 || seg.ReviewState == "review_required" {
+			if seg.ProvisionalCostCents > 0 || seg.ProvisionalSeconds > 0 ||
+				seg.ReviewState == "review_required" {
 				add("time.segment.confirm", "确认这段时间并入账 (c)", "将暂计金额转为正式已确认时间成本")
 			}
 			add("time.segment.edit", "修正起止时间 / 项目 / 标签", "支持改为估算边界或睡眠 ¥0")
 			add("time.segment.bill", "关联 Bill 现金支出到此记录", "分列时间与现金综合投入")
+		}
+	case "time.report_task":
+		if r.id != "" {
+			add("task.cost_detail", "查看任务成本与流水详情", "拉取完整时段、计划与账单关联")
+			add("task.budget", "设置 / 追加 / 清除任务预算", "调整时间成本预算与最晚停止")
+			add("task.bill.link", "关联 Bill 现金支出", "为此任务补充关联现金账单")
 		}
 	}
 
@@ -1685,7 +2020,11 @@ func (m *model) openTimeActions(add func(v, l, h string)) {
 			add("time.active.confirm", "确认当前活跃计时至今", "把暂计金额入账为已确认时间成本")
 			if snap.ActiveActivity.TimingPlanID != "" {
 				add("time.active.pause", "暂停当前计划计时", "保留剩余时长额度")
-				add("time.plan.extend_active", "为当前计划追加用时 / 改最晚停止", "计算增量 ¥ 成本与最晚停止余量")
+				add(
+					"time.plan.extend_active",
+					"为当前计划追加用时 / 改最晚停止",
+					"计算增量 ¥ 成本与最晚停止余量",
+				)
 			}
 			add("time.active.stop", "停止当前计时", "停止活跃活动")
 		}
@@ -1703,7 +2042,11 @@ func (m *model) openTimeActions(add func(v, l, h string)) {
 			add("time.date.next", "查看下一天 / 下一期 (])", "向后翻一天、一周或一月")
 			add("time.date.pick", "跳转到指定日期", "输入 YYYY-MM-DD")
 			if m.view == "time.report" {
-				add("time.report.granularity", "切换周报 / 月报 (w)", "在 week 与 month 之间切换")
+				add(
+					"time.report.granularity",
+					"切换周报 / 月报 (w)",
+					"在 week 与 month 之间切换",
+				)
 				add("time.report.sort", "切换报告排序 (o)", "时间成本最高 <-> 超出最初预估最多")
 				add("time.report.group", "切换任务 / 项目视图 (v)", "按任务汇总 <-> 按项目汇总")
 			}
@@ -1718,8 +2061,11 @@ func (m *model) openTimeSettingsForm() tea.Cmd {
 	if !highlightTaskListCost(m.timerSnap) {
 		highlight = "false"
 	}
-	if m.timeState.Policy != nil && m.timeState.Policy.TaskListHighlightCost != nil {
-		highlight = strconv.FormatBool(*m.timeState.Policy.TaskListHighlightCost)
+	if m.timeState.Policy != nil &&
+		m.timeState.Policy.TaskListHighlightCost != nil {
+		highlight = strconv.FormatBool(
+			*m.timeState.Policy.TaskListHighlightCost,
+		)
 	}
 	sleepEnabled := "true"
 	sleepStart := "23:30"
@@ -1736,10 +2082,19 @@ func (m *model) openTimeSettingsForm() tea.Cmd {
 			sleepEnd = p.SleepTemplate.EndTime
 		}
 		if p.LongActivityThresholdSeconds > 0 {
-			threshHours = strconv.FormatFloat(float64(p.LongActivityThresholdSeconds)/3600, 'f', -1, 64)
+			threshHours = strconv.FormatFloat(
+				float64(p.LongActivityThresholdSeconds)/3600,
+				'f',
+				-1,
+				64,
+			)
 		}
 		remEnabled = strconv.FormatBool(p.ReconcileReminder.Enabled)
-		remTime = fmt.Sprintf("%02d:%02d", p.ReconcileReminder.Hour, p.ReconcileReminder.Minute)
+		remTime = fmt.Sprintf(
+			"%02d:%02d",
+			p.ReconcileReminder.Hour,
+			p.ReconcileReminder.Minute,
+		)
 	}
 	return m.openForm(
 		"time.settings",
@@ -1762,8 +2117,11 @@ func (m *model) openTaskBudgetForm(t Task) tea.Cmd {
 	planned := ""
 	hardStop := ""
 	if sum, ok := lookupTaskCost(m.timerSnap, t.UUID); ok {
-		if sum.CurrentAllowanceSeconds != nil && *sum.CurrentAllowanceSeconds > 0 {
-			mins = strconv.Itoa(int(math.Round(*sum.CurrentAllowanceSeconds / 60)))
+		if sum.CurrentAllowanceSeconds != nil &&
+			*sum.CurrentAllowanceSeconds > 0 {
+			mins = strconv.Itoa(
+				int(math.Round(*sum.CurrentAllowanceSeconds / 60)),
+			)
 		}
 		if sum.PlannedStartAtMs != nil {
 			planned = formatClockMs(*sum.PlannedStartAtMs)
@@ -1775,7 +2133,10 @@ func (m *model) openTaskBudgetForm(t Task) tea.Cmd {
 	return m.openForm(
 		"task.budget",
 		"任务时间预算 · "+clip(clean(t.Description), 30),
-		fmt.Sprintf("当前单价 %s/h · 预估用时自动折算为成本预算，保留「最初预估」。", formatCurrencyCny(rate)),
+		fmt.Sprintf(
+			"当前单价 %s/h · 预估用时自动折算为成本预算，保留「最初预估」。",
+			formatCurrencyCny(rate),
+		),
 		selectField("预算操作", "set", []choice{
 			{"set", "设定 / 更新总预算（并保留最初预估）", ""},
 			{"add", "追加预计用时", "保留最初预估并记录追加额度"},
@@ -1802,8 +2163,11 @@ func (m *model) openCreatePlanForm(t *Task) tea.Cmd {
 		proj = t.Project
 		tags = strings.Join(t.Tags, ", ")
 		if sum, ok := lookupTaskCost(m.timerSnap, t.UUID); ok {
-			if sum.CurrentAllowanceSeconds != nil && *sum.CurrentAllowanceSeconds > 0 {
-				mins = strconv.Itoa(int(math.Round(*sum.CurrentAllowanceSeconds / 60)))
+			if sum.CurrentAllowanceSeconds != nil &&
+				*sum.CurrentAllowanceSeconds > 0 {
+				mins = strconv.Itoa(
+					int(math.Round(*sum.CurrentAllowanceSeconds / 60)),
+				)
 			}
 			if sum.PlannedStartAtMs != nil {
 				planned = formatClockMs(*sum.PlannedStartAtMs)
@@ -1816,12 +2180,18 @@ func (m *model) openCreatePlanForm(t *Task) tea.Cmd {
 	tagField := selectField("标签（逗号分隔；Enter 多选）", tags, nil)
 	tagField.multi = true
 	for _, tg := range m.org.Tags {
-		tagField.options = append(tagField.options, choice{tg.Name, tg.Name, ""})
+		tagField.options = append(
+			tagField.options,
+			choice{tg.Name, tg.Name, ""},
+		)
 	}
 	return m.openForm(
 		"time.plan.new",
 		"新建有界计时计划",
-		fmt.Sprintf("单价 %s/h · 自动停止 = 「实际开始+剩余时长」与「最晚停止」中较早者。", formatCurrencyCny(rate)),
+		fmt.Sprintf(
+			"单价 %s/h · 自动停止 = 「实际开始+剩余时长」与「最晚停止」中较早者。",
+			formatCurrencyCny(rate),
+		),
 		textField("计划标题", title, "必填"),
 		textField("预计时长（分钟）", mins, "例如 60 -> 自动计算预算；可留空只设最晚停止"),
 		textField("计划开始（HH:MM 或 YYYY-MM-DD HH:MM）", planned, "可选，不自动启动"),
@@ -1843,8 +2213,16 @@ func (m *model) openExtendPlanForm(p TimingPlan) tea.Cmd {
 	if p.HardStopAtMs != nil {
 		hardStop = formatDateTimeMs(*p.HardStopAtMs)
 	}
-	prev := computeContinuationCostPreview(30*60, rate, p.HardStopAtMs, time.Now().UnixMilli())
-	hint := fmt.Sprintf("再投入 30 分钟，预计增加 %s。", formatCurrencyCny(prev.AdditionalCostCents))
+	prev := computeContinuationCostPreview(
+		30*60,
+		rate,
+		p.HardStopAtMs,
+		time.Now().UnixMilli(),
+	)
+	hint := fmt.Sprintf(
+		"再投入 30 分钟，预计增加 %s。",
+		formatCurrencyCny(prev.AdditionalCostCents),
+	)
 	if prev.Expired {
 		hint = "已超过原最晚停止时刻！如需继续，请修改下方最晚停止时间。"
 	} else if prev.CappedByHardStop && prev.HardStopRemainingSeconds != nil {
@@ -1880,7 +2258,10 @@ func (m *model) openTimeLogForm(t *Task) tea.Cmd {
 	tagField := selectField("标签（逗号分隔；Enter 多选）", tags, nil)
 	tagField.multi = true
 	for _, tg := range m.org.Tags {
-		tagField.options = append(tagField.options, choice{tg.Name, tg.Name, ""})
+		tagField.options = append(
+			tagField.options,
+			choice{tg.Name, tg.Name, ""},
+		)
 	}
 	return m.openForm(
 		"time.log",
@@ -1908,10 +2289,17 @@ func (m *model) openSegmentEditForm(seg LocatedSegment) tea.Cmd {
 	if seg.EndMs > 0 {
 		endStr = formatDateTimeMs(seg.EndMs)
 	}
-	tagField := selectField("标签（逗号分隔；Enter 多选）", strings.Join(seg.Tags, ", "), nil)
+	tagField := selectField(
+		"标签（逗号分隔；Enter 多选）",
+		strings.Join(seg.Tags, ", "),
+		nil,
+	)
 	tagField.multi = true
 	for _, tg := range m.org.Tags {
-		tagField.options = append(tagField.options, choice{tg.Name, tg.Name, ""})
+		tagField.options = append(
+			tagField.options,
+			choice{tg.Name, tg.Name, ""},
+		)
 	}
 	isSleep := "false"
 	if strings.EqualFold(seg.CategoryID, "sleep") {
@@ -1928,7 +2316,11 @@ func (m *model) openSegmentEditForm(seg LocatedSegment) tea.Cmd {
 		textField("活动标题", seg.Title, "必填"),
 		textField("开始时间（YYYY-MM-DD HH:MM）", startStr, ""),
 		textField("结束时间（YYYY-MM-DD HH:MM）", endStr, "运行中留空表示仅改其他字段"),
-		selectField("关联项目（Taskwarrior）", seg.ProjectSnapshot, m.projectChoices()),
+		selectField(
+			"关联项目（Taskwarrior）",
+			seg.ProjectSnapshot,
+			m.projectChoices(),
+		),
 		tagField,
 		selectField("边界精确度", prec, []choice{
 			{"exact", "精确起止时间", ""},
@@ -1950,16 +2342,33 @@ func (m model) dynamicFormHint() string {
 		}
 	case "task.budget":
 		if len(m.fields) > 1 {
-			if mins, err := strconv.ParseFloat(strings.TrimSpace(m.fields[1].value()), 64); err == nil && mins > 0 {
+			if mins, err := strconv.ParseFloat(
+				strings.TrimSpace(m.fields[1].value()),
+				64,
+			); err == nil &&
+				mins > 0 {
 				cost := computeDurationCostCents(mins*60, rate)
-				return fmt.Sprintf("即时换算：%g 分钟 ≈ %s（按单价 %s/h），将记录最初与当前预算。", mins, formatCurrencyCny(cost), formatCurrencyCny(rate))
+				return fmt.Sprintf(
+					"即时换算：%g 分钟 ≈ %s（按单价 %s/h），将记录最初与当前预算。",
+					mins,
+					formatCurrencyCny(cost),
+					formatCurrencyCny(rate),
+				)
 			}
 		}
 	case "time.plan.new":
 		if len(m.fields) > 1 {
-			if mins, err := strconv.ParseFloat(strings.TrimSpace(m.fields[1].value()), 64); err == nil && mins > 0 {
+			if mins, err := strconv.ParseFloat(
+				strings.TrimSpace(m.fields[1].value()),
+				64,
+			); err == nil &&
+				mins > 0 {
 				cost := computeDurationCostCents(mins*60, rate)
-				return fmt.Sprintf("预计投入：%g 分钟 · %s · 自动停止取「开始+剩余」与「最晚停止」较早者。", mins, formatCurrencyCny(cost))
+				return fmt.Sprintf(
+					"预计投入：%g 分钟 · %s · 自动停止取「开始+剩余」与「最晚停止」较早者。",
+					mins,
+					formatCurrencyCny(cost),
+				)
 			}
 		}
 	case "time.plan.extend":
@@ -1971,16 +2380,29 @@ func (m model) dynamicFormHint() string {
 			}
 			hardStopMs := p.HardStopAtMs
 			if hs := strings.TrimSpace(m.fields[1].value()); hs != "" {
-				if parsed, err := parseDateTimeMs(hs, m.effectiveTimeDate()); err == nil {
+				if parsed, err := parseDateTimeMs(
+					hs,
+					m.effectiveTimeDate(),
+				); err == nil {
 					hardStopMs = &parsed
 				}
 			}
-			if mins, err := strconv.ParseFloat(strings.TrimSpace(m.fields[0].value()), 64); err == nil && mins > 0 {
-				prev := computeContinuationCostPreview(mins*60, pRate, hardStopMs, time.Now().UnixMilli())
+			if mins, err := strconv.ParseFloat(
+				strings.TrimSpace(m.fields[0].value()),
+				64,
+			); err == nil &&
+				mins > 0 {
+				prev := computeContinuationCostPreview(
+					mins*60,
+					pRate,
+					hardStopMs,
+					time.Now().UnixMilli(),
+				)
 				if prev.Expired {
 					return "当前时间已超过所设最晚停止时刻，请延后最晚停止。"
 				}
-				if prev.CappedByHardStop && prev.HardStopRemainingSeconds != nil {
+				if prev.CappedByHardStop &&
+					prev.HardStopRemainingSeconds != nil {
 					return fmt.Sprintf(
 						"受最晚停止限制，仅剩 %s，最多追加 %s（预计 +%s）。",
 						formatDurationShort(*prev.HardStopRemainingSeconds),
@@ -1988,14 +2410,27 @@ func (m model) dynamicFormHint() string {
 						formatCurrencyCny(prev.AdditionalCostCents),
 					)
 				}
-				return fmt.Sprintf("再投入 %g 分钟，预计增加 %s。", mins, formatCurrencyCny(prev.AdditionalCostCents))
+				return fmt.Sprintf(
+					"再投入 %g 分钟，预计增加 %s。",
+					mins,
+					formatCurrencyCny(prev.AdditionalCostCents),
+				)
 			}
 		}
 	case "task.new", "task.subtask", "task.edit":
 		if len(m.fields) >= 12 {
-			if mins, err := strconv.ParseFloat(strings.TrimSpace(m.fields[9].value()), 64); err == nil && mins > 0 {
+			if mins, err := strconv.ParseFloat(
+				strings.TrimSpace(m.fields[9].value()),
+				64,
+			); err == nil &&
+				mins > 0 {
 				cost := computeDurationCostCents(mins*60, rate)
-				return fmt.Sprintf("预计投入 %g 分钟 ≈ %s（按单价 %s/h）；保存后自动写入成本预算。", mins, formatCurrencyCny(cost), formatCurrencyCny(rate))
+				return fmt.Sprintf(
+					"预计投入 %g 分钟 ≈ %s（按单价 %s/h）；保存后自动写入成本预算。",
+					mins,
+					formatCurrencyCny(cost),
+					formatCurrencyCny(rate),
+				)
 			}
 		}
 	}
@@ -2015,7 +2450,11 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 		if !m.isTimeNavView() {
 			return nil, true
 		}
-		cur, err := time.ParseInLocation("2006-01-02", m.effectiveTimeDate(), time.Local)
+		cur, err := time.ParseInLocation(
+			"2006-01-02",
+			m.effectiveTimeDate(),
+			time.Local,
+		)
 		if err != nil {
 			cur = time.Now()
 		}
@@ -2023,17 +2462,21 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 		case "time.date.today":
 			cur = time.Now()
 		case "time.date.prev":
-			if m.view == "time.weekly" || (m.view == "time.report" && m.timeState.ReportGranularity != "month") {
+			if m.view == "time.weekly" ||
+				(m.view == "time.report" && m.timeState.ReportGranularity != "month") {
 				cur = cur.AddDate(0, 0, -7)
-			} else if m.view == "time.report" && m.timeState.ReportGranularity == "month" {
+			} else if m.view == "time.report" &&
+				m.timeState.ReportGranularity == "month" {
 				cur = cur.AddDate(0, -1, 0)
 			} else {
 				cur = cur.AddDate(0, 0, -1)
 			}
 		case "time.date.next":
-			if m.view == "time.weekly" || (m.view == "time.report" && m.timeState.ReportGranularity != "month") {
+			if m.view == "time.weekly" ||
+				(m.view == "time.report" && m.timeState.ReportGranularity != "month") {
 				cur = cur.AddDate(0, 0, 7)
-			} else if m.view == "time.report" && m.timeState.ReportGranularity == "month" {
+			} else if m.view == "time.report" &&
+				m.timeState.ReportGranularity == "month" {
 				cur = cur.AddDate(0, 1, 0)
 			} else {
 				cur = cur.AddDate(0, 0, 1)
@@ -2083,18 +2526,22 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 		m.busy = true
 		return m.fetchPolicyForSettingsCmd(), true
 	case "task.cost_detail":
-		if r.kind != "task" {
+		if r.kind != "task" && r.kind != "time.report_task" {
 			m.message = "请先选择任务"
 			return nil, true
 		}
 		m.busy = true
 		return m.fetchTaskCostDetailCmd(r.id), true
 	case "task.budget":
-		if r.kind != "task" {
+		if r.kind != "task" && r.kind != "time.report_task" {
 			m.message = "请先选择任务"
 			return nil, true
 		}
-		return m.openTaskBudgetForm(r.task), true
+		t := r.task
+		if r.kind == "time.report_task" {
+			t = Task{UUID: r.id, Description: r.title}
+		}
+		return m.openTaskBudgetForm(t), true
 	case "time.plan.new":
 		var t *Task
 		if r.kind == "task" {
@@ -2117,7 +2564,8 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 		if snap == nil {
 			snap = m.org.TimerSnapshot
 		}
-		if snap == nil || snap.ActiveActivity == nil || snap.ActiveActivity.TimingPlanID == "" {
+		if snap == nil || snap.ActiveActivity == nil ||
+			snap.ActiveActivity.TimingPlanID == "" {
 			m.message = "当前没有正在运行的有界计划"
 			return nil, true
 		}
@@ -2221,7 +2669,7 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 			"date":           r.id,
 		}, msg, ""), true
 	case "task.bill.link":
-		if r.kind != "task" {
+		if r.kind != "task" && r.kind != "time.report_task" {
 			m.message = "请先选择任务"
 			return nil, true
 		}
@@ -2238,17 +2686,25 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 		m.busy = true
 		return m.fetchBillsCmd("", seg.TaskUUID, seg.ActivityID), true
 	case "task.bill.unlink":
-		if r.kind != "task" || m.timeState.TaskDetail == nil || !strings.EqualFold(m.timeState.TaskDetailUUID, r.id) ||
+		if r.kind != "task" || m.timeState.TaskDetail == nil ||
+			!strings.EqualFold(m.timeState.TaskDetailUUID, r.id) ||
 			len(m.timeState.TaskDetail.BillLinks) == 0 {
 			m.message = "请先加载含关联账单的任务成本明细 (c)"
 			return nil, true
 		}
-		m.timeState.BillUnlinkChoices = append([]BillLink{}, m.timeState.TaskDetail.BillLinks...)
+		m.timeState.BillUnlinkChoices = append(
+			[]BillLink{},
+			m.timeState.TaskDetail.BillLinks...)
 		var options []choice
 		for i, bl := range m.timeState.BillUnlinkChoices {
 			options = append(options, choice{
 				fmt.Sprintf("time.bill.unlink:%d", i),
-				fmt.Sprintf("解除 %s · %s (%s)", formatCurrencyCny(bl.CnyAmountCents), fallbackStr(bl.Payee, bl.Narration, bl.Account), bl.PayTime),
+				fmt.Sprintf(
+					"解除 %s · %s (%s)",
+					formatCurrencyCny(bl.CnyAmountCents),
+					fallbackStr(bl.Payee, bl.Narration, bl.Account),
+					bl.PayTime,
+				),
 				bl.Account,
 			})
 		}
@@ -2288,7 +2744,12 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 			payload["activityId"] = m.timeState.BillTargetActivity
 		}
 		m.busy = true
-		return m.postTimeCmd("/api/time/bills/link", payload, "已关联 Bill 现金支出 "+formatCurrencyCny(exp.CnyAmountCents), m.timeState.BillTargetTaskUUID), true
+		return m.postTimeCmd(
+			"/api/time/bills/link",
+			payload,
+			"已关联 Bill 现金支出 "+formatCurrencyCny(exp.CnyAmountCents),
+			m.timeState.BillTargetTaskUUID,
+		), true
 	}
 
 	if strings.HasPrefix(a, "time.bill.unlink:") {
@@ -2298,13 +2759,23 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 		}
 		bl := m.timeState.BillUnlinkChoices[idx]
 		m.busy = true
-		return m.postTimeCmd("/api/time/bills/unlink", map[string]any{"linkId": bl.ID}, "已解除 Bill 账单关联", bl.TaskUUID), true
+		return m.postTimeCmd(
+			"/api/time/bills/unlink",
+			map[string]any{"linkId": bl.ID},
+			"已解除 Bill 账单关联",
+			bl.TaskUUID,
+		), true
 	}
 
 	return nil, false
 }
 
-func (m model) postTimeCmd(route string, body map[string]any, okMsg string, taskUUID string) tea.Cmd {
+func (m model) postTimeCmd(
+	route string,
+	body map[string]any,
+	okMsg string,
+	taskUUID string,
+) tea.Cmd {
 	c := m.client
 	return func() tea.Msg {
 		if err := c.post(route, body, nil); err != nil {
@@ -2314,11 +2785,39 @@ func (m model) postTimeCmd(route string, body map[string]any, okMsg string, task
 	}
 }
 
+func applyTimeInputSpec(
+	payload map[string]any,
+	prefix, raw, defaultDate string,
+	setNullIfEmpty bool,
+) (bool, error) {
+	ms, d, tm, err := parseTimeInputToSpec(raw, defaultDate)
+	if err != nil {
+		return false, err
+	}
+	if ms != nil {
+		payload[prefix+"AtMs"] = *ms
+		return true, nil
+	}
+	if tm != "" {
+		payload[prefix+"Date"] = d
+		payload[prefix+"Time"] = tm
+		return true, nil
+	}
+	if setNullIfEmpty {
+		payload[prefix+"AtMs"] = nil
+	}
+	return false, nil
+}
+
 func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 	switch m.formKind {
 	case "time.date.pick":
 		d := strings.TrimSpace(v[0])
-		if _, err := time.ParseInLocation("2006-01-02", d, time.Local); err != nil {
+		if _, err := time.ParseInLocation(
+			"2006-01-02",
+			d,
+			time.Local,
+		); err != nil {
 			return nil, fmt.Errorf("请输入 YYYY-MM-DD 日期格式"), true
 		}
 		m.timeState.SelectedDate = d
@@ -2331,7 +2830,11 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 
 	case "time.bill.search":
 		m.timeState.BillQuery = strings.TrimSpace(v[0])
-		return m.fetchBillsCmd(m.timeState.BillQuery, m.timeState.BillTargetTaskUUID, m.timeState.BillTargetActivity), nil, true
+		return m.fetchBillsCmd(
+			m.timeState.BillQuery,
+			m.timeState.BillTargetTaskUUID,
+			m.timeState.BillTargetActivity,
+		), nil, true
 
 	case "time.settings":
 		if m.timeState.Policy == nil {
@@ -2343,7 +2846,10 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 		}
 		highlight := v[1] == "true"
 		sleepEnabled := v[2] == "true"
-		_, _, sleepStart, err := parseTimeInputToSpec(v[3], m.effectiveTimeDate())
+		_, _, sleepStart, err := parseTimeInputToSpec(
+			v[3],
+			m.effectiveTimeDate(),
+		)
 		if err != nil || sleepStart == "" {
 			return nil, fmt.Errorf("睡眠开始时间格式应为 HH:MM"), true
 		}
@@ -2367,9 +2873,11 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 			"idempotencyKey":        idempotencyKey("tui-policy"),
 			"expectedPolicyVersion": m.timeState.Policy.PolicyVersion,
 			"patch": map[string]any{
-				"hourlyRateCents":              rateCents,
-				"taskListHighlightCost":        highlight,
-				"longActivityThresholdSeconds": int(math.Round(threshHours * 3600)),
+				"hourlyRateCents":       rateCents,
+				"taskListHighlightCost": highlight,
+				"longActivityThresholdSeconds": int(
+					math.Round(threshHours * 3600),
+				),
 				"sleepTemplate": map[string]any{
 					"enabled":   sleepEnabled,
 					"startTime": sleepStart,
@@ -2383,7 +2891,12 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 				},
 			},
 		}
-		return m.postTimeCmd("/api/time/policy", payload, fmt.Sprintf("已更新单价 %s/h 与时间设置", formatCurrencyCny(rateCents)), ""), nil, true
+		return m.postTimeCmd(
+			"/api/time/policy",
+			payload,
+			fmt.Sprintf("已更新单价 %s/h 与时间设置", formatCurrencyCny(rateCents)),
+			"",
+		), nil, true
 
 	case "task.budget":
 		mode := v[0]
@@ -2409,35 +2922,37 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 				}
 				payload["allowanceSeconds"] = int(math.Round(mins * 60))
 			}
-			psMs, psD, psT, err := parseTimeInputToSpec(v[2], m.effectiveTimeDate())
+			d := m.effectiveTimeDate()
+			hasStart, err := applyTimeInputSpec(
+				payload,
+				"plannedStart",
+				v[2],
+				d,
+				mode == "set",
+			)
 			if err != nil {
 				return nil, err, true
 			}
-			if psMs != nil {
-				payload["plannedStartAtMs"] = *psMs
-			} else if psT != "" {
-				payload["plannedStartDate"] = psD
-				payload["plannedStartTime"] = psT
-			} else if mode == "set" {
-				payload["plannedStartAtMs"] = nil
-			}
-			hsMs, hsD, hsT, err := parseTimeInputToSpec(v[3], m.effectiveTimeDate())
+			hasStop, err := applyTimeInputSpec(
+				payload,
+				"hardStop",
+				v[3],
+				d,
+				mode == "set",
+			)
 			if err != nil {
 				return nil, err, true
 			}
-			if hsMs != nil {
-				payload["hardStopAtMs"] = *hsMs
-			} else if hsT != "" {
-				payload["hardStopDate"] = hsD
-				payload["hardStopTime"] = hsT
-			} else if mode == "set" {
-				payload["hardStopAtMs"] = nil
-			}
-			if mode == "set" && minsStr == "" && hsMs == nil && hsT == "" && psMs == nil && psT == "" {
+			if mode == "set" && minsStr == "" && !hasStart && !hasStop {
 				return nil, fmt.Errorf("请至少填写预计用时、计划开始或最晚停止"), true
 			}
 		}
-		return m.postTimeCmd("/api/time/task-budget", payload, "已更新任务时间预算", m.selected.id), nil, true
+		return m.postTimeCmd(
+			"/api/time/task-budget",
+			payload,
+			"已更新任务时间预算",
+			m.selected.id,
+		), nil, true
 
 	case "time.plan.new":
 		title := strings.TrimSpace(v[0])
@@ -2455,21 +2970,24 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 			}
 			payload["allowanceMinutes"] = mins
 		}
-		if ms, d, tm, err := parseTimeInputToSpec(v[2], m.effectiveTimeDate()); err != nil {
+		d := m.effectiveTimeDate()
+		if _, err := applyTimeInputSpec(
+			payload,
+			"plannedStart",
+			v[2],
+			d,
+			false,
+		); err != nil {
 			return nil, err, true
-		} else if ms != nil {
-			payload["plannedStartAtMs"] = *ms
-		} else if tm != "" {
-			payload["plannedStartDate"] = d
-			payload["plannedStartTime"] = tm
 		}
-		if ms, d, tm, err := parseTimeInputToSpec(v[3], m.effectiveTimeDate()); err != nil {
+		if _, err := applyTimeInputSpec(
+			payload,
+			"hardStop",
+			v[3],
+			d,
+			false,
+		); err != nil {
 			return nil, err, true
-		} else if ms != nil {
-			payload["hardStopAtMs"] = *ms
-		} else if tm != "" {
-			payload["hardStopDate"] = d
-			payload["hardStopTime"] = tm
 		}
 		if strings.TrimSpace(v[4]) != "" {
 			payload["projectSnapshot"] = strings.TrimSpace(v[4])
@@ -2484,7 +3002,12 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 			payload["note"] = note
 		}
 		taskID := strings.TrimSpace(v[6])
-		return m.postTimeCmd("/api/time/plans/create", payload, "已创建有界计时计划", taskID), nil, true
+		return m.postTimeCmd(
+			"/api/time/plans/create",
+			payload,
+			"已创建有界计时计划",
+			taskID,
+		), nil, true
 
 	case "time.plan.extend":
 		if m.timeState.EditingPlan == nil {
@@ -2508,22 +3031,29 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 			}
 		}
 		if hsStr := strings.TrimSpace(v[1]); hsStr != "" {
-			ms, d, tm, err := parseTimeInputToSpec(hsStr, m.effectiveTimeDate())
+			applied, err := applyTimeInputSpec(
+				payload,
+				"hardStop",
+				hsStr,
+				m.effectiveTimeDate(),
+				false,
+			)
 			if err != nil {
 				return nil, err, true
 			}
-			if ms != nil {
-				payload["hardStopAtMs"] = *ms
-			} else if tm != "" {
-				payload["hardStopDate"] = d
-				payload["hardStopTime"] = tm
+			if applied {
+				hasChange = true
 			}
-			hasChange = true
 		}
 		if !hasChange {
 			return nil, fmt.Errorf("请输入追加时长或新的最晚停止时间"), true
 		}
-		return m.postTimeCmd("/api/time/plans/update", payload, "已更新计时计划限制", p.TaskUUID), nil, true
+		return m.postTimeCmd(
+			"/api/time/plans/update",
+			payload,
+			"已更新计时计划限制",
+			p.TaskUUID,
+		), nil, true
 
 	case "time.log":
 		title := strings.TrimSpace(v[0])
@@ -2531,7 +3061,11 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 			return nil, errRequired("活动内容"), true
 		}
 		d := strings.TrimSpace(v[1])
-		if _, err := time.ParseInLocation("2006-01-02", d, time.Local); err != nil {
+		if _, err := time.ParseInLocation(
+			"2006-01-02",
+			d,
+			time.Local,
+		); err != nil {
 			return nil, fmt.Errorf("日期格式应为 YYYY-MM-DD"), true
 		}
 		startMs, err := parseDateTimeMs(v[2], d)
@@ -2566,7 +3100,12 @@ func (m *model) submitTimeForm(v []string) (tea.Cmd, error, bool) {
 		if m.selected.kind == "task" && m.selected.id != "" {
 			payload["taskUuid"] = m.selected.id
 		}
-		return m.postTimeCmd("/api/time/log", payload, "已补记时间段", m.selected.id), nil, true
+		return m.postTimeCmd(
+			"/api/time/log",
+			payload,
+			"已补记时间段",
+			m.selected.id,
+		), nil, true
 
 	case "time.segment.edit":
 		if m.timeState.EditingSegment == nil {
@@ -2627,4 +3166,108 @@ func fallbackStr(a, b, c string) string {
 		return b
 	}
 	return c
+}
+
+func (m model) taskBudgetFormFields(kind string, t Task) []field {
+	if !m.isTimeMode() {
+		return nil
+	}
+	rate := currentHourlyRateCents(m.timerSnap, m.timeState.Policy)
+	mins := ""
+	planned := ""
+	hardStop := ""
+	if kind == "task.edit" && t.UUID != "" {
+		if sum, ok := lookupTaskCost(m.timerSnap, t.UUID); ok && sum.HasBudget {
+			if sum.CurrentAllowanceSeconds != nil &&
+				*sum.CurrentAllowanceSeconds > 0 {
+				mins = strconv.Itoa(
+					int(math.Round(*sum.CurrentAllowanceSeconds / 60)),
+				)
+			}
+			if sum.PlannedStartAtMs != nil {
+				planned = formatClockMs(*sum.PlannedStartAtMs)
+			}
+			if sum.HardStopAtMs != nil {
+				hardStop = formatClockMs(*sum.HardStopAtMs)
+			}
+		}
+	}
+	rateHint := fmt.Sprintf("可选；单价 %s/h · 留空不设/清除预算", formatCurrencyCny(rate))
+	return []field{
+		textField("预计用时（分钟）", mins, rateHint),
+		textField("计划开始（HH:MM 或 YYYY-MM-DD HH:MM）", planned, "可选，只展示与提醒"),
+		textField("最晚停止（HH:MM 或 YYYY-MM-DD HH:MM）", hardStop, "可选，到期自动停止"),
+	}
+}
+
+func (m model) parseTaskFormBudget(
+	v []string,
+	existing *TaskCostSummary,
+) (shouldApply bool, payload map[string]any, err error) {
+	if len(v) < 12 {
+		return false, nil, nil
+	}
+	minsStr := strings.TrimSpace(v[9])
+	plannedStr := strings.TrimSpace(v[10])
+	hardStopStr := strings.TrimSpace(v[11])
+
+	origMins := ""
+	origPlanned := ""
+	origHardStop := ""
+	hadBudget := false
+	if existing != nil && existing.HasBudget {
+		hadBudget = true
+		if existing.CurrentAllowanceSeconds != nil &&
+			*existing.CurrentAllowanceSeconds > 0 {
+			origMins = strconv.Itoa(
+				int(math.Round(*existing.CurrentAllowanceSeconds / 60)),
+			)
+		}
+		if existing.PlannedStartAtMs != nil {
+			origPlanned = formatClockMs(*existing.PlannedStartAtMs)
+		}
+		if existing.HardStopAtMs != nil {
+			origHardStop = formatClockMs(*existing.HardStopAtMs)
+		}
+	}
+	if minsStr == origMins && plannedStr == origPlanned &&
+		hardStopStr == origHardStop {
+		return false, nil, nil
+	}
+	if minsStr == "" && plannedStr == "" && hardStopStr == "" {
+		if !hadBudget {
+			return false, nil, nil
+		}
+		return true, map[string]any{"mode": "clear"}, nil
+	}
+	payload = map[string]any{"mode": "set"}
+	if minsStr != "" {
+		mins, perr := strconv.ParseFloat(minsStr, 64)
+		if perr != nil || mins <= 0 {
+			return false, nil, fmt.Errorf("预计用时必须为大于 0 的分钟数")
+		}
+		payload["allowanceSeconds"] = int(math.Round(mins * 60))
+	} else if hadBudget {
+		payload["allowanceSeconds"] = nil
+	}
+	d := m.effectiveTimeDate()
+	if _, perr := applyTimeInputSpec(
+		payload,
+		"plannedStart",
+		plannedStr,
+		d,
+		hadBudget,
+	); perr != nil {
+		return false, nil, perr
+	}
+	if _, perr := applyTimeInputSpec(
+		payload,
+		"hardStop",
+		hardStopStr,
+		d,
+		hadBudget,
+	); perr != nil {
+		return false, nil, perr
+	}
+	return true, payload, nil
 }

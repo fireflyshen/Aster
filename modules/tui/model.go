@@ -860,7 +860,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.current().kind == "time.segment" {
 				return m, m.action("time.segment.confirm")
 			}
-			if m.current().kind == "task" && m.isTimeMode() {
+			if (m.current().kind == "task" || m.current().kind == "time.report_task") &&
+				m.isTimeMode() {
 				return m, m.action("task.cost_detail")
 			}
 		}
