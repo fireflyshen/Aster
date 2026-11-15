@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -198,19 +199,48 @@ func (idx viewIndex) rank(t Task, fallback int) int {
 
 func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 	if strings.HasPrefix(m.view, "filter:") || m.view == "expression" {
-		var out []Task
 		q := strings.ToLower(m.query)
-		for _, r := range m.extra {
+		if m.filterLoaded {
+			var out []Task
+			for _, r := range m.extra {
+				if q == "" || strings.Contains(
+					strings.ToLower(
+						r.task.Description+" "+r.task.Project+" "+strings.Join(
+							r.task.Tags,
+							" ",
+						)+" "+m.org.Descriptions[r.task.UUID],
+					),
+					q,
+				) {
+					out = append(out, r.task)
+				}
+			}
+			return out
+		}
+		filterID := ""
+		expr := m.expression
+		if strings.HasPrefix(m.view, "filter:") {
+			filterID = strings.TrimPrefix(m.view, "filter:")
+			if f, ok := findFilterByID(m.org, filterID); ok {
+				expr = f.Expression
+			}
+		}
+		var out []Task
+		for _, t := range m.tasks {
+			td := idx.dates[t.UUID]
+			if !evalLocalFilterMatch(filterID, expr, t, td, idx, now) {
+				continue
+			}
 			if q == "" || strings.Contains(
 				strings.ToLower(
-					r.task.Description+" "+r.task.Project+" "+strings.Join(
-						r.task.Tags,
+					t.Description+" "+t.Project+" "+strings.Join(
+						t.Tags,
 						" ",
-					)+" "+m.org.Descriptions[r.task.UUID],
+					)+" "+m.org.Descriptions[t.UUID],
 				),
 				q,
 			) {
-				out = append(out, r.task)
+				out = append(out, t)
 			}
 		}
 		return out
@@ -245,19 +275,6 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 			match = unfinished && !td.due.IsZero() &&
 				td.due.Before(todayEnd) &&
 				!td.wait.After(now)
-		case m.view == "urgency":
-			match = unfinished && !td.wait.After(now)
-		case m.view == "active":
-			if idx.isTimeMode {
-				match = unfinished &&
-					(t.Start != "" || (idx.activeTimingTaskUUID != "" && strings.EqualFold(idx.activeTimingTaskUUID, t.UUID)))
-			} else {
-				match = unfinished && t.Start != ""
-			}
-		case m.view == "waiting":
-			match = t.Status == "waiting" || (unfinished && td.wait.After(now))
-		case m.view == "completed":
-			match = t.Status == "completed"
 		case projTarget != "":
 			match = inProject(t.Project, projTarget)
 		case tagTarget != "":
@@ -267,8 +284,6 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 					break
 				}
 			}
-		case m.view == "all":
-			match = unfinished || t.Status == "completed"
 		}
 		if !match {
 			continue
@@ -315,7 +330,7 @@ func (idx viewIndex) groupedTasks(
 	}
 	fallback := len(idx.orderRank) + 1
 	sort.SliceStable(sorted, func(i, j int) bool {
-		if m.view == "urgency" {
+		if isUrgencyFilterView(m.view) {
 			if sorted[i].Urgency != sorted[j].Urgency {
 				return sorted[i].Urgency > sorted[j].Urgency
 			}
@@ -326,7 +341,7 @@ func (idx viewIndex) groupedTasks(
 		if ri != rj {
 			return ri < rj
 		}
-		if m.view == "completed" {
+		if isCompletedFilterView(m.org, m.view, m.expression) {
 			return sorted[i].End > sorted[j].End
 		}
 		return sorted[i].Description < sorted[j].Description
@@ -400,7 +415,7 @@ func (idx viewIndex) groupedTasks(
 func (idx viewIndex) rows(m model, now time.Time) []row {
 	var out []row
 	switch m.view {
-	case "projects", "later":
+	case "projects":
 		q := strings.ToLower(m.query)
 		for _, p := range m.org.Projects {
 			if m.view == "later" {
@@ -429,6 +444,118 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 					project:  p,
 				})
 			}
+		}
+		return out
+	case "org":
+		q := strings.ToLower(m.query)
+		matchOrg := func(title, desc, expr string) bool {
+			return q == "" || strings.Contains(strings.ToLower(title+" "+desc+" "+expr), q)
+		}
+		var customRows []row
+		for _, f := range m.org.Filters {
+			if !matchOrg(f.Name, f.Description, f.Expression) {
+				continue
+			}
+			title := f.Name
+			if f.Favorite {
+				title += " ★"
+			}
+			sub := f.Expression
+			if f.Description != "" && f.Expression != "" {
+				sub = f.Description + " · " + f.Expression
+			} else if f.Description != "" {
+				sub = f.Description
+			}
+			customRows = append(customRows, row{
+				kind:     "filter",
+				id:       f.ID,
+				title:    title,
+				subtitle: sub,
+				item:     f,
+			})
+		}
+		var hiddenCount int
+		var builtinRows []row
+		for _, rf := range resolveBuiltinFilters(m.org.BuiltinFilterPrefs) {
+			if rf.Hidden {
+				hiddenCount++
+			}
+			if rf.Hidden && !m.showHiddenBuiltin {
+				continue
+			}
+			if !matchOrg(rf.Item.Name, rf.Item.Description, rf.Item.Expression) {
+				continue
+			}
+			title := rf.Item.Name
+			if rf.Item.Favorite {
+				title += " ★"
+			}
+			if rf.Hidden {
+				title += " [已隐藏]"
+			}
+			builtinRows = append(builtinRows, row{
+				kind:     "builtin_filter",
+				id:       rf.Item.ID,
+				title:    title,
+				subtitle: rf.Item.Description,
+				item:     rf.Item,
+			})
+		}
+		var tagRows []row
+		for _, tag := range m.org.Tags {
+			if !matchOrg("#"+tag.Name, tag.Description, "") {
+				continue
+			}
+			title := "#" + tag.Name
+			if tag.Favorite {
+				title += " ★"
+			}
+			sub := tag.Description
+			if sub == "" {
+				sub = "标签筛选 · #" + tag.Name
+			}
+			tagRows = append(tagRows, row{
+				kind:     "tag",
+				id:       tag.ID,
+				title:    title,
+				subtitle: sub,
+				item:     tag,
+			})
+		}
+		if len(customRows) > 0 || q == "" {
+			out = append(out, row{
+				kind:     "info",
+				id:       "org.filters",
+				title:    "自定义过滤器",
+				subtitle: fmt.Sprintf("%d 项 · a 新建", len(customRows)),
+			})
+			out = append(out, customRows...)
+		}
+		if len(builtinRows) > 0 || hiddenCount > 0 || q == "" {
+			sub := "Taskwarrior 原生过滤条件"
+			if hiddenCount > 0 {
+				toggleLabel := "显示"
+				if m.showHiddenBuiltin {
+					toggleLabel = "收起"
+				}
+				sub = fmt.Sprintf("已隐藏 %d 项 · v %s", hiddenCount, toggleLabel)
+			}
+			out = append(out, row{
+				kind:     "info",
+				id:       "org.builtin",
+				title:    "内置常用 TW 过滤器",
+				subtitle: sub,
+			})
+			out = append(out, builtinRows...)
+		}
+		if len(tagRows) > 0 || q == "" {
+			out = append(out, row{
+				kind:     "info",
+				id:       "org.tags",
+				title:    "# 标签",
+				subtitle: fmt.Sprintf("%d 项 · a/e 管理标签", len(tagRows)),
+			})
+			out = append(out, tagRows...)
 		}
 		return out
 	case "filters", "tags":
@@ -467,7 +594,7 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 			})
 		}
 		return out
-	case "recovery", "backup", "time.today", "time.weekly", "time.report":
+	case "data", "time.today", "time.weekly", "time.report":
 		return m.extra
 	}
 	ts := idx.visibleTasks(m, now)

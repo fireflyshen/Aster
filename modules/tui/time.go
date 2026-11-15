@@ -125,23 +125,24 @@ type DailyLedgerSummary struct {
 }
 
 type WeeklyDistributionSummary struct {
-	WeekStartDate          string             `json:"weekStartDate"`
-	WeekEndDate            string             `json:"weekEndDate"`
-	Timezone               string             `json:"timezone"`
-	AsOfMs                 int64              `json:"asOfMs"`
-	IsPartialWeek          bool               `json:"isPartialWeek"`
-	PastCapacitySeconds    float64            `json:"pastCapacitySeconds"`
-	CoveredSeconds         float64            `json:"coveredSeconds"`
-	ProvisionalSeconds     float64            `json:"provisionalSeconds"`
-	ConfirmedCostCents     int64              `json:"confirmedCostCents"`
-	ProvisionalCostCents   int64              `json:"provisionalCostCents"`
-	UnrecordedSeconds      float64            `json:"unrecordedSeconds"`
-	EstimatedBoundsSeconds float64            `json:"estimatedBoundsSeconds"`
-	ReviewRequiredSeconds  float64            `json:"reviewRequiredSeconds"`
-	ByProjectSeconds       map[string]float64 `json:"byProjectSeconds"`
-	ByProjectCostCents     map[string]int64   `json:"byProjectCostCents"`
-	ByTagSeconds           map[string]float64 `json:"byTagSeconds"`
-	ByTagCostCents         map[string]int64   `json:"byTagCostCents"`
+	Daily                  []DailyLedgerSummary `json:"daily"`
+	WeekStartDate          string               `json:"weekStartDate"`
+	WeekEndDate            string               `json:"weekEndDate"`
+	Timezone               string               `json:"timezone"`
+	AsOfMs                 int64                `json:"asOfMs"`
+	IsPartialWeek          bool                 `json:"isPartialWeek"`
+	PastCapacitySeconds    float64              `json:"pastCapacitySeconds"`
+	CoveredSeconds         float64              `json:"coveredSeconds"`
+	ProvisionalSeconds     float64              `json:"provisionalSeconds"`
+	ConfirmedCostCents     int64                `json:"confirmedCostCents"`
+	ProvisionalCostCents   int64                `json:"provisionalCostCents"`
+	UnrecordedSeconds      float64              `json:"unrecordedSeconds"`
+	EstimatedBoundsSeconds float64              `json:"estimatedBoundsSeconds"`
+	ReviewRequiredSeconds  float64              `json:"reviewRequiredSeconds"`
+	ByProjectSeconds       map[string]float64   `json:"byProjectSeconds"`
+	ByProjectCostCents     map[string]int64     `json:"byProjectCostCents"`
+	ByTagSeconds           map[string]float64   `json:"byTagSeconds"`
+	ByTagCostCents         map[string]int64     `json:"byTagCostCents"`
 }
 
 type TimingPlan struct {
@@ -288,6 +289,8 @@ type TimeState struct {
 	ReportGranularity  string
 	ReportSort         string
 	ReportGroupBy      string
+	WeeklyDimension    string
+	ChartMetric        string
 	TaskDetail         *TaskCostDetailResponse
 	TaskDetailUUID     string
 	Bills              []BillExpenseItem
@@ -687,7 +690,7 @@ func (m model) timeReportDefaults() (granularity, sortBy, groupBy string) {
 		sortBy = "highest_cost"
 	}
 	groupBy = m.timeState.ReportGroupBy
-	if groupBy != "project" {
+	if groupBy != "project" && groupBy != "day" && groupBy != "tag" {
 		groupBy = "task"
 	}
 	return granularity, sortBy, groupBy
@@ -965,7 +968,7 @@ func (m *model) syncTimeExtraRows() {
 		out = append(out, row{
 			kind:     "time.summary",
 			id:       d,
-			title:    "今日时间与有界计划 · " + d,
+			title:    "今日时间线 · " + d,
 			subtitle: sub,
 		})
 		if m.timeState.Daily != nil {
@@ -991,42 +994,11 @@ func (m *model) syncTimeExtraRows() {
 				})
 			}
 		}
-		for _, p := range m.timeState.Plans {
-			budgetText := "未设额度"
-			if p.CurrentBudgetCents != nil {
-				budgetText = formatCurrencyCny(*p.CurrentBudgetCents)
-			}
-			stopText := ""
-			if p.EffectiveAutoStopAtMs != nil {
-				stopText = " · 截止 " + formatClockMs(*p.EffectiveAutoStopAtMs)
-			} else if p.HardStopAtMs != nil {
-				stopText = " · 最晚 " + formatClockMs(*p.HardStopAtMs)
-			}
-			remText := ""
-			if p.RemainingSeconds != nil {
-				remText = " / 剩 " + formatDurationShort(*p.RemainingSeconds)
-			}
-			scope := formatProjectAndTags(p.ProjectSnapshot, p.Tags)
-			if scope != "" {
-				scope = " · " + scope
-			}
-			out = append(out, row{
-				kind:  "time.plan",
-				id:    p.ID,
-				title: "[" + timingPlanStatusLabel(p.Status) + "] " + p.Title,
-				subtitle: fmt.Sprintf(
-					"预算 %s · 已用 %s%s%s%s",
-					budgetText,
-					formatDurationShort(p.ConsumedSeconds),
-					remText,
-					stopText,
-					scope,
-				),
-			})
-		}
+
 		if m.timeState.Daily != nil {
-			for i := len(m.timeState.Daily.LocatedSegments) - 1; i >= 0; i-- {
-				seg := m.timeState.Daily.LocatedSegments[i]
+			segments := append([]LocatedSegment{}, m.timeState.Daily.LocatedSegments...)
+			sort.SliceStable(segments, func(i, j int) bool { return segments[i].StartMs < segments[j].StartMs })
+			for _, seg := range segments {
 				costText := formatCurrencyCny(seg.ConfirmedCostCents)
 				if seg.ProvisionalCostCents > 0 {
 					if seg.ConfirmedCostCents > 0 {
@@ -1100,52 +1072,9 @@ func (m *model) syncTimeExtraRows() {
 			out,
 			row{kind: "time.summary", id: d, title: title, subtitle: sub},
 		)
-		if w != nil {
-			for _, item := range sortedDistItems(w.ByProjectSeconds, w.ByProjectCostCents, false) {
-				pct := 0.0
-				if w.CoveredSeconds > 0 {
-					pct = (item.secs / w.CoveredSeconds) * 100
-				}
-				name := item.key
-				if name == "__unassigned__" {
-					name = "未分配项目"
-				}
-				out = append(out, row{
-					kind:  "time.weekly_project",
-					id:    item.key,
-					title: "项目 · " + name,
-					subtitle: fmt.Sprintf(
-						"%s · %s · 占比 %.0f%%",
-						formatCurrencyCny(item.costCents),
-						formatDurationShort(item.secs),
-						pct,
-					),
-				})
-			}
-			for _, item := range sortedDistItems(w.ByTagSeconds, w.ByTagCostCents, true) {
-				pct := 0.0
-				if w.CoveredSeconds > 0 {
-					pct = (item.secs / w.CoveredSeconds) * 100
-				}
-				name := item.key
-				if name == "__untagged__" {
-					name = "无标签"
-				} else {
-					name = "#" + name
-				}
-				out = append(out, row{
-					kind:  "time.weekly_tag",
-					id:    item.key,
-					title: "标签 · " + name,
-					subtitle: fmt.Sprintf(
-						"%s · %s · 占比 %.0f%%",
-						formatCurrencyCny(item.costCents),
-						formatDurationShort(item.secs),
-						pct,
-					),
-				})
-			}
-		}
+		out[0].subtitle += " · v 每日/项目/标签 · m 时长/成本"
+		out = append(out, m.statisticRows()...)
+
 	case "time.report":
 		gran, sortBy, groupBy := m.timeReportDefaults()
 		granLabel := "本周"
@@ -1159,10 +1088,14 @@ func (m *model) syncTimeExtraRows() {
 		groupLabel := "按任务"
 		if groupBy == "project" {
 			groupLabel = "按项目"
+		} else if groupBy == "day" {
+			groupLabel = "每日"
+		} else if groupBy == "tag" {
+			groupLabel = "按标签"
 		}
 		rep := m.timeState.Report
 		title := granLabel + "成本报告（" + groupLabel + " · " + sortLabel + "）"
-		sub := "w 切换周/月 · o 切换排序 · v 任务/项目 · [ / ] 翻期"
+		sub := "w 周/月 · o 排序 · v 任务/项目/每日/标签 · m 时长/成本 · [ / ] 翻期"
 		if rep != nil {
 			title = fmt.Sprintf(
 				"%s成本报告 %s ~ %s（%s）",
@@ -1185,7 +1118,9 @@ func (m *model) syncTimeExtraRows() {
 			row{kind: "time.summary", id: d, title: title, subtitle: sub},
 		)
 		if rep != nil {
-			if groupBy == "project" {
+			if groupBy == "day" || groupBy == "tag" {
+				out = append(out, m.statisticRows()...)
+			} else if groupBy == "project" {
 				for _, pr := range rep.ByProject {
 					overText := ""
 					if pr.OverInitialBudgetCents > 0 {
@@ -1259,6 +1194,39 @@ func (m *model) syncTimeExtraRows() {
 					})
 				}
 			}
+		}
+	}
+	if m.view == "time.report" {
+		stats := m.statisticRows()
+		byID := map[string]row{}
+		for _, stat := range stats {
+			byID[stat.id] = stat
+		}
+		for i := range out {
+			if stat, ok := byID[out[i].id]; ok && (out[i].kind == "time.report_task" || out[i].kind == "time.report_project") {
+				out[i].chart = true
+				out[i].chartValue = stat.chartValue
+				out[i].chartMax = stat.chartMax
+			}
+		}
+		out[0].subtitle += " · v 维度 · m 时长/成本"
+	}
+	if m.view == "time.weekly" || m.view == "time.report" {
+		metric := "时长"
+		if m.timeState.ChartMetric == "cost" {
+			metric = "时间成本"
+		}
+		dim := m.timeState.WeeklyDimension
+		if dim == "" {
+			dim = "day"
+		}
+		if m.view == "time.report" {
+			_, _, dim = m.timeReportDefaults()
+		}
+		label := map[string]string{"day": "每日", "project": "项目", "tag": "标签", "task": "任务"}[dim]
+		out[0].title += " · " + label + " / " + metric
+		if dim == "tag" {
+			out[0].subtitle += " · 多标签分别累计"
 		}
 	}
 	m.extra = out
@@ -1779,7 +1747,7 @@ func (m model) inspectTimeRow(
 			dim.Render("c 确认这段 · : 修正时间 / 关联项目与标签 / 联账单"),
 		)
 		return true
-	case "time.weekly_project", "time.weekly_tag":
+	case "time.weekly_project", "time.weekly_tag", "time.statistic", "time.day":
 		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.title)
 		*lines = append(*lines, "")
 		add(r.subtitle)
@@ -2033,7 +2001,7 @@ func (m *model) openTimeActions(add func(v, l, h string)) {
 			add("time.plan.new", "新建有界计时计划 (P)", "手动开始 -> 到限自动停止 -> 确认或修正")
 		}
 		add("time.settings", "时间单价与习惯设置 (,)", "我的时间单价 ¥/h、列表突出金额、睡眠模板与提醒")
-		add("time.go.today", "打开今日时间与计划", "查看今日时间线、睡眠候选与计划")
+		add("time.go.today", "打开今日时间线", "查看今日时间线与睡眠候选")
 		add("time.go.weekly", "打开本周项目与标签分布", "按 Taskwarrior 项目与标签汇总投入")
 		add("time.go.report", "打开成本报告", "按周/月查看成本最高与超出初预估排序")
 		if m.isTimeNavView() {
@@ -2041,6 +2009,12 @@ func (m *model) openTimeActions(add func(v, l, h string)) {
 			add("time.date.today", "回到今天 / 本期 (.)", "重置查看日期为今天")
 			add("time.date.next", "查看下一天 / 下一期 (])", "向后翻一天、一周或一月")
 			add("time.date.pick", "跳转到指定日期", "输入 YYYY-MM-DD")
+			if m.view != "time.today" {
+				add("time.chart.metric", "切换图表指标 (m)", "时长 / 已确认时间成本")
+			}
+			if m.view == "time.weekly" {
+				add("time.weekly.group", "切换统计维度 (v)", "每日 / 项目 / 标签")
+			}
 			if m.view == "time.report" {
 				add(
 					"time.report.granularity",
@@ -2048,7 +2022,7 @@ func (m *model) openTimeActions(add func(v, l, h string)) {
 					"在 week 与 month 之间切换",
 				)
 				add("time.report.sort", "切换报告排序 (o)", "时间成本最高 <-> 超出最初预估最多")
-				add("time.report.group", "切换任务 / 项目视图 (v)", "按任务汇总 <-> 按项目汇总")
+				add("time.report.group", "切换统计维度 (v)", "任务 / 项目 / 每日 / 标签")
 			}
 		}
 	}
@@ -2514,12 +2488,38 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 		}
 		m.busy = true
 		return m.loadTimeViewCmd("time.report"), true
-	case "time.report.group":
-		if m.timeState.ReportGroupBy == "project" {
-			m.timeState.ReportGroupBy = "task"
+	case "time.chart.metric":
+		if m.timeState.ChartMetric == "cost" {
+			m.timeState.ChartMetric = "seconds"
 		} else {
+			m.timeState.ChartMetric = "cost"
+		}
+		m.syncTimeExtraRows()
+		return nil, true
+	case "time.weekly.group":
+		switch m.timeState.WeeklyDimension {
+		case "project":
+			m.timeState.WeeklyDimension = "tag"
+		case "tag":
+			m.timeState.WeeklyDimension = "day"
+		default:
+			m.timeState.WeeklyDimension = "project"
+		}
+		m.cursor = 0
+		m.syncTimeExtraRows()
+		return nil, true
+	case "time.report.group":
+		switch m.timeState.ReportGroupBy {
+		case "project":
+			m.timeState.ReportGroupBy = "day"
+		case "day":
+			m.timeState.ReportGroupBy = "tag"
+		case "tag":
+			m.timeState.ReportGroupBy = "task"
+		default:
 			m.timeState.ReportGroupBy = "project"
 		}
+		m.cursor = 0
 		m.syncTimeExtraRows()
 		return nil, true
 	case "time.settings":

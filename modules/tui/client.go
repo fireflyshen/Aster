@@ -101,13 +101,20 @@ type TimerSnapshot struct {
 	HistoryComplete       bool                       `json:"historyComplete"`
 }
 
+type BuiltinFilterPrefs struct {
+	Favorites     []string `json:"favorites"`
+	Hidden        []string `json:"hidden"`
+	SectionHidden bool     `json:"sectionHidden,omitempty"`
+}
+
 type Organization struct {
-	Filters       []SavedItem       `json:"filters"`
-	Tags          []SavedItem       `json:"tags"`
-	ProjectCounts map[string]int    `json:"projectCounts"`
-	Subtasks      map[string]string `json:"subtasks"`
-	Descriptions  map[string]string `json:"descriptions"`
-	Energy        *struct {
+	Filters            []SavedItem         `json:"filters"`
+	Tags               []SavedItem         `json:"tags"`
+	BuiltinFilterPrefs *BuiltinFilterPrefs `json:"builtinFilterPrefs,omitempty"`
+	ProjectCounts      map[string]int      `json:"projectCounts"`
+	Subtasks           map[string]string   `json:"subtasks"`
+	Descriptions       map[string]string   `json:"descriptions"`
+	Energy             *struct {
 		Remaining           *float64           `json:"remaining"`
 		Max                 float64            `json:"max"`
 		ActiveCount         int                `json:"activeCount"`

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -32,7 +33,10 @@ type tickMsg struct {
 	at  time.Time
 	gen int
 }
-type entry struct{ id, title string }
+type entry struct {
+	id, title string
+	header    bool
+}
 type row struct {
 	kind, id, title, subtitle string
 	task                      Task
@@ -43,6 +47,8 @@ type row struct {
 	depth                     int
 	lastChild                 bool
 	parentTitle               string
+	chartValue, chartMax      float64
+	chart                     bool
 }
 type choice struct{ value, label, hint string }
 type undoChange struct {
@@ -78,6 +84,11 @@ type model struct {
 	selected                                     row
 	draft                                        map[string][]string
 	extra                                        []row
+	dataDeleted                                  []row
+	dataBackup                                   []row
+	filterLoaded                                 bool
+	laterCollapsed                               bool
+	showHiddenBuiltin                            bool
 	preview                                      json.RawMessage
 	previewToken                                 string
 	undo                                         *undoChange
@@ -92,6 +103,8 @@ func newModel(c Client) model {
 	return model{
 		client:           c,
 		view:             "focus",
+		navCursor:        1,
+		laterCollapsed:   true,
 		width:            120,
 		height:           32,
 		busy:             true,
@@ -390,48 +403,147 @@ func (m model) read(kind, route string) tea.Cmd {
 }
 func (m model) nav() []entry {
 	es := []entry{
-		{"focus", "◎  Focus"},
-		{"inbox", "▣  收件箱"},
-		{"today", "◷  今天与逾期"},
-		{"urgency", "◈  紧迫排行"},
-		{"active", "▶  进行中"},
-		{"all", "≡  全部任务"},
-		{"waiting", "◴  等待中"},
-		{"completed", "✓  已完成"},
-		{"later", "◌  Later"},
-		{"projects", "▦  项目管理"},
-		{"filters", "⌕  过滤器"},
-		{"tags", "#  标签"},
-		{"columns", "▤  分组 / 栏目"},
-		{"recovery", "↶  删除恢复"},
-		{"backup", "⇩  备份与恢复"},
-		{"time.today", "◷  今日时间与计划"},
-		{"time.weekly", "◫  本周项目与标签"},
-		{"time.report", "¥  成本报告"},
+		{id: "hdr:core", title: "核心视图", header: true},
+		{id: "focus", title: "◎  Focus"},
+		{id: "inbox", title: "▣  收件箱"},
+		{id: "today", title: "◷  今天"},
 	}
-	for _, p := range m.org.Projects {
+	if m.isTimeMode() {
 		es = append(
 			es,
-			entry{
-				"project:" + p.Name,
-				strings.Repeat(
-					"  ",
-					min(strings.Count(p.Name, "."), 3),
-				) + "· " + p.Name,
-			},
+			entry{id: "hdr:time", title: "时间账本", header: true},
+			entry{id: "time.today", title: "◷  今日时间线"},
+			entry{id: "time.weekly", title: "◫  本周分布"},
+			entry{id: "time.report", title: "¥  成本报告"},
 		)
 	}
+	var favs []entry
 	for _, f := range m.org.Filters {
 		if f.Favorite {
-			es = append(es, entry{"filter:" + f.ID, "⌕ " + f.Name})
+			favs = append(
+				favs,
+				entry{id: "filter:" + f.ID, title: "★  " + f.Name},
+			)
 		}
 	}
+	for _, bf := range resolveBuiltinFilters(m.org.BuiltinFilterPrefs) {
+		if bf.Item.Favorite {
+			favs = append(
+				favs,
+				entry{id: "filter:" + bf.Item.ID, title: "★  " + bf.Item.Name},
+			)
+		}
+	}
+	for _, t := range m.org.Tags {
+		if t.Favorite {
+			favs = append(favs, entry{id: "tag:" + t.Name, title: "#  " + t.Name})
+		}
+	}
+	if len(favs) > 0 {
+		es = append(es, entry{id: "hdr:fav", title: "收藏", header: true})
+		es = append(es, favs...)
+	}
+	projectNames := map[string]bool{}
+	for _, p := range m.org.Projects {
+		if p.Status == "completed" && m.view != "project:"+p.Name {
+			continue
+		}
+		parts := strings.Split(p.Name, ".")
+		for i := range parts {
+			projectNames[strings.Join(parts[:i+1], ".")] = true
+		}
+	}
+	if len(projectNames) > 0 {
+		es = append(es, entry{id: "hdr:projects", title: "我的项目", header: true})
+		names := make([]string, 0, len(projectNames))
+		for name := range projectNames {
+			names = append(names, name)
+		}
+		sort.Slice(names, func(i, j int) bool {
+			// Compare path components so children always follow their parent.
+			a, b := strings.Split(names[i], "."), strings.Split(names[j], ".")
+			for k := 0; k < min(len(a), len(b)); k++ {
+				if a[k] != b[k] {
+					return a[k] < b[k]
+				}
+			}
+			return len(a) < len(b)
+		})
+		for _, name := range names {
+			es = append(es, entry{id: "project:" + name, title: name})
+		}
+	}
+
+	es = append(
+		es,
+		entry{id: "hdr:tools", title: "工具", header: true},
+		entry{id: "projects", title: "▦  项目管理"},
+		entry{id: "org", title: "⌕  过滤器 & 标签"},
+		entry{id: "data", title: "⇩  数据与恢复"},
+	)
 	return es
 }
+
+func (m *model) moveNavCursor(delta int) {
+	es := m.nav()
+	if len(es) == 0 {
+		m.navCursor = 0
+		return
+	}
+	if m.navCursor < 0 {
+		m.navCursor = 0
+	}
+	if m.navCursor >= len(es) {
+		m.navCursor = len(es) - 1
+	}
+	for next := m.navCursor + delta; next >= 0 && next < len(es); next += delta {
+		if !es[next].header {
+			m.navCursor = next
+			return
+		}
+	}
+}
+
+func (m *model) clampNavCursor() {
+	es := m.nav()
+	if len(es) == 0 {
+		m.navCursor = 0
+		return
+	}
+	if m.navCursor < 0 {
+		m.navCursor = 0
+	}
+	if m.navCursor >= len(es) {
+		m.navCursor = len(es) - 1
+	}
+	if es[m.navCursor].header {
+		m.moveNavCursor(1)
+		if es[m.navCursor].header {
+			m.moveNavCursor(-1)
+		}
+	}
+}
+
 func (m model) title() string {
+	switch m.view {
+	case "org":
+		return "过滤器 & 标签"
+	case "data":
+		return "数据与恢复"
+	case "projects":
+		return "项目管理"
+	}
 	for _, e := range m.nav() {
-		if e.id == m.view {
+		if !e.header && e.id == m.view {
 			return e.title
+		}
+	}
+	if strings.HasPrefix(m.view, "project:") {
+		return strings.TrimPrefix(m.view, "project:")
+	}
+	if strings.HasPrefix(m.view, "filter:") {
+		if f, ok := findFilterByID(m.org, strings.TrimPrefix(m.view, "filter:")); ok {
+			return f.Name
 		}
 	}
 	if strings.HasPrefix(m.view, "tag:") {
@@ -449,8 +561,6 @@ func (m model) columns() []Column {
 	cols := []Column{{ID: "unsectioned", Name: "未分组"}}
 	idx := m.viewIdx()
 	switch {
-	case m.view == "columns":
-		return append(cols, m.org.Board.Columns...)
 	case strings.HasPrefix(m.view, "project:"):
 		proj := strings.TrimPrefix(m.view, "project:")
 		for _, c := range m.org.Board.Columns {
@@ -473,7 +583,7 @@ func (m model) columns() []Column {
 			}
 		}
 		return cols
-	case m.view == "urgency":
+	case isUrgencyFilterView(m.view):
 		return []Column{{ID: "unsectioned", Name: "紧迫排行"}}
 	default:
 		for _, c := range m.org.Board.Columns {
@@ -511,7 +621,44 @@ func (m *model) selectFirstTask() {
 	}
 	m.cursor = 0
 }
+func (m *model) rebuildDataRows() {
+	var out []row
+	out = append(out, row{
+		kind:  "group",
+		id:    "data:deleted",
+		title: "已删除任务恢复",
+		count: len(m.dataDeleted),
+	})
+	if !m.collapsed["data:deleted"] {
+		if len(m.dataDeleted) == 0 {
+			out = append(out, row{
+				kind:     "info",
+				id:       "data:empty_deleted",
+				title:    "暂无已删除任务",
+				subtitle: "已删除的任务会留在这里以便恢复",
+			})
+		} else {
+			out = append(out, m.dataDeleted...)
+		}
+	}
+	out = append(out, row{
+		kind:  "group",
+		id:    "data:backup",
+		title: "备份与恢复",
+		count: len(m.dataBackup),
+	})
+	if !m.collapsed["data:backup"] {
+		out = append(out, m.dataBackup...)
+	}
+	m.extra = out
+}
+
 func (m *model) navigate(view string) tea.Cmd {
+	if view == "toggle:later" {
+		m.laterCollapsed = !m.laterCollapsed
+		m.clampNavCursor()
+		return nil
+	}
 	m.view = view
 	m.cursor = 0
 	m.query = ""
@@ -519,14 +666,16 @@ func (m *model) navigate(view string) tea.Cmd {
 	m.detail = false
 	m.navFocus = false
 	m.extra = nil
+	m.filterLoaded = false
 	m.mode = ""
-	if view == "recovery" {
+	if view == "data" {
 		m.busy = true
-		return m.read("recovery", "/api/recovery")
-	}
-	if view == "backup" {
-		m.busy = true
-		return m.read("points", "/api/backup/points")
+		m.dataDeleted = nil
+		m.dataBackup = nil
+		return tea.Batch(
+			m.read("data.recovery", "/api/recovery"),
+			m.read("data.points", "/api/backup/points"),
+		)
 	}
 	if view == "time.today" || view == "time.weekly" || view == "time.report" {
 		m.syncTimeExtraRows()
@@ -534,15 +683,13 @@ func (m *model) navigate(view string) tea.Cmd {
 		return m.loadTimeViewCmd(view)
 	}
 	if strings.HasPrefix(view, "filter:") {
-		for _, f := range m.org.Filters {
-			if f.ID == strings.TrimPrefix(view, "filter:") {
-				m.expression = f.Expression
-				m.busy = true
-				return m.read(
-					"filter",
-					"/api/tasks?filter="+url.QueryEscape(f.Expression),
-				)
-			}
+		if f, ok := findFilterByID(m.org, strings.TrimPrefix(view, "filter:")); ok {
+			m.expression = f.Expression
+			m.busy = true
+			return m.read(
+				"filter",
+				"/api/tasks?filter="+url.QueryEscape(f.Expression),
+			)
 		}
 	}
 	m.selectFirstTask()
@@ -612,13 +759,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.tickGen++
 			tickCmd = m.nextTick()
 		}
+		m.clampNavCursor()
 		if (strings.HasPrefix(m.view, "filter:") || m.view == "expression") &&
 			m.mode == "" {
 			if strings.HasPrefix(m.view, "filter:") {
-				for _, f := range m.org.Filters {
-					if "filter:"+f.ID == m.view {
-						m.expression = f.Expression
-					}
+				if f, ok := findFilterByID(m.org, strings.TrimPrefix(m.view, "filter:")); ok {
+					m.expression = f.Expression
 				}
 			}
 			m.busy = true
@@ -649,16 +795,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.previewToken = ""
 		m.busy = true
 		m.message = msg.message
-		if m.view == "recovery" {
+		if m.view == "data" {
 			return m, tea.Batch(
 				m.refresh(),
-				m.read("recovery", "/api/recovery"),
-			)
-		}
-		if m.view == "backup" {
-			return m, tea.Batch(
-				m.refresh(),
-				m.read("points", "/api/backup/points"),
+				m.read("data.recovery", "/api/recovery"),
+				m.read("data.points", "/api/backup/points"),
 			)
 		}
 		if m.isTimeNavView() {
@@ -746,17 +887,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.navFocus {
+			m.clampNavCursor()
 			if k == "up" || k == "k" {
-				m.navCursor = max(0, m.navCursor-1)
+				m.moveNavCursor(-1)
 			}
 			if k == "down" || k == "j" {
-				m.navCursor = min(len(m.nav())-1, m.navCursor+1)
+				m.moveNavCursor(1)
 			}
 			if k == "right" || k == "l" {
 				m.navFocus = false
 			}
-			if k == "enter" {
-				return m, m.navigate(m.nav()[m.navCursor].id)
+			if k == "enter" || k == " " {
+				es := m.nav()
+				if m.navCursor >= 0 && m.navCursor < len(es) && !es[m.navCursor].header {
+					if k == "enter" || es[m.navCursor].id == "toggle:later" {
+						return m, m.navigate(es[m.navCursor].id)
+					}
+				}
 			}
 			return m, nil
 		}
@@ -799,11 +946,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if k == "enter" {
 			r := m.current()
 			switch r.kind {
+			case "time.day":
+				m.timeState.SelectedDate = r.id
+				return m, m.navigate("time.today")
 			case "group":
 				m.collapsed[r.id] = !m.collapsed[r.id]
+				if m.view == "data" {
+					m.rebuildDataRows()
+				}
 			case "project":
 				return m, m.navigate("project:" + r.id)
-			case "filter":
+			case "filter", "builtin_filter":
 				return m, m.navigate("filter:" + r.id)
 			case "tag":
 				return m, m.navigate("tag:" + r.item.Name)
@@ -813,6 +966,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.action("point.export")
 			case "deleted":
 				return m, m.action("restore")
+			case "info":
+				return m, nil
 			default:
 				m.detail = !m.detail
 				if m.detail && r.kind == "task" && m.isTimeMode() &&
@@ -827,6 +982,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			r := m.current()
 			if r.kind == "group" && !m.board {
 				m.collapsed[r.id] = !m.collapsed[r.id]
+				if m.view == "data" {
+					m.rebuildDataRows()
+				}
 				return m, nil
 			}
 			if r.kind == "task" && len(m.viewIdx().childrenOf[r.id]) > 0 {
@@ -846,11 +1004,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.view == "time.report" {
 					return m, m.action("time.report.granularity")
 				}
+			case "m":
+				if m.view != "time.today" {
+					return m, m.action("time.chart.metric")
+				}
 			case "o":
 				if m.view == "time.report" {
 					return m, m.action("time.report.sort")
 				}
 			case "v":
+				if m.view == "time.weekly" {
+					return m, m.action("time.weekly.group")
+				}
 				if m.view == "time.report" {
 					return m, m.action("time.report.group")
 				}
@@ -863,6 +1028,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if (m.current().kind == "task" || m.current().kind == "time.report_task") &&
 				m.isTimeMode() {
 				return m, m.action("task.cost_detail")
+			}
+		}
+		if k == "v" {
+			if m.isTimeNavView() {
+				if m.view == "time.report" {
+					return m, m.action("time.report.group")
+				}
+			} else if m.view == "org" {
+				m.showHiddenBuiltin = !m.showHiddenBuiltin
+				m.cursor = min(m.cursor, max(0, len(m.rows())-1))
+				return m, nil
 			}
 		}
 		actions := map[string]string{
@@ -881,6 +1057,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			"p": "focus.choose",
 			"n": "project.next",
 			"g": "column.new",
+			"f": "item.favorite",
+			"H": "builtin.hide",
 			"T": "time.go.today",
 			"B": "task.budget",
 			"P": "time.plan.new",
@@ -911,6 +1089,19 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 			m.message = e.Error()
 			return m, nil
 		}
+		if isUrgencyFilterView(m.view) {
+			sort.SliceStable(p.Tasks, func(i, j int) bool {
+				if p.Tasks[i].Urgency != p.Tasks[j].Urgency {
+					return p.Tasks[i].Urgency > p.Tasks[j].Urgency
+				}
+				return p.Tasks[i].Description < p.Tasks[j].Description
+			})
+		} else if isCompletedFilterView(m.org, m.view, m.expression) {
+			sort.SliceStable(p.Tasks, func(i, j int) bool {
+				return p.Tasks[i].End > p.Tasks[j].End
+			})
+		}
+		m.filterLoaded = true
 		m.extra = nil
 		for _, t := range p.Tasks {
 			m.extra = append(
@@ -919,7 +1110,7 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 			)
 		}
 		m.selectFirstTask()
-	case "recovery":
+	case "data.recovery":
 		var p struct {
 			Tasks []struct{ UUID, Description, Project, RestoreStatus string }
 		}
@@ -927,10 +1118,10 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 			m.message = e.Error()
 			return m, nil
 		}
-		m.extra = nil
+		m.dataDeleted = nil
 		for _, t := range p.Tasks {
-			m.extra = append(
-				m.extra,
+			m.dataDeleted = append(
+				m.dataDeleted,
 				row{
 					kind:     "deleted",
 					id:       t.UUID,
@@ -939,7 +1130,8 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 				},
 			)
 		}
-	case "points":
+		m.rebuildDataRows()
+	case "data.points":
 		var p struct {
 			Points []struct{ ID, CreatedAt, State string }
 		}
@@ -947,7 +1139,7 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 			m.message = e.Error()
 			return m, nil
 		}
-		m.extra = []row{
+		m.dataBackup = []row{
 			{
 				kind:     "backup",
 				id:       "export",
@@ -961,17 +1153,18 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 				subtitle: "先预览范围，再明确确认替换",
 			},
 		}
-		for _, p := range p.Points {
-			m.extra = append(
-				m.extra,
+		for _, pt := range p.Points {
+			m.dataBackup = append(
+				m.dataBackup,
 				row{
 					kind:     "point",
-					id:       p.ID,
-					title:    p.CreatedAt,
-					subtitle: p.State,
+					id:       pt.ID,
+					title:    pt.CreatedAt,
+					subtitle: pt.State,
 				},
 			)
 		}
+		m.rebuildDataRows()
 	case "quick":
 		var p struct {
 			Task   map[string]any

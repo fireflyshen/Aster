@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -84,7 +85,31 @@ func (m *model) openActions() {
 		add("project.child", "添加子项目", "原生点路径层级")
 		add("project.status", "项目状态 / Focus", "激活、暂停、完成或重新打开")
 		add("delete", "删除项目", "任务保留，项目字段清除")
+	case "builtin_filter":
+		favLabel := "收藏到侧边栏"
+		if r.item.Favorite {
+			favLabel = "取消收藏"
+		}
+		hiddenLabel := "隐藏此内置过滤器"
+		if prefs := m.org.BuiltinFilterPrefs; prefs != nil &&
+			slices.Contains(prefs.Hidden, r.id) {
+			hiddenLabel = "恢复显示此内置过滤器"
+		}
+		toggleHiddenLabel := "显示已隐藏内置过滤器"
+		if m.showHiddenBuiltin {
+			toggleHiddenLabel = "收起已隐藏内置过滤器"
+		}
+		add("open.entry", "打开筛选结果", r.item.Expression)
+		add("item.favorite", favLabel, "同步侧边栏收藏 · f")
+		add("builtin.hide", hiddenLabel, "跨端隐藏或恢复 · H")
+		add("builtin.toggle_hidden", toggleHiddenLabel, "切换显示已隐藏项 · v")
 	case "filter", "tag":
+		favLabel := "收藏到侧边栏"
+		if r.item.Favorite {
+			favLabel = "取消收藏"
+		}
+		add("open.entry", "打开筛选结果", "查看匹配的任务列表")
+		add("item.favorite", favLabel, "同步侧边栏收藏 · f")
 		add("edit", "编辑条目", "名称、颜色、收藏与筛选条件")
 		add("delete", "删除条目", "不会删除任务")
 	case "group", "column":
@@ -110,7 +135,9 @@ func (m *model) openActions() {
 	add("quick", "一句话捕捉", "中文日期 / #项目 / @标签 / p1")
 	add("focus.choose", "选择 Focus 项目", "最多三个，可选择替换")
 	add("project.new", "新建项目", "无须创建占位任务")
-	add("column.new", "新增分组", "同时创建看板栏目")
+	if m.taskView() {
+		add("column.new", "新增分组", "同时创建看板栏目")
+	}
 	add("filter.new", "新建过滤器", "原生 Taskwarrior 表达式")
 	add("tag.new", "新建标签", "颜色与收藏")
 	add("expression", "Taskwarrior 筛选", "只接受过滤条件")
@@ -130,7 +157,7 @@ func (m *model) action(a string) tea.Cmd {
 		a == "time.go.report" || a == "time.date.prev" || a == "time.date.next" ||
 		a == "time.date.today" || a == "time.date.pick" ||
 		a == "time.report.granularity" || a == "time.report.sort" ||
-		a == "time.report.group" || a == "time.bill.search"
+		a == "time.report.group" || a == "time.weekly.group" || a == "time.chart.metric" || a == "time.bill.search"
 	if m.blocked && !readOnly {
 		m.message = "连接或写入状态待核对，请按 r 刷新"
 		return nil
@@ -268,6 +295,73 @@ func (m *model) action(a string) tea.Cmd {
 			{"setdue:clear", "清除截止日期", "转为无截止日期"},
 			{"setdue:custom", "自定义日期时间…", "手动输入 YYYY-MM-DD HH:MM"},
 		}, -1)
+		return nil
+	case "open.entry":
+		switch r.kind {
+		case "filter", "builtin_filter":
+			return m.navigate("filter:" + r.id)
+		case "tag":
+			return m.navigate("tag:" + r.item.Name)
+		case "project":
+			return m.navigate("project:" + r.project.Name)
+		default:
+			m.message = "当前行不支持打开筛选视图"
+			return nil
+		}
+	case "item.favorite":
+		switch r.kind {
+		case "builtin_filter":
+			return m.orgChange(map[string]any{
+				"kind":   "builtinFilter",
+				"action": "favorite",
+				"id":     r.id,
+				"value":  !r.item.Favorite,
+			})
+		case "filter", "tag":
+			color := r.item.Color
+			if color == "" {
+				color = "gray"
+			}
+			item := map[string]any{
+				"id":       r.item.ID,
+				"name":     r.item.Name,
+				"color":    color,
+				"favorite": !r.item.Favorite,
+			}
+			if r.kind == "filter" {
+				item["expression"] = r.item.Expression
+				item["description"] = r.item.Description
+			}
+			return m.orgChange(map[string]any{
+				"kind":   r.kind,
+				"action": "save",
+				"item":   item,
+			})
+		default:
+			m.message = "仅过滤器与标签支持收藏"
+			return nil
+		}
+	case "builtin.hide":
+		if r.kind != "builtin_filter" {
+			m.message = "仅内置 TW 过滤器支持隐藏或恢复"
+			return nil
+		}
+		hidden := m.org.BuiltinFilterPrefs != nil &&
+			slices.Contains(m.org.BuiltinFilterPrefs.Hidden, r.id)
+		return m.orgChange(map[string]any{
+			"kind":   "builtinFilter",
+			"action": "hide",
+			"id":     r.id,
+			"value":  !hidden,
+		})
+	case "builtin.toggle_hidden":
+		m.showHiddenBuiltin = !m.showHiddenBuiltin
+		m.cursor = min(m.cursor, max(0, len(m.rows())-1))
+		if m.showHiddenBuiltin {
+			m.message = "已显示隐藏的内置 TW 过滤器"
+		} else {
+			m.message = "已收起隐藏的内置 TW 过滤器"
+		}
 		return nil
 	case "quick":
 		m.selected = row{}
@@ -448,6 +542,9 @@ func (m *model) action(a string) tea.Cmd {
 			return m.openProjectForm(r.project)
 		case "filter", "tag":
 			return m.openItemForm(r.kind, r.item)
+		case "builtin_filter":
+			m.message = "内置过滤器不可改名，请按 f 收藏或 H 隐藏"
+			return nil
 		case "group", "column":
 			if r.id != "unsectioned" {
 				return m.openForm(
@@ -466,7 +563,11 @@ func (m *model) action(a string) tea.Cmd {
 		m.selected = row{}
 		return m.openItemForm(kind, SavedItem{Color: "gray"})
 	case "delete":
-		if r.id == "" || r.id == "unsectioned" {
+		if r.id == "" || r.id == "unsectioned" || r.kind == "info" {
+			return nil
+		}
+		if r.kind == "builtin_filter" {
+			m.message = "内置过滤器不可删除，请按 H 隐藏"
 			return nil
 		}
 		hint := "任务会保留在删除恢复中。"

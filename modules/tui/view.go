@@ -37,6 +37,20 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 	rowW := max(1, w-4)
 	for i := start; i < end; i++ {
 		e := es[i]
+		if e.header {
+			lines = append(
+				lines,
+				renderSpans(
+					[]styledSpan{
+						span(e.title, lipgloss.NewStyle().Foreground(muted).Bold(true)),
+					},
+					rowW,
+					rowW,
+					false,
+				),
+			)
+			continue
+		}
 		activeView := e.id == m.view
 		cursorHere := m.navFocus && i == m.navCursor
 		softActive := !m.navFocus && activeView
@@ -52,9 +66,11 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 				dotColor = swatchColor(p.Color)
 				hasDot = true
 			}
-			indent := strings.Repeat("  ", min(strings.Count(pName, "."), 3))
-			label = indent + pName
+			label = projectTreeLabel(pName, es, i)
 			prefix = "● "
+			if strings.Contains(pName, ".") {
+				prefix = "  "
+			}
 			if !hasDot {
 				dotColor = muted
 				hasDot = true
@@ -62,10 +78,32 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 			if cnt := m.org.ProjectCounts[pName]; cnt > 0 && rowW > 14 {
 				countText = fmt.Sprintf(" %d", cnt)
 			}
-		} else if e.id == "active" && f.idx.anyRunning {
+		} else if e.id == "focus" && rowW > 14 {
+			countText = fmt.Sprintf(" %d/3", len(f.idx.activeProjects))
+		} else if e.id == "filter:builtin:active" && f.idx.anyRunning {
 			prefix = "▶ "
 			dotColor = timerColor
 			hasDot = true
+		} else if strings.HasPrefix(e.id, "filter:") {
+			filterID := strings.TrimPrefix(e.id, "filter:")
+			prefix = "★ "
+			if item, ok := findFilterByID(m.org, filterID); ok && item.Color != "" {
+				dotColor = swatchColor(item.Color)
+				hasDot = true
+			} else if activeView && !cursorHere {
+				dotColor = brand
+				hasDot = true
+			}
+		} else if strings.HasPrefix(e.id, "tag:") {
+			tagName := strings.TrimPrefix(e.id, "tag:")
+			prefix = "# "
+			if tag, ok := f.idx.tagByName[tagName]; ok && tag.Color != "" {
+				dotColor = swatchColor(tag.Color)
+				hasDot = true
+			} else if activeView && !cursorHere {
+				dotColor = brand
+				hasDot = true
+			}
 		} else if activeView && !cursorHere {
 			prefix = "● "
 			dotColor = brand
@@ -478,7 +516,9 @@ func (m model) list(w, h int, f renderFrame) string {
 			markerStyle := dim
 			titleStyle := lipgloss.NewStyle().Foreground(ink).Bold(true)
 			subStyle := dim
-			if selected {
+			if r.kind == "info" {
+				titleStyle = lipgloss.NewStyle().Foreground(muted).Bold(true)
+			} else if selected {
 				marker = "▎ "
 				markerStyle = accent
 				titleStyle = lipgloss.NewStyle().
@@ -486,11 +526,15 @@ func (m model) list(w, h int, f renderFrame) string {
 					Bold(true)
 				subStyle = lipgloss.NewStyle().Foreground(muted)
 			}
+			if r.kind == "time.segment" {
+				marker += "● "
+				titleStyle = lipgloss.NewStyle().Foreground(ink)
+			}
 			line1Spans := []styledSpan{span(marker, markerStyle)}
 			dotColor := ""
 			if r.kind == "project" {
 				dotColor = r.project.Color
-			} else if r.kind == "filter" || r.kind == "tag" {
+			} else if r.kind == "filter" || r.kind == "builtin_filter" || r.kind == "tag" {
 				dotColor = r.item.Color
 			}
 			if dotColor != "" {
@@ -506,10 +550,23 @@ func (m model) list(w, h int, f renderFrame) string {
 			ls = []string{renderSpans(line1Spans, rowW, rowW, selected)}
 			if sub := clean(r.subtitle); sub != "" {
 				subSpans := []styledSpan{
-					span(marker, markerStyle),
-					span("  "+sub, subStyle),
+					span(func() string {
+						if r.kind == "time.segment" {
+							return strings.TrimSuffix(marker, "● ")
+						}
+						return marker
+					}(), markerStyle),
+					span(func() string {
+						if r.kind == "time.segment" {
+							return "│ " + sub
+						}
+						return "  " + sub
+					}(), subStyle),
 				}
 				ls = append(ls, renderSpans(subSpans, rowW, rowW, selected))
+			}
+			if r.chart && rowW >= 12 {
+				ls = append(ls, "    "+renderStatisticBar(r.chartValue, r.chartMax, rowW-4))
 			}
 		}
 		blocks = append(blocks, block{i, ls})
@@ -561,12 +618,8 @@ func (m model) list(w, h int, f renderFrame) string {
 func (m model) taskView() bool {
 	switch m.view {
 	case "projects",
-		"later",
-		"filters",
-		"tags",
-		"columns",
-		"backup",
-		"recovery",
+		"org",
+		"data",
 		"time.today",
 		"time.weekly",
 		"time.report":
@@ -585,17 +638,17 @@ func (m model) emptyMessage() string {
 	if m.view == "focus" && len(m.viewIdx().activeProjects) == 0 {
 		return "还没有聚焦项目。按 p 最多选择 3 个 Focus 项目，或按 Tab 在其他视图操作。"
 	}
-	if m.view == "waiting" {
+	if m.view == "filter:builtin:waiting" {
 		return "没有处于等待状态的任务。"
 	}
-	if m.view == "active" {
+	if m.view == "filter:builtin:active" {
 		return "当前没有正在计时的任务。选中任意任务按 s 开始计时。"
 	}
-	if m.view == "completed" {
+	if isCompletedFilterView(m.org, m.view, m.expression) {
 		return "当前没有已完成任务。"
 	}
-	if m.view == "recovery" {
-		return "没有可恢复的已删除任务。"
+	if m.view == "data" {
+		return "没有可恢复的已删除任务或快照数据。"
 	}
 	if m.isTimeNavView() {
 		return "暂无时间或成本数据。按 : 补记时段或新建有界计划，按 r 刷新。"
@@ -993,7 +1046,7 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			}
 		}
 		lines = append(lines, "", dim.Render("Enter 打开任务 · : 管理项目"))
-	case "filter", "tag":
+	case "filter", "builtin_filter", "tag":
 		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.item.Name)
 		if r.item.Description != "" {
 			addRich(r.item.Description)
@@ -1003,7 +1056,16 @@ func (m model) inspector(w, h int, f renderFrame) string {
 		}
 		kv("颜色", r.item.Color, swatchColor(r.item.Color))
 		kv("收藏", fmt.Sprint(r.item.Favorite), inkSoft)
-		lines = append(lines, "", dim.Render("Enter 打开任务 · : 编辑"))
+		if r.kind == "builtin_filter" {
+			kv("来源", "内置 TW 过滤器（跨端同步）", inkSoft)
+			lines = append(
+				lines,
+				"",
+				dim.Render("Enter 打开筛选 · f 收藏 · H 隐藏/恢复 · v 显隐已隐藏"),
+			)
+		} else {
+			lines = append(lines, "", dim.Render("Enter 打开任务 · f 收藏 · : 操作"))
+		}
 	case "group", "column":
 		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.title)
 		add(fmt.Sprintf("%d 个可见任务", r.count))
@@ -1389,9 +1451,10 @@ func (m model) View() string {
 						"d / u / r        删除 / 撤销最近操作 / 刷新核对",
 						"b / ← →          列表看板切换 / 切换栏目",
 						"p / n / g        Focus 项目 / 下一步 / 新增分组",
+						"f / H / v        收藏过滤标签 / 隐藏内置 / 显隐切换",
 						"T / B / P / $    时间视图 / 设预算 / 建计划 / 联账单",
 						"c / , / [ ] .    确认或明细 / 单价设置 / 时间翻期",
-						"w / o / v        成本报告周月 / 排序 / 任务项目切换",
+						"w / o            成本报告周月 / 排序切换",
 						"/ / PgUp / PgDn  搜索视图 / 滚动详情",
 						"表单按键         Tab 切换 · Enter 选择 · Ctrl+S 保存",
 						"Esc / q          关闭或暂存草稿 / 退出",

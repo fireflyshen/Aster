@@ -22,7 +22,7 @@ func makeTimeTestModel(now time.Time, highlightCost bool) model {
 	m.height = 36
 	m.ready = true
 	m.busy = false
-	m.view = "all"
+	m.view = "project:Work"
 	m.snapReceived = now
 	initBudget := int64(10000)
 	currBudget := int64(15000)
@@ -490,6 +490,7 @@ func TestInspectorAndTimeViewsRenderCleanly(t *testing.T) {
 
 	// Weekly distribution uses TW projects & tags, zero preset categories.
 	m.view = "time.weekly"
+	m.timeState.WeeklyDimension = "project"
 	m.timeState.Weekly = &WeeklyDistributionSummary{
 		WeekStartDate:        "2026-11-09",
 		WeekEndDate:          "2026-11-15",
@@ -515,9 +516,9 @@ func TestInspectorAndTimeViewsRenderCleanly(t *testing.T) {
 		},
 	}
 	m.syncTimeExtraRows()
-	if len(m.extra) < 5 {
+	if len(m.extra) != 3 {
 		t.Fatalf(
-			"expected summary + projects + tags rows in time.weekly, got %d",
+			"expected summary + selected project dimension in time.weekly, got %d",
 			len(m.extra),
 		)
 	}

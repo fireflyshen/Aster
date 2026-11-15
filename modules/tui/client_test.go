@@ -111,7 +111,14 @@ func sampleModel() model {
 	m := newModel(Client{})
 	m.busy = false
 	m.ready = true
-	m.view = "all"
+	if _, ok := findFilterByID(m.org, "all-test"); !ok {
+		m.org.Filters = append(m.org.Filters, SavedItem{
+			ID:         "all-test",
+			Name:       "All",
+			Expression: "status:pending or status:completed",
+		})
+	}
+	m.view = "filter:all-test"
 	m.org.Revision = 3
 	m.org.Projects = []Project{
 		{
@@ -444,14 +451,21 @@ func TestSubtasksNestingOrphanPromotionAndActiveView(t *testing.T) {
 
 	// Active view only shows running task sub2.
 	m.query = ""
-	m.view = "active"
+	m.view = "filter:builtin:active"
 	vis := m.visible()
 	if len(vis) != 1 || vis[0].UUID != "sub2" {
 		t.Fatalf("expected only active task sub2, got %+v", vis)
 	}
 
 	// Responsive sizes remain bounded with nested subtasks, descriptions, priorities, and timer badges.
-	m.view = "all"
+	if _, ok := findFilterByID(m.org, "all-test"); !ok {
+		m.org.Filters = append(m.org.Filters, SavedItem{
+			ID:         "all-test",
+			Name:       "All",
+			Expression: "status:pending or status:completed",
+		})
+	}
+	m.view = "filter:all-test"
 	for _, size := range [][2]int{{50, 20}, {80, 24}, {120, 36}, {160, 40}} {
 		m.width = size[0]
 		m.height = size[1]
@@ -726,7 +740,7 @@ func TestUrgencyViewSortingAndScoreDisplay(t *testing.T) {
 	csi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 	m := sampleModel()
-	m.view = "urgency"
+	m.view = "filter:builtin:urgency"
 	m.tasks = []Task{
 		{UUID: "low", Description: "低分任务", Status: "pending", Urgency: 2.3},
 		{

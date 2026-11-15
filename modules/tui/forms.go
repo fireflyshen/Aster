@@ -662,6 +662,7 @@ func (m *model) submit() (tea.Cmd, error) {
 	case "expression":
 		m.expression = v[0]
 		m.view = "expression"
+		m.filterLoaded = false
 		m.query = ""
 		return m.read("filter", "/api/tasks?filter="+url.QueryEscape(v[0])), nil
 	case "task.wait":
