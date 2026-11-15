@@ -385,3 +385,16 @@
   .time-meta-project { max-width: calc(100% - 136px); }
   .time-meta-selected { flex-basis: 100%; }
 }
+.time-quick-options { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
+.time-quick-controls > [data-slot="select-trigger"] { max-width: min(180px, calc(100% - 88px)); }
+.time-quick-controls [data-slot="select-value"] { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.time-meta-tag-trigger:focus-visible,
+.time-meta-selected button:focus-visible { outline: 1px solid var(--ring); outline-offset: 2px; }
+@media (max-width: 639px) {
+  .time-quick-options { display: block; }
+  .time-quick-start { min-height: 40px; }
+  .time-quick-controls > button,
+  .time-meta-project > button,
+  .time-meta-tag-trigger,
+  .time-meta-sleep { min-height: 40px; }
+}

@@ -1067,6 +1067,7 @@ export function TimeTodayPage({
                             <Play className="size-3.5" />{active ? "切换" : "开始"}
                         </Button>
                     </div>
+                    <div className="time-quick-options">
                     <div className="time-quick-controls">
                             <Select
                                 value={quickTaskUuid}
@@ -1147,6 +1148,7 @@ export function TimeTodayPage({
                         isSleep={quickIsSleep}
                         onSleepChange={setQuickIsSleep}
                     />
+                    </div>
 
                     {showPlanLimit && (
                         <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-muted-foreground">
