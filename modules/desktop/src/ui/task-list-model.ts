@@ -204,7 +204,8 @@ export function resolveTaskTiming(
         }
       : null);
   const isTimeMode =
-    organization?.timing?.backend === "time" || snap?.snapshot.backend === "time";
+    organization?.timing?.backend === "time" ||
+    snap?.snapshot.backend === "time";
 
   if (isTimeMode) {
     if (organization?.timing?.available === false) {
@@ -218,7 +219,7 @@ export function resolveTaskTiming(
     }
     const mono =
       currentMonoMs ??
-      (trackedSnapshot ? performance.now() : snap?.receivedMonoMs ?? 0);
+      (trackedSnapshot ? performance.now() : (snap?.receivedMonoMs ?? 0));
     const activeUuid = snap?.snapshot.activeActivity?.taskUuid?.toLowerCase();
     const timingActive =
       !completedOrEnded(task) &&
@@ -444,8 +445,7 @@ export function listNavigationTitle(
       : undefined;
     const label = snap.activeActivity.title || snap.activeActivity.categoryId;
     const dur = secs !== undefined ? ` (${formatDuration(secs)})` : "";
-    const staleTag =
-      status?.stateLabel === "stale" ? " [stale]" : "";
+    const staleTag = status?.stateLabel === "stale" ? " [stale]" : "";
     return ` · ▶ ${label}${dur}${staleTag}`;
   })();
 

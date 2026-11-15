@@ -23,10 +23,7 @@ test("zone calculations handle Asia/Shanghai, cross-midnight, and DST non-24h da
   // Normal 24h day in Asia/Shanghai
   const shBounds = dayBoundsMs("2026-11-15", "Asia/Shanghai");
   assert.equal((shBounds.dayEndMs - shBounds.dayStartMs) / 3600_000, 24);
-  assert.equal(
-    localDateOf(shBounds.dayStartMs, "Asia/Shanghai"),
-    "2026-11-15",
-  );
+  assert.equal(localDateOf(shBounds.dayStartMs, "Asia/Shanghai"), "2026-11-15");
   assert.equal(
     localDateOf(shBounds.dayStartMs - 1, "Asia/Shanghai"),
     "2026-11-14",
@@ -160,7 +157,12 @@ test("daily and weekly ledger keep C + U = T invariant with unlocated estimates 
     updatedAtMs: nowMs,
   };
 
-  const daily = computeDailyLedger(day, [locatedWork, unlocatedRead], policy, nowMs);
+  const daily = computeDailyLedger(
+    day,
+    [locatedWork, unlocatedRead],
+    policy,
+    nowMs,
+  );
   assert.equal(daily.pastCapacitySeconds, 24 * 3600);
   assert.equal(daily.coveredSeconds, 16 * 3600);
   assert.equal(daily.unrecordedSeconds, 8 * 3600);

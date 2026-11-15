@@ -136,9 +136,7 @@ export function createBackupRestore(
   async function buildProbeTaskFn() {
     try {
       const exported = await service.exportTasks();
-      const map = new Map(
-        exported.map((t) => [t.uuid.toLowerCase(), t]),
-      );
+      const map = new Map(exported.map((t) => [t.uuid.toLowerCase(), t]));
       return (taskUuid: string) => {
         const found = map.get(taskUuid.toLowerCase());
         if (!found) return { exists: false };

@@ -94,15 +94,11 @@ export async function runMaintenanceBackup(input: {
   manifest: MaintenanceBackupManifest;
 }> {
   if (!SAFE_ID_PATTERN.test(input.backupId)) {
-    throw new Error(
-      "Invalid backupId: must match /^[A-Za-z0-9_.-]{1,64}$/.",
-    );
+    throw new Error("Invalid backupId: must match /^[A-Za-z0-9_.-]{1,64}$/.");
   }
   const releaseId = input.releaseId || input.backupId;
   if (!SAFE_ID_PATTERN.test(releaseId)) {
-    throw new Error(
-      "Invalid releaseId: must match /^[A-Za-z0-9_.-]{1,64}$/.",
-    );
+    throw new Error("Invalid releaseId: must match /^[A-Za-z0-9_.-]{1,64}$/.");
   }
 
   const dataRoot = resolve(input.dataDir);
@@ -133,7 +129,9 @@ export async function runMaintenanceBackup(input: {
 
   const finalDir = join(stagingRoot, input.backupId);
   if (await fileExists(finalDir)) {
-    throw new Error(`Backup staging directory already exists: ${input.backupId}`);
+    throw new Error(
+      `Backup staging directory already exists: ${input.backupId}`,
+    );
   }
 
   const tmpDir = join(stagingRoot, `.tmp-${input.backupId}-${randomUUID()}`);
@@ -145,7 +143,10 @@ export async function runMaintenanceBackup(input: {
     const jsonCandidates: Array<[string, string]> = [
       ["organization.json", input.organizationFile],
       ["recovery.json", input.recoveryFile],
-      ["restored-uda.json", join(dirname(input.organizationFile), "restored-uda.json")],
+      [
+        "restored-uda.json",
+        join(dirname(input.organizationFile), "restored-uda.json"),
+      ],
     ];
     for (const [key, srcPath] of jsonCandidates) {
       if (await fileExists(srcPath)) {
@@ -164,7 +165,10 @@ export async function runMaintenanceBackup(input: {
       }
     }
 
-    if (input.taskchampionDbPath && (await fileExists(input.taskchampionDbPath))) {
+    if (
+      input.taskchampionDbPath &&
+      (await fileExists(input.taskchampionDbPath))
+    ) {
       const dest = join(tmpDir, "taskchampion.sqlite3");
       await sqliteOnlineBackup(input.taskchampionDbPath, dest);
       await verifySqliteIntegrity(dest);

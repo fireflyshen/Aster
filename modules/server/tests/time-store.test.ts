@@ -63,7 +63,8 @@ test("time store preflight, single-active timer switching, long-activity warning
           expectedSessionVersion: 0,
         }),
       (err: unknown) =>
-        err instanceof TimeStoreError && err.code === "SESSION_VERSION_CONFLICT",
+        err instanceof TimeStoreError &&
+        err.code === "SESSION_VERSION_CONFLICT",
     );
 
     // TIMER-01: Next day 12:00 (14 hours later) start walk -> closes reading with LONG_ACTIVITY_CLOSED warning
@@ -343,7 +344,8 @@ test("independent Time backup and restore bump monotonic epoch/barrier, freeze o
           endMs: zonedDateTimeToUtcMs("2026-11-15", "09:00", "Asia/Shanghai"),
         }),
       (err: unknown) =>
-        err instanceof TimeStoreError && err.code === "RESTORE_BARRIER_REJECTED",
+        err instanceof TimeStoreError &&
+        err.code === "RESTORE_BARRIER_REJECTED",
     );
 
     store.close();
@@ -488,14 +490,21 @@ test("coordinated dependency checks and task restore hooks enforce epoch monoton
     assert.ok(preparedRestore.frozenActivityId);
 
     // Even if native restore rolls back, taskDataEpoch stays 2 and pending op is not replayed (REST-02/03)
-    const finalized = store.finalizeTaskRestore("restore-1", "rolled_back", () => ({
-      exists: true,
-      status: "pending",
-    }));
+    const finalized = store.finalizeTaskRestore(
+      "restore-1",
+      "rolled_back",
+      () => ({
+        exists: true,
+        status: "pending",
+      }),
+    );
     assert.equal(finalized.taskDataEpoch, 2);
     assert.equal(finalized.outcome, "rolled_back");
     assert.equal(store.getStatus().taskDataEpoch, 2);
-    assert.equal(store.getStatus().activeActivity?.reviewState, "review_required");
+    assert.equal(
+      store.getStatus().activeActivity?.reviewState,
+      "review_required",
+    );
     assert.equal(store.getStatus().activeActivity?.suspendMs, nowMs);
 
     store.close();

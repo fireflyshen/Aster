@@ -177,7 +177,11 @@ func statusMeta(t Task, waiting bool) (string, lipgloss.AdaptiveColor, bool) {
 	return statusMetaForTiming(t, waiting, false, "")
 }
 
-func statusMetaForTiming(t Task, waiting, isTimeMode bool, activeTaskUUID string) (string, lipgloss.AdaptiveColor, bool) {
+func statusMetaForTiming(
+	t Task,
+	waiting, isTimeMode bool,
+	activeTaskUUID string,
+) (string, lipgloss.AdaptiveColor, bool) {
 	if t.Status == "completed" {
 		return "✓", okColor, false
 	}
@@ -251,7 +255,12 @@ func dueLabel(
 	return formatted, muted
 }
 
-func energyMeter(remaining *float64, maxVal float64, hardLimit bool, bars int) string {
+func energyMeter(
+	remaining *float64,
+	maxVal float64,
+	hardLimit bool,
+	bars int,
+) string {
 	if maxVal <= 0 {
 		return ""
 	}

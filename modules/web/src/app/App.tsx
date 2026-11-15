@@ -218,7 +218,10 @@ export function App() {
         timingUnavailable={data.organization.timing?.available === false}
         onRetryTiming={() =>
           void (data.isTimeMode
-            ? Promise.all([data.refreshTimerSnapshot(), data.loadOrganization()])
+            ? Promise.all([
+                data.refreshTimerSnapshot(),
+                data.loadOrganization(),
+              ])
             : data.loadOrganization())
         }
         onElixir={() => void data.restoreEnergy()}

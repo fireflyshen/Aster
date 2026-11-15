@@ -61,7 +61,8 @@ func (m *model) openActions() {
 		add("edit", "编辑任务", "名称、项目、日期、优先级、标签、重复、描述")
 		add("task.toggle", "完成 / 重新打开", "保留 UUID 与栏目")
 		add("task.timer", "开始 / 停止计时", "切换或停止当前活跃计时")
-		if m.isTimeMode() && r.task.Start != "" && !strings.EqualFold(r.task.UUID, m.activeTimingTaskUUID()) {
+		if m.isTimeMode() && r.task.Start != "" &&
+			!strings.EqualFold(r.task.UUID, m.activeTimingTaskUUID()) {
 			add("task.clear_start", "清除进行中标记", "不影响正在计时的其他活动")
 		}
 		add("task.priority", "快速设置优先级 (!)", "P1 高 / P2 中 / P3 低 / 无")
@@ -289,7 +290,8 @@ func (m *model) action(a string) tea.Cmd {
 			isTiming := r.task.Start != ""
 			if m.isTimeMode() {
 				activeUUID := m.activeTimingTaskUUID()
-				isTiming = activeUUID != "" && strings.EqualFold(activeUUID, r.task.UUID)
+				isTiming = activeUUID != "" &&
+					strings.EqualFold(activeUUID, r.task.UUID)
 			}
 			act, reverse = "start", "stop"
 			if isTiming {

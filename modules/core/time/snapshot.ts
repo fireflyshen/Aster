@@ -156,7 +156,7 @@ export function displayedTaskSecondsFromSnapshot(
     active &&
     active.state === "running" &&
     active.taskUuid?.toLowerCase() === key &&
-    (snapshot.state === "ready")
+    snapshot.state === "ready"
   ) {
     return base + live.cappedExtraSeconds;
   }

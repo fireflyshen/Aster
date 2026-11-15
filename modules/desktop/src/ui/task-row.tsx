@@ -62,7 +62,12 @@ export function TaskListRow({
   commonProps,
 }: TaskListRowProps) {
   const description = organization?.descriptions?.[task.uuid];
-  const timing = resolveTaskTiming(task, organization, trackedSnapshot, monoNow);
+  const timing = resolveTaskTiming(
+    task,
+    organization,
+    trackedSnapshot,
+    monoNow,
+  );
   const trackedSeconds = timing.trackedSeconds;
   const columnName = organization
     ? [unsectionedColumn, ...board.columns].find(
@@ -102,7 +107,13 @@ export function TaskListRow({
       accessories={
         showInspector
           ? undefined
-          : taskAccessories(task, organization, subtaskMeta, trackedSnapshot, monoNow)
+          : taskAccessories(
+              task,
+              organization,
+              subtaskMeta,
+              trackedSnapshot,
+              monoNow,
+            )
       }
       detail={
         showInspector ? (

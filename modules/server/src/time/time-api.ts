@@ -1,6 +1,10 @@
 import type { TaskService } from "../../../core/tasks/service.ts";
 import { exportTimewarrior } from "../../../core/tasks/timewarrior.ts";
-import type { ActivityKind, ActivitySource, TimePolicy } from "../../../core/time/model.ts";
+import type {
+  ActivityKind,
+  ActivitySource,
+  TimePolicy,
+} from "../../../core/time/model.ts";
 import { localDateOf } from "../../../core/time/zone.ts";
 import { runMaintenanceBackup } from "../maintenance-backup.ts";
 import type { WorkspaceGate, WorkspaceRouteSpec } from "../workspace-api.ts";
@@ -19,7 +23,11 @@ function optionalString(value: unknown, max = 500): string | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   if (trimmed.length > max) {
-    throw new TimeStoreError(400, "INVALID_INPUT", `Text exceeds ${max} characters.`);
+    throw new TimeStoreError(
+      400,
+      "INVALID_INPUT",
+      `Text exceeds ${max} characters.`,
+    );
   }
   return trimmed;
 }
@@ -27,14 +35,22 @@ function optionalString(value: unknown, max = 500): string | undefined {
 function requiredString(value: unknown, field: string, max = 500): string {
   const s = optionalString(value, max);
   if (!s) {
-    throw new TimeStoreError(400, "MISSING_FIELD", `Missing required field: ${field}.`);
+    throw new TimeStoreError(
+      400,
+      "MISSING_FIELD",
+      `Missing required field: ${field}.`,
+    );
   }
   return s;
 }
 
 function requiredNumber(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new TimeStoreError(400, "INVALID_NUMBER", `Field ${field} must be a finite number.`);
+    throw new TimeStoreError(
+      400,
+      "INVALID_NUMBER",
+      `Field ${field} must be a finite number.`,
+    );
   }
   return value;
 }
@@ -42,7 +58,11 @@ function requiredNumber(value: unknown, field: string): number {
 function optionalNumber(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new TimeStoreError(400, "INVALID_NUMBER", "Expected a finite numeric value.");
+    throw new TimeStoreError(
+      400,
+      "INVALID_NUMBER",
+      "Expected a finite numeric value.",
+    );
   }
   return value;
 }
@@ -50,7 +70,11 @@ function optionalNumber(value: unknown): number | undefined {
 function optionalStringArray(value: unknown): string[] | undefined {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new TimeStoreError(400, "INVALID_ARRAY", "Expected an array of strings.");
+    throw new TimeStoreError(
+      400,
+      "INVALID_ARRAY",
+      "Expected an array of strings.",
+    );
   }
   return value as string[];
 }
@@ -71,7 +95,16 @@ export function createTimeHandlers(deps: {
     resolveTaskchampionDbPath?: () => Promise<string | undefined>;
   };
 }) {
-  const { identity, gate, service, store, backup, coordinator, isEnabled, paths } = deps;
+  const {
+    identity,
+    gate,
+    service,
+    store,
+    backup,
+    coordinator,
+    isEnabled,
+    paths,
+  } = deps;
 
   function requireStore(): TimeStore {
     if (!store) {
@@ -107,17 +140,25 @@ export function createTimeHandlers(deps: {
     if (typeof body.rawJson === "string") {
       const parsed = JSON.parse(body.rawJson) as unknown;
       if (!Array.isArray(parsed)) {
-        throw new TimeStoreError(400, "INVALID_IMPORT", "rawJson must be a JSON array.");
+        throw new TimeStoreError(
+          400,
+          "INVALID_IMPORT",
+          "rawJson must be a JSON array.",
+        );
       }
       return parsed as RawTimewarriorInterval[];
     }
     if (Array.isArray(body.intervals)) {
       return body.intervals as RawTimewarriorInterval[];
     }
-    return (await exportTimewarrior(service.connection)) as RawTimewarriorInterval[];
+    return (await exportTimewarrior(
+      service.connection,
+    )) as RawTimewarriorInterval[];
   }
 
-  async function loadReadOnlyTaskLookup(): Promise<TaskSnapshotLookup | undefined> {
+  async function loadReadOnlyTaskLookup(): Promise<
+    TaskSnapshotLookup | undefined
+  > {
     try {
       const tasks = await service.exportTasks();
       const map = new Map(
@@ -302,7 +343,11 @@ export function createTimeHandlers(deps: {
           "expectedPolicyVersion",
         );
         if (!body.patch || typeof body.patch !== "object") {
-          throw new TimeStoreError(400, "INVALID_POLICY", "Missing policy patch object.");
+          throw new TimeStoreError(
+            400,
+            "INVALID_POLICY",
+            "Missing policy patch object.",
+          );
         }
         return {
           status: 200,
@@ -322,14 +367,20 @@ export function createTimeHandlers(deps: {
         const s = requireStore();
         const id = searchParams.get("id") || "";
         if (!id.trim()) {
-          throw new TimeStoreError(400, "MISSING_FIELD", "Missing operation id or idempotencyKey.");
+          throw new TimeStoreError(
+            400,
+            "MISSING_FIELD",
+            "Missing operation id or idempotencyKey.",
+          );
         }
         const op = s.getOperation(id.trim());
         if (!op) {
           return { status: 404, body: { found: false, operation: null } };
         }
         if (coordinator && op.state === "pending_reconcile") {
-          const detail = await coordinator.inspectPendingOperation(op.operationId);
+          const detail = await coordinator.inspectPendingOperation(
+            op.operationId,
+          );
           return { status: 200, body: { found: true, ...detail } };
         }
         return { status: 200, body: { found: true, operation: op } };
@@ -341,7 +392,11 @@ export function createTimeHandlers(deps: {
       handle: async ({ readBody }) => {
         const s = requireEnabledStore();
         const body = await readBody();
-        const idempotencyKey = requiredString(body.idempotencyKey, "idempotencyKey", 200);
+        const idempotencyKey = requiredString(
+          body.idempotencyKey,
+          "idempotencyKey",
+          200,
+        );
         const taskUuid = optionalString(body.taskUuid, 64);
         let title = optionalString(body.title, 500);
         let projectSnapshot = optionalString(body.projectSnapshot, 200);
@@ -352,7 +407,11 @@ export function createTimeHandlers(deps: {
           try {
             const raw = await service.rawTask(taskUuid);
             if (!title) title = raw.description;
-            if (!projectSnapshot && typeof raw.project === "string" && raw.project) {
+            if (
+              !projectSnapshot &&
+              typeof raw.project === "string" &&
+              raw.project
+            ) {
               projectSnapshot = raw.project;
             }
             if (!tags && Array.isArray(raw.tags)) {
@@ -363,7 +422,11 @@ export function createTimeHandlers(deps: {
           }
         }
         if (!title) {
-          throw new TimeStoreError(400, "MISSING_FIELD", "Missing required field: title.");
+          throw new TimeStoreError(
+            400,
+            "MISSING_FIELD",
+            "Missing required field: title.",
+          );
         }
 
         const receipt = s.startActivity({
@@ -393,7 +456,11 @@ export function createTimeHandlers(deps: {
         return {
           status: 200,
           body: s.stopActivity({
-            idempotencyKey: requiredString(body.idempotencyKey, "idempotencyKey", 200),
+            idempotencyKey: requiredString(
+              body.idempotencyKey,
+              "idempotencyKey",
+              200,
+            ),
             receivedAtMs: optionalNumber(body.receivedAtMs),
             effectiveAtMs: optionalNumber(body.effectiveAtMs),
             expectedActivityId: optionalString(body.expectedActivityId, 64),
@@ -412,7 +479,11 @@ export function createTimeHandlers(deps: {
         return {
           status: 200,
           body: s.logLocatedActivity({
-            idempotencyKey: requiredString(body.idempotencyKey, "idempotencyKey", 200),
+            idempotencyKey: requiredString(
+              body.idempotencyKey,
+              "idempotencyKey",
+              200,
+            ),
             receivedAtMs: optionalNumber(body.receivedAtMs),
             title: requiredString(body.title, "title", 500),
             startMs: requiredNumber(body.startMs, "startMs"),
@@ -426,7 +497,9 @@ export function createTimeHandlers(deps: {
               body.precision === "approximate"
                 ? "estimated_bounds"
                 : "exact",
-            source: optionalString(body.source, 40) as ActivitySource | undefined,
+            source: optionalString(body.source, 40) as
+              | ActivitySource
+              | undefined,
             note: optionalString(body.note, 2000),
             rawInput: optionalString(body.rawInput, 2000),
           }),
@@ -442,10 +515,17 @@ export function createTimeHandlers(deps: {
         return {
           status: 200,
           body: s.logUnlocatedEstimate({
-            idempotencyKey: requiredString(body.idempotencyKey, "idempotencyKey", 200),
+            idempotencyKey: requiredString(
+              body.idempotencyKey,
+              "idempotencyKey",
+              200,
+            ),
             receivedAtMs: optionalNumber(body.receivedAtMs),
             title: requiredString(body.title, "title", 500),
-            estimatedSeconds: requiredNumber(body.estimatedSeconds, "estimatedSeconds"),
+            estimatedSeconds: requiredNumber(
+              body.estimatedSeconds,
+              "estimatedSeconds",
+            ),
             targetDate: optionalString(body.targetDate, 10),
             windowStartMs: optionalNumber(body.windowStartMs),
             windowEndMs: optionalNumber(body.windowEndMs),
@@ -453,7 +533,9 @@ export function createTimeHandlers(deps: {
             taskUuid: optionalString(body.taskUuid, 64),
             projectSnapshot: optionalString(body.projectSnapshot, 200),
             tags: optionalStringArray(body.tags),
-            source: optionalString(body.source, 40) as ActivitySource | undefined,
+            source: optionalString(body.source, 40) as
+              | ActivitySource
+              | undefined,
             note: optionalString(body.note, 2000),
             rawInput: optionalString(body.rawInput, 2000),
           }),
@@ -469,9 +551,16 @@ export function createTimeHandlers(deps: {
         return {
           status: 200,
           body: s.locateEstimate({
-            idempotencyKey: requiredString(body.idempotencyKey, "idempotencyKey", 200),
+            idempotencyKey: requiredString(
+              body.idempotencyKey,
+              "idempotencyKey",
+              200,
+            ),
             activityId: requiredString(body.activityId, "activityId", 64),
-            expectedVersion: requiredNumber(body.expectedVersion, "expectedVersion"),
+            expectedVersion: requiredNumber(
+              body.expectedVersion,
+              "expectedVersion",
+            ),
             startMs: requiredNumber(body.startMs, "startMs"),
             endMs: requiredNumber(body.endMs, "endMs"),
             receivedAtMs: optionalNumber(body.receivedAtMs),
@@ -486,16 +575,29 @@ export function createTimeHandlers(deps: {
         const s = requireEnabledStore();
         const body = await readBody();
         if (!body.patch || typeof body.patch !== "object") {
-          throw new TimeStoreError(400, "INVALID_PATCH", "Missing update patch object.");
+          throw new TimeStoreError(
+            400,
+            "INVALID_PATCH",
+            "Missing update patch object.",
+          );
         }
         return {
           status: 200,
           body: s.updateActivity({
-            idempotencyKey: requiredString(body.idempotencyKey, "idempotencyKey", 200),
+            idempotencyKey: requiredString(
+              body.idempotencyKey,
+              "idempotencyKey",
+              200,
+            ),
             activityId: requiredString(body.activityId, "activityId", 64),
-            expectedVersion: requiredNumber(body.expectedVersion, "expectedVersion"),
+            expectedVersion: requiredNumber(
+              body.expectedVersion,
+              "expectedVersion",
+            ),
             receivedAtMs: optionalNumber(body.receivedAtMs),
-            patch: body.patch as Parameters<TimeStore["updateActivity"]>[0]["patch"],
+            patch: body.patch as Parameters<
+              TimeStore["updateActivity"]
+            >[0]["patch"],
           }),
         };
       },
@@ -509,8 +611,16 @@ export function createTimeHandlers(deps: {
         return {
           status: 200,
           body: s.undoOperation({
-            idempotencyKey: requiredString(body.idempotencyKey, "idempotencyKey", 200),
-            targetOperationId: requiredString(body.targetOperationId, "targetOperationId", 64),
+            idempotencyKey: requiredString(
+              body.idempotencyKey,
+              "idempotencyKey",
+              200,
+            ),
+            targetOperationId: requiredString(
+              body.targetOperationId,
+              "targetOperationId",
+              64,
+            ),
             receivedAtMs: optionalNumber(body.receivedAtMs),
           }),
         };
@@ -525,7 +635,11 @@ export function createTimeHandlers(deps: {
         return {
           status: 200,
           body: s.confirmSleepCandidate({
-            idempotencyKey: requiredString(body.idempotencyKey, "idempotencyKey", 200),
+            idempotencyKey: requiredString(
+              body.idempotencyKey,
+              "idempotencyKey",
+              200,
+            ),
             date: requiredString(body.date, "date", 10),
             receivedAtMs: optionalNumber(body.receivedAtMs),
           }),
@@ -541,7 +655,11 @@ export function createTimeHandlers(deps: {
         return {
           status: 200,
           body: s.dismissSleepCandidate({
-            idempotencyKey: requiredString(body.idempotencyKey, "idempotencyKey", 200),
+            idempotencyKey: requiredString(
+              body.idempotencyKey,
+              "idempotencyKey",
+              200,
+            ),
             date: requiredString(body.date, "date", 10),
             receivedAtMs: optionalNumber(body.receivedAtMs),
           }),
@@ -554,7 +672,11 @@ export function createTimeHandlers(deps: {
       handle: async ({ readBody }) => {
         requireEnabledStore();
         if (!coordinator) {
-          throw new TimeStoreError(503, "COORDINATOR_UNAVAILABLE", "Time coordinator unavailable.");
+          throw new TimeStoreError(
+            503,
+            "COORDINATOR_UNAVAILABLE",
+            "Time coordinator unavailable.",
+          );
         }
         const body = await readBody();
         const operationId = requiredString(body.operationId, "operationId", 64);
@@ -564,7 +686,11 @@ export function createTimeHandlers(deps: {
           action !== "accept_started" &&
           action !== "stop_active"
         ) {
-          throw new TimeStoreError(400, "INVALID_ACTION", "Unsupported resolve action.");
+          throw new TimeStoreError(
+            400,
+            "INVALID_ACTION",
+            "Unsupported resolve action.",
+          );
         }
         return {
           status: 200,
@@ -635,7 +761,11 @@ export function createTimeHandlers(deps: {
       handle: async () => {
         requireStore();
         if (!backup) {
-          throw new TimeStoreError(503, "BACKUP_UNAVAILABLE", "Time backup unavailable.");
+          throw new TimeStoreError(
+            503,
+            "BACKUP_UNAVAILABLE",
+            "Time backup unavailable.",
+          );
         }
         return {
           status: 200,
@@ -649,7 +779,11 @@ export function createTimeHandlers(deps: {
       handle: async ({ readBody }) => {
         requireStore();
         if (!backup) {
-          throw new TimeStoreError(503, "BACKUP_UNAVAILABLE", "Time backup unavailable.");
+          throw new TimeStoreError(
+            503,
+            "BACKUP_UNAVAILABLE",
+            "Time backup unavailable.",
+          );
         }
         const body = await readBody(16 * 1024 * 1024);
         const sqliteBase64 = requiredString(
@@ -671,7 +805,11 @@ export function createTimeHandlers(deps: {
       handle: async ({ readBody }) => {
         requireStore();
         if (!backup) {
-          throw new TimeStoreError(503, "BACKUP_UNAVAILABLE", "Time backup unavailable.");
+          throw new TimeStoreError(
+            503,
+            "BACKUP_UNAVAILABLE",
+            "Time backup unavailable.",
+          );
         }
         if (restoringTime) {
           throw Object.assign(
@@ -698,9 +836,12 @@ export function createTimeHandlers(deps: {
       skipGate: true,
       handle: async ({ readBody, transport }) => {
         if (transport !== "ipc") {
-          throw Object.assign(new Error("Forbidden on public HTTP transport."), {
-            status: 403,
-          });
+          throw Object.assign(
+            new Error("Forbidden on public HTTP transport."),
+            {
+              status: 403,
+            },
+          );
         }
         const body = await readBody();
         const backupId = requiredString(body.backupId, "backupId", 64);

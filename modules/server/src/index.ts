@@ -68,10 +68,9 @@ function readCliArg(flag: string): string | undefined {
 
 if (process.argv.includes("--maintenance-backup")) {
   const backupId =
-    readCliArg("--backup-id") ||
-    process.env.BACKUP_ID ||
-    `maint-${Date.now()}`;
-  const releaseId = readCliArg("--release-id") || process.env.RELEASE_ID || backupId;
+    readCliArg("--backup-id") || process.env.BACKUP_ID || `maint-${Date.now()}`;
+  const releaseId =
+    readCliArg("--release-id") || process.env.RELEASE_ID || backupId;
   const taskchampionDbPath = await resolveTaskchampionDbPath();
   try {
     const result = await runMaintenanceBackup({
@@ -249,8 +248,7 @@ const server = createServer(async (req, res) => {
         } catch (timeErr) {
           send(503, {
             ok: false,
-            error:
-              timeErr instanceof Error ? timeErr.message : String(timeErr),
+            error: timeErr instanceof Error ? timeErr.message : String(timeErr),
           });
         }
       } else {

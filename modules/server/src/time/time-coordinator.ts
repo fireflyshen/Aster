@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import type { TaskService } from "../../../core/tasks/service.ts";
 import type { RawTask } from "../../../core/tasks/raw.ts";
 import { TaskExecutionError } from "../../../core/connection/errors.ts";
-import { hashNormalizedInput, TimeStoreError, type TimeStore } from "./time-store.ts";
+import {
+  hashNormalizedInput,
+  TimeStoreError,
+  type TimeStore,
+} from "./time-store.ts";
 
 export type CoordinatedActionResult = {
   ok: true;
@@ -105,7 +109,8 @@ export function createTimeCoordinator(deps: {
   ): Promise<CoordinatedActionResult> {
     const normalizedUuid = uuid.toLowerCase();
     const idempotencyKey =
-      options.idempotencyKey || defaultIdempotencyKey(`task_start:${normalizedUuid}`);
+      options.idempotencyKey ||
+      defaultIdempotencyKey(`task_start:${normalizedUuid}`);
 
     // Lock the timer slot + target task + any currently active task in canonical order.
     const statusBefore = store.getStatus();
@@ -154,7 +159,8 @@ export function createTimeCoordinator(deps: {
       });
 
       if (prep.replay) {
-        const r = (prep.record.receipt ?? {}) as Partial<CoordinatedActionResult>;
+        const r = (prep.record.receipt ??
+          {}) as Partial<CoordinatedActionResult>;
         return {
           ok: true,
           timeEffect: r.timeEffect ?? "none",
@@ -287,7 +293,8 @@ export function createTimeCoordinator(deps: {
   }): Promise<CoordinatedActionResult> {
     const normalizedUuid = input.uuid.toLowerCase();
     const idempotencyKey =
-      input.idempotencyKey || defaultIdempotencyKey(`${input.kind}:${normalizedUuid}`);
+      input.idempotencyKey ||
+      defaultIdempotencyKey(`${input.kind}:${normalizedUuid}`);
 
     // Fast path under per-task lock only when unrelated to active timer & pending ops.
     const fastCheck = await withDependencyLocks([normalizedUuid], async () => {
@@ -350,7 +357,8 @@ export function createTimeCoordinator(deps: {
       });
 
       if (prep.replay) {
-        const r = (prep.record.receipt ?? {}) as Partial<CoordinatedActionResult>;
+        const r = (prep.record.receipt ??
+          {}) as Partial<CoordinatedActionResult>;
         return {
           ok: true,
           timeEffect: r.timeEffect ?? "none",

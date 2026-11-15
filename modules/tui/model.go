@@ -183,7 +183,9 @@ func isSnapshotNewerOrEqual(incoming, current *TimerSnapshot) bool {
 	return !nextAt.Before(currAt)
 }
 
-func (m model) snapshotLiveStatus(now time.Time) (canTick bool, cappedExtra float64, stateLabel string) {
+func (m model) snapshotLiveStatus(
+	now time.Time,
+) (canTick bool, cappedExtra float64, stateLabel string) {
 	snap := m.timerSnap
 	if snap == nil {
 		snap = m.org.TimerSnapshot
@@ -202,7 +204,8 @@ func (m model) snapshotLiveStatus(now time.Time) (canTick bool, cappedExtra floa
 	if snap.ActiveActivity == nil {
 		return false, 0, "idle"
 	}
-	if snap.ActiveActivity.State == "review_required" || snap.ActiveActivity.SuspendAt != "" {
+	if snap.ActiveActivity.State == "review_required" ||
+		snap.ActiveActivity.SuspendAt != "" {
 		return false, 0, "review_required"
 	}
 	snapAt := date(snap.SnapshotAt)
@@ -251,7 +254,11 @@ func (m model) activeActivityElapsed(now time.Time) (float64, bool) {
 	return base + extra, true
 }
 
-func (m model) resolveTaskTiming(t Task, td parsedDates, now time.Time) (isTime, isTiming, started bool, secs float64, secsKnown bool) {
+func (m model) resolveTaskTiming(
+	t Task,
+	td parsedDates,
+	now time.Time,
+) (isTime, isTiming, started bool, secs float64, secsKnown bool) {
 	started = t.Start != "" && t.Status != "completed"
 	if m.isTimeMode() {
 		if m.org.Timing != nil && !m.org.Timing.Available {
@@ -265,7 +272,8 @@ func (m model) resolveTaskTiming(t Task, td parsedDates, now time.Time) (isTime,
 			return true, false, started, 0, false
 		}
 		activeUUID := m.activeTimingTaskUUID()
-		isTiming = t.Status != "completed" && activeUUID != "" && strings.EqualFold(activeUUID, t.UUID)
+		isTiming = t.Status != "completed" && activeUUID != "" &&
+			strings.EqualFold(activeUUID, t.UUID)
 		key := strings.ToLower(t.UUID)
 		base, ok := snap.TaskTotalsSeconds[key]
 		if !ok {
@@ -274,7 +282,8 @@ func (m model) resolveTaskTiming(t Task, td parsedDates, now time.Time) (isTime,
 		if !ok {
 			return true, isTiming, started, 0, false
 		}
-		if isTiming && snap.State == "ready" && snap.ActiveActivity != nil && snap.ActiveActivity.State == "running" {
+		if isTiming && snap.State == "ready" && snap.ActiveActivity != nil &&
+			snap.ActiveActivity.State == "running" {
 			_, extra, _ := m.snapshotLiveStatus(now)
 			return true, true, started, base + extra, true
 		}
@@ -535,7 +544,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		wasRunning := m.idx.anyRunning
 		id := m.current().id
 		m.tasks = msg.tasks
-		if msg.org.TimerSnapshot != nil && isSnapshotNewerOrEqual(msg.org.TimerSnapshot, m.timerSnap) {
+		if msg.org.TimerSnapshot != nil &&
+			isSnapshotNewerOrEqual(msg.org.TimerSnapshot, m.timerSnap) {
 			m.timerSnap = msg.org.TimerSnapshot
 			m.snapReceived = time.Now()
 		}

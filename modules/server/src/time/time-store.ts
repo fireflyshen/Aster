@@ -1229,13 +1229,11 @@ export async function createTimeStore(
       }
       const policy = parsePolicy(meta);
       const ts = nowFn();
-      const { closedActivity: closed, modifiedEntry, warning } = closeActiveRowTx(
-        conn,
-        activeRow,
-        effectiveAtMs,
-        ts,
-        policy,
-      );
+      const {
+        closedActivity: closed,
+        modifiedEntry,
+        warning,
+      } = closeActiveRowTx(conn, activeRow, effectiveAtMs, ts, policy);
       const warnings = warning ? [warning] : [];
 
       const nextSessionVersion = meta.session_version + 1;
@@ -2926,7 +2924,10 @@ export async function createTimeStore(
     const activities = loadAllActivities(conn);
     const batches = conn
       .prepare("SELECT range_start_ms, range_end_ms FROM import_batches")
-      .all() as Array<{ range_start_ms: number | null; range_end_ms: number | null }>;
+      .all() as Array<{
+      range_start_ms: number | null;
+      range_end_ms: number | null;
+    }>;
     return {
       available: true,
       enabled: meta.enabled === 1,
@@ -3034,7 +3035,8 @@ export async function createTimeStore(
       const preconditionFailed =
         op.time_epoch !== meta.time_epoch ||
         op.task_data_epoch !== meta.task_data_epoch ||
-        (expectedSession !== undefined && expectedSession !== meta.session_version);
+        (expectedSession !== undefined &&
+          expectedSession !== meta.session_version);
 
       if (preconditionFailed) {
         conn
@@ -3199,11 +3201,13 @@ export async function createTimeStore(
           targetUuid &&
           activeRow.task_uuid?.toLowerCase() === targetUuid
         ) {
-          const {
-            closedActivity,
-            modifiedEntry,
-            warning,
-          } = closeActiveRowTx(conn, activeRow, effectiveAtMs, ts, policy);
+          const { closedActivity, modifiedEntry, warning } = closeActiveRowTx(
+            conn,
+            activeRow,
+            effectiveAtMs,
+            ts,
+            policy,
+          );
           const warnings = warning ? [warning] : [];
           const nextSessionVersion = meta.session_version + 1;
           conn

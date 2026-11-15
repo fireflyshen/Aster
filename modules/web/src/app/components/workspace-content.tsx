@@ -338,16 +338,16 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                 {organization.timing?.hardEnergyLimit !== false &&
                   organization.timing?.backend !== "time" &&
                   /energy exhausted|精力已耗尽/i.test(notice) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2.5 text-xs"
-                    disabled={organizationSaving}
-                    onClick={() => void onRestoreEnergy()}
-                  >
-                    恢复 +30 精力
-                  </Button>
-                )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2.5 text-xs"
+                      disabled={organizationSaving}
+                      onClick={() => void onRestoreEnergy()}
+                    >
+                      恢复 +30 精力
+                    </Button>
+                  )}
                 <Button
                   variant="outline"
                   size="sm"

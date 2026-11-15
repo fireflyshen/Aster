@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -303,7 +310,9 @@ export function createTimeBackupService(
     }
   }
 
-  async function previewRestoreBuffer(bytes: Buffer): Promise<TimeRestorePreview> {
+  async function previewRestoreBuffer(
+    bytes: Buffer,
+  ): Promise<TimeRestorePreview> {
     if (!Buffer.isBuffer(bytes) || bytes.length === 0) {
       throw new TimeStoreError(
         400,
@@ -337,7 +346,9 @@ export function createTimeBackupService(
         sqliteBase64: sqliteBytes.toString("base64"),
       };
     } finally {
-      await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+      await rm(tempDir, { recursive: true, force: true }).catch(
+        () => undefined,
+      );
     }
   }
 

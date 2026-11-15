@@ -103,7 +103,8 @@ func buildViewIndex(tasks []Task, org Organization) viewIndex {
 	isTimeMode := (org.Timing != nil && org.Timing.Backend == "time") ||
 		(org.TimerSnapshot != nil && org.TimerSnapshot.Backend == "time")
 	idx.isTimeMode = isTimeMode
-	if isTimeMode && org.TimerSnapshot != nil && org.TimerSnapshot.ActiveActivity != nil {
+	if isTimeMode && org.TimerSnapshot != nil &&
+		org.TimerSnapshot.ActiveActivity != nil {
 		idx.activeTimingTaskUUID = org.TimerSnapshot.ActiveActivity.TaskUUID
 		idx.anyRunning = org.TimerSnapshot.State == "ready" &&
 			org.TimerSnapshot.ActiveActivity.State == "running" &&
@@ -117,7 +118,8 @@ func buildViewIndex(tasks []Task, org Organization) viewIndex {
 			start: date(t.Start),
 			end:   date(t.End),
 		}
-		if !isTimeMode && t.Start != "" && (t.Status == "pending" || t.Status == "waiting") {
+		if !isTimeMode && t.Start != "" &&
+			(t.Status == "pending" || t.Status == "waiting") {
 			idx.anyRunning = true
 		}
 	}
@@ -247,7 +249,8 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 			match = unfinished && !td.wait.After(now)
 		case m.view == "active":
 			if idx.isTimeMode {
-				match = unfinished && (t.Start != "" || (idx.activeTimingTaskUUID != "" && strings.EqualFold(idx.activeTimingTaskUUID, t.UUID)))
+				match = unfinished &&
+					(t.Start != "" || (idx.activeTimingTaskUUID != "" && strings.EqualFold(idx.activeTimingTaskUUID, t.UUID)))
 			} else {
 				match = unfinished && t.Start != ""
 			}

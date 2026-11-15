@@ -261,8 +261,7 @@ export function SidebarEnergyMeter({
 }) {
   const isTimeMode =
     timing?.backend === "time" || timerSnapshot?.backend === "time";
-  const hardEnergyLimit =
-    !isTimeMode && timing?.hardEnergyLimit !== false;
+  const hardEnergyLimit = !isTimeMode && timing?.hardEnergyLimit !== false;
   const activeActivity = timerSnapshot?.activeActivity ?? null;
   const periodLabel =
     energy?.periodLabel ||
@@ -311,9 +310,14 @@ export function SidebarEnergyMeter({
         >
           <div className="flex items-center justify-between gap-2">
             <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-foreground">
-              <Clock3 className="size-3.5 shrink-0 text-primary" strokeWidth={1.6} />
+              <Clock3
+                className="size-3.5 shrink-0 text-primary"
+                strokeWidth={1.6}
+              />
               <span className="truncate">
-                {activeActivity.title || activeActivity.categoryId || "当前活动"}
+                {activeActivity.title ||
+                  activeActivity.categoryId ||
+                  "当前活动"}
               </span>
             </span>
             <span className="shrink-0 font-medium text-foreground tabular-nums">
@@ -371,7 +375,9 @@ export function SidebarEnergyMeter({
                 className="size-3.5 text-muted-foreground"
                 strokeWidth={1.6}
               />
-              {energy.remaining === null ? `— / ${energy.max}` : `${energy.remaining} / ${energy.max}`}
+              {energy.remaining === null
+                ? `— / ${energy.max}`
+                : `${energy.remaining} / ${energy.max}`}
             </span>
             <span className="tabular-nums">
               {formatDuration(energy.trackedSecondsToday)}
@@ -412,7 +418,8 @@ export function SidebarEnergyMeter({
           {(periodLabel || energy.remaining === null) && (
             <p className="text-[11px] leading-4 text-muted-foreground">
               {energy.remaining === null
-                ? energy.incompleteReason || "切换周期历史不完整，暂不估算剩余精力"
+                ? energy.incompleteReason ||
+                  "切换周期历史不完整，暂不估算剩余精力"
                 : `${periodLabel}${!hardEnergyLimit ? " · 仅展示" : ""}`}
             </p>
           )}

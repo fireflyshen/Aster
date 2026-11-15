@@ -274,7 +274,10 @@ export type TimeEnergyInput = {
   activeActivityId: string | null;
   timezone: string;
   cutoverAtMs?: number;
-  importedRanges?: ReadonlyArray<{ rangeStartMs?: number; rangeEndMs?: number }>;
+  importedRanges?: ReadonlyArray<{
+    rangeStartMs?: number;
+    rangeEndMs?: number;
+  }>;
   state?: Partial<EnergyState>;
   now?: Date;
 };
@@ -412,8 +415,7 @@ export function calculateTimeModeEnergy(input: TimeEnergyInput): EnergySummary {
     paused: !complete,
     ...(!complete
       ? {
-          incompleteReason:
-            "切换当期历史尚未导入，已暂停剩余精力推算",
+          incompleteReason: "切换当期历史尚未导入，已暂停剩余精力推算",
         }
       : {}),
   };
@@ -473,7 +475,11 @@ export function liveEnergySummary(
       calculatedAt: now.toISOString(),
     };
   }
-  if (summary.paused || summary.remaining === null || summary.activeCount <= 0) {
+  if (
+    summary.paused ||
+    summary.remaining === null ||
+    summary.activeCount <= 0
+  ) {
     return summary;
   }
   const baseTime = new Date(summary.calculatedAt).getTime();
