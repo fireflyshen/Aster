@@ -30,7 +30,12 @@ const richTask = {
   parentUuid: uuid2,
   taskDescription: "## Study guide\nRead ch. 2 and write tests.",
 };
-const compositeToolNames = ["plan_apply", "project_digest", "task_patch"];
+const compositeToolNames = [
+  "habit_todo_create",
+  "plan_apply",
+  "project_digest",
+  "task_patch",
+];
 const item = { id: "", name: "Work", color: "gray", favorite: false };
 const cases: [string, any, string, string, any?][] = [
   ["workspace_get", {}, "GET", "/api/workspace"],
@@ -651,6 +656,129 @@ const cases: [string, any, string, string, any?][] = [
     "POST",
     "/api/time/bills/unlink",
     { linkId: "link-1" },
+  ],
+  ["habit_today", {}, "GET", "/api/habits/today"],
+  [
+    "habits_list",
+    { status: "active", project: "Study", tag: "evening" },
+    "GET",
+    "/api/habits?status=active&project=Study&tag=evening",
+  ],
+  [
+    "habit_detail",
+    { habitId: uuid, days: 30 },
+    "GET",
+    `/api/habits/detail?id=${uuid}&days=30`,
+  ],
+  [
+    "habit_heatmap",
+    { days: 90, project: "Health" },
+    "GET",
+    "/api/habits/heatmap?days=90&project=Health",
+  ],
+  [
+    "habit_day_detail",
+    { date: "2026-11-15" },
+    "GET",
+    "/api/habits/day?date=2026-11-15",
+  ],
+  [
+    "habit_bind",
+    {
+      taskUuid: uuid,
+      kind: "positive",
+      schedule: { type: "daily" },
+      abEnabled: true,
+      subtaskPlans: { [uuid2]: "B" },
+    },
+    "POST",
+    "/api/habits/bind",
+    {
+      taskUuid: uuid,
+      kind: "positive",
+      schedule: { type: "daily" },
+      abEnabled: true,
+      subtaskPlans: { [uuid2]: "B" },
+    },
+  ],
+  [
+    "habit_unbind",
+    { taskUuid: uuid },
+    "POST",
+    "/api/habits/unbind",
+    { taskUuid: uuid },
+  ],
+  [
+    "habit_status",
+    { habitId: uuid, status: "paused" },
+    "POST",
+    "/api/habits/status",
+    { habitId: uuid, status: "paused" },
+  ],
+  [
+    "habit_toggle",
+    { habitId: uuid, date: "2026-11-15", completed: true },
+    "POST",
+    "/api/habits/toggle",
+    { habitId: uuid, date: "2026-11-15", completed: true },
+  ],
+  [
+    "habit_checklist_item",
+    {
+      habitId: uuid,
+      itemId: uuid2,
+      date: "2026-11-15",
+      done: true,
+      sets: "3",
+      reps: "12",
+      weight: "40kg",
+    },
+    "POST",
+    "/api/habits/checklist-item",
+    {
+      habitId: uuid,
+      itemId: uuid2,
+      date: "2026-11-15",
+      done: true,
+      sets: "3",
+      reps: "12",
+      weight: "40kg",
+    },
+  ],
+  [
+    "habit_switch_plan",
+    { habitId: uuid, planId: "plan-b", date: "2026-11-15" },
+    "POST",
+    "/api/habits/switch-plan",
+    { habitId: uuid, planId: "plan-b", date: "2026-11-15" },
+  ],
+  [
+    "habit_negative_record",
+    { habitId: uuid, date: "2026-11-15", note: "聚餐" },
+    "POST",
+    "/api/habits/negative/record",
+    { habitId: uuid, date: "2026-11-15", note: "聚餐" },
+  ],
+  [
+    "habit_negative_undo",
+    { habitId: uuid, date: "2026-11-15" },
+    "POST",
+    "/api/habits/negative/undo",
+    { habitId: uuid, date: "2026-11-15" },
+  ],
+  [
+    "habit_negative_note",
+    { habitId: uuid, eventId: "ev-neg-1", note: "朋友聚餐" },
+    "POST",
+    "/api/habits/negative/note",
+    { habitId: uuid, eventId: "ev-neg-1", note: "朋友聚餐" },
+  ],
+  [
+    "habit_daily_note",
+    { habitId: uuid, date: "2026-11-15", note: "拉伸 10 分钟" },
+    "POST",
+    "/api/habits/daily-note",
+    { habitId: uuid, date: "2026-11-15", note: "拉伸 10 分钟" },
   ],
 ];
 

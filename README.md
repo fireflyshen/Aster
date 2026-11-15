@@ -36,9 +36,9 @@ Aster 是一个基于 **Taskwarrior 3**
    - 新增 **习惯管理（Habits，Web 端）**：习惯直接作为 Todo 的扩展属性字段，与普通任务共享项目、标签、说明与原生子任务。支持正向打卡、反向习惯（不发生即达成、仅记破例与备注）、可展开动作清单（可选 A/B 训练方案与组/次/重成绩）及统一低饱和灰绿综合热力图。
 3. **AI / Grok Bot 接口（`modules/mcp`）**
    - 标准 MCP
-     stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务规划、看板拆解、Time 随手记账、TimingPlan 定时安排与对账摘要。
+     stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务规划、看板拆解、**习惯管理（`habit_*`：创建绑定习惯 Todo、日常打卡、动作清单组/次/重与 A/B 切换、反向破例、热力图与补录）**、Time 随手记账、TimingPlan 定时安排与对账摘要。
    - 给 Grok Bot / AI 助手配置 System
-     Prompt、项目/标签归类规范、**习惯 Todo 保护原则（不误调用 `task_complete`/`task_delete`）**与投入成本工具清单，请直接阅读
+     Prompt、项目/标签归类规范、**习惯 Todo 操作与防误删原则**及完整工具清单，请直接阅读
      [`modules/mcp/README.md`](modules/mcp/README.md)。
 4. **桌面扩展 & 终端工作台（`modules/desktop` & `modules/tui`）**
    - **Desktop（Raycast / TinyCast）**：提供 `My Tasks`、`Focus & Projects` 与
@@ -92,7 +92,7 @@ modules/
   mcp/                     Model Context Protocol (MCP) stdio 服务端
     src/
       index.ts / server.ts / transport.ts
-      tools/               helpers / tasks / workspace / time / planning 工具分组
+      tools/               helpers / tasks / workspace / habits / time / planning 工具分组
     tests/                 基于官方 MCP SDK 的契约、幂等键与故障场景测试
 
   tui/                     Go Bubble Tea 终端客户端
