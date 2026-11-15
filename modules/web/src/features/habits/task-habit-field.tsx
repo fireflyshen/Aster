@@ -266,7 +266,7 @@ export function TaskHabitSidebarField({
                   onChange({ ...value, kind: "positive", trackTime: false })
                 }
               >
-                纯打卡
+                普通打卡
               </button>
               <button
                 type="button"
@@ -299,7 +299,7 @@ export function TaskHabitSidebarField({
                 ? "发生时记次，未发生无需操作。"
                 : activeMode === "timed"
                   ? "开始计时，完成后记录时长。"
-                  : "做到后打卡。"}
+                  : "只勾选是否做到，不计时、不计数。"}
             </p>
           </div>
           <div className="habit-settings-field">
@@ -475,7 +475,7 @@ export function QuickAddHabitButton({
           <CalendarCheck2 className="size-3.5 text-(--habit-accent)" />
           <span>
             {value.enabled
-              ? `${value.kind === "negative" ? "反向" : value.trackTime ? "计时习惯" : "打卡"} · ${scheduleLabel}`
+              ? `${value.kind === "negative" ? "反向" : value.trackTime ? "计时打卡" : "打卡"} · ${scheduleLabel}`
               : "设为习惯"}
           </span>
         </Button>
@@ -507,7 +507,7 @@ export function QuickAddHabitButton({
                     : "border-border text-muted-foreground",
                 )}
               >
-                纯打卡
+                普通打卡
               </button>
               <button
                 type="button"
@@ -521,7 +521,7 @@ export function QuickAddHabitButton({
                     : "border-border text-muted-foreground",
                 )}
               >
-                计时
+                计时打卡
               </button>
               <button
                 type="button"
@@ -535,7 +535,7 @@ export function QuickAddHabitButton({
                     : "border-border text-muted-foreground",
                 )}
               >
-                反打卡
+                反向记次
               </button>
             </div>
             <div className="flex gap-1">

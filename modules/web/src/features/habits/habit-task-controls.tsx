@@ -331,7 +331,7 @@ export function HabitMetaChip({
           {habit.kind === "negative"
           ? "反向"
           : habit.trackTime
-            ? "计时习惯"
+            ? "计时打卡"
             : "打卡"} · {scheduleLabel}
         </span>
         {currentStreak > 0 && (
@@ -553,11 +553,11 @@ export function TaskHabitExecutionCard({
       }
     : habit.trackTime
       ? {
-          label: "计时习惯",
+          label: "计时打卡",
           icon: <Clock3 className="size-3 text-(--habit-accent)" />,
         }
       : {
-          label: "正向打卡",
+          label: "普通打卡",
           icon: <Sparkles className="size-3 text-(--habit-accent)" />,
         };
 

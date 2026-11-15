@@ -220,7 +220,7 @@ export function HabitsWorkspace({
       {/* Aggregate Heatmap Card */}
       <section
         aria-label="习惯综合热力图"
-        className="rounded-xl border border-border/75 bg-card/75 p-4"
+        className="min-w-0 border-y border-border/60 py-4"
       >
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -389,8 +389,10 @@ export function HabitsWorkspace({
                           <Dumbbell className="size-3 text-(--habit-accent)" />
                           {habit.abEnabled ? "A/B 训练" : "动作清单"}
                         </>
+                      ) : habit.trackTime ? (
+                        "计时打卡"
                       ) : (
-                        "正向打卡"
+                        "普通打卡"
                       )}
                     </span>
                     <span className="text-xs text-muted-foreground">

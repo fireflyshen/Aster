@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
+import { habitHeatmapLevel } from "../src/features/habits/heatmap-level.ts";
 import { zonedDateTimeToUtcMs } from "../../core/time/zone.ts";
 import { createHabitHandlers } from "../../server/src/habits/habit-api.ts";
 import {
@@ -99,6 +100,7 @@ test("web habits-api routes cleanly through real server handlers end-to-end", as
     const { habit: reading } = await habitsApi.createHabitApi({
       title: "阅读",
       kind: "positive",
+      trackTime: false,
       completionMode: "simple",
       description: "勤勉：每天阅读",
       project: "学习",
@@ -106,6 +108,7 @@ test("web habits-api routes cleanly through real server handlers end-to-end", as
       schedule: { type: "daily" },
     });
     assert.equal(reading.title, "阅读");
+    assert.equal(reading.trackTime, false);
 
     const { habit: workout } = await habitsApi.createHabitApi({
       title: "力量训练",
@@ -142,8 +145,29 @@ test("web habits-api routes cleanly through real server handlers end-to-end", as
     const today = await habitsApi.fetchTodayHabits();
     assert.equal(today.items.length, 3);
 
-    const toggled = await habitsApi.togglePositiveHabitApi(reading.id, "2026-11-15");
+    // Regression: an ordinary check-in must recolor today immediately, including
+    // the individual detail heatmap; undo must restore the neutral fill.
+    const todayCell = async (habitId?: string) => {
+      const map = await habitsApi.fetchHabitHeatmap({
+        days: 30,
+        habitId,
+      });
+      return map.cells.at(-1)!;
+    };
+    assert.equal(habitHeatmapLevel(await todayCell()), 0);
+    assert.equal(habitHeatmapLevel(await todayCell(noSugar.id)), 0);
+    const toggled = await habitsApi.togglePositiveHabitApi(
+      reading.id,
+      "2026-11-15",
+    );
     assert.equal(toggled.evaluation.status, "achieved");
+    assert.equal(habitHeatmapLevel(await todayCell()), 1);
+    assert.equal(habitHeatmapLevel(await todayCell(reading.id)), 4);
+    const completedDetail = await habitsApi.fetchHabitDetail(reading.id, 30);
+    assert.equal(habitHeatmapLevel(completedDetail.heatmap.cells.at(-1)!), 4);
+    await habitsApi.togglePositiveHabitApi(reading.id, "2026-11-15", false);
+    assert.equal(habitHeatmapLevel(await todayCell(reading.id)), 0);
+    await habitsApi.togglePositiveHabitApi(reading.id, "2026-11-15", true);
 
     const partial = await habitsApi.setChecklistItemApi({
       habitId: workout.id,
@@ -177,6 +201,7 @@ test("web habits-api routes cleanly through real server handlers end-to-end", as
       note: "聚餐",
     });
     assert.equal(negRec.evaluation.events.length, 1);
+    assert.equal(habitHeatmapLevel(await todayCell(noSugar.id)), 0);
 
     const negEdited = await habitsApi.updateNegativeEventNoteApi({
       habitId: noSugar.id,
@@ -203,7 +228,9 @@ test("web habits-api routes cleanly through real server handlers end-to-end", as
     assert.equal(heatmap.cells.at(-1)?.date, "2026-11-15");
     assert.equal(heatmap.cells.at(-1)?.status, "in_progress");
 
-    const dayDetail = await habitsApi.fetchHabitDayDetail({ date: "2026-11-15" });
+    const dayDetail = await habitsApi.fetchHabitDayDetail({
+      date: "2026-11-15",
+    });
     assert.equal(dayDetail.items.length, 3);
 
     const detail = await habitsApi.fetchHabitDetail(reading.id, 30);

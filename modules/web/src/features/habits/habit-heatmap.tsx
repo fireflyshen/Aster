@@ -1,7 +1,7 @@
 import { isoWeekday } from "@core/habits/logic";
 import type { HeatmapCell, HeatmapResponse } from "@core/habits/model";
-import { cn } from "cn";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { habitHeatmapLevel } from "./heatmap-level";
 
 const WEEKDAY_LABELS = ["一", "", "三", "", "五", "", "日"] as const;
 const WEEKDAY_FULL = [
@@ -40,54 +40,6 @@ function cellDescription(cell: HeatmapCell): string {
   return `${cell.date} ${wd} · 完成 ${cell.achievedCount} / ${cell.scheduledCount} 项 (${pct}%)`;
 }
 
-function cellStyle(cell: HeatmapCell): {
-  className: string;
-  style?: React.CSSProperties;
-} {
-  switch (cell.status) {
-    case "future":
-      return {
-        className:
-          "border border-dashed border-(--habit-unscheduled-border)/45 bg-transparent opacity-35 cursor-default",
-      };
-    case "unscheduled":
-      return {
-        className:
-          "border border-(--habit-unscheduled-border) bg-transparent hover:border-foreground/35",
-      };
-    case "in_progress":
-      return {
-        className:
-          "border-[1.5px] border-dashed border-(--habit-in-progress-ring) bg-(--habit-in-progress-bg) hover:brightness-95 dark:hover:brightness-110",
-      };
-    case "zero":
-      return {
-        className:
-          "bg-(--habit-zero) hover:brightness-95 dark:hover:brightness-115",
-      };
-    case "level1":
-      return {
-        className:
-          "bg-(--habit-level-1) hover:brightness-95 dark:hover:brightness-115",
-      };
-    case "level2":
-      return {
-        className:
-          "bg-(--habit-level-2) hover:brightness-95 dark:hover:brightness-115",
-      };
-    case "level3":
-      return {
-        className:
-          "bg-(--habit-level-3) hover:brightness-95 dark:hover:brightness-115",
-      };
-    case "level4":
-      return {
-        className:
-          "bg-(--habit-level-4) hover:brightness-95 dark:hover:brightness-115",
-      };
-  }
-}
-
 /** Low-saturation ash-green habit completion heatmap grouped by ISO weeks (Mon..Sun). */
 export function HabitHeatmap({
   heatmap,
@@ -100,7 +52,17 @@ export function HabitHeatmap({
   onSelectDate: (date: string | null) => void;
   compact?: boolean;
 }) {
-  const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
+  const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const hoveredCell = heatmap.cells.find((cell) => cell.date === hoveredDate);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const scroll = scrollRef.current;
+      if (scroll) scroll.scrollLeft = scroll.scrollWidth - scroll.clientWidth;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [heatmap.startDate, heatmap.endDate, compact]);
 
   const { weeks, monthLabels } = useMemo(() => {
     const cells = heatmap.cells;
@@ -159,6 +121,7 @@ export function HabitHeatmap({
       data-compact={compact ? "true" : "false"}
     >
       <div
+        ref={scrollRef}
         className="habit-heatmap-scroll"
         tabIndex={0}
         role="region"
@@ -197,7 +160,10 @@ export function HabitHeatmap({
           ))}
           {weeks.map((week, column) =>
             week.map((cell, row) => {
-              const position = { gridColumn: column + 2, gridRow: row + 2 };
+              const position = {
+                gridColumn: column + 2,
+                gridRow: row + 2,
+              };
               if (!cell)
                 return (
                   <span
@@ -207,7 +173,7 @@ export function HabitHeatmap({
                     aria-hidden="true"
                   />
                 );
-              const { className } = cellStyle(cell);
+              const level = habitHeatmapLevel(cell);
               const isSelected = selectedDate === cell.date;
               const description = cellDescription(cell);
               return (
@@ -219,17 +185,17 @@ export function HabitHeatmap({
                   aria-pressed={isSelected}
                   title={description}
                   style={position}
-                  onMouseEnter={() => setHoveredCell(cell)}
-                  onMouseLeave={() => setHoveredCell(null)}
-                  onFocus={() => setHoveredCell(cell)}
-                  onBlur={() => setHoveredCell(null)}
+                  onMouseEnter={() => setHoveredDate(cell.date)}
+                  onMouseLeave={() => setHoveredDate(null)}
+                  onFocus={() => setHoveredDate(cell.date)}
+                  onBlur={() => setHoveredDate(null)}
                   onClick={() => onSelectDate(isSelected ? null : cell.date)}
-                  className={cn(
-                    "habit-heatmap-cell rounded-[2px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-1 focus-visible:ring-offset-background",
-                    className,
-                    isSelected &&
-                      "ring-2 ring-foreground ring-offset-1 ring-offset-background",
-                  )}
+                  data-date={cell.date}
+                  data-level={level ?? undefined}
+                  data-status={cell.status}
+                  data-today={cell.date === heatmap.todayDate || undefined}
+                  data-selected={isSelected || undefined}
+                  className="habit-heatmap-cell"
                 />
               );
             }),
@@ -237,30 +203,22 @@ export function HabitHeatmap({
         </div>
       </div>
 
-      {/* Info & Legend Footer */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-        <span className="min-w-0 max-w-full break-words">{activeInfo}</span>
-        <div className="flex max-w-full flex-wrap items-center gap-x-3 gap-y-1.5">
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block size-2.5 rounded-[2px] border border-(--habit-unscheduled-border)" />
-            未安排
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block size-2.5 rounded-[2px] bg-(--habit-zero)" />
-            0 项
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span>少</span>
-            <span className="inline-block size-2.5 rounded-[2px] bg-(--habit-level-1)" />
-            <span className="inline-block size-2.5 rounded-[2px] bg-(--habit-level-2)" />
-            <span className="inline-block size-2.5 rounded-[2px] bg-(--habit-level-3)" />
-            <span className="inline-block size-2.5 rounded-[2px] bg-(--habit-level-4)" />
-            <span>多</span>
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block size-2.5 rounded-[2px] border border-dashed border-(--habit-in-progress-ring) bg-(--habit-in-progress-bg)" />
-            进行中
-          </span>
+      <div className="habit-heatmap-meta">
+        <span className="habit-heatmap-info" aria-live="polite">
+          {activeInfo}
+        </span>
+        <div
+          className="habit-heatmap-legend"
+          aria-label="颜色越深，达成比例越高"
+        >
+          <span>未安排</span>
+          <i data-status="unscheduled" />
+          <span className="ml-2">达成率</span>
+          <span>低</span>
+          {[0, 1, 2, 3, 4].map((level) => (
+            <i key={level} data-level={level} />
+          ))}
+          <span>高</span>
         </div>
       </div>
     </div>

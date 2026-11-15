@@ -40,7 +40,10 @@ const WEEKDAY_CHIPS = [
 ] as const;
 
 function makeItemId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID().slice(0, 8);
   }
   return `item-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -305,7 +308,8 @@ export function HabitFormDialog({
         tags,
         completionMode: kind === "positive" ? completionMode : "simple",
         trackTime: kind === "positive" ? trackTime : false,
-        abEnabled: kind === "positive" && completionMode === "checklist" && abEnabled,
+        abEnabled:
+          kind === "positive" && completionMode === "checklist" && abEnabled,
         schedule,
         plans,
         effectiveFromDate:
@@ -321,7 +325,8 @@ export function HabitFormDialog({
         description: description.trim(),
         project: project.trim() || undefined,
         tags,
-        abEnabled: kind === "positive" && completionMode === "checklist" && abEnabled,
+        abEnabled:
+          kind === "positive" && completionMode === "checklist" && abEnabled,
         schedule,
         plans,
       });
@@ -357,45 +362,64 @@ export function HabitFormDialog({
           {/* 2. 怎么记 */}
           <div className="space-y-2">
             <Label>2. 怎么记</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                disabled={Boolean(editing)}
-                onClick={() => setKind("positive")}
-                className={cn(
-                  "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                  kind === "positive"
-                    ? "border-(--habit-accent) bg-(--habit-accent)/8"
-                    : "border-border hover:bg-accent/50",
-                  editing && "cursor-not-allowed opacity-70",
-                )}
-              >
-                <div className="text-sm font-medium text-foreground">
-                  做到了打卡
-                </div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground">
-                  想坚持的好习惯，当天完成勾选
-                </div>
-              </button>
-              <button
-                type="button"
-                disabled={Boolean(editing)}
-                onClick={() => setKind("negative")}
-                className={cn(
-                  "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                  kind === "negative"
-                    ? "border-(--habit-accent) bg-(--habit-accent)/8"
-                    : "border-border hover:bg-accent/50",
-                  editing && "cursor-not-allowed opacity-70",
-                )}
-              >
-                <div className="text-sm font-medium text-foreground">
-                  发生了记一次
-                </div>
-                <div className="mt-0.5 text-[11px] text-muted-foreground">
-                  想减少的习惯，未记录发生即算做到
-                </div>
-              </button>
+            <div
+              className="grid gap-2 sm:grid-cols-3"
+              role="group"
+              aria-label="习惯记录方式"
+            >
+              {(
+                [
+                  {
+                    kind: "positive",
+                    trackTime: false,
+                    label: "普通打卡",
+                    hint: "只勾选今天是否做到，不计时、不计数",
+                  },
+                  {
+                    kind: "positive",
+                    trackTime: true,
+                    label: "计时打卡",
+                    hint: "打卡之外，记录投入的时长与成本",
+                  },
+                  {
+                    kind: "negative",
+                    trackTime: false,
+                    label: "反向记次",
+                    hint: "只记破例，未发生则在当天结束后达成",
+                  },
+                ] as const
+              ).map((mode) => {
+                const selected =
+                  kind === mode.kind &&
+                  (kind === "negative" || trackTime === mode.trackTime);
+                const locked = Boolean(editing) && editing?.kind !== mode.kind;
+                return (
+                  <button
+                    key={mode.label}
+                    type="button"
+                    disabled={locked}
+                    aria-pressed={selected}
+                    onClick={() => {
+                      setKind(mode.kind);
+                      setTrackTime(mode.trackTime);
+                    }}
+                    className={cn(
+                      "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                      selected
+                        ? "border-(--habit-accent) bg-(--habit-accent)/8"
+                        : "border-border hover:bg-accent/50",
+                      locked && "cursor-not-allowed opacity-50",
+                    )}
+                  >
+                    <div className="text-sm font-medium text-foreground">
+                      {mode.label}
+                    </div>
+                    <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                      {mode.hint}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
 
             {kind === "positive" && (
@@ -411,7 +435,7 @@ export function HabitFormDialog({
                         : "border-border text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    直接一键打卡
+                    一键完成
                   </button>
                   <button
                     type="button"
@@ -423,22 +447,9 @@ export function HabitFormDialog({
                         : "border-border text-muted-foreground hover:text-foreground",
                     )}
                   >
-                    展开动作清单（训练）
+                    逐项完成清单
                   </button>
                 </div>
-
-                <label className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-border/75 bg-muted/20 px-3 py-2 text-xs">
-                  <div>
-                    <div className="font-medium text-foreground">开启任务计时</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      仅打卡类建议关闭；需要统计投入时长与成本（如训练、阅读）可开启
-                    </div>
-                  </div>
-                  <Switch
-                    checked={trackTime}
-                    onCheckedChange={setTrackTime}
-                  />
-                </label>
               </div>
             )}
           </div>
@@ -457,10 +468,7 @@ export function HabitFormDialog({
                 </div>
                 <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
                   <span>A/B 双方案</span>
-                  <Switch
-                    checked={abEnabled}
-                    onCheckedChange={setAbEnabled}
-                  />
+                  <Switch checked={abEnabled} onCheckedChange={setAbEnabled} />
                 </label>
               </div>
 
@@ -496,7 +504,12 @@ export function HabitFormDialog({
                       onChange={(e) =>
                         updateActiveItems((prev) =>
                           prev.map((it, i) =>
-                            i === idx ? { ...it, title: e.target.value } : it,
+                            i === idx
+                              ? {
+                                  ...it,
+                                  title: e.target.value,
+                                }
+                              : it,
                           ),
                         )
                       }
@@ -507,7 +520,12 @@ export function HabitFormDialog({
                       onClick={() =>
                         updateActiveItems((prev) =>
                           prev.map((it, i) =>
-                            i === idx ? { ...it, required: !it.required } : it,
+                            i === idx
+                              ? {
+                                  ...it,
+                                  required: !it.required,
+                                }
+                              : it,
                           ),
                         )
                       }

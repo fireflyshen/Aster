@@ -164,7 +164,9 @@ export function HabitDetailDialog({
                         ? habit.abEnabled
                           ? "A/B 训练清单"
                           : "动作清单"
-                        : "正向打卡"
+                        : habit.trackTime
+                          ? "计时打卡"
+                          : "普通打卡"
                       : "反向 · 记破例"}
                   </span>
                   <span className="rounded-full whitespace-nowrap border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
@@ -324,7 +326,7 @@ export function HabitDetailDialog({
           </div>
 
           {/* Individual Heatmap */}
-          <div className="min-w-0 rounded-xl border border-border/70 bg-card/60 p-3.5">
+          <div className="min-w-0 border-y border-border/60 py-3.5">
             <div className="mb-2 text-xs font-medium text-foreground">
               执行热力图
             </div>
