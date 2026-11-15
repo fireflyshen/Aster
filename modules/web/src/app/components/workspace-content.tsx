@@ -391,6 +391,8 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           <TimeLedgerWorkspace
             page={timePage}
             tasks={tasks}
+            projects={filterProjects}
+            availableLabels={organization.tags}
             timerSnapshot={timerSnapshot}
             timerLiveStatus={timerLiveStatus}
             activeActivitySeconds={activeActivitySeconds}

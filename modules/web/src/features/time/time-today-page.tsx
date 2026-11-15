@@ -14,6 +14,7 @@ import {
   localDateOf,
   zonedDateTimeToUtcMs,
 } from "@core/time/zone";
+import type { SavedTag } from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
 import {
   Check,
@@ -38,6 +39,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  collectProjectOptions,
+  collectTagOptions,
+  ProjectTagFields,
+} from "./project-tag-fields";
+import {
   confirmSleepCandidate,
   confirmTimeActivity,
   createTimingPlan,
@@ -61,12 +67,15 @@ import {
   type LogDialogSeed,
 } from "./time-activity-dialogs";
 import {
+  computeContinuationCostPreview,
+  computeDurationCostCents,
   formatClockInZone,
+  formatCurrencyCny,
   formatDurationChinese,
   formatDurationCompact,
   formatEstimateWindow,
   formatTimeRangeInZone,
-  resolveCategoryLabel,
+  normalizeHourlyRateCents,
 } from "./time-format";
 import type { PendingOperationDetail } from "./use-time-ledger";
 
@@ -99,6 +108,8 @@ export function TimeTodayPage({
   events,
   pendingDetails,
   tasks,
+  projects,
+  availableLabels,
   timerSnapshot,
   timerLiveStatus,
   activeActivitySeconds,
@@ -115,6 +126,8 @@ export function TimeTodayPage({
   events: TimeEvent[];
   pendingDetails: PendingOperationDetail[];
   tasks: Task[];
+  projects?: readonly string[];
+  availableLabels?: readonly SavedTag[];
   timerSnapshot?: TimerSnapshot | null;
   timerLiveStatus?: ReturnType<typeof snapshotLiveStatus> | null;
   activeActivitySeconds: number | undefined;
@@ -127,6 +140,7 @@ export function TimeTodayPage({
   ) => Promise<T | undefined>;
 }) {
   const timeZone = policy.timezone || "UTC";
+  const policyRateCents = normalizeHourlyRateCents(policy.hourlyRateCents);
   const nowMs = Date.now();
   const todayStr = localDateOf(nowMs, timeZone);
   const active = status?.activeActivity || null;
@@ -135,6 +149,14 @@ export function TimeTodayPage({
     (active?.startMs !== undefined
       ? Math.max(0, Math.floor((nowMs - active.startMs) / 1000))
       : undefined);
+  const activeRateCents = active
+    ? (active.hourlyRateCents ??
+      (active.categoryId === "sleep" ? 0 : policyRateCents))
+    : policyRateCents;
+  const activeProvisionalCostCents =
+    active && activeElapsedSec !== undefined
+      ? computeDurationCostCents(activeElapsedSec, activeRateCents)
+      : 0;
   const activeHasAutoStop = active?.autoStopAtMs !== undefined;
   const activeRemainingStopSec =
     active?.autoStopAtMs !== undefined
@@ -156,7 +178,9 @@ export function TimeTodayPage({
   );
 
   const [quickTitle, setQuickTitle] = useState("");
-  const [quickCategoryId, setQuickCategoryId] = useState("auto");
+  const [quickProject, setQuickProject] = useState("");
+  const [quickTags, setQuickTags] = useState<string[]>([]);
+  const [quickIsSleep, setQuickIsSleep] = useState(false);
   const [quickTaskUuid, setQuickTaskUuid] = useState("none");
   const [showPlanLimit, setShowPlanLimit] = useState(false);
   const [planAllowanceMin, setPlanAllowanceMin] = useState("60");
@@ -181,6 +205,34 @@ export function TimeTodayPage({
     () => tasks.filter((t) => t.status === "pending"),
     [tasks],
   );
+  const availableProjects = useMemo(
+    () =>
+      collectProjectOptions(
+        projects || [],
+        tasks,
+        daily.locatedSegments.map((s) => s.projectSnapshot),
+      ),
+    [projects, tasks, daily.locatedSegments],
+  );
+  const availableTags = useMemo(
+    () =>
+      collectTagOptions(
+        availableLabels || [],
+        tasks,
+        daily.locatedSegments.flatMap((s) => s.tags || []),
+      ),
+    [availableLabels, tasks, daily.locatedSegments],
+  );
+
+  function handleQuickTaskChange(nextUuid: string) {
+    setQuickTaskUuid(nextUuid);
+    if (nextUuid === "none") return;
+    const found = tasks.find((t) => t.uuid === nextUuid);
+    if (!found) return;
+    if (!quickTitle.trim()) setQuickTitle(found.description);
+    setQuickProject(found.project || "");
+    setQuickTags(found.tags ? [...found.tags] : []);
+  }
 
   const timelineItems = useMemo<TimelineItem[]>(() => {
     const items: TimelineItem[] = [
@@ -308,7 +360,15 @@ export function TimeTodayPage({
         : undefined;
     const title = (quickTitle.trim() || chosenTask?.description || "").trim();
     if (!title) return;
-    const categoryId = quickCategoryId !== "auto" ? quickCategoryId : undefined;
+    const categoryId = quickIsSleep ? "sleep" : "work";
+    const resolvedProject =
+      quickProject.trim() || chosenTask?.project || undefined;
+    const resolvedTags =
+      quickTags.length > 0
+        ? quickTags
+        : chosenTask?.tags?.length
+          ? chosenTask.tags
+          : undefined;
 
     if (showPlanLimit && draftPlanEvaluation.hasLimit) {
       if ("error" in draftPlanEvaluation && draftPlanEvaluation.error) return;
@@ -317,8 +377,8 @@ export function TimeTodayPage({
         title,
         categoryId,
         taskUuid: chosenTask?.uuid,
-        projectSnapshot: chosenTask?.project || undefined,
-        tags: chosenTask?.tags?.length ? chosenTask.tags : undefined,
+        projectSnapshot: resolvedProject,
+        tags: resolvedTags,
         allowanceSeconds: draftPlanEvaluation.allowanceSeconds,
         plannedStartAtMs: draftPlanEvaluation.plannedStartAtMs,
         hardStopAtMs: draftPlanEvaluation.hardStopAtMs,
@@ -330,6 +390,9 @@ export function TimeTodayPage({
         if (res) {
           setQuickTitle("");
           setQuickTaskUuid("none");
+          setQuickProject("");
+          setQuickTags([]);
+          setQuickIsSleep(false);
           setShowPlanLimit(false);
         }
         return;
@@ -348,6 +411,9 @@ export function TimeTodayPage({
       if (res) {
         setQuickTitle("");
         setQuickTaskUuid("none");
+        setQuickProject("");
+        setQuickTags([]);
+        setQuickIsSleep(false);
         setShowPlanLimit(false);
       }
       return;
@@ -360,8 +426,8 @@ export function TimeTodayPage({
           title,
           explicitCategoryId: categoryId,
           taskUuid: chosenTask?.uuid,
-          projectSnapshot: chosenTask?.project || undefined,
-          tags: chosenTask?.tags?.length ? chosenTask.tags : undefined,
+          projectSnapshot: resolvedProject,
+          tags: resolvedTags,
           expectedSessionVersion: status?.sessionVersion,
         }),
       { undoable: true },
@@ -369,6 +435,9 @@ export function TimeTodayPage({
     if (res) {
       setQuickTitle("");
       setQuickTaskUuid("none");
+      setQuickProject("");
+      setQuickTags([]);
+      setQuickIsSleep(false);
     }
   }
 
@@ -512,10 +581,20 @@ export function TimeTodayPage({
             <span className="text-foreground">
               {formatDurationCompact(daily.coveredSeconds)}
             </span>
+            {daily.confirmedCostCents > 0 && (
+              <span className="ml-1.5 text-foreground font-medium">
+                {formatCurrencyCny(daily.confirmedCostCents)}
+              </span>
+            )}
             {(daily.provisionalSeconds ?? 0) > 0 && (
               <>
                 <span className="mx-1.5 opacity-40">·</span>
-                待核对 {formatDurationCompact(daily.provisionalSeconds ?? 0)}
+                <span className="text-amber-600 dark:text-amber-400">
+                  待核对 {formatDurationCompact(daily.provisionalSeconds ?? 0)}
+                  {daily.provisionalCostCents > 0
+                    ? ` (${formatCurrencyCny(daily.provisionalCostCents)})`
+                    : ""}
+                </span>
               </>
             )}
             <span className="mx-1.5 opacity-40">·</span>
@@ -646,7 +725,14 @@ export function TimeTodayPage({
                 <div className="min-w-0 space-y-0.5">
                   <p className="text-foreground">
                     {isAutoStopped && seg
-                      ? `已自动停止 · ${ev.title} · 本次暂计 ${formatDurationChinese(seg.durationSeconds)}`
+                      ? `已自动停止 · ${ev.title} · 本段记录 ${formatDurationChinese(seg.durationSeconds)}，暂计 ${formatCurrencyCny(
+                          seg.provisionalCostCents > 0
+                            ? seg.provisionalCostCents
+                            : computeDurationCostCents(
+                                seg.durationSeconds,
+                                seg.hourlyRateCents ?? policyRateCents,
+                              ),
+                        )}`
                       : ev.message || ev.title}
                   </p>
                 </div>
@@ -676,7 +762,7 @@ export function TimeTodayPage({
                           }
                         >
                           <Check className="size-3" />
-                          确认这段
+                          确认时间
                         </Button>
                         <Button
                           type="button"
@@ -685,7 +771,7 @@ export function TimeTodayPage({
                           disabled={busy}
                           onClick={() => setEditingSegment(seg)}
                         >
-                          修正结束
+                          修正时间
                         </Button>
                       </>
                     )}
@@ -748,13 +834,28 @@ export function TimeTodayPage({
           <div className="space-y-2 border-l-2 border-primary/80 pl-4 py-1">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-baseline gap-2.5">
+                <div className="flex flex-wrap items-baseline gap-2">
                   <span className="truncate text-[15px] font-medium text-foreground">
                     {active.title}
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    {resolveCategoryLabel(active.categoryId, policy)}
-                  </span>
+                  {active.projectSnapshot && (
+                    <span className="rounded bg-muted/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                      {active.projectSnapshot}
+                    </span>
+                  )}
+                  {active.tags?.map((tag) => (
+                    <span
+                      key={tag}
+                      className="text-[11px] text-muted-foreground/80"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                  {active.categoryId === "sleep" && (
+                    <span className="text-[11px] text-muted-foreground">
+                      睡眠（¥0）
+                    </span>
+                  )}
                   {active.reviewState === "review_required" && (
                     <span className="text-[11px] text-amber-600 dark:text-amber-400">
                       待核对
@@ -768,7 +869,12 @@ export function TimeTodayPage({
                     </span>
                   )}
                   {activeElapsedSec !== undefined && (
-                    <span>· {formatDurationChinese(activeElapsedSec)}</span>
+                    <span>
+                      · {formatDurationChinese(activeElapsedSec)}
+                      {activeRateCents > 0
+                        ? ` · 暂计 ${formatCurrencyCny(activeProvisionalCostCents)}`
+                        : ""}
+                    </span>
                   )}
                   {active.autoStopAtMs !== undefined &&
                     activeRemainingStopSec !== undefined && (
@@ -884,28 +990,11 @@ export function TimeTodayPage({
             />
             <div className="flex items-center gap-1">
               <Select
-                value={quickCategoryId}
-                onValueChange={setQuickCategoryId}
+                value={quickTaskUuid}
+                onValueChange={handleQuickTaskChange}
               >
                 <SelectTrigger
-                  className="h-7 w-auto gap-1 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:text-foreground focus-visible:ring-0"
-                  aria-label="活动分类"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">自动分类</SelectItem>
-                  {policy.categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="uncategorized">未分类</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={quickTaskUuid} onValueChange={setQuickTaskUuid}>
-                <SelectTrigger
-                  className="h-7 max-w-[140px] gap-1 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:text-foreground focus-visible:ring-0"
+                  className="h-7 max-w-[160px] gap-1 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:text-foreground focus-visible:ring-0"
                   aria-label="关联任务"
                 >
                   <SelectValue placeholder="关联任务" />
@@ -972,6 +1061,19 @@ export function TimeTodayPage({
             </div>
           </div>
 
+          <ProjectTagFields
+            compact
+            idPrefix="today-quick"
+            project={quickProject}
+            onProjectChange={setQuickProject}
+            tags={quickTags}
+            onTagsChange={setQuickTags}
+            availableProjects={availableProjects}
+            availableTags={availableTags}
+            isSleep={quickIsSleep}
+            onSleepChange={setQuickIsSleep}
+          />
+
           {showPlanLimit && (
             <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-muted-foreground">
               <label className="flex items-center gap-1.5">
@@ -1004,6 +1106,23 @@ export function TimeTodayPage({
                   onChange={(e) => setPlanHardStop(e.target.value)}
                 />
               </label>
+              {draftPlanEvaluation.hasLimit &&
+                !("error" in draftPlanEvaluation) &&
+                draftPlanEvaluation.allowanceSeconds !== undefined && (
+                  <span className="font-medium text-foreground tabular-nums">
+                    预计投入{" "}
+                    {formatDurationChinese(
+                      draftPlanEvaluation.allowanceSeconds,
+                    )}{" "}
+                    ·{" "}
+                    {formatCurrencyCny(
+                      computeDurationCostCents(
+                        draftPlanEvaluation.allowanceSeconds,
+                        quickIsSleep ? 0 : policyRateCents,
+                      ),
+                    )}
+                  </span>
+                )}
               {draftPlanEvaluation.hasLimit &&
                 ("error" in draftPlanEvaluation && draftPlanEvaluation.error ? (
                   <span className="text-destructive">
@@ -1039,22 +1158,71 @@ export function TimeTodayPage({
                 (plan.status === "scheduled" || plan.status === "paused") &&
                 (plan.remainingSeconds === undefined ||
                   plan.remainingSeconds > 0);
+              const planRateCents = normalizeHourlyRateCents(
+                plan.hourlyRateCents,
+                plan.categoryId === "sleep" ? 0 : policyRateCents,
+              );
+              const planStartCostCents =
+                plan.remainingSeconds !== undefined
+                  ? computeDurationCostCents(
+                      plan.remainingSeconds,
+                      planRateCents,
+                    )
+                  : plan.currentBudgetCents;
+              let extendingHardStopMs = plan.hardStopAtMs;
+              if (isExtending && extendingPlan?.hardStopTime.trim()) {
+                try {
+                  extendingHardStopMs = zonedDateTimeToUtcMs(
+                    todayStr,
+                    extendingPlan.hardStopTime.trim(),
+                    timeZone,
+                  );
+                } catch {
+                  extendingHardStopMs = plan.hardStopAtMs;
+                }
+              }
+              const extendMinutesNum =
+                isExtending && extendingPlan
+                  ? Number(extendingPlan.extraMin) || 0
+                  : 0;
+              const continuationPreview = isExtending
+                ? computeContinuationCostPreview({
+                    requestedSeconds:
+                      (plan.remainingSeconds ?? 0) +
+                      Math.max(0, Math.round(extendMinutesNum * 60)),
+                    hourlyRateCents: planRateCents,
+                    hardStopAtMs: extendingHardStopMs,
+                    nowMs,
+                  })
+                : null;
               return (
                 <div
                   key={plan.id}
                   className="border-b border-border/35 py-2.5 text-xs space-y-2"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                       <span className="truncate text-[13px] font-medium text-foreground">
                         {plan.title}
                       </span>
-                      <span className="text-muted-foreground/75">
-                        {resolveCategoryLabel(
-                          plan.categoryId || "uncategorized",
-                          policy,
-                        )}
-                      </span>
+                      {plan.projectSnapshot && (
+                        <span className="rounded bg-muted/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                          {plan.projectSnapshot}
+                        </span>
+                      )}
+                      {plan.tags?.map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-[11px] text-muted-foreground/75"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                      {plan.categoryId === "sleep" && (
+                        <span className="text-muted-foreground/75">
+                          睡眠（¥0）
+                        </span>
+                      )}
                       <span className="text-muted-foreground tabular-nums">
                         {plan.allowanceSeconds !== undefined && (
                           <>
@@ -1063,6 +1231,17 @@ export function TimeTodayPage({
                               : `预计 ${formatDurationCompact(plan.allowanceSeconds)}`}
                           </>
                         )}
+                        {plan.currentBudgetCents !== undefined && (
+                          <> · 预算 {formatCurrencyCny(plan.currentBudgetCents)}</>
+                        )}
+                        {plan.initialBudgetCents !== undefined &&
+                          plan.currentBudgetCents !== undefined &&
+                          plan.currentBudgetCents > plan.initialBudgetCents && (
+                            <span className="text-amber-600 dark:text-amber-400">
+                              {" "}
+                              (最初 {formatCurrencyCny(plan.initialBudgetCents)})
+                            </span>
+                          )}
                         {plan.plannedStartAtMs !== undefined && (
                           <>
                             {" "}
@@ -1119,6 +1298,10 @@ export function TimeTodayPage({
                           {predictedStop !== undefined
                             ? ` · 预计 ${formatClockInZone(predictedStop, timeZone)} 自动停止`
                             : ""}
+                          {planStartCostCents !== undefined &&
+                          planStartCostCents > 0
+                            ? ` · 预计 ${formatCurrencyCny(planStartCostCents)}`
+                            : ""}
                         </Button>
                       )}
                       <Button
@@ -1155,56 +1338,93 @@ export function TimeTodayPage({
                     </div>
                   </div>
                   {isExtending && extendingPlan && (
-                    <div className="flex flex-wrap items-center gap-3 pl-1 pt-0.5 text-xs text-muted-foreground">
-                      <label className="flex items-center gap-1">
-                        <span>增加</span>
-                        <input
-                          type="number"
-                          min={0}
-                          max={720}
-                          className="h-6 w-12 border-b border-border/60 bg-transparent text-center text-foreground tabular-nums outline-none"
-                          value={extendingPlan.extraMin}
-                          onChange={(e) =>
-                            setExtendingPlan({
-                              ...extendingPlan,
-                              extraMin: e.target.value,
-                            })
-                          }
-                        />
-                        <span>分钟</span>
-                      </label>
-                      <label className="flex items-center gap-1">
-                        <span>最晚停止</span>
-                        <input
-                          type="time"
-                          className="h-6 border-b border-border/60 bg-transparent text-foreground tabular-nums outline-none"
-                          value={extendingPlan.hardStopTime}
-                          onChange={(e) =>
-                            setExtendingPlan({
-                              ...extendingPlan,
-                              hardStopTime: e.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() => void submitPlanExtend(plan, false)}
-                      >
-                        仅保存
-                      </Button>
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => void submitPlanExtend(plan, true)}
-                      >
-                        加时并继续
-                      </Button>
+                    <div className="space-y-1.5 pl-1 pt-0.5 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label className="flex items-center gap-1">
+                          <span>增加</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={720}
+                            className="h-6 w-12 border-b border-border/60 bg-transparent text-center text-foreground tabular-nums outline-none"
+                            value={extendingPlan.extraMin}
+                            onChange={(e) =>
+                              setExtendingPlan({
+                                ...extendingPlan,
+                                extraMin: e.target.value,
+                              })
+                            }
+                          />
+                          <span>分钟</span>
+                        </label>
+                        <label className="flex items-center gap-1">
+                          <span>最晚停止</span>
+                          <input
+                            type="time"
+                            className="h-6 border-b border-border/60 bg-transparent text-foreground tabular-nums outline-none"
+                            value={extendingPlan.hardStopTime}
+                            onChange={(e) =>
+                              setExtendingPlan({
+                                ...extendingPlan,
+                                hardStopTime: e.target.value,
+                              })
+                            }
+                          />
+                        </label>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          disabled={busy}
+                          onClick={() => void submitPlanExtend(plan, false)}
+                        >
+                          仅保存
+                        </Button>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => void submitPlanExtend(plan, true)}
+                        >
+                          加时并继续
+                        </Button>
+                      </div>
+                      {continuationPreview && (
+                        <div className="tabular-nums">
+                          {continuationPreview.expired ? (
+                            <span className="text-destructive">
+                              最晚结束时刻已过，请调整最晚停止后再继续。
+                            </span>
+                          ) : continuationPreview.cappedByHardStop ? (
+                            <span className="text-amber-600 dark:text-amber-400">
+                              受最晚结束限制，最多可继续{" "}
+                              {formatDurationChinese(
+                                continuationPreview.effectiveSeconds,
+                              )}
+                              ，预计增加{" "}
+                              {formatCurrencyCny(
+                                continuationPreview.additionalCostCents,
+                              )}
+                              。
+                            </span>
+                          ) : continuationPreview.effectiveSeconds > 0 ? (
+                            <span>
+                              再投入{" "}
+                              {formatDurationChinese(
+                                continuationPreview.effectiveSeconds,
+                              )}
+                              ，预计增加{" "}
+                              <strong className="font-medium text-foreground">
+                                {formatCurrencyCny(
+                                  continuationPreview.additionalCostCents,
+                                )}
+                              </strong>
+                              。
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1349,13 +1569,28 @@ export function TimeTodayPage({
                         ? "进行中"
                         : formatClockInZone(item.segment.endMs, timeZone)}
                     </span>
-                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
                       <span className="truncate text-[14px] text-foreground">
                         {item.segment.title}
                       </span>
-                      <span className="text-xs text-muted-foreground/75">
-                        {resolveCategoryLabel(item.segment.categoryId, policy)}
-                      </span>
+                      {item.segment.projectSnapshot && (
+                        <span className="rounded bg-muted/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                          {item.segment.projectSnapshot}
+                        </span>
+                      )}
+                      {item.segment.tags?.map((tag) => (
+                        <span
+                          key={tag}
+                          className="text-[11px] text-muted-foreground/75"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                      {item.segment.categoryId === "sleep" && (
+                        <span className="text-[11px] text-muted-foreground/75">
+                          睡眠（¥0）
+                        </span>
+                      )}
                       {item.segment.precision === "estimated_bounds" && (
                         <span className="text-[11px] text-muted-foreground/65">
                           约
@@ -1372,14 +1607,14 @@ export function TimeTodayPage({
                       {item.segment.reviewState === "review_required" && (
                         <span className="text-[11px] text-amber-600 dark:text-amber-400">
                           {item.segment.reviewReason === "auto_stopped"
-                            ? `已自动停止 · 暂计 ${formatDurationCompact(item.segment.durationSeconds)} · 待核对`
-                            : "待核对"}
+                            ? `已自动停止 · 本段记录 ${formatDurationCompact(item.segment.durationSeconds)}，暂计 ${formatCurrencyCny(item.segment.provisionalCostCents)} · 待核对`
+                            : `待核对${item.segment.provisionalCostCents > 0 ? ` (${formatCurrencyCny(item.segment.provisionalCostCents)})` : ""}`}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="flex shrink-0 items-center gap-2">
                     {item.segment.reviewState === "review_required" &&
                       !item.segment.running && (
                         <Button
@@ -1400,7 +1635,7 @@ export function TimeTodayPage({
                             )
                           }
                         >
-                          确认这段
+                          确认时间
                         </Button>
                       )}
                     {item.segment.reviewReason === "auto_stopped" &&
@@ -1421,6 +1656,11 @@ export function TimeTodayPage({
                           加时继续
                         </Button>
                       )}
+                    {item.segment.confirmedCostCents > 0 && (
+                      <span className="text-xs font-medium text-foreground tabular-nums">
+                        {formatCurrencyCny(item.segment.confirmedCostCents)}
+                      </span>
+                    )}
                     <span className="text-xs text-muted-foreground/80 tabular-nums">
                       {formatDurationCompact(item.segment.durationSeconds)}
                     </span>
@@ -1468,10 +1708,29 @@ export function TimeTodayPage({
                     </span>
                     <span className="text-muted-foreground tabular-nums">
                       约 {formatDurationChinese(item.estimatedSeconds || 0)}
+                      {(item.hourlyRateCents ?? policyRateCents) > 0 &&
+                      item.categoryId !== "sleep"
+                        ? ` · 折算 ${formatCurrencyCny(
+                            computeDurationCostCents(
+                              item.estimatedSeconds || 0,
+                              item.hourlyRateCents ?? policyRateCents,
+                            ),
+                          )}`
+                        : ""}
                     </span>
-                    <span className="text-muted-foreground/70">
-                      {resolveCategoryLabel(item.categoryId, policy)}
-                    </span>
+                    {item.projectSnapshot && (
+                      <span className="rounded bg-muted/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                        {item.projectSnapshot}
+                      </span>
+                    )}
+                    {item.tags?.map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-[11px] text-muted-foreground/75"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
                     {win && (
                       <span className="text-muted-foreground/60">{win}</span>
                     )}
@@ -1501,6 +1760,8 @@ export function TimeTodayPage({
         timeZone={timeZone}
         policy={policy}
         tasks={tasks}
+        availableProjects={availableProjects}
+        availableTags={availableTags}
         segments={daily.locatedSegments}
         busy={busy}
         onSubmitLog={(input) =>
@@ -1534,6 +1795,8 @@ export function TimeTodayPage({
         date={selectedDate}
         timeZone={timeZone}
         policy={policy}
+        availableProjects={availableProjects}
+        availableTags={availableTags}
         segments={daily.locatedSegments}
         busy={busy}
         onOpenChange={(open) => {

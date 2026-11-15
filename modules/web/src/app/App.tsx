@@ -154,6 +154,8 @@ export function App() {
     completion: taskActions.completion,
     expandedDrop: taskActions.expandedDrop,
     taskTrackedSeconds: data.taskTrackedSeconds,
+    taskCostSummary: data.taskCostSummary,
+    taskListHighlightCost: data.taskListHighlightCost,
     isTimingTask: data.isTimingTask,
     isTimeMode: data.isTimeMode,
     openEditor: taskActions.openEditor,
@@ -393,6 +395,10 @@ export function App() {
         onUnlinkSubtask={taskActions.unlinkSubtask}
         onDeleteTask={taskActions.deleteTask}
         onSubmitTaskForm={taskActions.submitTaskForm}
+        isTimeMode={data.isTimeMode}
+        hourlyRateCents={data.hourlyRateCents}
+        taskCostSummary={data.taskCostSummary}
+        onRefreshTimeSnapshot={data.refreshTimerSnapshot}
         onMutate={taskActions.mutateWithOrigin}
         onChangeOrganization={data.changeOrganization}
         onSetOrganization={data.setOrganization}

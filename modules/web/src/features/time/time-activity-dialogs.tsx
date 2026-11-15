@@ -22,7 +22,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatClockInZone, snapMinuteStartToSegments } from "./time-format";
+import { ProjectTagFields } from "./project-tag-fields";
+import {
+  computeDurationCostCents,
+  formatClockInZone,
+  formatCurrencyCny,
+  normalizeHourlyRateCents,
+  snapMinuteStartToSegments,
+} from "./time-format";
 
 export type LogDialogSeed = {
   mode: "log" | "estimate";
@@ -41,6 +48,8 @@ export function TimeLogOrEstimateDialog({
   timeZone,
   policy,
   tasks,
+  availableProjects,
+  availableTags,
   segments,
   busy,
   onSubmitLog,
@@ -52,6 +61,8 @@ export function TimeLogOrEstimateDialog({
   timeZone: string;
   policy: TimePolicy | null;
   tasks: Task[];
+  availableProjects: readonly string[];
+  availableTags: readonly string[];
   segments?: readonly LocatedSegment[];
   busy: boolean;
   onSubmitLog: (input: {
@@ -84,7 +95,9 @@ export function TimeLogOrEstimateDialog({
   const [startTime, setStartTime] = useState("19:00");
   const [endTime, setEndTime] = useState("20:00");
   const [estimatedMinutes, setEstimatedMinutes] = useState("60");
-  const [categoryId, setCategoryId] = useState("auto");
+  const [project, setProject] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [isSleep, setIsSleep] = useState(false);
   const [taskUuid, setTaskUuid] = useState("none");
   const [approximate, setApproximate] = useState(false);
   const [useWindow, setUseWindow] = useState(true);
@@ -99,7 +112,9 @@ export function TimeLogOrEstimateDialog({
     setEndTime(seed.endTime);
     setEstimatedMinutes(seed.estimatedMinutes);
     setTitle("");
-    setCategoryId("auto");
+    setProject("");
+    setTags([]);
+    setIsSleep(false);
     setTaskUuid("none");
     setApproximate(false);
     setUseWindow(true);
@@ -107,8 +122,52 @@ export function TimeLogOrEstimateDialog({
     setLocalError("");
   }, [open, seed]);
 
-  const categories = policy?.categories || [];
   const pendingTasks = tasks.filter((t) => t.status === "pending");
+  const activeRateCents = isSleep
+    ? 0
+    : normalizeHourlyRateCents(policy?.hourlyRateCents);
+
+  function handleSelectTask(nextUuid: string) {
+    setTaskUuid(nextUuid);
+    if (nextUuid === "none") return;
+    const found = tasks.find((t) => t.uuid === nextUuid);
+    if (!found) return;
+    if (!title.trim()) setTitle(found.description);
+    setProject(found.project || "");
+    setTags(found.tags ? [...found.tags] : []);
+  }
+
+  let previewDurationSeconds = 0;
+  if (mode === "log") {
+    try {
+      const s =
+        seed &&
+        seed.exactStartMs !== undefined &&
+        date === seed.date &&
+        startTime === seed.startTime
+          ? seed.exactStartMs
+          : zonedDateTimeToUtcMs(date, startTime, timeZone);
+      const e =
+        seed &&
+        seed.exactEndMs !== undefined &&
+        date === seed.date &&
+        endTime === seed.endTime
+          ? seed.exactEndMs
+          : zonedDateTimeToUtcMs(date, endTime, timeZone);
+      if (e > s) previewDurationSeconds = Math.round((e - s) / 1000);
+    } catch {
+      previewDurationSeconds = 0;
+    }
+  } else {
+    const mins = Number(estimatedMinutes);
+    if (Number.isFinite(mins) && mins > 0) {
+      previewDurationSeconds = Math.round(mins * 60);
+    }
+  }
+  const previewCostCents = computeDurationCostCents(
+    previewDurationSeconds,
+    activeRateCents,
+  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -120,6 +179,14 @@ export function TimeLogOrEstimateDialog({
       setLocalError("请输入活动名称或关联一个任务。");
       return;
     }
+    const explicitCategoryId = isSleep ? "sleep" : "work";
+    const resolvedProject = project.trim() || selectedTask?.project || undefined;
+    const resolvedTags =
+      tags.length > 0
+        ? tags
+        : selectedTask?.tags?.length
+          ? selectedTask.tags
+          : undefined;
 
     if (mode === "log") {
       try {
@@ -152,10 +219,10 @@ export function TimeLogOrEstimateDialog({
           title: finalTitle,
           startMs,
           endMs,
-          explicitCategoryId: categoryId !== "auto" ? categoryId : undefined,
+          explicitCategoryId,
           taskUuid: selectedTask?.uuid,
-          projectSnapshot: selectedTask?.project || undefined,
-          tags: selectedTask?.tags?.length ? selectedTask.tags : undefined,
+          projectSnapshot: resolvedProject,
+          tags: resolvedTags,
           precision: approximate ? "estimated_bounds" : "exact",
           note: note.trim() || undefined,
         });
@@ -196,10 +263,10 @@ export function TimeLogOrEstimateDialog({
       targetDate: date,
       windowStartMs,
       windowEndMs,
-      explicitCategoryId: categoryId !== "auto" ? categoryId : undefined,
+      explicitCategoryId,
       taskUuid: selectedTask?.uuid,
-      projectSnapshot: selectedTask?.project || undefined,
-      tags: selectedTask?.tags?.length ? selectedTask.tags : undefined,
+      projectSnapshot: resolvedProject,
+      tags: resolvedTags,
       note: note.trim() || undefined,
     });
     if (err === null) {
@@ -256,41 +323,34 @@ export function TimeLogOrEstimateDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="space-y-1.5">
-              <Label htmlFor="time-log-cat">分类</Label>
-              <Select value={categoryId} onValueChange={setCategoryId}>
-                <SelectTrigger id="time-log-cat">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">按规则自动分类</SelectItem>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="uncategorized">未分类</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="time-log-task">关联任务（可选）</Label>
-              <Select value={taskUuid} onValueChange={setTaskUuid}>
-                <SelectTrigger id="time-log-task">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">不关联任务</SelectItem>
-                  {pendingTasks.slice(0, 60).map((task) => (
-                    <SelectItem key={task.uuid} value={task.uuid}>
-                      {task.description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="time-log-task">关联任务（可选）</Label>
+            <Select value={taskUuid} onValueChange={handleSelectTask}>
+              <SelectTrigger id="time-log-task">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">不关联任务</SelectItem>
+                {pendingTasks.slice(0, 60).map((task) => (
+                  <SelectItem key={task.uuid} value={task.uuid}>
+                    {task.description}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
+          <ProjectTagFields
+            idPrefix="time-log"
+            project={project}
+            onProjectChange={setProject}
+            tags={tags}
+            onTagsChange={setTags}
+            availableProjects={availableProjects}
+            availableTags={availableTags}
+            isSleep={isSleep}
+            onSleepChange={setIsSleep}
+          />
 
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1.5">
@@ -370,6 +430,21 @@ export function TimeLogOrEstimateDialog({
                     onChange={(e) => setEndTime(e.target.value)}
                   />
                 </div>
+              )}
+            </div>
+          )}
+
+          {previewDurationSeconds > 0 && (
+            <div className="rounded-md bg-muted/45 px-2.5 py-1.5 text-xs text-muted-foreground tabular-nums">
+              {isSleep ? (
+                <span>睡眠时段：单价 ¥0，折算成本 ¥0</span>
+              ) : (
+                <span>
+                  按当前单价（{formatCurrencyCny(activeRateCents)}/小时）折算：
+                  <strong className="font-medium text-foreground">
+                    {formatCurrencyCny(previewCostCents)}
+                  </strong>
+                </span>
               )}
             </div>
           )}
@@ -544,6 +619,8 @@ export function EditSegmentDialog({
   date,
   timeZone,
   policy,
+  availableProjects,
+  availableTags,
   segments,
   busy,
   onOpenChange,
@@ -553,6 +630,8 @@ export function EditSegmentDialog({
   date: string;
   timeZone: string;
   policy: TimePolicy | null;
+  availableProjects: readonly string[];
+  availableTags: readonly string[];
   segments?: readonly LocatedSegment[];
   busy: boolean;
   onOpenChange: (open: boolean) => void;
@@ -562,6 +641,8 @@ export function EditSegmentDialog({
     patch: {
       title?: string;
       categoryId?: string;
+      projectSnapshot?: string | null;
+      tags?: string[] | null;
       precision?: "exact" | "estimated_bounds";
       startMs?: number;
       endMs?: number;
@@ -571,7 +652,9 @@ export function EditSegmentDialog({
   }) => Promise<string | null>;
 }) {
   const [title, setTitle] = useState("");
-  const [categoryId, setCategoryId] = useState("uncategorized");
+  const [project, setProject] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [isSleep, setIsSleep] = useState(false);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [origStartTime, setOrigStartTime] = useState("");
@@ -586,7 +669,9 @@ export function EditSegmentDialog({
     const initStart = formatClockInZone(segment.startMs, timeZone);
     const initEnd = formatClockInZone(segment.endMs, timeZone);
     setTitle(segment.title);
-    setCategoryId(segment.categoryId || "uncategorized");
+    setProject(segment.projectSnapshot || "");
+    setTags(segment.tags ? [...segment.tags] : []);
+    setIsSleep(segment.categoryId === "sleep");
     setStartTime(initStart);
     setEndTime(initEnd);
     setOrigStartTime(initStart);
@@ -605,9 +690,16 @@ export function EditSegmentDialog({
       setLocalError("活动标题不能为空。");
       return;
     }
+    const nextCategoryId = isSleep
+      ? "sleep"
+      : segment.categoryId === "sleep"
+        ? "work"
+        : segment.categoryId || "work";
     const patch: {
       title?: string;
       categoryId?: string;
+      projectSnapshot?: string | null;
+      tags?: string[] | null;
       precision?: "exact" | "estimated_bounds";
       startMs?: number;
       endMs?: number;
@@ -615,7 +707,9 @@ export function EditSegmentDialog({
       confirmReview?: boolean;
     } = {
       title: title.trim(),
-      categoryId,
+      categoryId: nextCategoryId,
+      projectSnapshot: project.trim() || null,
+      tags,
       precision: approximate ? "estimated_bounds" : "exact",
       ...(clearTaskLink ? { clearTaskLink: true } : {}),
       ...(confirmReview ? { confirmReview: true } : {}),
@@ -667,10 +761,30 @@ export function EditSegmentDialog({
         <DialogHeader>
           <DialogTitle>修改时间记录</DialogTitle>
           <DialogDescription>
-            支持修改标题、分类、精确度或时段；提交将按版本号校验，并生成可撤销回执。
+            支持修改标题、关联项目/标签、精确度或时段；提交将按版本号校验，并保留当时单价。
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
+          {segment && (
+            <div className="rounded-md bg-muted/45 px-2.5 py-1.5 text-xs text-muted-foreground tabular-nums">
+              <span>
+                时段单价：
+                {formatCurrencyCny(
+                  segment.hourlyRateCents ??
+                    normalizeHourlyRateCents(policy?.hourlyRateCents),
+                )}
+                /小时 · 已确认成本{" "}
+                <strong className="font-medium text-foreground">
+                  {formatCurrencyCny(segment.confirmedCostCents)}
+                </strong>
+              </span>
+              {segment.provisionalCostCents > 0 && (
+                <span className="ml-2 text-amber-600 dark:text-amber-400">
+                  待核对 {formatCurrencyCny(segment.provisionalCostCents)}
+                </span>
+              )}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="edit-seg-title">活动内容</Label>
             <Input
@@ -679,22 +793,17 @@ export function EditSegmentDialog({
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-seg-cat">分类</Label>
-            <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger id="edit-seg-cat">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(policy?.categories || []).map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
-                <SelectItem value="uncategorized">未分类</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <ProjectTagFields
+            idPrefix="edit-seg"
+            project={project}
+            onProjectChange={setProject}
+            tags={tags}
+            onTagsChange={setTags}
+            availableProjects={availableProjects}
+            availableTags={availableTags}
+            isSleep={isSleep}
+            onSleepChange={setIsSleep}
+          />
           {!segment?.running && (
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">

@@ -4,10 +4,12 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  formatCurrencyCny,
   formatDurationChinese,
   formatDurationCompact,
   formatEstimateWindow,
-  resolveCategoryLabel,
+  projectDisplayName,
+  tagDisplayName,
 } from "./time-format";
 
 export function TimeWeeklyPage({
@@ -26,11 +28,15 @@ export function TimeWeeklyPage({
   const timeZone = policy.timezone || "UTC";
   const todayStr = localDateOf(Date.now(), timeZone);
 
-  const sortedCategories = Object.entries(weekly.byCategorySeconds)
+  const sortedProjects = Object.entries(weekly.byProjectSeconds)
     .filter(([, secs]) => secs > 0)
     .sort((a, b) => b[1] - a[1]);
+  const maxProjectSeconds = sortedProjects[0]?.[1] || 1;
 
-  const maxCatSeconds = sortedCategories[0]?.[1] || 1;
+  const sortedTags = Object.entries(weekly.byTagSeconds)
+    .filter(([, secs]) => secs > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const maxTagSeconds = sortedTags[0]?.[1] || 1;
 
   return (
     <div className="space-y-10">
@@ -89,10 +95,20 @@ export function TimeWeeklyPage({
           <span className="text-foreground">
             {formatDurationCompact(weekly.coveredSeconds)}
           </span>
+          {weekly.confirmedCostCents > 0 && (
+            <span className="ml-1.5 font-medium text-foreground">
+              {formatCurrencyCny(weekly.confirmedCostCents)}
+            </span>
+          )}
           {(weekly.provisionalSeconds ?? 0) > 0 && (
             <>
               <span className="mx-1.5 opacity-40">·</span>
-              待核对 {formatDurationCompact(weekly.provisionalSeconds ?? 0)}
+              <span className="text-amber-600 dark:text-amber-400">
+                待核对 {formatDurationCompact(weekly.provisionalSeconds ?? 0)}
+                {weekly.provisionalCostCents > 0
+                  ? ` (${formatCurrencyCny(weekly.provisionalCostCents)})`
+                  : ""}
+              </span>
             </>
           )}
           <span className="mx-1.5 opacity-40">·</span>
@@ -106,39 +122,45 @@ export function TimeWeeklyPage({
         </div>
       </div>
 
-      {/* Category Distribution: Ultra-clean thin bars */}
+      {/* Project Distribution: Taskwarrior projects */}
       <section>
         <div className="flex items-center justify-between border-b border-border/60 pb-2">
           <h2 className="text-xs font-medium text-muted-foreground">
-            分类投入
+            项目投入
           </h2>
           <span className="text-xs text-muted-foreground/70">
-            仅基于已定位活动
+            基于 Taskwarrior 项目与已定位活动
           </span>
         </div>
 
-        {sortedCategories.length === 0 ? (
+        {sortedProjects.length === 0 ? (
           <p className="py-10 text-xs text-muted-foreground/65">
             这周还没有已定位记录。
           </p>
         ) : (
           <div className="mt-5 space-y-4">
-            {sortedCategories.map(([catId, secs]) => {
+            {sortedProjects.map(([projectKey, secs]) => {
+              const costCents = weekly.byProjectCostCents[projectKey] ?? 0;
               const coveredShare =
                 weekly.coveredSeconds > 0
                   ? Math.round((secs / weekly.coveredSeconds) * 100)
                   : 0;
               const barPct = Math.max(
                 2,
-                Math.round((secs / maxCatSeconds) * 100),
+                Math.round((secs / maxProjectSeconds) * 100),
               );
               return (
-                <div key={catId} className="space-y-1.5">
+                <div key={projectKey} className="space-y-1.5">
                   <div className="flex items-baseline justify-between text-xs">
                     <span className="text-sm text-foreground">
-                      {resolveCategoryLabel(catId, policy)}
+                      {projectDisplayName(projectKey)}
                     </span>
                     <span className="text-muted-foreground tabular-nums">
+                      {costCents > 0 && (
+                        <strong className="mr-2 font-medium text-foreground">
+                          {formatCurrencyCny(costCents)}
+                        </strong>
+                      )}
                       {formatDurationChinese(secs)}
                       <span className="ml-2 text-muted-foreground/65">
                         {coveredShare}%
@@ -148,6 +170,57 @@ export function TimeWeeklyPage({
                   <div className="h-[3px] w-full overflow-hidden rounded-full bg-muted/60">
                     <div
                       className="h-full rounded-full bg-primary/75 transition-all"
+                      style={{ width: `${barPct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Tag Distribution: Taskwarrior tags */}
+      <section>
+        <div className="flex items-center justify-between border-b border-border/60 pb-2">
+          <h2 className="text-xs font-medium text-muted-foreground">
+            标签分布
+          </h2>
+          <span className="text-xs text-muted-foreground/70">
+            多标签活动会分别累计
+          </span>
+        </div>
+
+        {sortedTags.length === 0 ? (
+          <p className="py-8 text-xs text-muted-foreground/65">
+            本周活动尚未关联标签。
+          </p>
+        ) : (
+          <div className="mt-5 space-y-3.5">
+            {sortedTags.map(([tagKey, secs]) => {
+              const costCents = weekly.byTagCostCents[tagKey] ?? 0;
+              const barPct = Math.max(
+                2,
+                Math.round((secs / maxTagSeconds) * 100),
+              );
+              return (
+                <div key={tagKey} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between text-xs">
+                    <span className="text-sm text-foreground">
+                      {tagDisplayName(tagKey)}
+                    </span>
+                    <span className="text-muted-foreground tabular-nums">
+                      {costCents > 0 && (
+                        <strong className="mr-2 font-medium text-foreground">
+                          {formatCurrencyCny(costCents)}
+                        </strong>
+                      )}
+                      {formatDurationChinese(secs)}
+                    </span>
+                  </div>
+                  <div className="h-[3px] w-full overflow-hidden rounded-full bg-muted/60">
+                    <div
+                      className="h-full rounded-full bg-foreground/55 transition-all"
                       style={{ width: `${barPct}%` }}
                     />
                   </div>
@@ -188,6 +261,11 @@ export function TimeWeeklyPage({
                 )}
               </div>
               <div className="flex items-center gap-4 text-muted-foreground tabular-nums">
+                {day.confirmedCostCents > 0 && (
+                  <span className="font-medium text-foreground">
+                    {formatCurrencyCny(day.confirmedCostCents)}
+                  </span>
+                )}
                 <span className="text-foreground/85">
                   {formatDurationCompact(day.coveredSeconds)}
                 </span>
@@ -224,9 +302,19 @@ export function TimeWeeklyPage({
                     <span className="text-muted-foreground tabular-nums">
                       约 {formatDurationChinese(est.estimatedSeconds || 0)}
                     </span>
-                    <span className="text-muted-foreground/70">
-                      {resolveCategoryLabel(est.categoryId, policy)}
-                    </span>
+                    {est.projectSnapshot && (
+                      <span className="rounded bg-muted/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                        {est.projectSnapshot}
+                      </span>
+                    )}
+                    {est.tags?.map((tag) => (
+                      <span
+                        key={tag}
+                        className="text-[11px] text-muted-foreground/75"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
                     {win && (
                       <span className="text-muted-foreground/60">{win}</span>
                     )}

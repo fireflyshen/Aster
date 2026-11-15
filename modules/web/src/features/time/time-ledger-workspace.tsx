@@ -1,20 +1,24 @@
 import type { TimerSnapshot } from "@core/time/model";
 import { snapshotLiveStatus } from "@core/time/snapshot";
+import type { SavedTag } from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
 import { RotateCcw, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { TimePage } from "@/app/hooks/use-workspace-navigation";
+import { TimeCostReportPage } from "./time-cost-report-page";
 import { TimeSettingsPage } from "./time-settings-page";
 import { TimeTodayPage } from "./time-today-page";
 import { TimeWeeklyPage } from "./time-weekly-page";
 import { useTimeLedger } from "./use-time-ledger";
 
-/** Entry container for the Web "时间账本" module ("今日时间线", "本周分布", "时间设置"). */
+/** Entry container for the Web "时间账本" module ("今日时间线", "本周分布", "成本报告", "时间设置"). */
 export function TimeLedgerWorkspace({
   page,
   tasks,
+  projects,
+  availableLabels,
   timerSnapshot,
   timerLiveStatus,
   activeActivitySeconds,
@@ -24,6 +28,8 @@ export function TimeLedgerWorkspace({
 }: {
   page: TimePage;
   tasks: Task[];
+  projects?: readonly string[];
+  availableLabels?: readonly SavedTag[];
   timerSnapshot?: TimerSnapshot | null;
   timerLiveStatus?: ReturnType<typeof snapshotLiveStatus> | null;
   activeActivitySeconds: number | undefined;
@@ -113,6 +119,8 @@ export function TimeLedgerWorkspace({
             events={ledger.events}
             pendingDetails={ledger.pendingDetails}
             tasks={tasks}
+            projects={projects}
+            availableLabels={availableLabels}
             timerSnapshot={timerSnapshot}
             timerLiveStatus={timerLiveStatus}
             activeActivitySeconds={activeActivitySeconds}
@@ -130,6 +138,17 @@ export function TimeLedgerWorkspace({
               ledger.setSelectedDate(date);
               onOpenPage("today");
             }}
+          />
+        ) : page === "reports" ? (
+          <TimeCostReportPage
+            policy={ledger.policy}
+            selectedDate={ledger.selectedDate}
+            onSelectDate={ledger.setSelectedDate}
+            onOpenDay={(date) => {
+              ledger.setSelectedDate(date);
+              onOpenPage("today");
+            }}
+            onMutated={onTimeMutated}
           />
         ) : page === "settings" ? (
           <TimeSettingsPage

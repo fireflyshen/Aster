@@ -1,9 +1,5 @@
-import type {
-  ProjectCategoryRule,
-  TagCategoryRule,
-  TimePolicy,
-} from "@core/time/model";
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import type { TimePolicy } from "@core/time/model";
+import { ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,13 +9,6 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { saveBackup } from "@/features/recovery/backup-panel";
 import {
@@ -33,7 +22,11 @@ import {
   type TimeReceipt,
   type TimewarriorImportPreview,
 } from "./time-api";
-import { resolveCategoryLabel } from "./time-format";
+import {
+  formatRateConversionHint,
+  normalizeHourlyRateCents,
+  yuanToHourlyRateCents,
+} from "./time-format";
 
 export function TimeSettingsPage({
   policy,
@@ -57,14 +50,11 @@ export function TimeSettingsPage({
   );
   const [sleepStart, setSleepStart] = useState(policy.sleepTemplate.startTime);
   const [sleepEnd, setSleepEnd] = useState(policy.sleepTemplate.endTime);
-  const [projectRules, setProjectRules] = useState<ProjectCategoryRule[]>(
-    policy.projectRules,
+  const [hourlyRateYuan, setHourlyRateYuan] = useState(
+    String(normalizeHourlyRateCents(policy.hourlyRateCents) / 100),
   );
-  const [tagRules, setTagRules] = useState<TagCategoryRule[]>(policy.tagRules);
-  const [newRuleKind, setNewRuleKind] = useState<"project" | "tag">("project");
-  const [newRulePattern, setNewRulePattern] = useState("");
-  const [newRuleCategory, setNewRuleCategory] = useState(
-    policy.categories[0]?.id || "work",
+  const [taskListHighlightCost, setTaskListHighlightCost] = useState(
+    policy.taskListHighlightCost ?? true,
   );
 
   const [importPreview, setImportPreview] =
@@ -88,14 +78,22 @@ export function TimeSettingsPage({
     setSleepEnabled(policy.sleepTemplate.enabled);
     setSleepStart(policy.sleepTemplate.startTime);
     setSleepEnd(policy.sleepTemplate.endTime);
-    setProjectRules(policy.projectRules);
-    setTagRules(policy.tagRules);
+    setHourlyRateYuan(
+      String(normalizeHourlyRateCents(policy.hourlyRateCents) / 100),
+    );
+    setTaskListHighlightCost(policy.taskListHighlightCost ?? true);
   }, [policy]);
+
+  const parsedYuan = Number(hourlyRateYuan);
+  const previewRateCents =
+    Number.isFinite(parsedYuan) && parsedYuan >= 0
+      ? yuanToHourlyRateCents(parsedYuan)
+      : normalizeHourlyRateCents(policy.hourlyRateCents);
 
   async function handleSavePolicy(e: React.FormEvent) {
     e.preventDefault();
     const parsedThreshold = Number(thresholdMins);
-    await runMutation("已保存时间策略与自动分类规则", () =>
+    await runMutation("已保存时间与单价设置", () =>
       updateTimePolicy({
         expectedPolicyVersion: policy.policyVersion,
         patch: {
@@ -110,32 +108,11 @@ export function TimeSettingsPage({
             endTime: sleepEnd,
             version: policy.sleepTemplate.version,
           },
-          projectRules,
-          tagRules,
+          hourlyRateCents: previewRateCents,
+          taskListHighlightCost,
         },
       }),
     );
-  }
-
-  function handleAddRule() {
-    const pattern = newRulePattern.trim();
-    if (!pattern) return;
-    if (newRuleKind === "project") {
-      setProjectRules((prev) => [
-        ...prev.filter((r) => r.pattern !== pattern),
-        { pattern, categoryId: newRuleCategory },
-      ]);
-    } else {
-      setTagRules((prev) => [
-        ...prev.filter((r) => r.tag !== pattern),
-        {
-          tag: pattern,
-          categoryId: newRuleCategory,
-          priority: prev.length + 1,
-        },
-      ]);
-    }
-    setNewRulePattern("");
   }
 
   async function handlePreviewImport() {
@@ -208,6 +185,64 @@ export function TimeSettingsPage({
     <div className="max-w-2xl space-y-10">
       {/* Main Policy Form: Clean Linear-style setting rows */}
       <form onSubmit={(e) => void handleSavePolicy(e)} className="space-y-10">
+        <section>
+          <div className="flex items-center justify-between border-b border-border/60 pb-2">
+            <h2 className="text-xs font-medium text-muted-foreground">
+              时间单价与成本展示
+            </h2>
+            <span className="text-xs text-muted-foreground/70">
+              按后续新增记录生效
+            </span>
+          </div>
+
+          <div className="divide-y divide-border/35">
+            <div className="space-y-2 py-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm text-foreground">我的时间单价</div>
+                  <div className="text-xs text-muted-foreground">
+                    用于将投入时长自动折算为成本与任务预算；修改后从下一段计时或补记生效，历史记录保留当时的单价。
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">¥</span>
+                  <Input
+                    id="time-policy-rate"
+                    aria-label="我的时间单价"
+                    type="number"
+                    min={0}
+                    max={100000}
+                    step="1"
+                    className="h-8 w-24 text-right text-xs tabular-nums"
+                    value={hourlyRateYuan}
+                    onChange={(e) => setHourlyRateYuan(e.target.value)}
+                  />
+                  <span className="text-xs text-muted-foreground">/ 小时</span>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground/85 tabular-nums">
+                即时换算：{formatRateConversionHint(previewRateCents)}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 py-3.5">
+              <div>
+                <div className="text-sm text-foreground">
+                  默认任务列表突出金额
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  在任务行右侧优先展示已投入金额与超出预估提示，耗时作为辅助信息
+                </div>
+              </div>
+              <Switch
+                checked={taskListHighlightCost}
+                onCheckedChange={setTaskListHighlightCost}
+                aria-label="任务列表默认突出显示金额"
+              />
+            </div>
+          </div>
+        </section>
+
         <section>
           <div className="flex items-center justify-between border-b border-border/60 pb-2">
             <h2 className="text-xs font-medium text-muted-foreground">
@@ -297,131 +332,11 @@ export function TimeSettingsPage({
               )}
             </div>
           </div>
-        </section>
 
-        {/* Auto-classification rules */}
-        <section>
-          <div className="border-b border-border/60 pb-2">
-            <h2 className="text-xs font-medium text-muted-foreground">
-              自动分类规则
-            </h2>
-          </div>
-
-          <div className="divide-y divide-border/35">
-            {projectRules.map((rule) => (
-              <div
-                key={`proj-${rule.pattern}`}
-                className="group flex items-center justify-between gap-4 py-2.5 text-xs"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">项目</span>
-                  <span className="text-sm text-foreground">
-                    {rule.pattern}
-                  </span>
-                  <span className="text-muted-foreground/50">→</span>
-                  <span className="text-muted-foreground">
-                    {resolveCategoryLabel(rule.categoryId, policy)}
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label="删除项目规则"
-                  className="size-6 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
-                  onClick={() =>
-                    setProjectRules((prev) =>
-                      prev.filter((r) => r.pattern !== rule.pattern),
-                    )
-                  }
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            ))}
-            {tagRules.map((rule) => (
-              <div
-                key={`tag-${rule.tag}`}
-                className="group flex items-center justify-between gap-4 py-2.5 text-xs"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">标签</span>
-                  <span className="text-sm text-foreground">{rule.tag}</span>
-                  <span className="text-muted-foreground/50">→</span>
-                  <span className="text-muted-foreground">
-                    {resolveCategoryLabel(rule.categoryId, policy)}
-                  </span>
-                </div>
-                <Button
-                  type="button"
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label="删除标签规则"
-                  className="size-6 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
-                  onClick={() =>
-                    setTagRules((prev) =>
-                      prev.filter((r) => r.tag !== rule.tag),
-                    )
-                  }
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-b border-border/50 pb-2">
-            <Select
-              value={newRuleKind}
-              onValueChange={(v) =>
-                setNewRuleKind(v === "tag" ? "tag" : "project")
-              }
-            >
-              <SelectTrigger className="h-7 w-auto gap-1 border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="project">项目前缀</SelectItem>
-                <SelectItem value="tag">任务标签</SelectItem>
-              </SelectContent>
-            </Select>
-            <input
-              type="text"
-              className="min-w-[120px] flex-1 bg-transparent py-1 text-xs text-foreground placeholder:text-muted-foreground/55 outline-none"
-              placeholder={
-                newRuleKind === "project"
-                  ? "输入项目名如 Study…"
-                  : "输入标签如 reading…"
-              }
-              value={newRulePattern}
-              onChange={(e) => setNewRulePattern(e.target.value)}
-            />
-            <Select value={newRuleCategory} onValueChange={setNewRuleCategory}>
-              <SelectTrigger className="h-7 w-auto gap-1 border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {policy.categories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              type="button"
-              size="xs"
-              variant="ghost"
-              className="gap-1 text-xs"
-              disabled={!newRulePattern.trim()}
-              onClick={handleAddRule}
-            >
-              <Plus className="size-3.5" />
-              添加
-            </Button>
-          </div>
-
-          <div className="mt-5 flex justify-end">
+          <div className="mt-5 flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              活动归类直接使用 Taskwarrior 的「项目 + 标签」统计，不再单独维护预制分类。
+            </p>
             <Button type="submit" size="sm" disabled={busy}>
               保存设置
             </Button>

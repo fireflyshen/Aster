@@ -2,6 +2,7 @@ import { toDueDay } from "@/features/tasks/task-date";
 import { TaskRow } from "@/features/tasks/task-row";
 import { TaskColumnPicker } from "@/features/tasks/task-column-picker";
 import { taskColumnId, UNSECTIONED } from "@core/workspace/board";
+import type { TaskCostSummary } from "@core/time/model";
 import type { Organization } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { format } from "date-fns";
@@ -31,6 +32,8 @@ interface UseTaskRendererOptions {
   completion: CompletionTransition | undefined;
   expandedDrop: { uuid: string; version: number } | undefined;
   taskTrackedSeconds: (task: Task) => number | undefined;
+  taskCostSummary?: (task: Task) => TaskCostSummary | undefined;
+  taskListHighlightCost?: boolean;
   isTimingTask?: (uuid: string) => boolean;
   isTimeMode?: boolean;
   openEditor: (task?: Task, initial?: TaskInput) => void;
@@ -68,6 +71,8 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
     completion,
     expandedDrop,
     taskTrackedSeconds,
+    taskCostSummary,
+    taskListHighlightCost = true,
     isTimingTask,
     isTimeMode = false,
     openEditor,
@@ -156,6 +161,8 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
           </>
         }
         trackedSeconds={taskTrackedSeconds(task)}
+        costSummary={taskCostSummary ? taskCostSummary(task) : undefined}
+        highlightCost={taskListHighlightCost}
         timingActive={
           isTimingTask
             ? isTimingTask(task.uuid)

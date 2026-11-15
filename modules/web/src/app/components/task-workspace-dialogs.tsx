@@ -14,6 +14,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import type { TaskCostSummary } from "@core/time/model";
 import type {
   Organization,
   OrganizationChange,
@@ -81,7 +82,12 @@ export type TaskWorkspaceDialogsProps = {
     event: FormEvent,
     keepOpen?: boolean,
     taskDescription?: string,
+    onCreatedOrUpdated?: (taskUuid?: string) => Promise<void> | void,
   ) => void;
+  isTimeMode?: boolean;
+  hourlyRateCents?: number;
+  taskCostSummary?: (task: Task) => TaskCostSummary | undefined;
+  onRefreshTimeSnapshot?: () => Promise<unknown>;
   onMutate: (
     route: string,
     data: unknown,
@@ -148,6 +154,10 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
     onMutate,
     onChangeOrganization,
     onReloadAll,
+    isTimeMode = false,
+    hourlyRateCents = 10_000,
+    taskCostSummary,
+    onRefreshTimeSnapshot,
   } = props;
 
   const editorBusy = busy || organizationSaving;
@@ -443,6 +453,10 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
               void onDeleteTask(editing, "editor");
             }}
             onSubmit={onSubmitTaskForm}
+            isTimeMode={isTimeMode}
+            hourlyRateCents={hourlyRateCents}
+            costSummary={editing && taskCostSummary ? taskCostSummary(editing) : undefined}
+            onRefreshTimeSnapshot={onRefreshTimeSnapshot}
           />
         )}
       </TaskEditor>

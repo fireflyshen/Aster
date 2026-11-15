@@ -1,3 +1,7 @@
+import {
+  formatCurrencyCny,
+  formatDurationChinese,
+} from "@/features/time/time-format";
 import { TaskCheckbox } from "@/features/tasks/task-checkbox";
 import { toDueDay } from "@/features/tasks/task-date";
 import { TaskMetaChips } from "@/features/tasks/task-meta-chips";
@@ -7,6 +11,7 @@ import { TaskRowSubtree } from "@/features/tasks/task-row-subtree";
 import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
 import { formatDescriptionPreview } from "@core/tasks/description";
 import { taskDate } from "@core/tasks/quick-task";
+import type { TaskCostSummary } from "@core/time/model";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
@@ -41,6 +46,8 @@ export type TaskRowProps = {
   availableLabels?: SavedTag[];
   extraActions?: ReactNode;
   trackedSeconds?: number;
+  costSummary?: TaskCostSummary;
+  highlightCost?: boolean;
   timingActive?: boolean;
   isTimeMode?: boolean;
   timingUnavailable?: boolean;
@@ -79,6 +86,8 @@ export function TaskRow({
   availableLabels = [],
   extraActions,
   trackedSeconds,
+  costSummary,
+  highlightCost = true,
   timingActive: timingActiveProp,
   isTimeMode = false,
   timingUnavailable = false,
@@ -434,6 +443,64 @@ export function TaskRow({
                 />
               )}
             </div>
+
+            {isTimeMode &&
+              highlightCost &&
+              costSummary &&
+              (costSummary.confirmedCostCents > 0 ||
+                costSummary.provisionalCostCents > 0 ||
+                costSummary.hasBudget) && (
+                <div
+                  data-task-cost
+                  onClick={onEdit}
+                  className={cn(
+                    "shrink-0 cursor-pointer flex-col items-end justify-center py-1 text-right tabular-nums",
+                    variant === "list" ? "flex max-w-[168px]" : "hidden",
+                  )}
+                >
+                  <span className="text-[13px] font-semibold leading-tight text-foreground">
+                    {costSummary.confirmedCostCents > 0
+                      ? formatCurrencyCny(costSummary.confirmedCostCents)
+                      : costSummary.provisionalCostCents > 0
+                        ? `暂计 ${formatCurrencyCny(costSummary.provisionalCostCents)}`
+                        : costSummary.currentBudgetCents !== undefined
+                          ? `预算 ${formatCurrencyCny(costSummary.currentBudgetCents)}`
+                          : "—"}
+                  </span>
+                  {costSummary.confirmedSeconds > 0 ? (
+                    <span className="text-[11px] leading-tight text-muted-foreground">
+                      已投入{" "}
+                      {formatDurationChinese(costSummary.confirmedSeconds)}
+                    </span>
+                  ) : costSummary.provisionalSeconds > 0 ? (
+                    <span className="text-[11px] leading-tight text-amber-600 dark:text-amber-400">
+                      暂计{" "}
+                      {formatDurationChinese(costSummary.provisionalSeconds)} ·
+                      待核对
+                    </span>
+                  ) : costSummary.currentAllowanceSeconds !== undefined ? (
+                    <span className="text-[11px] leading-tight text-muted-foreground">
+                      预计{" "}
+                      {formatDurationChinese(
+                        costSummary.currentAllowanceSeconds,
+                      )}
+                    </span>
+                  ) : null}
+                  {costSummary.overInitialBudgetCents > 0 && (
+                    <span className="text-[11px] leading-tight font-medium text-amber-600 dark:text-amber-400">
+                      超出最初预估{" "}
+                      {formatCurrencyCny(costSummary.overInitialBudgetCents)}
+                    </span>
+                  )}
+                  {costSummary.confirmedCostCents > 0 &&
+                    costSummary.provisionalCostCents > 0 && (
+                      <span className="text-[10px] leading-tight text-amber-600 dark:text-amber-400">
+                        待核对{" "}
+                        {formatCurrencyCny(costSummary.provisionalCostCents)}
+                      </span>
+                    )}
+                </div>
+              )}
 
             {hasRightActions && (
               <TaskRowActions

@@ -3,7 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { setTaskBudget } from "@/features/time/time-api";
 import { taskDate } from "@core/tasks/quick-task";
+import {
+  DEFAULT_HOURLY_RATE_CENTS,
+  type TaskCostSummary,
+} from "@core/time/model";
+import { localDateOf } from "@core/time/zone";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { AlignLeft, ChevronRight } from "lucide-react";
@@ -16,6 +22,12 @@ import {
 } from "react";
 import { FormattedDescription } from "./description-content";
 import { TaskCheckbox } from "./task-checkbox";
+import {
+  createEmptyTaskBudgetDraft,
+  NewTaskBudgetSection,
+  TaskCostDetailSection,
+  type TaskBudgetDraft,
+} from "./task-cost-panel";
 import { toDueDay } from "./task-date";
 import { TaskDetailComments } from "./task-detail-comments";
 import { TaskDetailSidebar } from "./task-detail-sidebar";
@@ -57,10 +69,15 @@ type TaskFormProps = {
   onEditSeries: (uuid: string) => void;
   onRemoveNote: (entry: string, description: string) => Promise<boolean>;
   onToggleTask?: () => void;
+  isTimeMode?: boolean;
+  hourlyRateCents?: number;
+  costSummary?: TaskCostSummary;
+  onRefreshTimeSnapshot?: () => Promise<unknown>;
   onSubmit: (
     event: FormEvent<HTMLFormElement>,
     keepOpen?: boolean,
     taskDescription?: string,
+    onCreatedOrUpdated?: (taskUuid?: string) => Promise<void> | void,
   ) => void;
 };
 
@@ -102,6 +119,10 @@ export function TaskForm({
   onRemoveNote,
   onSubmit,
   onToggleTask,
+  isTimeMode = false,
+  hourlyRateCents = DEFAULT_HOURLY_RATE_CENTS,
+  costSummary,
+  onRefreshTimeSnapshot,
 }: TaskFormProps) {
   const [descriptionDraft, setDescriptionDraft] = useState(
     taskDescription || "",
@@ -111,8 +132,15 @@ export function TaskForm({
   const [descriptionError, setDescriptionError] = useState("");
   const [commentDirty, setCommentDirty] = useState(false);
   const [subtaskDirty, setSubtaskDirty] = useState(false);
+  const [budgetDraft, setBudgetDraft] = useState<TaskBudgetDraft>(
+    createEmptyTaskBudgetDraft,
+  );
   const descriptionLock = useRef(false);
   const initialDraft = useRef(JSON.stringify({ draft, due, tags }));
+
+  useEffect(() => {
+    setBudgetDraft(createEmptyTaskBudgetDraft());
+  }, [editing?.uuid]);
 
   useEffect(() => {
     if (editing && !editingDescription) {
@@ -184,10 +212,49 @@ export function TaskForm({
       !(await handleSaveDescription())
     )
       return;
+    const minutesNum = Number(budgetDraft.minutes.trim());
+    const shouldSaveNewBudget =
+      !editing &&
+      Boolean(isTimeMode) &&
+      Number.isFinite(minutesNum) &&
+      minutesNum > 0;
+    const budgetPayload = shouldSaveNewBudget
+      ? {
+          allowanceSeconds: Math.round(minutesNum * 60),
+          plannedStartTime: budgetDraft.plannedStartTime.trim() || undefined,
+          hardStopTime: budgetDraft.hardStopTime.trim() || undefined,
+        }
+      : undefined;
+    const timeZone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
+    const todayStr = localDateOf(Date.now(), timeZone);
     onSubmit(
       event,
       commentDirty || subtaskDirty,
       editing ? undefined : descriptionDraft.trim(),
+      budgetPayload
+        ? async (createdUuid) => {
+            if (!createdUuid) return;
+            await setTaskBudget({
+              taskUuid: createdUuid,
+              mode: "set",
+              allowanceSeconds: budgetPayload.allowanceSeconds,
+              ...(budgetPayload.plannedStartTime
+                ? {
+                    plannedStartDate: todayStr,
+                    plannedStartTime: budgetPayload.plannedStartTime,
+                  }
+                : {}),
+              ...(budgetPayload.hardStopTime
+                ? {
+                    hardStopDate: todayStr,
+                    hardStopTime: budgetPayload.hardStopTime,
+                  }
+                : {}),
+            });
+            await onRefreshTimeSnapshot?.();
+          }
+        : undefined,
     );
   }
 
@@ -392,6 +459,24 @@ export function TaskForm({
               </div>
             </div>
           </div>
+
+          {isTimeMode &&
+            (editing ? (
+              <TaskCostDetailSection
+                task={editing}
+                hourlyRateCents={hourlyRateCents}
+                initialSummary={costSummary}
+                disabled={locked}
+                onRefreshTimeSnapshot={onRefreshTimeSnapshot}
+              />
+            ) : (
+              <NewTaskBudgetSection
+                draft={budgetDraft}
+                onChange={setBudgetDraft}
+                hourlyRateCents={hourlyRateCents}
+                disabled={locked}
+              />
+            ))}
 
           {editing && (
             <TaskDetailSubtasks
