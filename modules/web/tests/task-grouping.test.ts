@@ -24,10 +24,7 @@ const compiled = esbuild.buildSync({
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString("base64")}`;
 const { buildTaskGroups, groupOptionsForContext } = await import(moduleUrl);
 
-const makeTask = (
-  uuid: string,
-  extra: Record<string, unknown> = {},
-) => ({
+const makeTask = (uuid: string, extra: Record<string, unknown> = {}) => ({
   id: 1,
   uuid,
   description: uuid,

@@ -224,8 +224,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
   const virtualGroupTitle = activeEntry
     ? activeItem && "expression" in activeItem
       ? activeItem.expression
-      : activeItem?.name ||
-        (activeEntry.kind === "filter" ? "过滤器" : "标签")
+      : activeItem?.name || (activeEntry.kind === "filter" ? "过滤器" : "标签")
     : views[view];
 
   return (

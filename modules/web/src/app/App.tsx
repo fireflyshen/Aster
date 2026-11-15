@@ -143,7 +143,8 @@ export function App() {
     now: data.now,
     currentProject: nav.currentProject,
     showInboxLocation:
-      Boolean(nav.activeEntry) || (nav.view !== "pending" && !nav.currentProject),
+      Boolean(nav.activeEntry) ||
+      (nav.view !== "pending" && !nav.currentProject),
     organization: data.organization,
     filterProjects,
     subtasksMap,

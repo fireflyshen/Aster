@@ -75,9 +75,7 @@ export function OrganizationRow({
         size="icon-sm"
         disabled={disabled}
         aria-label={
-          item.favorite
-            ? `取消收藏: ${item.name}`
-            : `添加到收藏: ${item.name}`
+          item.favorite ? `取消收藏: ${item.name}` : `添加到收藏: ${item.name}`
         }
         title={item.favorite ? "取消收藏" : "添加到收藏"}
         onClick={() => onFavorite(entry)}
@@ -97,9 +95,7 @@ export function OrganizationRow({
           size="icon-sm"
           disabled={disabled}
           aria-label={
-            isHidden
-              ? `取消隐藏: ${item.name}`
-              : `隐藏: ${item.name}`
+            isHidden ? `取消隐藏: ${item.name}` : `隐藏: ${item.name}`
           }
           title={isHidden ? "取消隐藏" : "隐藏"}
           onClick={() => onToggleHide(entry)}

@@ -61,7 +61,10 @@ export function useBuiltinFilterPrefs() {
     };
   }, []);
 
-  const favoriteIds = useMemo(() => new Set(prefs.favorites), [prefs.favorites]);
+  const favoriteIds = useMemo(
+    () => new Set(prefs.favorites),
+    [prefs.favorites],
+  );
   const hiddenIds = useMemo(() => new Set(prefs.hidden), [prefs.hidden]);
 
   const builtinFilters: SavedFilter[] = useMemo(

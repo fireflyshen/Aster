@@ -166,7 +166,12 @@ test("filterVisibleTasks properly scopes focus, later, today, urgency, and strik
     filterVisibleTasks({
       tasks: [tagged, untagged, completedTagged],
       view: "pending",
-      activeItem: { id: "tag:work", name: "Work", color: "blue", favorite: false },
+      activeItem: {
+        id: "tag:work",
+        name: "Work",
+        color: "blue",
+        favorite: false,
+      },
       inbox: false,
       currentProject: "",
       query: "",

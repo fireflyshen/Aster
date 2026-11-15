@@ -64,27 +64,27 @@ export function SidebarFavorites({
           </Button>
         ))}
         {favoriteTags.map((item) => (
-            <Button
-              key={item.id}
-              variant="navigation"
-              disabled={disabled}
-              aria-current={
-                !organizationPage && activeEntry?.id === item.id
-                  ? "page"
-                  : undefined
-              }
-              onClick={() => onEntry({ kind: "tag", item })}
-            >
-              <LabelIcon
-                className="size-[18px]"
-                style={{ color: itemColor(item.color) }}
-              />
-              <span className="truncate">{item.name}</span>
-              <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                {item.count || ""}
-              </span>
-            </Button>
-          ))}
+          <Button
+            key={item.id}
+            variant="navigation"
+            disabled={disabled}
+            aria-current={
+              !organizationPage && activeEntry?.id === item.id
+                ? "page"
+                : undefined
+            }
+            onClick={() => onEntry({ kind: "tag", item })}
+          >
+            <LabelIcon
+              className="size-[18px]"
+              style={{ color: itemColor(item.color) }}
+            />
+            <span className="truncate">{item.name}</span>
+            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+              {item.count || ""}
+            </span>
+          </Button>
+        ))}
       </nav>
     </>
   );

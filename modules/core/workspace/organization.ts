@@ -1,3 +1,4 @@
+import type { TimerSnapshot } from "../time/model.ts";
 import type { BoardChange, BoardState } from "./board.ts";
 import type { EnergyChange, EnergyState, EnergySummary } from "./energy.ts";
 import type { ProjectFocusChange, ProjectStatus } from "./focus.ts";
@@ -57,6 +58,19 @@ export type DescriptionChange = {
   | { action: "delete"; uuid: string }
 );
 
+export type WorkspaceTiming = {
+  available: boolean;
+  error?: string;
+  backend?: "time" | "timewarrior";
+  hardEnergyLimit?: boolean;
+  timeEnabled?: boolean;
+  timeAvailable?: boolean;
+  timeError?: string;
+  energyPeriod?: string;
+  timezone?: string;
+  historyComplete?: boolean;
+};
+
 export type Organization = {
   revision: number;
   filters: SavedFilter[];
@@ -68,7 +82,8 @@ export type Organization = {
   descriptions?: Record<string, string>;
   energyState?: EnergyState;
   energy?: EnergySummary;
-  timing?: { available: boolean; error?: string };
+  timing?: WorkspaceTiming;
+  timerSnapshot?: TimerSnapshot;
 };
 export type OrganizationChange =
   | BoardChange

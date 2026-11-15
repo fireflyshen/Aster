@@ -215,7 +215,10 @@ export function useWorkspaceNavigation() {
   const scope =
     !organizationPage && activeEntry?.kind === "filter"
       ? `filter=${encodeURIComponent((activeEntry.item as SavedFilter).expression)}`
-      : view === "completed" && !currentProject && !activeEntry && !organizationPage
+      : view === "completed" &&
+          !currentProject &&
+          !activeEntry &&
+          !organizationPage
         ? ("scope=completed" as const)
         : completeBehavior === "strikethrough"
           ? ("scope=all" as const)

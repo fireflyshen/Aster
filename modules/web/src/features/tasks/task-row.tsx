@@ -157,11 +157,11 @@ export function TaskRow({
   );
   const hasRightActions = Boolean(
     (!completed && onToggleStart) ||
-      (variant === "list" &&
-        !completed &&
-        (onSaveInline || onDueChange || onPriorityChange)) ||
-      hasMoreMenu ||
-      (variant === "list" && extraActions),
+    (variant === "list" &&
+      !completed &&
+      (onSaveInline || onDueChange || onPriorityChange)) ||
+    hasMoreMenu ||
+    (variant === "list" && extraActions),
   );
   const hasDetails = !!(
     (showProject && (task.project || showInbox)) ||

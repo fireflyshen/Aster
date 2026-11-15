@@ -1,3 +1,11 @@
+import {
+  addLocalDays,
+  formatCalendarDate,
+  isValidTimezone,
+  wallPartsAt,
+  zonedDateTimeToUtcMs,
+} from "../time/zone.ts";
+import type { Activity } from "../time/model.ts";
 import { parseTaskwarriorDate } from "../tasks/model.ts";
 
 export const DAILY_ENERGY_MAX = 100;
@@ -25,13 +33,20 @@ export type EnergySummary = {
   day: string;
   max: number;
   used: number;
-  remaining: number;
+  remaining: number | null;
   bonus: number;
   elixirCount: number;
   trackedSecondsToday: number;
   activeCount: number;
   calculatedAt: string;
   taskSeconds: Record<string, number>;
+  mode?: "legacy" | "time";
+  timezone?: string;
+  resetHour?: number;
+  periodLabel?: string;
+  complete?: boolean;
+  paused?: boolean;
+  incompleteReason?: string;
 };
 
 export type EnergyChange = {
@@ -54,10 +69,21 @@ function toDate(value: Date | string | undefined): Date | undefined {
   return parseTaskwarriorDate(value);
 }
 
-export function energyDayWindow(now = new Date()): {
+export function energyDayWindow(
+  now = new Date(),
+  timezone?: string,
+): {
   day: string;
   start: Date;
 } {
+  if (timezone && isValidTimezone(timezone)) {
+    const parts = wallPartsAt(now.getTime(), timezone);
+    const localDay = formatCalendarDate(parts.year, parts.month, parts.day);
+    const day =
+      parts.hour < ENERGY_RESET_HOUR ? addLocalDays(localDay, -1) : localDay;
+    const startMs = zonedDateTimeToUtcMs(day, "06:00:00", timezone);
+    return { day, start: new Date(startMs) };
+  }
   const start = new Date(now);
   if (start.getHours() < ENERGY_RESET_HOUR) {
     start.setDate(start.getDate() - 1);
@@ -235,11 +261,169 @@ export function calculateEnergy(
     activeCount: activeTasks.size,
     calculatedAt: now.toISOString(),
     taskSeconds,
+    mode: "legacy",
+    resetHour: ENERGY_RESET_HOUR,
+    complete: true,
+    paused: false,
+  };
+}
+
+export type TimeEnergyInput = {
+  tasks: EnergyTaskLike[];
+  activities: readonly Activity[];
+  activeActivityId: string | null;
+  timezone: string;
+  cutoverAtMs?: number;
+  importedRanges?: ReadonlyArray<{ rangeStartMs?: number; rangeEndMs?: number }>;
+  state?: Partial<EnergyState>;
+  now?: Date;
+};
+
+/**
+ * Computes optional 06:00-cycle Energy metrics from Time's located task-linked
+ * activities without falling back to Taskwarrior `task.start` timestamps.
+ */
+export function calculateTimeModeEnergy(input: TimeEnergyInput): EnergySummary {
+  const now = input.now ?? new Date();
+  const nowMs = now.getTime();
+  const { day, start: dayStart } = energyDayWindow(now, input.timezone);
+  const dayStartMs = dayStart.getTime();
+
+  const sameDay = input.state?.day === day;
+  const bonus =
+    sameDay && typeof input.state?.bonus === "number" && input.state.bonus > 0
+      ? Math.floor(input.state.bonus)
+      : 0;
+  const elixirCount =
+    sameDay &&
+    typeof input.state?.elixirCount === "number" &&
+    input.state.elixirCount > 0
+      ? Math.floor(input.state.elixirCount)
+      : 0;
+  const max = DAILY_ENERGY_MAX + bonus;
+
+  const cutoverNeedsImport =
+    input.cutoverAtMs !== undefined && input.cutoverAtMs > dayStartMs;
+  const cyclePreCutoverImported =
+    !cutoverNeedsImport ||
+    (input.importedRanges ?? []).some(
+      (range) =>
+        range.rangeStartMs !== undefined &&
+        range.rangeEndMs !== undefined &&
+        range.rangeStartMs <= dayStartMs &&
+        range.rangeEndMs >= (input.cutoverAtMs ?? dayStartMs),
+    );
+  const complete = cyclePreCutoverImported;
+
+  const completedUuids = new Set<string>();
+  const engagedTodayUuids = new Set<string>();
+  for (const task of input.tasks) {
+    if (!task.uuid) continue;
+    const key = task.uuid.toLowerCase();
+    const endDate = toDate(task.end);
+    if (task.status === "completed") {
+      completedUuids.add(key);
+      if (endDate && endDate >= dayStart && endDate <= now) {
+        engagedTodayUuids.add(key);
+      }
+    }
+  }
+
+  const taskSeconds: Record<string, number> = Object.create(null);
+  let trackedSecondsToday = 0;
+  let runningTaskActivityCount = 0;
+
+  for (const activity of input.activities) {
+    if (
+      activity.kind !== "located" ||
+      activity.reviewState === "voided" ||
+      activity.reviewState === "conflict" ||
+      !activity.taskUuid ||
+      activity.startMs === undefined
+    ) {
+      continue;
+    }
+
+    const rawEnd = activity.suspendMs ?? activity.endMs ?? nowMs;
+    const endMs = Math.min(rawEnd, nowMs);
+    if (endMs <= activity.startMs) continue;
+
+    const durationSec = Math.max(
+      0,
+      Math.floor((endMs - activity.startMs) / 1000),
+    );
+    const key = activity.taskUuid.toLowerCase();
+    const isCompleted = completedUuids.has(key);
+
+    if (
+      activity.endMs !== undefined &&
+      durationSec < MIN_VALID_INTERVAL_SECONDS &&
+      !isCompleted
+    ) {
+      continue;
+    }
+
+    taskSeconds[key] = (taskSeconds[key] || 0) + durationSec;
+
+    if (endMs > dayStartMs && activity.startMs < nowMs) {
+      const clippedStart = Math.max(activity.startMs, dayStartMs);
+      const clippedEnd = Math.min(endMs, nowMs);
+      const todaySec = Math.max(
+        0,
+        Math.floor((clippedEnd - clippedStart) / 1000),
+      );
+      trackedSecondsToday += todaySec;
+      engagedTodayUuids.add(key);
+    }
+
+    if (
+      complete &&
+      activity.id === input.activeActivityId &&
+      activity.endMs === undefined &&
+      activity.suspendMs === undefined
+    ) {
+      runningTaskActivityCount = 1;
+    }
+  }
+
+  const entryCost = engagedTodayUuids.size * START_ENERGY_COST;
+  const durationCost = Math.floor(
+    trackedSecondsToday / SECONDS_PER_ENERGY_POINT,
+  );
+  const used = entryCost + durationCost;
+  const remaining = complete ? Math.max(0, max - used) : null;
+
+  return {
+    day,
+    max,
+    used,
+    remaining,
+    bonus,
+    elixirCount,
+    trackedSecondsToday,
+    activeCount: complete ? runningTaskActivityCount : 0,
+    calculatedAt: now.toISOString(),
+    taskSeconds,
+    mode: "time",
+    timezone: input.timezone,
+    resetHour: ENERGY_RESET_HOUR,
+    periodLabel: `06:00 周期 (${input.timezone})`,
+    complete,
+    paused: !complete,
+    ...(!complete
+      ? {
+          incompleteReason:
+            "切换当期历史尚未导入，已暂停剩余精力推算",
+        }
+      : {}),
   };
 }
 
 export function applyEnergyElixir(summary: EnergySummary): EnergyState {
-  const overdraft = Math.max(0, summary.used - DAILY_ENERGY_MAX);
+  const overdraft =
+    summary.paused || summary.remaining === null
+      ? 0
+      : Math.max(0, summary.used - DAILY_ENERGY_MAX);
   const baseBonus = Math.max(summary.bonus, overdraft);
   return {
     day: summary.day,
@@ -253,9 +437,29 @@ export function liveEnergySummary(
   now = new Date(),
 ): EnergySummary | undefined {
   if (!summary) return undefined;
-  const currentWindow = energyDayWindow(now);
+  const currentWindow = energyDayWindow(now, summary.timezone);
   if (currentWindow.day !== summary.day) {
+    if (summary.paused || summary.complete === false) {
+      return {
+        ...summary,
+        day: currentWindow.day,
+        max: DAILY_ENERGY_MAX,
+        used: summary.activeCount * START_ENERGY_COST,
+        remaining: Math.max(
+          0,
+          DAILY_ENERGY_MAX - summary.activeCount * START_ENERGY_COST,
+        ),
+        bonus: 0,
+        elixirCount: 0,
+        trackedSecondsToday: 0,
+        calculatedAt: now.toISOString(),
+        complete: true,
+        paused: false,
+        incompleteReason: undefined,
+      };
+    }
     return {
+      ...summary,
       day: currentWindow.day,
       max: DAILY_ENERGY_MAX,
       used: summary.activeCount * START_ENERGY_COST,
@@ -266,12 +470,12 @@ export function liveEnergySummary(
       bonus: 0,
       elixirCount: 0,
       trackedSecondsToday: 0,
-      activeCount: summary.activeCount,
       calculatedAt: now.toISOString(),
-      taskSeconds: summary.taskSeconds,
     };
   }
-  if (summary.activeCount <= 0) return summary;
+  if (summary.paused || summary.remaining === null || summary.activeCount <= 0) {
+    return summary;
+  }
   const baseTime = new Date(summary.calculatedAt).getTime();
   if (Number.isNaN(baseTime) || now.getTime() <= baseTime) return summary;
   const deltaSec = Math.floor((now.getTime() - baseTime) / 1000);
