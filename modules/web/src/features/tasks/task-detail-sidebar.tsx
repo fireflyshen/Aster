@@ -32,8 +32,10 @@ type TaskDetailSidebarProps = {
   availableLabels: SavedTag[];
   editing?: Task;
   disabled: boolean;
+  timingActive?: boolean;
   timingUnavailable?: boolean;
   onToggleStart?: () => void;
+  onClearStartMark?: () => void;
   onDraftChange: (draft: TaskInput) => void;
   onDueChange: (due: string) => void;
   onTagsChange: (tags: string) => void;
@@ -51,8 +53,10 @@ export function TaskDetailSidebar({
   availableLabels,
   editing,
   disabled,
+  timingActive: timingActiveProp,
   timingUnavailable = false,
   onToggleStart,
+  onClearStartMark,
   onDraftChange,
   onDueChange,
   onTagsChange,
@@ -69,6 +73,7 @@ export function TaskDetailSidebar({
   );
   const currentPriority = priorityOption(draft.priority || "");
   const isStarted = Boolean(editing?.start) && editing?.status !== "completed";
+  const isTimingActive = timingActiveProp ?? isStarted;
 
   return (
     <aside className="task-detail-aside" aria-label="任务属性">
@@ -80,20 +85,22 @@ export function TaskDetailSidebar({
             </Label>
             <Button
               type="button"
-              variant={isStarted ? "secondary" : "outline"}
-              disabled={disabled || (!isStarted && timingUnavailable)}
+              variant={isTimingActive ? "secondary" : "outline"}
+              disabled={disabled || (!isTimingActive && timingUnavailable)}
               onClick={onToggleStart}
               className={cn(
                 "h-9 w-full justify-start gap-2 px-2.5 text-xs shadow-none",
-                isStarted
+                isTimingActive
                   ? "border border-primary/25 bg-primary/8 font-medium text-foreground hover:bg-primary/14"
-                  : "border-border/80 bg-transparent font-normal text-foreground hover:bg-(--navigation-hover)",
+                  : isStarted
+                    ? "border border-border bg-muted/40 font-medium text-foreground hover:bg-(--navigation-hover)"
+                    : "border-border/80 bg-transparent font-normal text-foreground hover:bg-(--navigation-hover)",
               )}
             >
-              {isStarted ? (
+              {isTimingActive ? (
                 <>
                   <Square className="size-3 shrink-0 fill-current text-primary" />
-                  <span>正在进行中（停止计时）</span>
+                  <span>正在计时中（停止计时）</span>
                 </>
               ) : (
                 <>
@@ -101,11 +108,26 @@ export function TaskDetailSidebar({
                   <span>
                     {timingUnavailable
                       ? "计时不可用"
-                      : "设为正在进行（开始计时）"}
+                      : isStarted
+                        ? "切换为此任务计时"
+                        : "设为正在进行（开始计时）"}
                   </span>
                 </>
               )}
             </Button>
+            {isStarted && !isTimingActive && onClearStartMark && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+                onClick={onClearStartMark}
+                className="h-7 justify-start gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3.5 shrink-0" />
+                <span>清除进行中标记</span>
+              </Button>
+            )}
           </div>
         </div>
       )}

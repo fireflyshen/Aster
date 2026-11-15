@@ -33,8 +33,10 @@ type TaskFormProps = {
   parentTask?: Task;
   busy: boolean;
   needsCheck: boolean;
+  timingActive?: boolean;
   timingUnavailable?: boolean;
   onToggleStart?: () => void;
+  onClearStartMark?: () => void;
   subtasks?: Task[];
   onAddSubtask?: (input: TaskInput) => Promise<boolean>;
   onToggleSubtask?: (subtask: Task, completed: boolean) => void;
@@ -75,8 +77,10 @@ export function TaskForm({
   parentTask,
   busy,
   needsCheck,
+  timingActive,
   timingUnavailable = false,
   onToggleStart,
+  onClearStartMark,
   subtasks = [],
   onAddSubtask,
   onToggleSubtask,
@@ -439,8 +443,10 @@ export function TaskForm({
           availableLabels={availableLabels}
           editing={editing}
           disabled={locked}
+          timingActive={timingActive}
           timingUnavailable={timingUnavailable}
           onToggleStart={onToggleStart}
+          onClearStartMark={onClearStartMark}
           onDraftChange={onDraftChange}
           onDueChange={onDueChange}
           onTagsChange={onTagsChange}

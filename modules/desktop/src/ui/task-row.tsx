@@ -16,10 +16,12 @@ import {
   TaskRowActions,
 } from "./task-list-actions";
 import {
+  resolveTaskTiming,
   type SubtaskMeta,
   taskAccessories,
   taskItemIcon,
 } from "./task-list-model";
+import type { TrackedTimerSnapshot } from "../../../core/time/snapshot.ts";
 
 interface TaskListRowProps {
   task: TaskwarriorTask;
@@ -33,6 +35,8 @@ interface TaskListRowProps {
   service: TaskService;
   client: WorkspaceClient | undefined;
   organization: Organization | undefined;
+  trackedSnapshot?: TrackedTimerSnapshot | null;
+  monoNow?: number;
   board: BoardState;
   actions: TaskActionsController;
   commonProps: CommonTaskActionsProps;
@@ -51,13 +55,15 @@ export function TaskListRow({
   service,
   client,
   organization,
+  trackedSnapshot,
+  monoNow,
   board,
   actions,
   commonProps,
 }: TaskListRowProps) {
   const description = organization?.descriptions?.[task.uuid];
-  const trackedSeconds =
-    organization?.energy?.taskSeconds?.[task.uuid.toLowerCase()];
+  const timing = resolveTaskTiming(task, organization, trackedSnapshot, monoNow);
+  const trackedSeconds = timing.trackedSeconds;
   const columnName = organization
     ? [unsectionedColumn, ...board.columns].find(
         (column) => column.id === taskColumnId(task, board),
@@ -82,7 +88,7 @@ export function TaskListRow({
   return (
     <List.Item
       id={task.uuid}
-      icon={taskItemIcon(task, group, actions.pendingTask)}
+      icon={taskItemIcon(task, group, actions.pendingTask, organization)}
       title={task.description}
       subtitle={subtitle}
       keywords={[
@@ -96,7 +102,7 @@ export function TaskListRow({
       accessories={
         showInspector
           ? undefined
-          : taskAccessories(task, organization, subtaskMeta)
+          : taskAccessories(task, organization, subtaskMeta, trackedSnapshot, monoNow)
       }
       detail={
         showInspector ? (
@@ -106,6 +112,8 @@ export function TaskListRow({
             parentTask={parentTask}
             subtasks={subtasks}
             trackedSeconds={trackedSeconds}
+            timingActive={timing.timingActive}
+            isTimeMode={timing.isTimeMode}
             projectDescription={projectDescription}
             columnName={columnName}
             organization={organization}

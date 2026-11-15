@@ -11,6 +11,12 @@ import {
   inheritSubtaskColumns,
   unsectionedColumn,
 } from "../../../core/workspace/board.ts";
+import {
+  displayedActiveActivitySeconds,
+  displayedTaskSecondsFromSnapshot,
+  snapshotLiveStatus,
+  type TrackedTimerSnapshot,
+} from "../../../core/time/snapshot.ts";
 import { formatDuration } from "../../../core/workspace/energy.ts";
 import { focusProject, projectStatus } from "../../../core/workspace/focus.ts";
 import {
@@ -173,19 +179,97 @@ export function priorityTextLabel(priority: string): string {
   return priority;
 }
 
+export interface ResolvedTaskTiming {
+  isTimeMode: boolean;
+  started: boolean;
+  timingActive: boolean;
+  trackedSeconds: number | undefined;
+  liveSeconds: number;
+}
+
+/** Resolves task timer status and cumulative seconds without falling back to `task.start` in Time mode. */
+export function resolveTaskTiming(
+  task: TaskwarriorTask,
+  organization: Organization | undefined,
+  trackedSnapshot?: TrackedTimerSnapshot | null,
+  currentMonoMs?: number,
+): ResolvedTaskTiming {
+  const started = Boolean(task.start) && task.status !== "completed";
+  const snap =
+    trackedSnapshot ??
+    (organization?.timerSnapshot
+      ? {
+          snapshot: organization.timerSnapshot,
+          receivedMonoMs: Date.now(),
+        }
+      : null);
+  const isTimeMode =
+    organization?.timing?.backend === "time" || snap?.snapshot.backend === "time";
+
+  if (isTimeMode) {
+    if (organization?.timing?.available === false) {
+      return {
+        isTimeMode: true,
+        started,
+        timingActive: false,
+        trackedSeconds: undefined,
+        liveSeconds: 0,
+      };
+    }
+    const mono =
+      currentMonoMs ??
+      (trackedSnapshot ? performance.now() : snap?.receivedMonoMs ?? 0);
+    const activeUuid = snap?.snapshot.activeActivity?.taskUuid?.toLowerCase();
+    const timingActive =
+      !completedOrEnded(task) &&
+      Boolean(activeUuid && activeUuid === task.uuid.toLowerCase());
+    const trackedSeconds = displayedTaskSecondsFromSnapshot(
+      snap,
+      task.uuid,
+      mono,
+    );
+    return {
+      isTimeMode: true,
+      started,
+      timingActive,
+      trackedSeconds,
+      liveSeconds: timingActive ? (trackedSeconds ?? 0) : 0,
+    };
+  }
+
+  const baseTrackedSeconds =
+    organization?.energy?.taskSeconds?.[task.uuid.toLowerCase()] || 0;
+  const liveSeconds = started
+    ? Math.max(0, Math.floor((Date.now() - task.start!.getTime()) / 1000))
+    : 0;
+  return {
+    isTimeMode: false,
+    started,
+    timingActive: started,
+    trackedSeconds: Math.max(baseTrackedSeconds, liveSeconds),
+    liveSeconds,
+  };
+}
+
+function completedOrEnded(task: TaskwarriorTask): boolean {
+  return task.status === "completed";
+}
+
 /** Builds the Raycast list item accessories (subtasks, description, labels, timer duration, priority, date). */
 export function taskAccessories(
   task: TaskwarriorTask,
   organization: Organization | undefined,
   subtaskMeta?: SubtaskMeta,
+  trackedSnapshot?: TrackedTimerSnapshot | null,
+  currentMonoMs?: number,
 ): List.Item.Accessory[] {
-  const baseTrackedSeconds =
-    organization?.energy?.taskSeconds?.[task.uuid.toLowerCase()] || 0;
-  const liveSeconds =
-    task.start && task.status !== "completed"
-      ? Math.max(0, Math.floor((Date.now() - task.start.getTime()) / 1000))
-      : 0;
-  const totalSeconds = Math.max(baseTrackedSeconds, liveSeconds);
+  const timing = resolveTaskTiming(
+    task,
+    organization,
+    trackedSnapshot,
+    currentMonoMs,
+  );
+  const { isTimeMode, started, timingActive, trackedSeconds } = timing;
 
   const accessories: List.Item.Accessory[] = [];
   const subStats = subtaskMeta?.stats[task.uuid];
@@ -221,20 +305,36 @@ export function taskAccessories(
     });
   }
 
-  if (totalSeconds > 0 && (liveSeconds > 0 || baseTrackedSeconds >= 60)) {
+  if (timingActive) {
+    accessories.push({
+      text: {
+        value:
+          trackedSeconds === undefined ? "—" : formatDuration(trackedSeconds),
+        color: Color.PrimaryText,
+      },
+      icon: { source: Icon.Stopwatch, tintColor: toneColor("timer") },
+      tooltip: "Timer running",
+    });
+  } else if (started) {
     accessories.push({
       text:
-        liveSeconds > 0
-          ? {
-              value: formatDuration(totalSeconds),
-              color: Color.PrimaryText,
-            }
-          : formatDuration(totalSeconds),
-      icon:
-        liveSeconds > 0
-          ? { source: Icon.Stopwatch, tintColor: toneColor("timer") }
-          : Icon.Stopwatch,
-      tooltip: liveSeconds > 0 ? "Timer running" : "Tracked time today",
+        trackedSeconds === undefined
+          ? "In progress · —"
+          : `In progress · ${formatDuration(trackedSeconds)}`,
+      icon: Icon.Clock,
+      tooltip: "In-progress mark (not actively timing)",
+    });
+  } else if (isTimeMode && trackedSeconds === undefined) {
+    accessories.push({
+      text: "—",
+      icon: Icon.Stopwatch,
+      tooltip: "Tracked time unavailable",
+    });
+  } else if (trackedSeconds !== undefined && trackedSeconds >= 60) {
+    accessories.push({
+      text: formatDuration(trackedSeconds),
+      icon: Icon.Stopwatch,
+      tooltip: "Tracked time today",
     });
   }
   if (task.priority && task.status !== "completed") {
@@ -281,12 +381,25 @@ export function taskItemIcon(
   task: TaskwarriorTask,
   group: string,
   pendingTask: string | undefined,
+  organization?: Organization,
 ): List.Item.Props["icon"] {
   if (task.uuid === pendingTask) return Icon.Hourglass;
   if (task.status === "completed") {
     return { source: Icon.CheckCircle, tintColor: toneColor("completed") };
   }
-  if (task.start) return { source: Icon.Play, tintColor: toneColor("timer") };
+  const isTimeMode = organization?.timing?.backend === "time";
+  const activeTaskUuid =
+    organization?.timerSnapshot?.activeActivity?.taskUuid?.toLowerCase();
+  if (isTimeMode) {
+    if (activeTaskUuid && activeTaskUuid === task.uuid.toLowerCase()) {
+      return { source: Icon.Play, tintColor: toneColor("timer") };
+    }
+    if (task.start) {
+      return { source: Icon.Clock, tintColor: toneColor("waiting") };
+    }
+  } else if (task.start) {
+    return { source: Icon.Play, tintColor: toneColor("timer") };
+  }
   if (group === "waiting") {
     return { source: Icon.Clock, tintColor: toneColor("waiting") };
   }
@@ -310,15 +423,43 @@ export function listNavigationTitle(
   connectionLabel: string,
   organization: Organization | undefined,
   sectionTitle?: string,
+  trackedSnapshot?: TrackedTimerSnapshot | null,
+  currentMonoMs?: number,
 ): string {
   const prefix = sectionTitle || "My Tasks";
+  const snap = trackedSnapshot?.snapshot ?? organization?.timerSnapshot;
+  const activePart = (() => {
+    if (!snap) return "";
+    if (snap.state === "pending_reconcile") return " · Pending reconcile";
+    if (snap.state === "restoring") return " · Restoring time";
+    if (!snap.activeActivity) return "";
+    const status = trackedSnapshot
+      ? snapshotLiveStatus(trackedSnapshot, currentMonoMs ?? performance.now())
+      : undefined;
+    const secs = trackedSnapshot
+      ? displayedActiveActivitySeconds(
+          trackedSnapshot,
+          currentMonoMs ?? performance.now(),
+        )
+      : undefined;
+    const label = snap.activeActivity.title || snap.activeActivity.categoryId;
+    const dur = secs !== undefined ? ` (${formatDuration(secs)})` : "";
+    const staleTag =
+      status?.stateLabel === "stale" ? " [stale]" : "";
+    return ` · ▶ ${label}${dur}${staleTag}`;
+  })();
+
   if (organization?.timing?.available === false) {
-    return `${prefix} · Timer unavailable · ${connectionLabel}`;
+    return `${prefix}${activePart} · Timer unavailable · ${connectionLabel}`;
   }
   if (organization?.energy) {
-    return `${prefix} · ⚡ ${organization.energy.remaining}/${organization.energy.max} · ${connectionLabel}`;
+    const remainingText =
+      organization.energy.remaining === null
+        ? "—"
+        : String(organization.energy.remaining);
+    return `${prefix}${activePart} · ⚡ ${remainingText}/${organization.energy.max} · ${connectionLabel}`;
   }
-  return `${prefix} · ${connectionLabel}`;
+  return `${prefix}${activePart} · ${connectionLabel}`;
 }
 
 /** Computes empty-state title and optional description for the current view state. */

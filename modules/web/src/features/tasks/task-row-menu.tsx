@@ -42,6 +42,8 @@ export function TaskRowMenu({
   onEdit,
   onDelete,
   onToggleStart,
+  onClearStartMark,
+  timingActive,
   timingUnavailable,
   extraActions,
 }: {
@@ -59,6 +61,8 @@ export function TaskRowMenu({
   onEdit: () => void;
   onDelete?: () => void;
   onToggleStart?: () => void;
+  onClearStartMark?: () => void;
+  timingActive?: boolean;
   timingUnavailable?: boolean;
   extraActions?: ReactNode;
 }) {
@@ -239,22 +243,42 @@ export function TaskRowMenu({
         {extraActions}
         <div className="pt-1">
           {!completed && onToggleStart && (
-            <Button
-              type="button"
-              variant="navigation"
-              disabled={disabled || (!task.start && timingUnavailable)}
-              onClick={() => {
-                onOpenChange(false);
-                onToggleStart();
-              }}
-            >
-              {task.start ? (
-                <Square className="size-3.5" />
-              ) : (
-                <Play className="size-3.5" />
+            <>
+              <Button
+                type="button"
+                variant="navigation"
+                disabled={disabled || (!timingActive && timingUnavailable)}
+                onClick={() => {
+                  onOpenChange(false);
+                  onToggleStart();
+                }}
+              >
+                {timingActive ? (
+                  <Square className="size-3.5" />
+                ) : (
+                  <Play className="size-3.5" />
+                )}
+                {timingActive
+                  ? "停止计时"
+                  : task.start
+                    ? "切换为此任务计时"
+                    : "设为正在进行（开始计时）"}
+              </Button>
+              {!timingActive && task.start && onClearStartMark && (
+                <Button
+                  type="button"
+                  variant="navigation"
+                  disabled={disabled}
+                  onClick={() => {
+                    onOpenChange(false);
+                    onClearStartMark();
+                  }}
+                >
+                  <X className="size-3.5" />
+                  清除进行中标记
+                </Button>
               )}
-              {task.start ? "停止进行（停止计时）" : "设为正在进行（开始计时）"}
-            </Button>
+            </>
           )}
           {!completed && onStartAddSubtask && (
             <Button

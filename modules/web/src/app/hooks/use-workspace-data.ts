@@ -1,5 +1,13 @@
 import { api, RequestError } from "@/lib/api";
 import { taskDate } from "@core/tasks/quick-task";
+import type { TimerSnapshot } from "@core/time/model";
+import {
+  displayedActiveActivitySeconds,
+  displayedTaskSecondsFromSnapshot,
+  mergeTimerSnapshot,
+  snapshotLiveStatus,
+  type TrackedTimerSnapshot,
+} from "@core/time/snapshot";
 import { liveEnergySummary } from "@core/workspace/energy";
 import { inProject } from "@core/workspace/focus";
 import type {
@@ -45,11 +53,24 @@ export function useWorkspaceData({
   const [needsCheck, setNeedsCheck] = useState(false);
   const [notice, setNotice] = useState("");
   const [now, setNow] = useState(() => new Date());
+  const [monoNow, setMonoNow] = useState(() => performance.now());
+  const [trackedSnapshot, setTrackedSnapshot] =
+    useState<TrackedTimerSnapshot | null>(null);
 
   const generation = useRef(0);
   const organizationGeneration = useRef(0);
+  const snapshotGeneration = useRef(0);
   const writeLock = useRef(false);
   const previousScope = useRef("");
+
+  const applyTimerSnapshot = useCallback((incoming?: TimerSnapshot) => {
+    if (!incoming) return;
+    const receivedMonoMs = performance.now();
+    setTrackedSnapshot((prev) =>
+      mergeTimerSnapshot(prev, incoming, receivedMonoMs),
+    );
+    setMonoNow(receivedMonoMs);
+  }, []);
 
   const loadOrganization = useCallback(async () => {
     const ticket = ++organizationGeneration.current;
@@ -57,6 +78,7 @@ export function useWorkspaceData({
       const result = await api<Organization>("organization");
       if (ticket !== organizationGeneration.current) return;
       setOrganization(result);
+      applyTimerSnapshot(result.timerSnapshot);
       setOrganizationReady(true);
       setOrganizationError("");
       setOrganizationBlocked(false);
@@ -66,7 +88,7 @@ export function useWorkspaceData({
         setOrganizationError((error as Error).message);
       }
     }
-  }, []);
+  }, [applyTimerSnapshot]);
 
   useEffect(() => {
     void loadOrganization();
@@ -85,14 +107,17 @@ export function useWorkspaceData({
         setLoaded(false);
       }
       try {
-        const result = await api<{ tasks: Task[]; projects: string[] }>(
-          `tasks?${scope}`,
-        );
+        const result = await api<{
+          tasks: Task[];
+          projects: string[];
+          timerSnapshot?: TimerSnapshot;
+        }>(`tasks?${scope}`);
         if (ticket !== generation.current) return false;
         if (beforeApply) await beforeApply(result.tasks);
         if (ticket !== generation.current) return false;
         setTasks(result.tasks);
         setProjects(result.projects);
+        applyTimerSnapshot(result.timerSnapshot);
         setLoaded(true);
         setConnectionError(false);
         setNeedsCheck(false);
@@ -109,8 +134,34 @@ export function useWorkspaceData({
         if (ticket === generation.current) setLoading(false);
       }
     },
-    [scope],
+    [scope, applyTimerSnapshot],
   );
+
+  const isTimeMode =
+    organization.timing?.backend === "time" ||
+    trackedSnapshot?.snapshot.backend === "time";
+
+  const refreshTimerSnapshot = useCallback(async () => {
+    if (!isTimeMode) return;
+    const ticket = ++snapshotGeneration.current;
+    const prioritizedUuids = [
+      ...tasks.filter((t) => t.status !== "completed").map((t) => t.uuid),
+      ...tasks.filter((t) => t.status === "completed").map((t) => t.uuid),
+    ].slice(0, 200);
+    const qs =
+      prioritizedUuids.length > 0
+        ? `?uuids=${encodeURIComponent(prioritizedUuids.join(","))}`
+        : "";
+    try {
+      const snap = await api<TimerSnapshot>(`time/snapshot${qs}`);
+      if (ticket !== snapshotGeneration.current) return;
+      applyTimerSnapshot(snap);
+      setConnectionError(false);
+    } catch {
+      // Offline / transient failures keep existing snapshot and stop extrapolating at liveUntil.
+      setMonoNow(performance.now());
+    }
+  }, [isTimeMode, tasks, applyTimerSnapshot]);
 
   useEffect(() => {
     void load();
@@ -121,21 +172,48 @@ export function useWorkspaceData({
 
   useEffect(() => {
     const refresh = () => {
+      setMonoNow(performance.now());
       if (!document.hidden && !isModalOpen && !writeLock.current) {
+        if (isTimeMode) void refreshTimerSnapshot();
         void load();
         void loadOrganization();
       }
     };
+    const onOffline = () => {
+      setMonoNow(performance.now());
+    };
     document.addEventListener("visibilitychange", refresh);
-    return () => document.removeEventListener("visibilitychange", refresh);
-  }, [load, loadOrganization, isModalOpen]);
+    window.addEventListener("online", refresh);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("online", refresh);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [load, loadOrganization, refreshTimerSnapshot, isModalOpen, isTimeMode]);
 
-  const hasActiveTask =
-    (organization.energy?.activeCount || 0) > 0 ||
-    tasks.some((task) => Boolean(task.start) && task.status !== "completed");
+  const timerLiveStatus = isTimeMode
+    ? snapshotLiveStatus(trackedSnapshot, monoNow)
+    : undefined;
+
+  const hasActiveTask = isTimeMode
+    ? Boolean(timerLiveStatus?.canTick)
+    : (organization.energy?.activeCount || 0) > 0 ||
+      tasks.some((task) => Boolean(task.start) && task.status !== "completed");
 
   useEffect(() => {
     setNow(new Date());
+    setMonoNow(performance.now());
+    if (isTimeMode) {
+      if (!timerLiveStatus?.canTick) return;
+      const tickId = window.setInterval(() => {
+        if (!document.querySelector("[data-board-scroll][data-drag-active]")) {
+          setMonoNow(performance.now());
+          setNow(new Date());
+        }
+      }, 1_000);
+      return () => window.clearInterval(tickId);
+    }
     if (!hasActiveTask) return;
     const id = window.setInterval(() => {
       // Avoid forcing full re-render while pointer drag animation is running.
@@ -144,12 +222,65 @@ export function useWorkspaceData({
       }
     }, 15_000);
     return () => window.clearInterval(id);
-  }, [hasActiveTask, organization.energy?.calculatedAt]);
+  }, [
+    isTimeMode,
+    timerLiveStatus?.canTick,
+    hasActiveTask,
+    organization.energy?.calculatedAt,
+  ]);
 
-  const energy = liveEnergySummary(organization.energy, now);
+  useEffect(() => {
+    if (!isTimeMode || !loaded) return;
+    const id = window.setInterval(() => {
+      if (
+        !document.hidden &&
+        !isModalOpen &&
+        !writeLock.current &&
+        navigator.onLine !== false
+      ) {
+        void refreshTimerSnapshot();
+      }
+    }, 15_000);
+    return () => window.clearInterval(id);
+  }, [isTimeMode, loaded, isModalOpen, refreshTimerSnapshot]);
+
+  const energy = liveEnergySummary(
+    organization.energy,
+    isTimeMode && trackedSnapshot && !timerLiveStatus?.canTick
+      ? organization.energy?.calculatedAt
+        ? new Date(organization.energy.calculatedAt)
+        : now
+      : now,
+  );
+
+  const isTimingTask = useCallback(
+    (taskUuid: string): boolean => {
+      if (!isTimeMode) {
+        return tasks.some(
+          (t) =>
+            t.uuid.toLowerCase() === taskUuid.toLowerCase() &&
+            Boolean(t.start) &&
+            t.status !== "completed",
+        );
+      }
+      const activeUuid = trackedSnapshot?.snapshot.activeActivity?.taskUuid;
+      return Boolean(
+        activeUuid && activeUuid.toLowerCase() === taskUuid.toLowerCase(),
+      );
+    },
+    [isTimeMode, tasks, trackedSnapshot],
+  );
 
   const taskTrackedSeconds = useCallback(
     (task: Task): number | undefined => {
+      if (isTimeMode) {
+        if (organization.timing?.available === false) return undefined;
+        return displayedTaskSecondsFromSnapshot(
+          trackedSnapshot,
+          task.uuid,
+          monoNow,
+        );
+      }
       if (organization.timing?.available === false) return undefined;
       const key = task.uuid.toLowerCase();
       const base = organization.energy?.taskSeconds?.[key] ?? 0;
@@ -162,8 +293,19 @@ export function useWorkspaceData({
       }
       return base;
     },
-    [organization.timing?.available, organization.energy, now],
+    [
+      isTimeMode,
+      trackedSnapshot,
+      monoNow,
+      organization.timing?.available,
+      organization.energy,
+      now,
+    ],
   );
+
+  const activeActivitySeconds = isTimeMode
+    ? displayedActiveActivitySeconds(trackedSnapshot, monoNow)
+    : undefined;
 
   const changeOrganization = useCallback(
     async (change: OrganizationChange) => {
@@ -180,6 +322,7 @@ export function useWorkspaceData({
       try {
         const result = await api<Organization>("organization", change);
         setOrganization(result);
+        applyTimerSnapshot(result.timerSnapshot);
         if (change.kind === "project" && change.action !== "status") {
           const original = change.originalName || change.item.name;
           onProjectRemap((name) =>
@@ -335,6 +478,12 @@ export function useWorkspaceData({
     setNotice,
     now,
     energy,
+    isTimeMode,
+    timerSnapshot: trackedSnapshot?.snapshot,
+    timerLiveStatus,
+    activeActivitySeconds,
+    isTimingTask,
+    refreshTimerSnapshot,
     writeLock,
     connectionLabel,
     taskTrackedSeconds,

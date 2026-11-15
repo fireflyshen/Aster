@@ -335,7 +335,9 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
             <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <span>{notice}</span>
               <div className="flex items-center gap-2">
-                {/energy exhausted|精力已耗尽/i.test(notice) && (
+                {organization.timing?.hardEnergyLimit !== false &&
+                  organization.timing?.backend !== "time" &&
+                  /energy exhausted|精力已耗尽/i.test(notice) && (
                   <Button
                     variant="outline"
                     size="sm"

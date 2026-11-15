@@ -6,6 +6,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { EnergySummary } from "@core/workspace/energy";
+import type { TimerSnapshot } from "@core/time/model";
+import type { snapshotLiveStatus } from "@core/time/snapshot";
 import {
   FOCUS_LIMIT,
   focusProject,
@@ -118,6 +120,9 @@ type WorkspaceSidebarProps = {
   connectionLabel: string;
   energy?: EnergySummary;
   onElixir?: () => void;
+  timerSnapshot?: TimerSnapshot;
+  timerLiveStatus?: ReturnType<typeof snapshotLiveStatus>;
+  activeActivitySeconds?: number;
   timingUnavailable?: boolean;
   onRetryTiming?: () => void;
   onSearch: () => void;
@@ -159,6 +164,9 @@ export function WorkspaceSidebar({
   connectionLabel,
   energy,
   onElixir,
+  timerSnapshot,
+  timerLiveStatus,
+  activeActivitySeconds,
   timingUnavailable,
   onRetryTiming,
   onSearch,
@@ -397,6 +405,10 @@ export function WorkspaceSidebar({
       />
       <SidebarEnergyMeter
         energy={energy}
+        timing={organization.timing}
+        timerSnapshot={timerSnapshot}
+        timerLiveStatus={timerLiveStatus}
+        activeActivitySeconds={activeActivitySeconds}
         timingUnavailable={timingUnavailable}
         disabled={disabled}
         busy={busy}

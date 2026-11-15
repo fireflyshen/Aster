@@ -1,5 +1,8 @@
 export class RequestError extends Error {
   uncertain = false;
+  status?: number;
+  code?: string;
+  operationId?: string;
 }
 export async function api<T = { ok: true }>(
   route: string,
@@ -40,6 +43,14 @@ export async function api<T = { ok: true }>(
   }
   if (!response.ok) {
     const error = new RequestError(result.error || "Action failed");
+    error.status = response.status;
+    error.code = typeof result.code === "string" ? result.code : undefined;
+    error.operationId =
+      typeof result.operationId === "string"
+        ? result.operationId
+        : typeof result.details?.operationId === "string"
+          ? result.details.operationId
+          : undefined;
     error.uncertain =
       result.outcome === "unknown" ||
       (data !== undefined && response.status >= 500);

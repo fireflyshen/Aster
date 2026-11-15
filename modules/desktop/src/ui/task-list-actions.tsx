@@ -263,7 +263,12 @@ export function CommonTaskActions({
           }
         />
       ) : null}
-      {client && organization?.energy && organization.energy.remaining <= 25 ? (
+      {client &&
+      organization?.timing?.backend !== "time" &&
+      organization?.timing?.hardEnergyLimit !== false &&
+      organization?.energy &&
+      organization.energy.remaining !== null &&
+      organization.energy.remaining <= 25 ? (
         <Action
           title="Restore +30 Energy (Elixir)"
           icon={Icon.Bolt}
@@ -351,8 +356,14 @@ export function TaskRowActions(props: TaskRowActionsProps) {
   const completed = task.status === "completed";
   const taskDescription = organization?.descriptions?.[task.uuid];
   const isSubtask = !!organization?.subtasks?.[task.uuid];
-  const trackedSeconds =
-    organization?.energy?.taskSeconds?.[task.uuid.toLowerCase()];
+  const isTimeMode = organization?.timing?.backend === "time";
+  const isTiming = isTimeMode
+    ? organization?.timerSnapshot?.activeActivity?.taskUuid?.toLowerCase() ===
+      task.uuid.toLowerCase()
+    : Boolean(task.start) && !completed;
+  const trackedSeconds = isTimeMode
+    ? organization?.timerSnapshot?.taskTotalsSeconds?.[task.uuid.toLowerCase()]
+    : organization?.energy?.taskSeconds?.[task.uuid.toLowerCase()];
   const doneSubtasks = subtasks.filter(
     (item) => item.status === "completed",
   ).length;
@@ -476,14 +487,27 @@ export function TaskRowActions(props: TaskRowActionsProps) {
       {!completed ? (
         <ActionPanel.Section title="Schedule & Focus">
           <Action
-            title={task.start ? "Stop Timer" : "Start Timer"}
-            icon={task.start ? Icon.Stop : Icon.Play}
+            title={
+              isTiming
+                ? "Stop Timer"
+                : task.start && isTimeMode
+                  ? "Switch Timer to This Task"
+                  : "Start Timer"
+            }
+            icon={isTiming ? Icon.Stop : Icon.Play}
             shortcut={{
               macOS: { modifiers: ["cmd", "shift"], key: "t" },
               Windows: { modifiers: ["ctrl", "shift"], key: "t" },
             }}
             onAction={() => actions.startOrStopTask(task)}
           />
+          {!isTiming && task.start && isTimeMode ? (
+            <Action
+              title="Clear In-Progress Mark"
+              icon={Icon.XMarkCircle}
+              onAction={() => actions.clearStartMark(task)}
+            />
+          ) : null}
           <ActionPanel.Submenu
             title="Schedule Due…"
             icon={Icon.Calendar}

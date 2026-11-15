@@ -31,9 +31,12 @@ interface UseTaskRendererOptions {
   completion: CompletionTransition | undefined;
   expandedDrop: { uuid: string; version: number } | undefined;
   taskTrackedSeconds: (task: Task) => number | undefined;
+  isTimingTask?: (uuid: string) => boolean;
+  isTimeMode?: boolean;
   openEditor: (task?: Task, initial?: TaskInput) => void;
   toggleTask: (task: Task, wasCompleted: boolean) => unknown;
   toggleStartTask: (task: Task) => unknown;
+  clearStartMark?: (task: Task) => unknown;
   patchTaskFields: (
     task: Task,
     patch: { due?: string; priority?: "H" | "M" | "L" | "" },
@@ -65,9 +68,12 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
     completion,
     expandedDrop,
     taskTrackedSeconds,
+    isTimingTask,
+    isTimeMode = false,
     openEditor,
     toggleTask,
     toggleStartTask,
+    clearStartMark,
     patchTaskFields,
     saveInlineTask,
     deleteTask,
@@ -124,6 +130,9 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
         onEdit={() => openEditor(task)}
         onComplete={() => void toggleTask(task, completed)}
         onToggleStart={() => void toggleStartTask(task)}
+        onClearStartMark={
+          clearStartMark ? () => void clearStartMark(task) : undefined
+        }
         onDueChange={(nextDue) => void patchTaskFields(task, { due: nextDue })}
         onPriorityChange={(priority) =>
           void patchTaskFields(task, { priority })
@@ -147,6 +156,12 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
           </>
         }
         trackedSeconds={taskTrackedSeconds(task)}
+        timingActive={
+          isTimingTask
+            ? isTimingTask(task.uuid)
+            : Boolean(task.start) && !completed
+        }
+        isTimeMode={isTimeMode}
         timingUnavailable={organization.timing?.available === false}
         showProject={!currentProject}
         showInbox={showInboxLocation}

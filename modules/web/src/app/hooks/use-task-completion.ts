@@ -33,6 +33,7 @@ type TaskCompletionDeps = {
   loading: boolean;
   needsCheck: boolean;
   energy?: EnergySummary;
+  isTimingTask?: (uuid: string) => boolean;
   writeLock: MutableRefObject<boolean>;
   isSubtask: (uuid: string) => boolean;
   setNotice: (message: string) => void;
@@ -94,6 +95,7 @@ export function useTaskCompletion(deps: TaskCompletionDeps) {
     loading,
     needsCheck,
     energy,
+    isTimingTask,
     writeLock,
     isSubtask,
     setNotice,
@@ -233,18 +235,33 @@ export function useTaskCompletion(deps: TaskCompletionDeps) {
   );
 
   const toggleStartTask = useCallback(
-    async (task: Task) => {
+    async (task: Task, forcedAction?: "start" | "stop" | "clear_mark") => {
       if (writeLock.current || needsCheck || loading || organizationSaving) {
         return false;
       }
-      const started = Boolean(task.start) && task.status !== "completed";
-      if (!started && organization.timing?.available === false) {
+      const isTimeBackend = organization.timing?.backend === "time";
+      const hardEnergyLimit =
+        !isTimeBackend && organization.timing?.hardEnergyLimit !== false;
+      const hasStart = Boolean(task.start) && task.status !== "completed";
+      const isTiming = isTimingTask ? isTimingTask(task.uuid) : hasStart;
+      const nextAction =
+        forcedAction === "clear_mark"
+          ? "stop"
+          : (forcedAction ?? (isTiming ? "stop" : "start"));
+
+      if (nextAction === "start" && organization.timing?.available === false) {
         setNotice(
           "计时记录暂不可用，请刷新后再开始任务。已开始的计时仍可正常停止。",
         );
         return false;
       }
-      if (!started && energy && energy.remaining <= 0) {
+      if (
+        hardEnergyLimit &&
+        nextAction === "start" &&
+        energy &&
+        energy.remaining !== null &&
+        energy.remaining <= 0
+      ) {
         setNotice(
           `今日精力已耗尽 (0/${energy.max})。请恢复 +30 精力或休息至 06:00。`,
         );
@@ -253,15 +270,28 @@ export function useTaskCompletion(deps: TaskCompletionDeps) {
       dismissUndo();
       const saved = await mutateWithOrigin("action", {
         uuid: task.uuid,
-        action: started ? "stop" : "start",
+        action: nextAction,
       });
       if (saved) {
-        showToast({
-          task,
-          wasCompleted: false,
-          wasStarted: started,
-          message: started ? "已停止计时" : "已开始计时 (-5 精力)",
-        });
+        if (forcedAction === "clear_mark") {
+          showToast({
+            task,
+            wasCompleted: false,
+            message: "已清除进行中标记",
+          });
+        } else {
+          showToast({
+            task,
+            wasCompleted: false,
+            wasStarted: nextAction === "stop",
+            message:
+              nextAction === "stop"
+                ? "已停止计时"
+                : hardEnergyLimit
+                  ? "已开始计时 (-5 精力)"
+                  : "已开始计时",
+          });
+        }
       }
       return saved;
     },
@@ -271,12 +301,20 @@ export function useTaskCompletion(deps: TaskCompletionDeps) {
       loading,
       organizationSaving,
       organization.timing?.available,
+      organization.timing?.backend,
+      organization.timing?.hardEnergyLimit,
       energy,
+      isTimingTask,
       setNotice,
       dismissUndo,
       mutateWithOrigin,
       showToast,
     ],
+  );
+
+  const clearStartMark = useCallback(
+    (task: Task) => toggleStartTask(task, "clear_mark"),
+    [toggleStartTask],
   );
 
   return {
@@ -290,5 +328,6 @@ export function useTaskCompletion(deps: TaskCompletionDeps) {
     dismissUndo,
     toggleTask,
     toggleStartTask,
+    clearStartMark,
   };
 }

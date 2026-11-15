@@ -256,6 +256,8 @@ export function TaskListScreen({
             service={service}
             client={workspace.client}
             organization={organization}
+            trackedSnapshot={workspace.trackedSnapshot}
+            monoNow={workspace.monoNow}
             board={board}
             actions={taskActions}
             commonProps={commonActionProps}
@@ -306,6 +308,8 @@ export function TaskListScreen({
         service.connection.label,
         organization,
         navSectionTitle,
+        workspace.trackedSnapshot,
+        workspace.monoNow,
       )}
       searchBarPlaceholder="Search tasks, subtasks, projects or tags"
       searchBarAccessory={

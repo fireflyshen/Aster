@@ -66,6 +66,31 @@ type Placement struct {
 	UUID     string `json:"uuid"`
 	ColumnID string `json:"columnId"`
 }
+type ActiveActivitySnapshot struct {
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	CategoryID string `json:"categoryId"`
+	TaskUUID   string `json:"taskUuid,omitempty"`
+	StartedAt  string `json:"startedAt"`
+	State      string `json:"state"`
+	SuspendAt  string `json:"suspendAt,omitempty"`
+}
+
+type TimerSnapshot struct {
+	Backend           string                  `json:"backend"`
+	ContractVersion   int                     `json:"contractVersion"`
+	TimeEpoch         int64                   `json:"timeEpoch"`
+	TaskDataEpoch     int64                   `json:"taskDataEpoch"`
+	State             string                  `json:"state"`
+	SessionVersion    int64                   `json:"sessionVersion"`
+	SnapshotAt        string                  `json:"snapshotAt"`
+	LiveUntil         string                  `json:"liveUntil"`
+	ActiveActivity    *ActiveActivitySnapshot `json:"activeActivity"`
+	TaskTotalsSeconds map[string]float64      `json:"taskTotalsSeconds"`
+	TotalsComplete    bool                    `json:"totalsComplete"`
+	HistoryComplete   bool                    `json:"historyComplete"`
+}
+
 type Organization struct {
 	Filters       []SavedItem       `json:"filters"`
 	Tags          []SavedItem       `json:"tags"`
@@ -73,19 +98,35 @@ type Organization struct {
 	Subtasks      map[string]string `json:"subtasks"`
 	Descriptions  map[string]string `json:"descriptions"`
 	Energy        *struct {
-		Remaining           float64            `json:"remaining"`
+		Remaining           *float64           `json:"remaining"`
 		Max                 float64            `json:"max"`
 		ActiveCount         int                `json:"activeCount"`
 		TrackedSecondsToday float64            `json:"trackedSecondsToday"`
 		TaskSeconds         map[string]float64 `json:"taskSeconds"`
+		Mode                string             `json:"mode"`
+		Timezone            string             `json:"timezone"`
+		ResetHour           int                `json:"resetHour"`
+		PeriodLabel         string             `json:"periodLabel"`
+		Complete            bool               `json:"complete"`
+		Paused              bool               `json:"paused"`
+		IncompleteReason    string             `json:"incompleteReason"`
 	} `json:"energy"`
 	Timing *struct {
-		Available bool   `json:"available"`
-		Error     string `json:"error"`
+		Available       bool   `json:"available"`
+		Error           string `json:"error"`
+		Backend         string `json:"backend"`
+		HardEnergyLimit *bool  `json:"hardEnergyLimit"`
+		TimeEnabled     bool   `json:"timeEnabled"`
+		TimeAvailable   bool   `json:"timeAvailable"`
+		TimeError       string `json:"timeError"`
+		EnergyPeriod    string `json:"energyPeriod"`
+		Timezone        string `json:"timezone"`
+		HistoryComplete bool   `json:"historyComplete"`
 	} `json:"timing"`
-	Revision int       `json:"revision"`
-	Projects []Project `json:"projects"`
-	Board    struct {
+	TimerSnapshot *TimerSnapshot `json:"timerSnapshot"`
+	Revision      int            `json:"revision"`
+	Projects      []Project      `json:"projects"`
+	Board         struct {
 		Columns    []Column    `json:"columns"`
 		Placements []Placement `json:"placements"`
 		Order      []string    `json:"order"`

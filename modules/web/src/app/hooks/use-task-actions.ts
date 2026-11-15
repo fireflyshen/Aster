@@ -33,6 +33,7 @@ type TaskActionsDeps = {
   busy: boolean;
   needsCheck: boolean;
   energy?: EnergySummary;
+  isTimingTask?: (uuid: string) => boolean;
   writeLock: MutableRefObject<boolean>;
   isSubtask: (uuid: string) => boolean;
   setNotice: (message: string) => void;
@@ -59,6 +60,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
     busy,
     needsCheck,
     energy,
+    isTimingTask,
     writeLock,
     isSubtask,
     setNotice,
@@ -106,6 +108,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
     loading,
     needsCheck,
     energy,
+    isTimingTask,
     writeLock,
     isSubtask,
     setNotice,

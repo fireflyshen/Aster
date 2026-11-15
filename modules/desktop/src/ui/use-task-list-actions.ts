@@ -128,8 +128,23 @@ export function useTaskListActions({
     );
   }
 
-  function startOrStopTask(task: TaskwarriorTask) {
-    if (!task.start && organization?.timing?.available === false) {
+  function startOrStopTask(
+    task: TaskwarriorTask,
+    forcedAction?: "start" | "stop" | "clear_mark",
+  ) {
+    const isTimeBackend = organization?.timing?.backend === "time";
+    const hardEnergyLimit =
+      !isTimeBackend && organization?.timing?.hardEnergyLimit !== false;
+    const isTiming = isTimeBackend
+      ? organization?.timerSnapshot?.activeActivity?.taskUuid?.toLowerCase() ===
+        task.uuid.toLowerCase()
+      : Boolean(task.start) && task.status !== "completed";
+    const nextAction =
+      forcedAction === "clear_mark"
+        ? "stop"
+        : (forcedAction ?? (isTiming ? "stop" : "start"));
+
+    if (nextAction === "start" && organization?.timing?.available === false) {
       void showToast({
         style: Toast.Style.Failure,
         title: "Timer Data Unavailable",
@@ -139,8 +154,10 @@ export function useTaskListActions({
       return;
     }
     if (
-      !task.start &&
+      hardEnergyLimit &&
+      nextAction === "start" &&
       organization?.energy &&
+      organization.energy.remaining !== null &&
       organization.energy.remaining <= 0
     ) {
       void showToast({
@@ -150,9 +167,21 @@ export function useTaskListActions({
       });
       return;
     }
-    void mutate(task, task.start ? "Task stopped" : "Task started", () =>
-      task.start ? runTaskAction(task, "stop") : runTaskAction(task, "start"),
+    const title =
+      forcedAction === "clear_mark"
+        ? "Cleared in-progress mark"
+        : nextAction === "stop"
+          ? "Timer stopped"
+          : "Timer started";
+    void mutate(task, title, () =>
+      nextAction === "stop"
+        ? runTaskAction(task, "stop")
+        : runTaskAction(task, "start"),
     );
+  }
+
+  function clearStartMark(task: TaskwarriorTask) {
+    startOrStopTask(task, "clear_mark");
   }
 
   function deferTask(task: TaskwarriorTask, date: Date | null) {
@@ -324,6 +353,7 @@ export function useTaskListActions({
     runTaskAction,
     undo,
     startOrStopTask,
+    clearStartMark,
     deferTask,
     clearWaitingDate,
     setTaskNextStep,

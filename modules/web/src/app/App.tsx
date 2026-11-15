@@ -60,6 +60,7 @@ export function App() {
     busy: data.busy,
     needsCheck: data.needsCheck,
     energy: data.energy,
+    isTimingTask: data.isTimingTask,
     writeLock: data.writeLock,
     isSubtask,
     setNotice: data.setNotice,
@@ -153,9 +154,12 @@ export function App() {
     completion: taskActions.completion,
     expandedDrop: taskActions.expandedDrop,
     taskTrackedSeconds: data.taskTrackedSeconds,
+    isTimingTask: data.isTimingTask,
+    isTimeMode: data.isTimeMode,
     openEditor: taskActions.openEditor,
     toggleTask: taskActions.toggleTask,
     toggleStartTask: taskActions.toggleStartTask,
+    clearStartMark: taskActions.clearStartMark,
     patchTaskFields: taskActions.patchTaskFields,
     saveInlineTask: taskActions.saveInlineTask,
     deleteTask: taskActions.deleteTask,
@@ -208,8 +212,15 @@ export function App() {
         onProjects={() => nav.openManagementPage("projects")}
         connectionLabel={data.connectionLabel}
         energy={data.energy}
+        timerSnapshot={data.timerSnapshot}
+        timerLiveStatus={data.timerLiveStatus}
+        activeActivitySeconds={data.activeActivitySeconds}
         timingUnavailable={data.organization.timing?.available === false}
-        onRetryTiming={() => void data.loadOrganization()}
+        onRetryTiming={() =>
+          void (data.isTimeMode
+            ? Promise.all([data.refreshTimerSnapshot(), data.loadOrganization()])
+            : data.loadOrganization())
+        }
         onElixir={() => void data.restoreEnergy()}
         onAdd={taskActions.openQuickAdd}
         onEntry={nav.openEntry}
@@ -365,6 +376,8 @@ export function App() {
         onCreateSubtask={taskActions.createSubtask}
         onToggleTask={taskActions.toggleTask}
         onToggleStart={taskActions.toggleStartTask}
+        onClearStartMark={taskActions.clearStartMark}
+        isTimingTask={data.isTimingTask}
         onUnlinkSubtask={taskActions.unlinkSubtask}
         onDeleteTask={taskActions.deleteTask}
         onSubmitTaskForm={taskActions.submitTaskForm}

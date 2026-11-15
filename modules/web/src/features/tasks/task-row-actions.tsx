@@ -27,6 +27,7 @@ type TaskRowActionsProps = {
   completed: boolean;
   disabled: boolean;
   started: boolean;
+  timingActive?: boolean;
   timingUnavailable: boolean;
   dueDay: string;
   isSubtask: boolean;
@@ -40,6 +41,7 @@ type TaskRowActionsProps = {
   onEdit: () => void;
   onInlineEdit?: () => void;
   onToggleStart?: () => void;
+  onClearStartMark?: () => void;
   onDueChange?: (due: string) => void;
   onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
   onStartAddSubtask?: () => void;
@@ -54,6 +56,7 @@ export function TaskRowActions({
   completed,
   disabled,
   started,
+  timingActive = started,
   timingUnavailable,
   dueDay,
   isSubtask,
@@ -67,6 +70,7 @@ export function TaskRowActions({
   onEdit,
   onInlineEdit,
   onToggleStart,
+  onClearStartMark,
   onDueChange,
   onPriorityChange,
   onStartAddSubtask,
@@ -195,24 +199,28 @@ export function TaskRowActions({
           type="button"
           variant="ghost"
           size="icon-sm"
-          disabled={disabled || (!started && timingUnavailable)}
-          aria-label={`${started ? "停止正在进行" : "设为正在进行（开始计时）"}: ${task.description}`}
+          disabled={disabled || (!timingActive && timingUnavailable)}
+          aria-label={`${timingActive ? "停止计时" : started ? "切换为此任务计时" : "设为正在进行（开始计时）"}: ${task.description}`}
           title={
-            !started && timingUnavailable
+            !timingActive && timingUnavailable
               ? "计时不可用"
-              : started
-                ? "正在进行中 — 点击停止计时 (S)"
-                : "设为正在进行 · 开始计时 (S)"
+              : timingActive
+                ? "正在计时中 — 点击停止计时 (S)"
+                : started
+                  ? "任务标记进行中（未在计时）· 点击切换为当前计时 (S)"
+                  : "设为正在进行 · 开始计时 (S)"
           }
           onClick={onToggleStart}
           className={cn(
             "size-6 rounded-[4px] transition-colors hover:bg-accent",
-            started
+            timingActive
               ? "text-primary font-semibold"
-              : "text-muted-foreground hover:text-foreground",
+              : started
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground",
           )}
         >
-          {started ? (
+          {timingActive ? (
             <Square className="size-3 fill-current" />
           ) : (
             <Play className="size-3.5" />
@@ -235,6 +243,8 @@ export function TaskRowActions({
           onEdit={onEdit}
           onDelete={onDelete}
           onToggleStart={onToggleStart}
+          onClearStartMark={onClearStartMark}
+          timingActive={timingActive}
           timingUnavailable={timingUnavailable}
           extraActions={extraActions}
         />

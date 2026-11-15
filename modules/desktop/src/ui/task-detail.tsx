@@ -25,6 +25,8 @@ export interface TaskDetailDataProps {
   parentTask?: TaskwarriorTask;
   subtasks?: TaskwarriorTask[];
   trackedSeconds?: number;
+  timingActive?: boolean;
+  isTimeMode?: boolean;
   projectDescription?: string;
   columnName?: string;
   organization?: Organization;
@@ -87,12 +89,24 @@ function renderMetadataRows(
     parentTask,
     subtasks = [],
     trackedSeconds,
+    timingActive,
+    isTimeMode: isTimeModeProp,
     columnName,
     organization,
   }: TaskDetailDataProps,
 ) {
-  const runningSeconds =
-    task.start && task.status !== "completed"
+  const isTimeMode = isTimeModeProp ?? organization?.timing?.backend === "time";
+  const isTiming =
+    timingActive ??
+    (isTimeMode
+      ? organization?.timerSnapshot?.activeActivity?.taskUuid?.toLowerCase() ===
+        task.uuid.toLowerCase()
+      : Boolean(task.start) && task.status !== "completed");
+  const runningSeconds = isTimeMode
+    ? isTiming
+      ? (trackedSeconds ?? 0)
+      : 0
+    : task.start && task.status !== "completed"
       ? Math.max(0, Math.floor((Date.now() - task.start.getTime()) / 1000))
       : 0;
   const doneCount = subtasks.filter(
@@ -106,11 +120,13 @@ function renderMetadataRows(
         text={
           task.status === "completed"
             ? "Completed"
-            : runningSeconds > 0
-              ? "In Progress"
-              : task.wait
-                ? "Waiting"
-                : "Pending"
+            : isTiming
+              ? "Timing"
+              : task.start
+                ? "In Progress"
+                : task.wait
+                  ? "Waiting"
+                  : "Pending"
         }
       />
       {parentTask ? (
@@ -134,17 +150,23 @@ function renderMetadataRows(
           />
         </Metadata.TagList>
       ) : null}
-      {runningSeconds > 0 ? (
+      {isTiming ? (
         <Metadata.TagList title="Active Timer">
           <Metadata.TagList.Item
-            text={`Running (${formatDuration(runningSeconds)})`}
+            text={
+              trackedSeconds === undefined && isTimeMode
+                ? "Running (—)"
+                : `Running (${formatDuration(runningSeconds)})`
+            }
             color={toneColor("timer")}
           />
         </Metadata.TagList>
       ) : null}
-      {trackedSeconds && trackedSeconds > 0 ? (
+      {isTimeMode && trackedSeconds === undefined ? (
+        <Metadata.Label title="Tracked Time" text="—" />
+      ) : trackedSeconds !== undefined && trackedSeconds > 0 ? (
         <Metadata.Label
-          title="Tracked Today"
+          title="Tracked Time"
           text={formatDuration(trackedSeconds)}
         />
       ) : null}

@@ -19,20 +19,22 @@ type subtaskStats struct {
 }
 
 type viewIndex struct {
-	built          bool
-	sig            indexSig
-	anyRunning     bool
-	tasksByUUID    map[string]Task
-	dates          map[string]parsedDates
-	colSet         map[string]bool
-	placement      map[string]string
-	orderRank      map[string]int
-	parentOf       map[string]string
-	childrenOf     map[string][]string
-	subStats       map[string]subtaskStats
-	projByName     map[string]Project
-	activeProjects []Project
-	tagByName      map[string]SavedItem
+	built                bool
+	sig                  indexSig
+	anyRunning           bool
+	isTimeMode           bool
+	activeTimingTaskUUID string
+	tasksByUUID          map[string]Task
+	dates                map[string]parsedDates
+	colSet               map[string]bool
+	placement            map[string]string
+	orderRank            map[string]int
+	parentOf             map[string]string
+	childrenOf           map[string][]string
+	subStats             map[string]subtaskStats
+	projByName           map[string]Project
+	activeProjects       []Project
+	tagByName            map[string]SavedItem
 }
 
 func (m model) indexSig() indexSig {
@@ -98,6 +100,15 @@ func buildViewIndex(tasks []Task, org Organization) viewIndex {
 	for _, t := range org.Tags {
 		idx.tagByName[t.Name] = t
 	}
+	isTimeMode := (org.Timing != nil && org.Timing.Backend == "time") ||
+		(org.TimerSnapshot != nil && org.TimerSnapshot.Backend == "time")
+	idx.isTimeMode = isTimeMode
+	if isTimeMode && org.TimerSnapshot != nil && org.TimerSnapshot.ActiveActivity != nil {
+		idx.activeTimingTaskUUID = org.TimerSnapshot.ActiveActivity.TaskUUID
+		idx.anyRunning = org.TimerSnapshot.State == "ready" &&
+			org.TimerSnapshot.ActiveActivity.State == "running" &&
+			org.TimerSnapshot.ActiveActivity.SuspendAt == ""
+	}
 	for _, t := range tasks {
 		idx.tasksByUUID[t.UUID] = t
 		idx.dates[t.UUID] = parsedDates{
@@ -106,7 +117,7 @@ func buildViewIndex(tasks []Task, org Organization) viewIndex {
 			start: date(t.Start),
 			end:   date(t.End),
 		}
-		if t.Start != "" && (t.Status == "pending" || t.Status == "waiting") {
+		if !isTimeMode && t.Start != "" && (t.Status == "pending" || t.Status == "waiting") {
 			idx.anyRunning = true
 		}
 	}
@@ -235,7 +246,11 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 		case m.view == "urgency":
 			match = unfinished && !td.wait.After(now)
 		case m.view == "active":
-			match = unfinished && t.Start != ""
+			if idx.isTimeMode {
+				match = unfinished && (t.Start != "" || (idx.activeTimingTaskUUID != "" && strings.EqualFold(idx.activeTimingTaskUUID, t.UUID)))
+			} else {
+				match = unfinished && t.Start != ""
+			}
 		case m.view == "waiting":
 			match = t.Status == "waiting" || (unfinished && td.wait.After(now))
 		case m.view == "completed":

@@ -30,6 +30,7 @@ export type TaskRowProps = {
   onEdit: () => void;
   onComplete: () => void;
   onToggleStart?: () => void;
+  onClearStartMark?: () => void;
   onDueChange?: (due: string) => void;
   onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
   onSaveInline?: (
@@ -40,6 +41,8 @@ export type TaskRowProps = {
   availableLabels?: SavedTag[];
   extraActions?: ReactNode;
   trackedSeconds?: number;
+  timingActive?: boolean;
+  isTimeMode?: boolean;
   timingUnavailable?: boolean;
   showProject?: boolean;
   showInbox?: boolean;
@@ -67,6 +70,7 @@ export function TaskRow({
   onEdit,
   onComplete,
   onToggleStart,
+  onClearStartMark,
   onDueChange,
   onPriorityChange,
   onSaveInline,
@@ -75,6 +79,8 @@ export function TaskRow({
   availableLabels = [],
   extraActions,
   trackedSeconds,
+  timingActive: timingActiveProp,
+  isTimeMode = false,
   timingUnavailable = false,
   showProject = true,
   showInbox = false,
@@ -91,6 +97,7 @@ export function TaskRow({
 }: TaskRowProps) {
   const checked = transition?.checked ?? completed;
   const started = !!task.start && !checked;
+  const timingActive = (timingActiveProp ?? started) && !checked;
   const descriptionPreview = formatDescriptionPreview(description);
   const dueDay = toDueDay(task.due);
   const now = new Date();
@@ -173,7 +180,9 @@ export function TaskRow({
     task.wait ||
     (Number.isFinite(task.urgency) && task.urgency > 0) ||
     started ||
+    timingActive ||
     (trackedSeconds ?? 0) > 0 ||
+    (isTimeMode && trackedSeconds === undefined) ||
     totalSubtasks > 0
   );
 
@@ -404,6 +413,8 @@ export function TaskRow({
                   showInbox={showInbox}
                   sectionName={sectionName}
                   started={started}
+                  timingActive={timingActive}
+                  isTimeMode={isTimeMode}
                   timingUnavailable={timingUnavailable}
                   trackedSeconds={trackedSeconds}
                   availableLabels={availableLabels}
@@ -431,6 +442,7 @@ export function TaskRow({
                 completed={completed}
                 disabled={disabled}
                 started={started}
+                timingActive={timingActive}
                 timingUnavailable={timingUnavailable}
                 dueDay={dueDay}
                 isSubtask={isSubtask}
@@ -446,6 +458,7 @@ export function TaskRow({
                   onSaveInline ? () => setEditingInline(true) : undefined
                 }
                 onToggleStart={onToggleStart}
+                onClearStartMark={onClearStartMark}
                 onDueChange={onDueChange}
                 onPriorityChange={onPriorityChange}
                 onStartAddSubtask={

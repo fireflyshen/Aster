@@ -174,10 +174,21 @@ func priorityStyle(priority string, mutedTone bool) lipgloss.Style {
 
 // statusMeta resolves the single-cell task status glyph, color, and bold weight shared by list, board, and inspector views.
 func statusMeta(t Task, waiting bool) (string, lipgloss.AdaptiveColor, bool) {
+	return statusMetaForTiming(t, waiting, false, "")
+}
+
+func statusMetaForTiming(t Task, waiting, isTimeMode bool, activeTaskUUID string) (string, lipgloss.AdaptiveColor, bool) {
 	if t.Status == "completed" {
 		return "✓", okColor, false
 	}
-	if t.Start != "" {
+	if isTimeMode {
+		if activeTaskUUID != "" && strings.EqualFold(t.UUID, activeTaskUUID) {
+			return "▶", timerColor, true
+		}
+		if t.Start != "" {
+			return "▷", warnColor, false
+		}
+	} else if t.Start != "" {
 		return "▶", timerColor, true
 	}
 	if waiting {
@@ -240,11 +251,16 @@ func dueLabel(
 	return formatted, muted
 }
 
-func energyMeter(remaining, maxVal float64, bars int) string {
+func energyMeter(remaining *float64, maxVal float64, hardLimit bool, bars int) string {
 	if maxVal <= 0 {
 		return ""
 	}
-	ratio := remaining / maxVal
+	if remaining == nil {
+		return lipgloss.NewStyle().Foreground(muted).
+			Render(fmt.Sprintf("⚡ —/%.0f 暂不估算", maxVal))
+	}
+	rem := *remaining
+	ratio := rem / maxVal
 	if ratio < 0 {
 		ratio = 0
 	}
@@ -254,14 +270,14 @@ func energyMeter(remaining, maxVal float64, bars int) string {
 	filled := int(ratio*float64(bars) + 0.5)
 	filled = max(0, min(bars, filled))
 	color := okColor
-	if ratio < 0.2 {
+	if ratio < 0.2 && hardLimit {
 		color = dangerColor
 	} else if ratio < 0.5 {
 		color = warnColor
 	}
 	gauge := strings.Repeat("▮", filled) + strings.Repeat("▱", bars-filled)
 	return lipgloss.NewStyle().Foreground(color).Bold(true).
-		Render(fmt.Sprintf("⚡ %.0f/%.0f %s", remaining, maxVal, gauge))
+		Render(fmt.Sprintf("⚡ %.0f/%.0f %s", rem, maxVal, gauge))
 }
 
 type styledSpan struct {

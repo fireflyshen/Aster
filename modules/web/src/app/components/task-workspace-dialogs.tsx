@@ -73,6 +73,8 @@ export type TaskWorkspaceDialogsProps = {
   onCreateSubtask: (parentUuid: string, input: TaskInput) => Promise<boolean>;
   onToggleTask: (task: Task, completed: boolean) => Promise<boolean>;
   onToggleStart?: (task: Task) => Promise<boolean>;
+  onClearStartMark?: (task: Task) => Promise<boolean>;
+  isTimingTask?: (uuid: string) => boolean;
   onUnlinkSubtask: (childUuid: string) => Promise<boolean>;
   onDeleteTask: (task: Task, origin?: "editor") => Promise<boolean>;
   onSubmitTaskForm: (
@@ -138,6 +140,8 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
     onCreateSubtask,
     onToggleTask,
     onToggleStart,
+    onClearStartMark,
+    isTimingTask,
     onUnlinkSubtask,
     onDeleteTask,
     onSubmitTaskForm,
@@ -266,18 +270,41 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
                   }
                 : undefined
             }
+            timingActive={
+              editing
+                ? isTimingTask
+                  ? isTimingTask(editing.uuid)
+                  : Boolean(editing.start) && editing.status !== "completed"
+                : false
+            }
             timingUnavailable={organization.timing?.available === false}
             onToggleStart={
               editing && onToggleStart
                 ? () => {
                     const target = editing;
-                    const wasStarted =
-                      Boolean(target.start) && target.status !== "completed";
+                    const wasTiming = isTimingTask
+                      ? isTimingTask(target.uuid)
+                      : Boolean(target.start) && target.status !== "completed";
                     void onToggleStart(target).then((saved) => {
                       if (saved) {
                         setEditing({
                           ...target,
-                          start: wasStarted ? "" : new Date().toISOString(),
+                          start: wasTiming ? "" : new Date().toISOString(),
+                        });
+                      }
+                    });
+                  }
+                : undefined
+            }
+            onClearStartMark={
+              editing && onClearStartMark
+                ? () => {
+                    const target = editing;
+                    void onClearStartMark(target).then((saved) => {
+                      if (saved) {
+                        setEditing({
+                          ...target,
+                          start: "",
                         });
                       }
                     });

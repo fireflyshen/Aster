@@ -55,6 +55,8 @@ export function TaskMetaChips({
   showInbox = false,
   sectionName,
   started,
+  timingActive = started,
+  isTimeMode = false,
   timingUnavailable,
   trackedSeconds,
   availableLabels,
@@ -77,6 +79,8 @@ export function TaskMetaChips({
   showInbox?: boolean;
   sectionName?: string;
   started: boolean;
+  timingActive?: boolean;
+  isTimeMode?: boolean;
   timingUnavailable: boolean;
   trackedSeconds?: number;
   availableLabels: SavedTag[];
@@ -240,19 +244,34 @@ export function TaskMetaChips({
         </span>
       )}
 
-      {(started || (trackedSeconds ?? 0) > 0) && (
+      {(started ||
+        timingActive ||
+        (trackedSeconds ?? 0) > 0 ||
+        (isTimeMode && trackedSeconds === undefined)) && (
         <span
           className={cn(
             "inline-flex shrink-0 items-center gap-1 tabular-nums whitespace-nowrap",
-            started && "font-medium text-foreground",
+            timingActive
+              ? "font-medium text-primary"
+              : started && "font-medium text-foreground",
           )}
         >
           <Clock3 className="size-3" strokeWidth={1.5} />
-          {started
-            ? timingUnavailable
-              ? "进行中 · 计时不可用"
-              : `进行中 · ${formatDuration(trackedSeconds || 0)}`
-            : formatDuration(trackedSeconds || 0)}
+          {trackedSeconds === undefined && isTimeMode
+            ? timingActive
+              ? "计时中 · —"
+              : started
+                ? "进行中 · —"
+                : "—"
+            : timingActive
+              ? timingUnavailable
+                ? "计时中 · 计时不可用"
+                : `计时中 · ${formatDuration(trackedSeconds || 0)}`
+              : started
+                ? timingUnavailable
+                  ? "进行中 · 计时不可用"
+                  : `进行中 · ${formatDuration(trackedSeconds || 0)}`
+                : formatDuration(trackedSeconds || 0)}
         </span>
       )}
 

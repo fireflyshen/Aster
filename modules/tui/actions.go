@@ -60,7 +60,10 @@ func (m *model) openActions() {
 	case "task":
 		add("edit", "编辑任务", "名称、项目、日期、优先级、标签、重复、描述")
 		add("task.toggle", "完成 / 重新打开", "保留 UUID 与栏目")
-		add("task.timer", "开始 / 停止计时", "遵循共享精力规则")
+		add("task.timer", "开始 / 停止计时", "切换或停止当前活跃计时")
+		if m.isTimeMode() && r.task.Start != "" && !strings.EqualFold(r.task.UUID, m.activeTimingTaskUUID()) {
+			add("task.clear_start", "清除进行中标记", "不影响正在计时的其他活动")
+		}
 		add("task.priority", "快速设置优先级 (!)", "P1 高 / P2 中 / P3 低 / 无")
 		add("task.due", "快速改期 (@)", "今天 / 明天 / 本周末 / 下周 / 清除 / 自定义")
 		add("task.description", "编辑任务描述 (D)", "支持多行详细说明")
@@ -271,7 +274,7 @@ func (m *model) action(a string) tea.Cmd {
 			"仅支持 Taskwarrior 过滤条件，不执行操作命令。",
 			textField("筛选表达式", "status:pending", "例如 project:Work +READY"),
 		)
-	case "task.toggle", "task.timer":
+	case "task.toggle", "task.timer", "task.clear_start":
 		if r.kind != "task" {
 			m.message = "请先选择任务"
 			return nil
@@ -280,16 +283,27 @@ func (m *model) action(a string) tea.Cmd {
 		if r.task.Status == "completed" {
 			act, reverse = "reopen", "complete"
 		}
-		if a == "task.timer" {
+		if a == "task.clear_start" {
+			act, reverse = "stop", ""
+		} else if a == "task.timer" {
+			isTiming := r.task.Start != ""
+			if m.isTimeMode() {
+				activeUUID := m.activeTimingTaskUUID()
+				isTiming = activeUUID != "" && strings.EqualFold(activeUUID, r.task.UUID)
+			}
 			act, reverse = "start", "stop"
-			if r.task.Start != "" {
+			if isTiming {
 				act, reverse = "stop", "start"
 			}
 		}
-		m.undo = &undoChange{
-			"/api/action",
-			map[string]any{"action": reverse, "uuid": r.id},
-			r.title,
+		if reverse != "" {
+			m.undo = &undoChange{
+				"/api/action",
+				map[string]any{"action": reverse, "uuid": r.id},
+				r.title,
+			}
+		} else {
+			m.undo = nil
 		}
 		m.busy = true
 		return m.taskAction(act, r.task)

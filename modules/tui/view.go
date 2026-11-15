@@ -203,18 +203,48 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 			[]styledSpan{span(fmt.Sprintf("%.1f分", t.Urgency), uStyle)},
 		)
 	}
-	if t.Start != "" && !td.start.IsZero() && t.Status != "completed" {
-		groups = append(groups, []styledSpan{
-			span(
-				"▶ "+formatDurationShort(f.now.Sub(td.start).Seconds()),
-				lipgloss.NewStyle().Foreground(timerColor).Bold(true),
-			),
-		})
-	} else if m.org.Energy != nil {
-		if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
+	isTimeMode, isTiming, started, secs, secsKnown := m.resolveTaskTiming(t, td, f.now)
+	if isTimeMode {
+		if !secsKnown {
+			lbl := "⧖ —"
+			st := dim
+			if isTiming {
+				lbl = "▶ —"
+				st = lipgloss.NewStyle().Foreground(timerColor).Bold(true)
+			} else if started {
+				lbl = "▷ —"
+			}
+			groups = append(groups, []styledSpan{span(lbl, st)})
+		} else if isTiming {
+			groups = append(groups, []styledSpan{
+				span(
+					"▶ "+formatDurationShort(secs),
+					lipgloss.NewStyle().Foreground(timerColor).Bold(true),
+				),
+			})
+		} else if started {
+			groups = append(groups, []styledSpan{
+				span("▷ "+formatDurationShort(secs), lipgloss.NewStyle().Foreground(warnColor)),
+			})
+		} else if secs >= 60 {
 			groups = append(groups, []styledSpan{
 				span("⧖ "+formatDurationShort(secs), dim),
 			})
+		}
+	} else {
+		if t.Start != "" && !td.start.IsZero() && t.Status != "completed" {
+			groups = append(groups, []styledSpan{
+				span(
+					"▶ "+formatDurationShort(f.now.Sub(td.start).Seconds()),
+					lipgloss.NewStyle().Foreground(timerColor).Bold(true),
+				),
+			})
+		} else if m.org.Energy != nil {
+			if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
+				groups = append(groups, []styledSpan{
+					span("⧖ "+formatDurationShort(secs), dim),
+				})
+			}
 		}
 	}
 	for _, tag := range t.Tags {
@@ -283,7 +313,7 @@ func (m model) renderTaskLines(
 		metaTree = "   "
 	}
 
-	glyphText, glyphColor, glyphBold := statusMeta(t, waiting)
+	glyphText, glyphColor, glyphBold := statusMetaForTiming(t, waiting, f.idx.isTimeMode, f.idx.activeTimingTaskUUID)
 	glyphStyle := lipgloss.NewStyle().Foreground(glyphColor)
 	if glyphBold {
 		glyphStyle = glyphStyle.Bold(true)
@@ -689,7 +719,17 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			statusLbl = "◴ 等待中"
 			statusCol = warnColor
 		case "pending":
-			if t.Start != "" {
+			if f.idx.isTimeMode {
+				if f.idx.activeTimingTaskUUID != "" && strings.EqualFold(f.idx.activeTimingTaskUUID, t.UUID) {
+					statusLbl = "▶ 计时中"
+					statusCol = timerColor
+				} else if t.Start != "" {
+					statusLbl = "▷ 进行中（未在计时）"
+					statusCol = warnColor
+				} else {
+					statusLbl = "○ 待办"
+				}
+			} else if t.Start != "" {
 				statusLbl = "▶ 进行中"
 				statusCol = timerColor
 			} else {
@@ -756,16 +796,30 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			}
 			kv("重复", rec, inkSoft)
 		}
-		if t.Start != "" && !td.start.IsZero() {
-			kv(
-				"计时",
-				"正在运行 "+formatDurationShort(f.now.Sub(td.start).Seconds()),
-				timerColor,
-			)
-		}
-		if m.org.Energy != nil {
-			if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
-				kv("今日", formatDurationShort(secs), muted)
+		if isTimeMode, isTiming, _, secs, secsKnown := m.resolveTaskTiming(t, td, f.now); isTimeMode {
+			if isTiming {
+				val := "正在运行 —"
+				if secsKnown {
+					val = "正在运行 " + formatDurationShort(secs)
+				}
+				kv("计时", val, timerColor)
+			} else if secsKnown && secs >= 60 {
+				kv("累计", formatDurationShort(secs), muted)
+			} else if !secsKnown {
+				kv("累计", "—", muted)
+			}
+		} else {
+			if t.Start != "" && !td.start.IsZero() {
+				kv(
+					"计时",
+					"正在运行 "+formatDurationShort(f.now.Sub(td.start).Seconds()),
+					timerColor,
+				)
+			}
+			if m.org.Energy != nil {
+				if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
+					kv("今日", formatDurationShort(secs), muted)
+				}
 			}
 		}
 
@@ -798,7 +852,7 @@ func (m model) inspector(w, h int, f renderFrame) string {
 				if ct, ok := f.idx.tasksByUUID[children[i]]; ok {
 					ctWait := ct.Status == "waiting" ||
 						f.idx.dates[ct.UUID].wait.After(f.now)
-					cMark, cCol, cBold := statusMeta(ct, ctWait)
+					cMark, cCol, cBold := statusMetaForTiming(ct, ctWait, f.idx.isTimeMode, f.idx.activeTimingTaskUUID)
 					markSt := lipgloss.NewStyle().Foreground(cCol)
 					if cBold {
 						markSt = markSt.Bold(true)
@@ -1131,7 +1185,42 @@ func (m model) View() string {
 		Render("  ◈ ASTER")
 
 	var rightParts []string
-	if idx.anyRunning {
+	if m.isTimeMode() {
+		_, _, stateLabel := m.snapshotLiveStatus(now)
+		switch stateLabel {
+		case "pending_reconcile":
+			rightParts = append(
+				rightParts,
+				lipgloss.NewStyle().Foreground(warnColor).Bold(true).Render("⚠ 计时待核对"),
+			)
+		case "restoring":
+			rightParts = append(
+				rightParts,
+				dim.Render("时间恢复中"),
+			)
+		default:
+			if m.timerSnap != nil && m.timerSnap.ActiveActivity != nil {
+				act := m.timerSnap.ActiveActivity
+				lbl := act.Title
+				if lbl == "" {
+					lbl = act.CategoryID
+				}
+				text := "▶ " + clip(clean(lbl), 14)
+				if secs, ok := m.activeActivityElapsed(now); ok {
+					text += " " + formatDurationShort(secs)
+				}
+				if stateLabel == "stale" {
+					text += " [待刷新]"
+				} else if stateLabel == "review_required" {
+					text += " [超长]"
+				}
+				rightParts = append(
+					rightParts,
+					lipgloss.NewStyle().Foreground(timerColor).Bold(true).Render(text),
+				)
+			}
+		}
+	} else if idx.anyRunning {
 		rightParts = append(
 			rightParts,
 			lipgloss.NewStyle().
@@ -1153,9 +1242,13 @@ func (m model) View() string {
 		if w < 90 {
 			bars = 4
 		}
+		hardLimit := m.org.Timing == nil || m.org.Timing.HardEnergyLimit == nil || *m.org.Timing.HardEnergyLimit
+		if m.isTimeMode() {
+			hardLimit = false
+		}
 		rightParts = append(
 			rightParts,
-			energyMeter(m.org.Energy.Remaining, m.org.Energy.Max, bars),
+			energyMeter(m.org.Energy.Remaining, m.org.Energy.Max, hardLimit, bars),
 		)
 	} else if m.org.Timing != nil && !m.org.Timing.Available {
 		rightParts = append(rightParts, dim.Render("计时不可用"))
@@ -1381,7 +1474,7 @@ func (m model) boardView(w, h int, f renderFrame) string {
 				treeColor = muted
 			}
 			treeSt := lipgloss.NewStyle().Foreground(treeColor)
-			mark, markCol, markBold := statusMeta(t, waiting)
+			mark, markCol, markBold := statusMetaForTiming(t, waiting, f.idx.isTimeMode, f.idx.activeTimingTaskUUID)
 			markSt := lipgloss.NewStyle().Foreground(markCol)
 			if markBold {
 				markSt = markSt.Bold(true)
