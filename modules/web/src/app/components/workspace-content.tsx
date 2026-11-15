@@ -245,8 +245,14 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
       : activeItem?.name || (activeEntry.kind === "filter" ? "过滤器" : "标签")
     : views[view];
 
+  const activeLayout =
+    !organizationPage && !timePage && layout === "board" ? "board" : "list";
+
   return (
-    <main className="workspace-frame pb-16 pt-2">
+    <main
+      className="workspace-frame workspace-content pb-16 pt-2"
+      data-layout={activeLayout}
+    >
       {searchOpen && (
         <div className="mb-3 max-w-sm">
           <InputGroup>
