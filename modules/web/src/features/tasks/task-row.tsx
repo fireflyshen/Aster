@@ -5,6 +5,7 @@ import {
   type HabitTaskActions,
 } from "@/features/habits/habit-task-controls";
 import { TaskCheckbox } from "@/features/tasks/task-checkbox";
+import { DescriptionSummary } from "@/features/tasks/description-summary";
 import { toDueDay } from "@/features/tasks/task-date";
 import { TaskMetaChips } from "@/features/tasks/task-meta-chips";
 import { TaskRowActions } from "@/features/tasks/task-row-actions";
@@ -12,7 +13,6 @@ import { handleTaskRowShortcut } from "@/features/tasks/task-row-shortcuts";
 import { TaskRowSubtree } from "@/features/tasks/task-row-subtree";
 import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
 import type { HabitListItem } from "@core/habits/model";
-import { formatDescriptionPreview } from "@core/tasks/description";
 import { taskDate } from "@core/tasks/quick-task";
 import type { TaskCostSummary } from "@core/time/model";
 import type { SavedTag } from "@core/workspace/organization";
@@ -118,7 +118,6 @@ export function TaskRow({
   const checked = transition?.checked ?? completed;
   const started = !!task.start && !checked;
   const timingActive = (timingActiveProp ?? started) && !checked;
-  const descriptionPreview = formatDescriptionPreview(description);
   const dueDay = toDueDay(task.due);
   const now = new Date();
   const todayStr = format(now, "yyyy-MM-dd");
@@ -446,10 +445,10 @@ export function TaskRow({
                   {task.description}
                 </div>
 
-                {descriptionPreview && (
+                {description.trim() && (
                   <div
                     data-task-description-preview
-                    title={description}
+                    title="查看完整描述"
                     onClick={(e) => {
                       if (window.getSelection()?.toString().length) {
                         e.stopPropagation();
@@ -458,13 +457,13 @@ export function TaskRow({
                       onEdit();
                     }}
                     className={cn(
-                      "mt-0.5 block w-full min-w-0 max-w-full cursor-pointer truncate text-[12px] leading-[18px] transition-colors select-text",
+                      "mt-0.5 block w-full min-w-0 max-w-full cursor-pointer text-[12px] leading-[18px] transition-colors select-text",
                       checked
                         ? "text-muted-foreground/45 line-through decoration-muted-foreground/40"
                         : "text-muted-foreground/75 hover:text-foreground/85",
                     )}
                   >
-                    {descriptionPreview}
+                    <DescriptionSummary text={description} />
                   </div>
                 )}
 

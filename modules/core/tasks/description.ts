@@ -142,6 +142,47 @@ export function formatDescriptionPreview(raw: string): string {
   return lines.join(" · ");
 }
 
+/** First-paragraph list summary. Full descriptions and link targets stay untouched. */
+export function formatDescriptionSummary(raw: string): string {
+  const normalized = normalizeDescriptionText(raw);
+  if (!normalized) return "";
+  let prose = "";
+  let heading = "";
+  for (const block of normalized.split(/\n[\t ]*\n/)) {
+    // A description containing only a heading still deserves a preview.
+    heading ||=
+      block
+        .split("\n")
+        .find((line) => /^\s*#{1,6}\s/.test(line))
+        ?.replace(/^\s*#{1,6}\s+/, "")
+        .trim() ?? "";
+    prose = block
+      .split("\n")
+      .filter((line) => !/^\s*(?:#{1,6}\s|`{3,}|~{3,})/.test(line))
+      .map((line) =>
+        line
+          .trim()
+          .replace(/^(?:>\s*|[-*+]\s+(?:\[[ xX]\]\s*)?|\d+[.)]\s+)/, ""),
+      )
+      .join(" ")
+      .trim();
+    if (prose) break;
+  }
+  return parseDescriptionSegments(prose || heading)
+    .map((segment) => {
+      if (segment.kind === "text") return segment.text;
+      // Named Markdown links retain their title; bare URLs lose path/query noise.
+      return segment.label === compactUrlLabel(segment.href)
+        ? safeHttpUrl(segment.href)!.host
+        : segment.label;
+    })
+    .join("")
+    .replace(/\*\*([^*]+)\*\*|__([^_]+)__|~~([^~]+)~~|`([^`]+)`/g, "$1$2$3$4")
+    .replace(/\*([^*\n]+)\*/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Formats multi-line task descriptions as readable Markdown with clickable links and soft line breaks for Desktop detail views. */
 export function formatMarkdownDescription(raw: string): string {
   const normalized = normalizeDescriptionText(raw);

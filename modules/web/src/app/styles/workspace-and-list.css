@@ -161,3 +161,14 @@
   color: var(--foreground);
   background: var(--accent);
 }
+/* Supporting descriptions should not stretch across wide task/habit rows. */
+.description-summary {
+  display: block;
+  width: 100%;
+  max-width: 72ch;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+}

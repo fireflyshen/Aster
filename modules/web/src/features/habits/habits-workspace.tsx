@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { ProjectIcon } from "@/features/projects/project-icon";
+import { DescriptionSummary } from "@/features/tasks/description-summary";
 import { formatScheduleLabel } from "@core/habits/logic";
 import type { HabitListItem, HabitStatus } from "@core/habits/model";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
@@ -411,9 +412,10 @@ export function HabitsWorkspace({
                   </div>
 
                   {habit.description && (
-                    <p className="mt-0.5 w-full min-w-0 truncate text-left text-[12px] leading-[18px] text-muted-foreground/75">
-                      {habit.description}
-                    </p>
+                    <DescriptionSummary
+                      text={habit.description}
+                      className="mt-0.5 text-[12px] leading-[18px] text-muted-foreground/75"
+                    />
                   )}
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     {habit.project && (
