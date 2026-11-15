@@ -467,7 +467,7 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 			})
 		}
 		return out
-	case "recovery", "backup":
+	case "recovery", "backup", "time.today", "time.weekly", "time.report":
 		return m.extra
 	}
 	ts := idx.visibleTasks(m, now)

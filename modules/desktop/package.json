@@ -116,6 +116,13 @@
           "required": false
         }
       ]
+    },
+    {
+      "name": "time",
+      "title": "Time & Cost",
+      "subtitle": "Aster",
+      "description": "Track time cost, bounded timers, weekly Project/Tag distribution and Bills cost reports",
+      "mode": "view"
     }
   ],
   "scripts": {

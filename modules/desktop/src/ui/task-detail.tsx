@@ -1,252 +1,330 @@
-import { Action, ActionPanel, Detail, List } from "@raycast/api";
+import { Action, ActionPanel, Color, Detail, List } from "@raycast/api";
 import type { ReactNode } from "react";
 import { formatMarkdownDescription } from "../../../core/tasks/description.ts";
 import type { TaskwarriorTask } from "../../../core/tasks/model.ts";
+import { formatCurrencyCny } from "../../../core/time/cost.ts";
+import type { TaskCostSummary } from "../../../core/time/model.ts";
 import { formatDuration } from "../../../core/workspace/energy.ts";
 import {
-  itemColor,
-  type Organization,
+    itemColor,
+    type Organization,
 } from "../../../core/workspace/organization.ts";
 import { toneColor } from "../lib/palette";
 import {
-  displayDate,
-  priorityBadgeLabel,
-  priorityTagColor,
-  priorityTextLabel,
+    displayDate,
+    priorityBadgeLabel,
+    priorityTagColor,
+    priorityTextLabel,
 } from "../lib/task-list-model";
+import { formatTaskBudgetLine } from "../lib/time-format";
 
 function markdownText(value: string): string {
-  return value.replace(/([\\`*_{}[\]()#+\-.!|>])/g, "\\$1");
+    return value.replace(/([\\`*_{}[\]()#+\-.!|>])/g, "\\$1");
 }
 
 export interface TaskDetailDataProps {
-  task: TaskwarriorTask;
-  description?: string;
-  parentTask?: TaskwarriorTask;
-  subtasks?: TaskwarriorTask[];
-  trackedSeconds?: number;
-  timingActive?: boolean;
-  isTimeMode?: boolean;
-  projectDescription?: string;
-  columnName?: string;
-  organization?: Organization;
+    task: TaskwarriorTask;
+    description?: string;
+    parentTask?: TaskwarriorTask;
+    subtasks?: TaskwarriorTask[];
+    trackedSeconds?: number;
+    timingActive?: boolean;
+    isTimeMode?: boolean;
+    costSummary?: TaskCostSummary;
+    projectDescription?: string;
+    columnName?: string;
+    organization?: Organization;
 }
 
 /** Builds clean Markdown sections for both the Split Inspector and the full TaskDetail screen. */
 export function buildTaskDetailMarkdown({
-  task,
-  description,
-  parentTask,
-  subtasks = [],
-  projectDescription,
+    task,
+    description,
+    parentTask,
+    subtasks = [],
+    projectDescription,
 }: TaskDetailDataProps): string {
-  const sections: string[] = [`# ${markdownText(task.description)}`];
-  if (parentTask) {
-    sections.push(`> Part of **${markdownText(parentTask.description)}**`);
-  }
-  if (description?.trim()) {
-    const formatted = formatMarkdownDescription(description);
-    if (formatted) {
-      sections.push(`## Description\n\n${formatted}`);
+    const sections: string[] = [`# ${markdownText(task.description)}`];
+    if (parentTask) {
+        sections.push(`> Part of **${markdownText(parentTask.description)}**`);
     }
-  }
-  if (subtasks.length) {
-    const done = subtasks.filter((item) => item.status === "completed").length;
-    const list = subtasks
-      .map((item) => {
-        const meta: string[] = [];
-        if (item.priority && item.status !== "completed") {
-          meta.push(priorityBadgeLabel(item.priority));
+    if (description?.trim()) {
+        const formatted = formatMarkdownDescription(description);
+        if (formatted) {
+            sections.push(`## Description\n\n${formatted}`);
         }
-        if (item.due && item.status !== "completed") {
-          meta.push(displayDate(item.due));
-        }
-        const suffix = meta.length ? ` · *${meta.join(" · ")}*` : "";
-        return `- [${item.status === "completed" ? "x" : " "}] ${markdownText(item.description)}${suffix}`;
-      })
-      .join("\n");
-    sections.push(`## Subtasks (${done}/${subtasks.length})\n\n${list}`);
-  }
-  if (projectDescription?.trim()) {
-    const formatted = formatMarkdownDescription(projectDescription);
-    if (formatted) {
-      sections.push(`## Project\n\n${formatted}`);
     }
-  }
-  if (task.annotations.length) {
-    const annotationText = task.annotations
-      .map((item) => `- ${markdownText(item.description)}`)
-      .join("\n");
-    sections.push(`## Annotations\n\n${annotationText}`);
-  }
-  return sections.join("\n\n");
+    if (subtasks.length) {
+        const done = subtasks.filter(
+            (item) => item.status === "completed",
+        ).length;
+        const list = subtasks
+            .map((item) => {
+                const meta: string[] = [];
+                if (item.priority && item.status !== "completed") {
+                    meta.push(priorityBadgeLabel(item.priority));
+                }
+                if (item.due && item.status !== "completed") {
+                    meta.push(displayDate(item.due));
+                }
+                const suffix = meta.length ? ` · *${meta.join(" · ")}*` : "";
+                return `- [${item.status === "completed" ? "x" : " "}] ${markdownText(item.description)}${suffix}`;
+            })
+            .join("\n");
+        sections.push(`## Subtasks (${done}/${subtasks.length})\n\n${list}`);
+    }
+    if (projectDescription?.trim()) {
+        const formatted = formatMarkdownDescription(projectDescription);
+        if (formatted) {
+            sections.push(`## Project\n\n${formatted}`);
+        }
+    }
+    if (task.annotations.length) {
+        const annotationText = task.annotations
+            .map((item) => `- ${markdownText(item.description)}`)
+            .join("\n");
+        sections.push(`## Annotations\n\n${annotationText}`);
+    }
+    return sections.join("\n\n");
 }
 
 function renderMetadataRows(
-  Metadata: typeof Detail.Metadata,
-  {
-    task,
-    parentTask,
-    subtasks = [],
-    trackedSeconds,
-    timingActive,
-    isTimeMode: isTimeModeProp,
-    columnName,
-    organization,
-  }: TaskDetailDataProps,
+    Metadata: typeof Detail.Metadata,
+    {
+        task,
+        parentTask,
+        subtasks = [],
+        trackedSeconds,
+        timingActive,
+        isTimeMode: isTimeModeProp,
+        costSummary: costSummaryProp,
+        columnName,
+        organization,
+    }: TaskDetailDataProps,
 ) {
-  const isTimeMode = isTimeModeProp ?? organization?.timing?.backend === "time";
-  const isTiming =
-    timingActive ??
-    (isTimeMode
-      ? organization?.timerSnapshot?.activeActivity?.taskUuid?.toLowerCase() ===
-        task.uuid.toLowerCase()
-      : Boolean(task.start) && task.status !== "completed");
-  const runningSeconds = isTimeMode
-    ? isTiming
-      ? (trackedSeconds ?? 0)
-      : 0
-    : task.start && task.status !== "completed"
-      ? Math.max(0, Math.floor((Date.now() - task.start.getTime()) / 1000))
-      : 0;
-  const doneCount = subtasks.filter(
-    (item) => item.status === "completed",
-  ).length;
+    const isTimeMode =
+        isTimeModeProp ?? organization?.timing?.backend === "time";
+    const costSummary =
+        costSummaryProp ??
+        (isTimeMode
+            ? organization?.timerSnapshot?.taskCosts?.[task.uuid.toLowerCase()]
+            : undefined);
+    const isTiming =
+        timingActive ??
+        (isTimeMode
+            ? organization?.timerSnapshot?.activeActivity?.taskUuid?.toLowerCase() ===
+              task.uuid.toLowerCase()
+            : Boolean(task.start) && task.status !== "completed");
+    const runningSeconds = isTimeMode
+        ? isTiming
+            ? (trackedSeconds ?? 0)
+            : 0
+        : task.start && task.status !== "completed"
+          ? Math.max(0, Math.floor((Date.now() - task.start.getTime()) / 1000))
+          : 0;
+    const doneCount = subtasks.filter(
+        (item) => item.status === "completed",
+    ).length;
 
-  return (
-    <Metadata>
-      <Metadata.Label
-        title="Status"
-        text={
-          task.status === "completed"
-            ? "Completed"
-            : isTiming
-              ? "Timing"
-              : task.start
-                ? "In Progress"
-                : task.wait
-                  ? "Waiting"
-                  : "Pending"
-        }
-      />
-      {parentTask ? (
-        <Metadata.Label title="Parent Task" text={parentTask.description} />
-      ) : null}
-      {subtasks.length ? (
-        <Metadata.Label
-          title="Subtasks"
-          text={`${doneCount}/${subtasks.length} completed`}
-        />
-      ) : null}
-      {task.project ? (
-        <Metadata.Label title="Project" text={task.project} />
-      ) : null}
-      {columnName ? <Metadata.Label title="Column" text={columnName} /> : null}
-      {task.priority ? (
-        <Metadata.TagList title="Priority">
-          <Metadata.TagList.Item
-            text={priorityTextLabel(task.priority)}
-            color={priorityTagColor(task.priority)}
-          />
-        </Metadata.TagList>
-      ) : null}
-      {isTiming ? (
-        <Metadata.TagList title="Active Timer">
-          <Metadata.TagList.Item
-            text={
-              trackedSeconds === undefined && isTimeMode
-                ? "Running (—)"
-                : `Running (${formatDuration(runningSeconds)})`
-            }
-            color={toneColor("timer")}
-          />
-        </Metadata.TagList>
-      ) : null}
-      {isTimeMode && trackedSeconds === undefined ? (
-        <Metadata.Label title="Tracked Time" text="—" />
-      ) : trackedSeconds !== undefined && trackedSeconds > 0 ? (
-        <Metadata.Label
-          title="Tracked Time"
-          text={formatDuration(trackedSeconds)}
-        />
-      ) : null}
-      {task.due ? (
-        <Metadata.Label title="Due" text={task.due.toLocaleString()} />
-      ) : null}
-      {task.scheduled ? (
-        <Metadata.Label
-          title="Scheduled"
-          text={task.scheduled.toLocaleString()}
-        />
-      ) : null}
-      {task.wait ? (
-        <Metadata.Label title="Wait Until" text={task.wait.toLocaleString()} />
-      ) : null}
-      {task.until ? (
-        <Metadata.Label title="Until" text={task.until.toLocaleString()} />
-      ) : null}
-      {task.recur ? (
-        <Metadata.Label title="Recurrence" text={task.recur} />
-      ) : null}
-      {task.status === "completed" && task.end ? (
-        <Metadata.Label title="Completed" text={task.end.toLocaleString()} />
-      ) : null}
-      {task.tags.length ? (
-        <Metadata.TagList title="Labels">
-          {task.tags.map((tag) => (
-            <Metadata.TagList.Item
-              key={tag}
-              text={tag}
-              color={itemColor(
-                organization?.tags.find((item) => item.name === tag)?.color ||
-                  "gray",
-              )}
+    return (
+        <Metadata>
+            <Metadata.Label
+                title="Status"
+                text={
+                    task.status === "completed"
+                        ? "Completed"
+                        : isTiming
+                          ? "Timing"
+                          : task.start
+                            ? "In Progress"
+                            : task.wait
+                              ? "Waiting"
+                              : "Pending"
+                }
             />
-          ))}
-        </Metadata.TagList>
-      ) : null}
-      {task.depends.length ? (
-        <Metadata.Label
-          title="Dependencies"
-          text={String(task.depends.length)}
-        />
-      ) : null}
-      {task.id ? <Metadata.Label title="ID" text={String(task.id)} /> : null}
-    </Metadata>
-  );
+            {parentTask ? (
+                <Metadata.Label
+                    title="Parent Task"
+                    text={parentTask.description}
+                />
+            ) : null}
+            {subtasks.length ? (
+                <Metadata.Label
+                    title="Subtasks"
+                    text={`${doneCount}/${subtasks.length} completed`}
+                />
+            ) : null}
+            {task.project ? (
+                <Metadata.Label title="Project" text={task.project} />
+            ) : null}
+            {columnName ? (
+                <Metadata.Label title="Column" text={columnName} />
+            ) : null}
+            {task.priority ? (
+                <Metadata.TagList title="Priority">
+                    <Metadata.TagList.Item
+                        text={priorityTextLabel(task.priority)}
+                        color={priorityTagColor(task.priority)}
+                    />
+                </Metadata.TagList>
+            ) : null}
+            {isTiming ? (
+                <Metadata.TagList title="Active Timer">
+                    <Metadata.TagList.Item
+                        text={
+                            trackedSeconds === undefined && isTimeMode
+                                ? "Running (—)"
+                                : `Running (${formatDuration(runningSeconds)})`
+                        }
+                        color={toneColor("timer")}
+                    />
+                </Metadata.TagList>
+            ) : null}
+            {isTimeMode && trackedSeconds === undefined ? (
+                <Metadata.Label title="Tracked Time" text="—" />
+            ) : trackedSeconds !== undefined && trackedSeconds > 0 ? (
+                <Metadata.Label
+                    title="Tracked Time"
+                    text={formatDuration(trackedSeconds)}
+                />
+            ) : null}
+            {isTimeMode && costSummary ? (
+                <>
+                    <Metadata.Label
+                        title="Confirmed Time Cost"
+                        text={`${formatCurrencyCny(costSummary.confirmedCostCents)}${costSummary.confirmedSeconds > 0 ? ` · ${formatDuration(costSummary.confirmedSeconds)}` : ""}`}
+                    />
+                    {costSummary.provisionalSeconds > 0 ||
+                    costSummary.provisionalCostCents > 0 ? (
+                        <Metadata.TagList title="Pending Review">
+                            <Metadata.TagList.Item
+                                text={`暂计 ${formatCurrencyCny(costSummary.provisionalCostCents)} · ${formatDuration(costSummary.provisionalSeconds)}`}
+                                color={Color.Yellow}
+                            />
+                        </Metadata.TagList>
+                    ) : null}
+                    <Metadata.Label
+                        title="Time Budget"
+                        text={formatTaskBudgetLine(costSummary)}
+                    />
+                    {costSummary.overInitialBudgetCents > 0 ? (
+                        <Metadata.TagList title="Budget Variance">
+                            <Metadata.TagList.Item
+                                text={`超出最初预估 ${formatCurrencyCny(costSummary.overInitialBudgetCents)}`}
+                                color={toneColor("overdue")}
+                            />
+                        </Metadata.TagList>
+                    ) : null}
+                    {costSummary.linkedCashCents > 0 ? (
+                        <>
+                            <Metadata.Label
+                                title="Linked Cash"
+                                text={formatCurrencyCny(
+                                    costSummary.linkedCashCents,
+                                )}
+                            />
+                            <Metadata.Label
+                                title="Combined Cost"
+                                text={formatCurrencyCny(
+                                    costSummary.combinedCostCents,
+                                )}
+                            />
+                        </>
+                    ) : null}
+                </>
+            ) : null}
+            {task.due ? (
+                <Metadata.Label title="Due" text={task.due.toLocaleString()} />
+            ) : null}
+            {task.scheduled ? (
+                <Metadata.Label
+                    title="Scheduled"
+                    text={task.scheduled.toLocaleString()}
+                />
+            ) : null}
+            {task.wait ? (
+                <Metadata.Label
+                    title="Wait Until"
+                    text={task.wait.toLocaleString()}
+                />
+            ) : null}
+            {task.until ? (
+                <Metadata.Label
+                    title="Until"
+                    text={task.until.toLocaleString()}
+                />
+            ) : null}
+            {task.recur ? (
+                <Metadata.Label title="Recurrence" text={task.recur} />
+            ) : null}
+            {task.status === "completed" && task.end ? (
+                <Metadata.Label
+                    title="Completed"
+                    text={task.end.toLocaleString()}
+                />
+            ) : null}
+            {task.tags.length ? (
+                <Metadata.TagList title="Labels">
+                    {task.tags.map((tag) => (
+                        <Metadata.TagList.Item
+                            key={tag}
+                            text={tag}
+                            color={itemColor(
+                                organization?.tags.find(
+                                    (item) => item.name === tag,
+                                )?.color || "gray",
+                            )}
+                        />
+                    ))}
+                </Metadata.TagList>
+            ) : null}
+            {task.depends.length ? (
+                <Metadata.Label
+                    title="Dependencies"
+                    text={String(task.depends.length)}
+                />
+            ) : null}
+            {task.id ? (
+                <Metadata.Label title="ID" text={String(task.id)} />
+            ) : null}
+        </Metadata>
+    );
 }
 
 /** Inline split-pane detail panel attached to a task row when Inspector mode is active. */
 export function TaskListItemDetail(props: TaskDetailDataProps) {
-  return (
-    <List.Item.Detail
-      markdown={buildTaskDetailMarkdown(props)}
-      metadata={renderMetadataRows(List.Item.Detail.Metadata, props)}
-    />
-  );
+    return (
+        <List.Item.Detail
+            markdown={buildTaskDetailMarkdown(props)}
+            metadata={renderMetadataRows(List.Item.Detail.Metadata, props)}
+        />
+    );
 }
 
 /** Full-screen Raycast Detail view for inspecting a task with interactive actions. */
 export function TaskDetail(
-  props: TaskDetailDataProps & { actions?: ReactNode },
+    props: TaskDetailDataProps & { actions?: ReactNode },
 ) {
-  const { task, actions } = props;
-  return (
-    <Detail
-      navigationTitle={task.description}
-      markdown={buildTaskDetailMarkdown(props)}
-      metadata={renderMetadataRows(Detail.Metadata, props)}
-      actions={
-        actions || (
-          <ActionPanel>
-            <Action.CopyToClipboard
-              title="Copy Task Title"
-              content={task.description}
-            />
-            <Action.CopyToClipboard title="Copy UUID" content={task.uuid} />
-          </ActionPanel>
-        )
-      }
-    />
-  );
+    const { task, actions } = props;
+    return (
+        <Detail
+            navigationTitle={task.description}
+            markdown={buildTaskDetailMarkdown(props)}
+            metadata={renderMetadataRows(Detail.Metadata, props)}
+            actions={
+                actions || (
+                    <ActionPanel>
+                        <Action.CopyToClipboard
+                            title="Copy Task Title"
+                            content={task.description}
+                        />
+                        <Action.CopyToClipboard
+                            title="Copy UUID"
+                            content={task.uuid}
+                        />
+                    </ActionPanel>
+                )
+            }
+        />
+    );
 }

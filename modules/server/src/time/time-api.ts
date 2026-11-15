@@ -2,1308 +2,1444 @@ import type { TaskService } from "../../../core/tasks/service.ts";
 import { exportTimewarrior } from "../../../core/tasks/timewarrior.ts";
 import type { CostReportTaskMeta } from "../../../core/time/cost.ts";
 import type {
-  ActivityKind,
-  ActivitySource,
-  CostReportGranularity,
-  CostReportSortBy,
-  TimePolicy,
+    ActivityKind,
+    ActivitySource,
+    CostReportGranularity,
+    CostReportSortBy,
+    TimePolicy,
 } from "../../../core/time/model.ts";
 import { localDateOf } from "../../../core/time/zone.ts";
 import { runMaintenanceBackup } from "../recovery/maintenance-backup.ts";
 import type {
-  WorkspaceGate,
-  WorkspaceRouteSpec,
+    WorkspaceGate,
+    WorkspaceRouteSpec,
 } from "../transport/workspace-api.ts";
 import {
-  optionalBoolean,
-  optionalNullableNumber,
-  optionalNullableString,
-  optionalNumber,
-  optionalString,
-  optionalStringArray,
-  parseTimestampInput,
-  requiredNumber,
-  requiredString,
-  requiredStringArray,
+    optionalBoolean,
+    optionalNullableNumber,
+    optionalNullableString,
+    optionalNumber,
+    optionalString,
+    optionalStringArray,
+    parseTimestampInput,
+    requiredNumber,
+    requiredString,
+    requiredStringArray,
 } from "./time-api-parsers.ts";
 import type { TimeBackupService } from "./time-backup.ts";
 import type { TimeCoordinator } from "./time-coordinator.ts";
 import {
-  analyzeTimewarriorSnapshot,
-  applyTimewarriorSnapshotImport,
-  type RawTimewarriorInterval,
-  type TaskSnapshotLookup,
+    analyzeTimewarriorSnapshot,
+    applyTimewarriorSnapshotImport,
+    type RawTimewarriorInterval,
+    type TaskSnapshotLookup,
 } from "./time-import.ts";
 import { TimeStoreError, type TimeStore } from "./time-store.ts";
 
 export function createTimeHandlers(deps: {
-  identity: string;
-  gate: WorkspaceGate;
-  service: TaskService;
-  store?: TimeStore;
-  backup?: TimeBackupService;
-  coordinator?: TimeCoordinator;
-  isEnabled: () => boolean;
-  paths: {
-    dataDir: string;
-    organizationFile: string;
-    recoveryFile: string;
-    timeFile: string;
-    resolveTaskchampionDbPath?: () => Promise<string | undefined>;
-  };
+    identity: string;
+    gate: WorkspaceGate;
+    service: TaskService;
+    store?: TimeStore;
+    backup?: TimeBackupService;
+    coordinator?: TimeCoordinator;
+    isEnabled: () => boolean;
+    paths: {
+        dataDir: string;
+        organizationFile: string;
+        recoveryFile: string;
+        timeFile: string;
+        resolveTaskchampionDbPath?: () => Promise<string | undefined>;
+    };
 }) {
-  const {
-    identity,
-    gate,
-    service,
-    store,
-    backup,
-    coordinator,
-    isEnabled,
-    paths,
-  } = deps;
+    const {
+        identity,
+        gate,
+        service,
+        store,
+        backup,
+        coordinator,
+        isEnabled,
+        paths,
+    } = deps;
 
-  function requireStore(): TimeStore {
-    if (!store) {
-      throw new TimeStoreError(
-        503,
-        "TIME_NOT_INITIALIZED",
-        "Time module is not initialized in this workspace.",
-      );
-    }
-    return store;
-  }
-
-  function requireEnabledStore(): TimeStore {
-    const s = requireStore();
-    if (!isEnabled()) {
-      throw new TimeStoreError(
-        409,
-        "TIME_DISABLED",
-        "Time module is currently disabled.",
-      );
-    }
-    return s;
-  }
-
-  function defaultDate(s: TimeStore): string {
-    const tz = s.getPolicy().timezone;
-    return localDateOf(Date.now(), tz);
-  }
-
-  async function loadImportIntervals(
-    body: Record<string, unknown>,
-  ): Promise<RawTimewarriorInterval[]> {
-    if (typeof body.rawJson === "string") {
-      const parsed = JSON.parse(body.rawJson) as unknown;
-      if (!Array.isArray(parsed)) {
-        throw new TimeStoreError(
-          400,
-          "INVALID_IMPORT",
-          "rawJson must be a JSON array.",
-        );
-      }
-      return parsed as RawTimewarriorInterval[];
-    }
-    if (Array.isArray(body.intervals)) {
-      return body.intervals as RawTimewarriorInterval[];
-    }
-    return (await exportTimewarrior(
-      service.connection,
-    )) as RawTimewarriorInterval[];
-  }
-
-  async function loadReadOnlyTaskLookup(): Promise<
-    TaskSnapshotLookup | undefined
-  > {
-    try {
-      const tasks = await service.exportTasks();
-      const map = new Map(
-        tasks.map((t) => [
-          t.uuid.toLowerCase(),
-          {
-            description: t.description,
-            project: typeof t.project === "string" ? t.project : undefined,
-            tags: Array.isArray(t.tags)
-              ? t.tags.filter((x): x is string => typeof x === "string")
-              : undefined,
-          },
-        ]),
-      );
-      return (uuid: string) => map.get(uuid.toLowerCase());
-    } catch {
-      return undefined;
-    }
-  }
-
-  async function loadCostReportTaskMeta(): Promise<
-    Map<string, CostReportTaskMeta> | undefined
-  > {
-    try {
-      const tasks = await service.exportTasks();
-      const map = new Map<string, CostReportTaskMeta>();
-      for (const t of tasks) {
-        map.set(t.uuid.toLowerCase(), {
-          title: t.description,
-          project:
-            typeof t.project === "string" && t.project ? t.project : undefined,
-          tags: Array.isArray(t.tags)
-            ? t.tags.filter((x): x is string => typeof x === "string")
-            : undefined,
-        });
-      }
-      return map;
-    } catch {
-      return undefined;
-    }
-  }
-
-  let restoringTime = false;
-
-  const routes: WorkspaceRouteSpec[] = [
-    {
-      method: "GET",
-      route: "api/time/status",
-      handle: async () => {
+    function requireStore(): TimeStore {
         if (!store) {
-          return {
-            status: 200,
-            body: {
-              initialized: false,
-              enabled: false,
-              available: false,
-            },
-          };
+            throw new TimeStoreError(
+                503,
+                "TIME_NOT_INITIALIZED",
+                "Time module is not initialized in this workspace.",
+            );
         }
+        return store;
+    }
+
+    function requireEnabledStore(): TimeStore {
+        const s = requireStore();
+        if (!isEnabled()) {
+            throw new TimeStoreError(
+                409,
+                "TIME_DISABLED",
+                "Time module is currently disabled.",
+            );
+        }
+        return s;
+    }
+
+    function defaultDate(s: TimeStore): string {
+        const tz = s.getPolicy().timezone;
+        return localDateOf(Date.now(), tz);
+    }
+
+    async function loadImportIntervals(
+        body: Record<string, unknown>,
+    ): Promise<RawTimewarriorInterval[]> {
+        if (typeof body.rawJson === "string") {
+            const parsed = JSON.parse(body.rawJson) as unknown;
+            if (!Array.isArray(parsed)) {
+                throw new TimeStoreError(
+                    400,
+                    "INVALID_IMPORT",
+                    "rawJson must be a JSON array.",
+                );
+            }
+            return parsed as RawTimewarriorInterval[];
+        }
+        if (Array.isArray(body.intervals)) {
+            return body.intervals as RawTimewarriorInterval[];
+        }
+        return (await exportTimewarrior(
+            service.connection,
+        )) as RawTimewarriorInterval[];
+    }
+
+    async function loadReadOnlyTaskLookup(): Promise<
+        TaskSnapshotLookup | undefined
+    > {
         try {
-          const st = store.getStatus();
-          return {
-            status: 200,
-            body: {
-              ...st,
-              enabled: isEnabled(),
-              available: true,
-            },
-          };
-        } catch (err) {
-          if (err instanceof TimeStoreError && err.code === "TIME_RESTORING") {
-            return {
-              status: 200,
-              body: {
-                initialized: true,
-                enabled: isEnabled(),
-                available: false,
-                restoring: true,
-              },
-            };
-          }
-          throw err;
+            const tasks = await service.exportTasks();
+            const map = new Map(
+                tasks.map((t) => [
+                    t.uuid.toLowerCase(),
+                    {
+                        description: t.description,
+                        project:
+                            typeof t.project === "string"
+                                ? t.project
+                                : undefined,
+                        tags: Array.isArray(t.tags)
+                            ? t.tags.filter(
+                                  (x): x is string => typeof x === "string",
+                              )
+                            : undefined,
+                    },
+                ]),
+            );
+            return (uuid: string) => map.get(uuid.toLowerCase());
+        } catch {
+            return undefined;
         }
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/snapshot",
-      handle: async ({ searchParams }) => {
-        if (!store) {
-          const ts = new Date().toISOString();
-          return {
-            status: 200,
-            body: {
-              backend: "time",
-              contractVersion: 1,
-              timeEpoch: 0,
-              taskDataEpoch: 0,
-              state: "unavailable",
-              sessionVersion: 0,
-              snapshotAt: ts,
-              liveUntil: ts,
-              activeActivity: null,
-              taskTotalsSeconds: {},
-              taskCosts: {},
-              totalsComplete: false,
-              historyComplete: false,
-            },
-          };
-        }
-        const rawUuids = searchParams.get("uuids");
-        const taskUuids = rawUuids
-          ? rawUuids
-              .split(",")
-              .map((u) => u.trim())
-              .filter(Boolean)
-          : undefined;
-        return {
-          status: 200,
-          body: store.getTimerSnapshot({ taskUuids }),
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/daily",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const date = searchParams.get("date") || defaultDate(s);
-        return {
-          status: 200,
-          body: s.getDailySummary(date),
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/weekly",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const dateOrWeekStart =
-          searchParams.get("weekStart") ||
-          searchParams.get("date") ||
-          defaultDate(s);
-        return {
-          status: 200,
-          body: s.getWeeklySummary(dateOrWeekStart),
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/task-detail",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const taskUuid = searchParams.get("taskUuid") || "";
-        if (!taskUuid.trim()) {
-          throw new TimeStoreError(
-            400,
-            "MISSING_FIELD",
-            "Missing required query param: taskUuid.",
-          );
-        }
-        return {
-          status: 200,
-          body: s.getTaskCostDetail({ taskUuid }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/task-budget",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const status = s.getStatus();
-        const tz = status.policy.timezone;
-        const today = defaultDate(s);
-        const taskUuid = requiredString(body.taskUuid, "taskUuid", 64);
-        const mode = optionalString(body.mode, 16) as
-          | "set"
-          | "add"
-          | "clear"
-          | undefined;
-        const plannedStartAtMs = parseTimestampInput(body, {
-          msKey: "plannedStartAtMs",
-          isoKey: "plannedStartAtIso",
-          dateKey: "plannedStartDate",
-          timeKey: "plannedStartTime",
-          timeZone: tz,
-          defaultDate: today,
-        });
-        const hardStopAtMs = parseTimestampInput(body, {
-          msKey: "hardStopAtMs",
-          isoKey: "hardStopAtIso",
-          dateKey: "hardStopDate",
-          timeKey: "hardStopTime",
-          timeZone: tz,
-          defaultDate: today,
-        });
-        const allowanceSeconds = optionalNullableNumber(
-          body.allowanceSeconds,
-          "allowanceSeconds",
-        );
-        const addAllowanceSeconds = optionalNumber(body.addAllowanceSeconds);
-        return {
-          status: 200,
-          body: {
-            summary: s.setTaskBudget({
-              taskUuid,
-              mode,
-              allowanceSeconds,
-              addAllowanceSeconds,
-              plannedStartAtMs,
-              hardStopAtMs,
-            }),
-          },
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/cost-report",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const rawGran = searchParams.get("granularity");
-        const granularity: CostReportGranularity =
-          rawGran === "month" ? "month" : "week";
-        const date = searchParams.get("date") || defaultDate(s);
-        const rawSort = searchParams.get("sortBy");
-        const sortBy: CostReportSortBy =
-          rawSort === "highest_over_budget"
-            ? "highest_over_budget"
-            : "highest_cost";
-        const taskMetaByUuid = await loadCostReportTaskMeta();
-        return {
-          status: 200,
-          body: s.getCostReport({
-            granularity,
-            date,
-            sortBy,
-            taskMetaByUuid,
-          }),
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/bills/expenses",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const q = searchParams.get("q") || undefined;
-        const fromDate = searchParams.get("fromDate") || undefined;
-        const toDate = searchParams.get("toDate") || undefined;
-        const rawLimit = searchParams.get("limit");
-        const limit = rawLimit ? Number(rawLimit) : undefined;
-        return {
-          status: 200,
-          body: s.listBills({
-            q,
-            fromDate,
-            toDate,
-            ...(limit && Number.isFinite(limit) ? { limit } : {}),
-          }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/bills/link",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const link = s.linkBillExpense({
-          txKey: requiredString(body.txKey, "txKey", 200),
-          taskUuid: optionalString(body.taskUuid, 64),
-          activityId: optionalString(body.activityId, 64),
-          source: requiredString(body.source, "source", 100),
-          txId: requiredString(body.txId, "txId", 200),
-          payTime: requiredString(body.payTime, "payTime", 64),
-          payee: optionalString(body.payee, 300) ?? "",
-          narration: optionalString(body.narration, 500) ?? "",
-          account: requiredString(body.account, "account", 200),
-          currency: optionalString(body.currency, 16) ?? "CNY",
-          amount: requiredNumber(body.amount, "amount"),
-          cnyAmountCents: requiredNumber(body.cnyAmountCents, "cnyAmountCents"),
-          note: optionalString(body.note, 500),
-        });
-        return { status: 200, body: { link } };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/bills/unlink",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const linkId = requiredString(body.linkId, "linkId", 64);
-        return { status: 200, body: s.unlinkBillLink(linkId) };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/reconcile-digest",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const date = searchParams.get("date") || defaultDate(s);
-        return {
-          status: 200,
-          body: s.getReconcileDigest(date),
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/activities",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const startMs = searchParams.get("startMs");
-        const endMs = searchParams.get("endMs");
-        const kind = searchParams.get("kind") as ActivityKind | null;
-        const categoryId = searchParams.get("categoryId") || undefined;
-        const taskUuid = searchParams.get("taskUuid") || undefined;
-        const includeVoided = searchParams.get("includeVoided") === "1";
-        return {
-          status: 200,
-          body: {
-            activities: s.queryActivities({
-              ...(startMs ? { startMs: Number(startMs) } : {}),
-              ...(endMs ? { endMs: Number(endMs) } : {}),
-              ...(kind ? { kind } : {}),
-              ...(categoryId ? { categoryId } : {}),
-              ...(taskUuid ? { taskUuid } : {}),
-              includeVoided,
-            }),
-          },
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/policy",
-      handle: async () => {
-        const s = requireStore();
-        return { status: 200, body: s.getPolicy() };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/policy",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const expectedPolicyVersion = requiredNumber(
-          body.expectedPolicyVersion,
-          "expectedPolicyVersion",
-        );
-        if (!body.patch || typeof body.patch !== "object") {
-          throw new TimeStoreError(
-            400,
-            "INVALID_POLICY",
-            "Missing policy patch object.",
-          );
-        }
-        return {
-          status: 200,
-          body: s.updatePolicy({
-            idempotencyKey: optionalString(body.idempotencyKey, 200),
-            expectedPolicyVersion,
-            patch: body.patch as Partial<Omit<TimePolicy, "policyVersion">>,
-            receivedAtMs: optionalNumber(body.receivedAtMs),
-          }),
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/operation",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const id = searchParams.get("id") || "";
-        if (!id.trim()) {
-          throw new TimeStoreError(
-            400,
-            "MISSING_FIELD",
-            "Missing operation id or idempotencyKey.",
-          );
-        }
-        const op = s.getOperation(id.trim());
-        if (!op) {
-          return { status: 404, body: { found: false, operation: null } };
-        }
-        if (coordinator && op.state === "pending_reconcile") {
-          const detail = await coordinator.inspectPendingOperation(
-            op.operationId,
-          );
-          return { status: 200, body: { found: true, ...detail } };
-        }
-        return { status: 200, body: { found: true, operation: op } };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/start",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const idempotencyKey = requiredString(
-          body.idempotencyKey,
-          "idempotencyKey",
-          200,
-        );
-        const timingPlanId = optionalString(body.timingPlanId, 64);
-        const taskUuid = optionalString(body.taskUuid, 64);
-        let title = optionalString(body.title, 500);
-        let projectSnapshot = optionalString(body.projectSnapshot, 200);
-        let tags = optionalStringArray(body.tags);
+    }
 
-        // Read-only task lookup if taskUuid is provided without explicit title (never mutates Taskwarrior).
-        if (taskUuid && (!title || !projectSnapshot)) {
-          try {
-            const raw = await service.rawTask(taskUuid);
-            if (!title) title = raw.description;
-            if (
-              !projectSnapshot &&
-              typeof raw.project === "string" &&
-              raw.project
-            ) {
-              projectSnapshot = raw.project;
-            }
-            if (!tags && Array.isArray(raw.tags)) {
-              tags = raw.tags.filter((t): t is string => typeof t === "string");
-            }
-          } catch {
-            // Fall back to supplied title; native Time logs don't require Taskwarrior availability.
-          }
-        }
-        if (!title && !timingPlanId) {
-          throw new TimeStoreError(
-            400,
-            "MISSING_FIELD",
-            "Missing required field: title.",
-          );
-        }
-
-        const receipt = s.startActivity({
-          idempotencyKey,
-          receivedAtMs: optionalNumber(body.receivedAtMs),
-          effectiveAtMs: optionalNumber(body.effectiveAtMs),
-          title,
-          timingPlanId,
-          explicitCategoryId: optionalString(body.explicitCategoryId, 100),
-          taskUuid,
-          projectSnapshot,
-          tags,
-          source: optionalString(body.source, 40) as ActivitySource | undefined,
-          note: optionalString(body.note, 2000),
-          rawInput: optionalString(body.rawInput, 2000),
-          sameTaskNoop: Boolean(body.sameTaskNoop),
-          expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
-        });
-        const plan = receipt.activity?.timingPlanId
-          ? (s.getTimingPlan(receipt.activity.timingPlanId) ?? undefined)
-          : undefined;
-        return { status: 200, body: plan ? { ...receipt, plan } : receipt };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/stop",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const receipt = s.stopActivity({
-          idempotencyKey: requiredString(
-            body.idempotencyKey,
-            "idempotencyKey",
-            200,
-          ),
-          receivedAtMs: optionalNumber(body.receivedAtMs),
-          effectiveAtMs: optionalNumber(body.effectiveAtMs),
-          expectedActivityId: optionalString(body.expectedActivityId, 64),
-          expectedVersion: optionalNumber(body.expectedVersion),
-          expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
-          pause: optionalBoolean(body.pause, "pause"),
-        });
-        const plan = receipt.activity?.timingPlanId
-          ? (s.getTimingPlan(receipt.activity.timingPlanId) ?? undefined)
-          : undefined;
-        return {
-          status: 200,
-          body: plan ? { ...receipt, plan } : receipt,
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/confirm",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const receipt = s.confirmActivity({
-          idempotencyKey: requiredString(
-            body.idempotencyKey,
-            "idempotencyKey",
-            200,
-          ),
-          receivedAtMs: optionalNumber(body.receivedAtMs),
-          activityId: requiredString(body.activityId, "activityId", 64),
-          expectedVersion: requiredNumber(
-            body.expectedVersion,
-            "expectedVersion",
-          ),
-          throughMs: optionalNumber(body.throughMs),
-          nextCheckpointSeconds: optionalNumber(body.nextCheckpointSeconds),
-        });
-        const plan = receipt.activity?.timingPlanId
-          ? (s.getTimingPlan(receipt.activity.timingPlanId) ?? undefined)
-          : undefined;
-        return {
-          status: 200,
-          body: plan ? { ...receipt, plan } : receipt,
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/plans",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const includeArchivedRaw = searchParams.get("includeArchived");
-        const includeArchived =
-          includeArchivedRaw === "1" || includeArchivedRaw === "true";
-        const taskUuid = optionalString(searchParams.get("taskUuid"), 64);
-        return {
-          status: 200,
-          body: { plans: s.listTimingPlans({ includeArchived, taskUuid }) },
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/plan",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const id = requiredString(searchParams.get("id"), "id", 64);
-        const plan = s.getTimingPlan(id);
-        if (!plan) {
-          throw new TimeStoreError(
-            404,
-            "TIMING_PLAN_NOT_FOUND",
-            "Timing plan not found.",
-          );
-        }
-        return { status: 200, body: { plan } };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/plans/create",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const receivedAtMs = optionalNumber(body.receivedAtMs);
-        const taskUuid = optionalString(body.taskUuid, 64);
-        let title = optionalString(body.title, 500);
-        let projectSnapshot = optionalString(body.projectSnapshot, 200);
-        let tags = optionalStringArray(body.tags);
-
-        if (taskUuid && (!title || !projectSnapshot)) {
-          try {
-            const raw = await service.rawTask(taskUuid);
-            if (!title) title = raw.description;
-            if (
-              !projectSnapshot &&
-              typeof raw.project === "string" &&
-              raw.project
-            ) {
-              projectSnapshot = raw.project;
-            }
-            if (!tags && Array.isArray(raw.tags)) {
-              tags = raw.tags.filter((t): t is string => typeof t === "string");
-            }
-          } catch {
-            // Optional read-only task enrichment.
-          }
-        }
-        if (!title) {
-          throw new TimeStoreError(
-            400,
-            "MISSING_FIELD",
-            "Missing required field: title.",
-          );
-        }
-
-        const timeZone = s.getStatus().policy.timezone;
-        const defaultDate = localDateOf(receivedAtMs ?? Date.now(), timeZone);
-        const allowanceSeconds =
-          body.allowanceSeconds !== undefined && body.allowanceSeconds !== null
-            ? requiredNumber(body.allowanceSeconds, "allowanceSeconds")
-            : body.allowanceMinutes !== undefined &&
-                body.allowanceMinutes !== null
-              ? Math.round(
-                  requiredNumber(body.allowanceMinutes, "allowanceMinutes") *
-                    60,
-                )
-              : undefined;
-        const plannedStartParsed = parseTimestampInput(body, {
-          msKey: "plannedStartAtMs",
-          isoKey: "plannedStartAt",
-          dateKey: "plannedStartDate",
-          timeKey: "plannedStartTime",
-          timeZone,
-          defaultDate,
-        });
-        const hardStopParsed = parseTimestampInput(body, {
-          msKey: "hardStopAtMs",
-          isoKey: "hardStopAt",
-          dateKey: "hardStopDate",
-          timeKey: "hardStopTime",
-          timeZone,
-          defaultDate,
-        });
-
-        const result = s.createTimingPlan({
-          idempotencyKey: optionalString(body.idempotencyKey, 200),
-          receivedAtMs,
-          title,
-          categoryId: optionalString(body.categoryId, 100),
-          taskUuid,
-          projectSnapshot,
-          tags,
-          note: optionalString(body.note, 2000),
-          allowanceSeconds,
-          plannedStartAtMs:
-            plannedStartParsed === null ? undefined : plannedStartParsed,
-          hardStopAtMs: hardStopParsed === null ? undefined : hardStopParsed,
-        });
-        return { status: 200, body: result };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/plans/update",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const receivedAtMs = optionalNumber(body.receivedAtMs);
-        const timeZone = s.getStatus().policy.timezone;
-        const defaultDate = localDateOf(receivedAtMs ?? Date.now(), timeZone);
-
-        const allowanceSeconds =
-          body.allowanceSeconds !== undefined
-            ? optionalNullableNumber(body.allowanceSeconds, "allowanceSeconds")
-            : body.allowanceMinutes !== undefined
-              ? body.allowanceMinutes === null
-                ? null
-                : Math.round(
-                    requiredNumber(body.allowanceMinutes, "allowanceMinutes") *
-                      60,
-                  )
-              : undefined;
-        const addAllowanceSeconds =
-          body.addAllowanceSeconds !== undefined
-            ? requiredNumber(body.addAllowanceSeconds, "addAllowanceSeconds")
-            : body.addAllowanceMinutes !== undefined
-              ? Math.round(
-                  requiredNumber(
-                    body.addAllowanceMinutes,
-                    "addAllowanceMinutes",
-                  ) * 60,
-                )
-              : undefined;
-        const plannedStartAtMs = parseTimestampInput(body, {
-          msKey: "plannedStartAtMs",
-          isoKey: "plannedStartAt",
-          dateKey: "plannedStartDate",
-          timeKey: "plannedStartTime",
-          timeZone,
-          defaultDate,
-        });
-        const hardStopAtMs = parseTimestampInput(body, {
-          msKey: "hardStopAtMs",
-          isoKey: "hardStopAt",
-          dateKey: "hardStopDate",
-          timeKey: "hardStopTime",
-          timeZone,
-          defaultDate,
-        });
-
-        const result = s.updateTimingPlan({
-          idempotencyKey: optionalString(body.idempotencyKey, 200),
-          receivedAtMs,
-          planId: requiredString(body.planId, "planId", 64),
-          expectedVersion: requiredNumber(
-            body.expectedVersion,
-            "expectedVersion",
-          ),
-          expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
-          expectedActivityId: optionalString(body.expectedActivityId, 64),
-          expectedActivityVersion: optionalNumber(body.expectedActivityVersion),
-          patch: {
-            title: optionalString(body.title, 500),
-            categoryId: optionalNullableString(
-              body.categoryId,
-              "categoryId",
-              100,
-            ),
-            taskUuid: optionalNullableString(body.taskUuid, "taskUuid", 64),
-            projectSnapshot: optionalNullableString(
-              body.projectSnapshot,
-              "projectSnapshot",
-              200,
-            ),
-            tags: body.tags === null ? null : optionalStringArray(body.tags),
-            note: optionalNullableString(body.note, "note", 2000),
-            allowanceSeconds,
-            addAllowanceSeconds,
-            plannedStartAtMs,
-            hardStopAtMs,
-            archived: optionalBoolean(body.archived, "archived"),
-          },
-        });
-        return { status: 200, body: result };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/plans/start",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const planId = requiredString(body.planId, "planId", 64);
-        const receipt = s.startActivity({
-          idempotencyKey: requiredString(
-            body.idempotencyKey,
-            "idempotencyKey",
-            200,
-          ),
-          receivedAtMs: optionalNumber(body.receivedAtMs),
-          effectiveAtMs: optionalNumber(body.effectiveAtMs),
-          timingPlanId: planId,
-          sameTaskNoop: optionalBoolean(body.sameTaskNoop, "sameTaskNoop"),
-          expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
-        });
-        const plan = receipt.activity?.timingPlanId
-          ? (s.getTimingPlan(receipt.activity.timingPlanId) ?? undefined)
-          : (s.getTimingPlan(planId) ?? undefined);
-        return {
-          status: 200,
-          body: plan ? { ...receipt, plan } : receipt,
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/events",
-      handle: async ({ searchParams }) => {
-        const s = requireStore();
-        const includeRaw = searchParams.get("includeAcknowledged");
-        const includeAcknowledged = includeRaw === "1" || includeRaw === "true";
-        const limitRaw = searchParams.get("limit");
-        const limit =
-          limitRaw !== null && limitRaw !== "" ? Number(limitRaw) : undefined;
-        if (limit !== undefined && (!Number.isFinite(limit) || limit <= 0)) {
-          throw new TimeStoreError(400, "INVALID_FIELD", "Invalid limit.");
-        }
-        return {
-          status: 200,
-          body: {
-            events: s.listTimeEvents({ includeAcknowledged, limit }),
-          },
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/events/ack",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        const eventIds = requiredStringArray(body.eventIds, "eventIds");
-        return {
-          status: 200,
-          body: s.ackTimeEvents(eventIds),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/log",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        return {
-          status: 200,
-          body: s.logLocatedActivity({
-            idempotencyKey: requiredString(
-              body.idempotencyKey,
-              "idempotencyKey",
-              200,
-            ),
-            receivedAtMs: optionalNumber(body.receivedAtMs),
-            title: requiredString(body.title, "title", 500),
-            startMs: requiredNumber(body.startMs, "startMs"),
-            endMs: requiredNumber(body.endMs, "endMs"),
-            explicitCategoryId: optionalString(body.explicitCategoryId, 100),
-            taskUuid: optionalString(body.taskUuid, 64),
-            projectSnapshot: optionalString(body.projectSnapshot, 200),
-            tags: optionalStringArray(body.tags),
-            precision:
-              body.precision === "estimated_bounds" ||
-              body.precision === "approximate"
-                ? "estimated_bounds"
-                : "exact",
-            source: optionalString(body.source, 40) as
-              | ActivitySource
-              | undefined,
-            note: optionalString(body.note, 2000),
-            rawInput: optionalString(body.rawInput, 2000),
-          }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/estimate",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        return {
-          status: 200,
-          body: s.logUnlocatedEstimate({
-            idempotencyKey: requiredString(
-              body.idempotencyKey,
-              "idempotencyKey",
-              200,
-            ),
-            receivedAtMs: optionalNumber(body.receivedAtMs),
-            title: requiredString(body.title, "title", 500),
-            estimatedSeconds: requiredNumber(
-              body.estimatedSeconds,
-              "estimatedSeconds",
-            ),
-            targetDate: optionalString(body.targetDate, 10),
-            windowStartMs: optionalNumber(body.windowStartMs),
-            windowEndMs: optionalNumber(body.windowEndMs),
-            explicitCategoryId: optionalString(body.explicitCategoryId, 100),
-            taskUuid: optionalString(body.taskUuid, 64),
-            projectSnapshot: optionalString(body.projectSnapshot, 200),
-            tags: optionalStringArray(body.tags),
-            source: optionalString(body.source, 40) as
-              | ActivitySource
-              | undefined,
-            note: optionalString(body.note, 2000),
-            rawInput: optionalString(body.rawInput, 2000),
-          }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/locate",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        return {
-          status: 200,
-          body: s.locateEstimate({
-            idempotencyKey: requiredString(
-              body.idempotencyKey,
-              "idempotencyKey",
-              200,
-            ),
-            activityId: requiredString(body.activityId, "activityId", 64),
-            expectedVersion: requiredNumber(
-              body.expectedVersion,
-              "expectedVersion",
-            ),
-            startMs: requiredNumber(body.startMs, "startMs"),
-            endMs: requiredNumber(body.endMs, "endMs"),
-            receivedAtMs: optionalNumber(body.receivedAtMs),
-          }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/update",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        if (!body.patch || typeof body.patch !== "object") {
-          throw new TimeStoreError(
-            400,
-            "INVALID_PATCH",
-            "Missing update patch object.",
-          );
-        }
-        return {
-          status: 200,
-          body: s.updateActivity({
-            idempotencyKey: requiredString(
-              body.idempotencyKey,
-              "idempotencyKey",
-              200,
-            ),
-            activityId: requiredString(body.activityId, "activityId", 64),
-            expectedVersion: requiredNumber(
-              body.expectedVersion,
-              "expectedVersion",
-            ),
-            receivedAtMs: optionalNumber(body.receivedAtMs),
-            patch: body.patch as Parameters<
-              TimeStore["updateActivity"]
-            >[0]["patch"],
-          }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/undo",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        return {
-          status: 200,
-          body: s.undoOperation({
-            idempotencyKey: requiredString(
-              body.idempotencyKey,
-              "idempotencyKey",
-              200,
-            ),
-            targetOperationId: requiredString(
-              body.targetOperationId,
-              "targetOperationId",
-              64,
-            ),
-            receivedAtMs: optionalNumber(body.receivedAtMs),
-          }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/sleep/confirm",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        return {
-          status: 200,
-          body: s.confirmSleepCandidate({
-            idempotencyKey: requiredString(
-              body.idempotencyKey,
-              "idempotencyKey",
-              200,
-            ),
-            date: requiredString(body.date, "date", 10),
-            receivedAtMs: optionalNumber(body.receivedAtMs),
-          }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/sleep/dismiss",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody();
-        return {
-          status: 200,
-          body: s.dismissSleepCandidate({
-            idempotencyKey: requiredString(
-              body.idempotencyKey,
-              "idempotencyKey",
-              200,
-            ),
-            date: requiredString(body.date, "date", 10),
-            receivedAtMs: optionalNumber(body.receivedAtMs),
-          }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/operation/resolve",
-      handle: async ({ readBody }) => {
-        requireEnabledStore();
-        if (!coordinator) {
-          throw new TimeStoreError(
-            503,
-            "COORDINATOR_UNAVAILABLE",
-            "Time coordinator unavailable.",
-          );
-        }
-        const body = await readBody();
-        const operationId = requiredString(body.operationId, "operationId", 64);
-        const action = requiredString(body.action, "action", 32);
-        if (
-          action !== "dismiss" &&
-          action !== "accept_started" &&
-          action !== "stop_active"
-        ) {
-          throw new TimeStoreError(
-            400,
-            "INVALID_ACTION",
-            "Unsupported resolve action.",
-          );
-        }
-        return {
-          status: 200,
-          body: await coordinator.resolvePending({
-            operationId,
-            action,
-            effectiveAtMs: optionalNumber(body.effectiveAtMs),
-          }),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/import/preview",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody(8 * 1024 * 1024);
-        const intervals = await loadImportIntervals(body);
-        const taskLookup = await loadReadOnlyTaskLookup();
-        const cutoverAtMs =
-          optionalNumber(body.cutoverAtMs) ??
-          optionalNumber(body.cutoverMs) ??
-          s.getStatus().cutoverAtMs ??
-          Date.now();
-        return {
-          status: 200,
-          body: analyzeTimewarriorSnapshot(s, {
-            intervals,
-            cutoverAtMs,
-            clipOpenToCutover: Boolean(
-              body.clipOpenToCutover ?? body.acceptOpenIntervalAsActivity,
-            ),
-            taskLookup,
-          }).preview,
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/import/apply",
-      handle: async ({ readBody }) => {
-        const s = requireEnabledStore();
-        const body = await readBody(8 * 1024 * 1024);
-        const intervals = await loadImportIntervals(body);
-        const taskLookup = await loadReadOnlyTaskLookup();
-        const cutoverAtMs =
-          optionalNumber(body.cutoverAtMs) ??
-          optionalNumber(body.cutoverMs) ??
-          s.getStatus().cutoverAtMs ??
-          Date.now();
-        return {
-          status: 200,
-          body: applyTimewarriorSnapshotImport(s, {
-            intervals,
-            cutoverAtMs,
-            clipOpenToCutover: Boolean(
-              body.clipOpenToCutover ?? body.acceptOpenIntervalAsActivity,
-            ),
-            taskLookup,
-            nowMs: optionalNumber(body.receivedAtMs),
-          }),
-        };
-      },
-    },
-    {
-      method: "GET",
-      route: "api/time/backup/export",
-      handle: async () => {
-        requireStore();
-        if (!backup) {
-          throw new TimeStoreError(
-            503,
-            "BACKUP_UNAVAILABLE",
-            "Time backup unavailable.",
-          );
-        }
-        return {
-          status: 200,
-          body: await backup.exportBundle(),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/backup/preview",
-      handle: async ({ readBody }) => {
-        requireStore();
-        if (!backup) {
-          throw new TimeStoreError(
-            503,
-            "BACKUP_UNAVAILABLE",
-            "Time backup unavailable.",
-          );
-        }
-        const body = await readBody(16 * 1024 * 1024);
-        const sqliteBase64 = requiredString(
-          body.sqliteBase64,
-          "sqliteBase64",
-          16 * 1024 * 1024,
-        );
-        const bytes = Buffer.from(sqliteBase64, "base64");
-        return {
-          status: 200,
-          body: await backup.previewRestoreBuffer(bytes),
-        };
-      },
-    },
-    {
-      method: "POST",
-      route: "api/time/backup/restore",
-      skipGate: true,
-      handle: async ({ readBody }) => {
-        requireStore();
-        if (!backup) {
-          throw new TimeStoreError(
-            503,
-            "BACKUP_UNAVAILABLE",
-            "Time backup unavailable.",
-          );
-        }
-        if (restoringTime) {
-          throw Object.assign(
-            new Error("Another Time restore is already running."),
-            { status: 423 },
-          );
-        }
-        const body = await readBody();
-        const token = requiredString(body.token, "token", 128);
-        restoringTime = true;
+    async function loadCostReportTaskMeta(): Promise<
+        Map<string, CostReportTaskMeta> | undefined
+    > {
         try {
-          return {
-            status: 200,
-            body: await gate.exclusive(() => backup.applyRestore(token)),
-          };
-        } finally {
-          restoringTime = false;
+            const tasks = await service.exportTasks();
+            const map = new Map<string, CostReportTaskMeta>();
+            for (const t of tasks) {
+                map.set(t.uuid.toLowerCase(), {
+                    title: t.description,
+                    project:
+                        typeof t.project === "string" && t.project
+                            ? t.project
+                            : undefined,
+                    tags: Array.isArray(t.tags)
+                        ? t.tags.filter(
+                              (x): x is string => typeof x === "string",
+                          )
+                        : undefined,
+                });
+            }
+            return map;
+        } catch {
+            return undefined;
         }
-      },
-    },
-    {
-      method: "POST",
-      route: "api/internal/maintenance/backup",
-      skipGate: true,
-      handle: async ({ readBody, transport }) => {
-        if (transport !== "ipc") {
-          throw Object.assign(
-            new Error("Forbidden on public HTTP transport."),
-            {
-              status: 403,
-            },
-          );
-        }
-        const body = await readBody();
-        const backupId = requiredString(body.backupId, "backupId", 64);
-        const releaseId = optionalString(body.releaseId, 64);
-        const taskchampionDbPath = paths.resolveTaskchampionDbPath
-          ? await paths.resolveTaskchampionDbPath()
-          : undefined;
-        const result = await gate.exclusive(() =>
-          runMaintenanceBackup({
-            backupId,
-            releaseId,
-            sourceIdentity: identity,
-            dataDir: paths.dataDir,
-            organizationFile: paths.organizationFile,
-            recoveryFile: paths.recoveryFile,
-            timeFile: paths.timeFile,
-            taskchampionDbPath,
-            timeEnabled: isEnabled(),
-            timeBackup: backup,
-          }),
-        );
-        return {
-          status: 200,
-          body: result,
-        };
-      },
-    },
-  ];
+    }
 
-  return routes;
+    let restoringTime = false;
+
+    const routes: WorkspaceRouteSpec[] = [
+        {
+            method: "GET",
+            route: "api/time/status",
+            handle: async () => {
+                if (!store) {
+                    return {
+                        status: 200,
+                        body: {
+                            initialized: false,
+                            enabled: false,
+                            available: false,
+                        },
+                    };
+                }
+                try {
+                    const st = store.getStatus();
+                    return {
+                        status: 200,
+                        body: {
+                            ...st,
+                            enabled: isEnabled(),
+                            available: true,
+                        },
+                    };
+                } catch (err) {
+                    if (
+                        err instanceof TimeStoreError &&
+                        err.code === "TIME_RESTORING"
+                    ) {
+                        return {
+                            status: 200,
+                            body: {
+                                initialized: true,
+                                enabled: isEnabled(),
+                                available: false,
+                                restoring: true,
+                            },
+                        };
+                    }
+                    throw err;
+                }
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/snapshot",
+            handle: async ({ searchParams }) => {
+                if (!store) {
+                    const ts = new Date().toISOString();
+                    return {
+                        status: 200,
+                        body: {
+                            backend: "time",
+                            contractVersion: 1,
+                            timeEpoch: 0,
+                            taskDataEpoch: 0,
+                            state: "unavailable",
+                            sessionVersion: 0,
+                            snapshotAt: ts,
+                            liveUntil: ts,
+                            activeActivity: null,
+                            taskTotalsSeconds: {},
+                            taskCosts: {},
+                            totalsComplete: false,
+                            historyComplete: false,
+                        },
+                    };
+                }
+                const rawUuids = searchParams.get("uuids");
+                const taskUuids = rawUuids
+                    ? rawUuids
+                          .split(",")
+                          .map((u) => u.trim())
+                          .filter(Boolean)
+                    : undefined;
+                return {
+                    status: 200,
+                    body: store.getTimerSnapshot({ taskUuids }),
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/daily",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const date = searchParams.get("date") || defaultDate(s);
+                return {
+                    status: 200,
+                    body: s.getDailySummary(date),
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/weekly",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const dateOrWeekStart =
+                    searchParams.get("weekStart") ||
+                    searchParams.get("date") ||
+                    defaultDate(s);
+                return {
+                    status: 200,
+                    body: s.getWeeklySummary(dateOrWeekStart),
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/task-detail",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const taskUuid = searchParams.get("taskUuid") || "";
+                if (!taskUuid.trim()) {
+                    throw new TimeStoreError(
+                        400,
+                        "MISSING_FIELD",
+                        "Missing required query param: taskUuid.",
+                    );
+                }
+                return {
+                    status: 200,
+                    body: s.getTaskCostDetail({ taskUuid }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/task-budget",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const status = s.getStatus();
+                const tz = status.policy.timezone;
+                const today = defaultDate(s);
+                const taskUuid = requiredString(body.taskUuid, "taskUuid", 64);
+                const mode = optionalString(body.mode, 16) as
+                    "set" | "add" | "clear" | undefined;
+                const plannedStartAtMs = parseTimestampInput(body, {
+                    msKey: "plannedStartAtMs",
+                    isoKey: "plannedStartAtIso",
+                    dateKey: "plannedStartDate",
+                    timeKey: "plannedStartTime",
+                    timeZone: tz,
+                    defaultDate: today,
+                });
+                const hardStopAtMs = parseTimestampInput(body, {
+                    msKey: "hardStopAtMs",
+                    isoKey: "hardStopAtIso",
+                    dateKey: "hardStopDate",
+                    timeKey: "hardStopTime",
+                    timeZone: tz,
+                    defaultDate: today,
+                });
+                const allowanceSeconds = optionalNullableNumber(
+                    body.allowanceSeconds,
+                    "allowanceSeconds",
+                );
+                const addAllowanceSeconds = optionalNumber(
+                    body.addAllowanceSeconds,
+                );
+                return {
+                    status: 200,
+                    body: {
+                        summary: s.setTaskBudget({
+                            taskUuid,
+                            mode,
+                            allowanceSeconds,
+                            addAllowanceSeconds,
+                            plannedStartAtMs,
+                            hardStopAtMs,
+                        }),
+                    },
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/cost-report",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const rawGran = searchParams.get("granularity");
+                const granularity: CostReportGranularity =
+                    rawGran === "month" ? "month" : "week";
+                const date = searchParams.get("date") || defaultDate(s);
+                const rawSort = searchParams.get("sortBy");
+                const sortBy: CostReportSortBy =
+                    rawSort === "highest_over_budget"
+                        ? "highest_over_budget"
+                        : "highest_cost";
+                const taskMetaByUuid = await loadCostReportTaskMeta();
+                return {
+                    status: 200,
+                    body: s.getCostReport({
+                        granularity,
+                        date,
+                        sortBy,
+                        taskMetaByUuid,
+                    }),
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/bills/expenses",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const q = searchParams.get("q") || undefined;
+                const fromDate = searchParams.get("fromDate") || undefined;
+                const toDate = searchParams.get("toDate") || undefined;
+                const rawLimit = searchParams.get("limit");
+                const limit = rawLimit ? Number(rawLimit) : undefined;
+                return {
+                    status: 200,
+                    body: s.listBills({
+                        q,
+                        fromDate,
+                        toDate,
+                        ...(limit && Number.isFinite(limit) ? { limit } : {}),
+                    }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/bills/link",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const link = s.linkBillExpense({
+                    txKey: requiredString(body.txKey, "txKey", 200),
+                    taskUuid: optionalString(body.taskUuid, 64),
+                    activityId: optionalString(body.activityId, 64),
+                    source: requiredString(body.source, "source", 100),
+                    txId: requiredString(body.txId, "txId", 200),
+                    payTime: requiredString(body.payTime, "payTime", 64),
+                    payee: optionalString(body.payee, 300) ?? "",
+                    narration: optionalString(body.narration, 500) ?? "",
+                    account: requiredString(body.account, "account", 200),
+                    currency: optionalString(body.currency, 16) ?? "CNY",
+                    amount: requiredNumber(body.amount, "amount"),
+                    cnyAmountCents: requiredNumber(
+                        body.cnyAmountCents,
+                        "cnyAmountCents",
+                    ),
+                    note: optionalString(body.note, 500),
+                });
+                return { status: 200, body: { link } };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/bills/unlink",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const linkId = requiredString(body.linkId, "linkId", 64);
+                return { status: 200, body: s.unlinkBillLink(linkId) };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/reconcile-digest",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const date = searchParams.get("date") || defaultDate(s);
+                return {
+                    status: 200,
+                    body: s.getReconcileDigest(date),
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/activities",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const startMs = searchParams.get("startMs");
+                const endMs = searchParams.get("endMs");
+                const kind = searchParams.get("kind") as ActivityKind | null;
+                const categoryId = searchParams.get("categoryId") || undefined;
+                const taskUuid = searchParams.get("taskUuid") || undefined;
+                const includeVoided = searchParams.get("includeVoided") === "1";
+                return {
+                    status: 200,
+                    body: {
+                        activities: s.queryActivities({
+                            ...(startMs ? { startMs: Number(startMs) } : {}),
+                            ...(endMs ? { endMs: Number(endMs) } : {}),
+                            ...(kind ? { kind } : {}),
+                            ...(categoryId ? { categoryId } : {}),
+                            ...(taskUuid ? { taskUuid } : {}),
+                            includeVoided,
+                        }),
+                    },
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/policy",
+            handle: async () => {
+                const s = requireStore();
+                return { status: 200, body: s.getPolicy() };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/policy",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const expectedPolicyVersion = requiredNumber(
+                    body.expectedPolicyVersion,
+                    "expectedPolicyVersion",
+                );
+                if (!body.patch || typeof body.patch !== "object") {
+                    throw new TimeStoreError(
+                        400,
+                        "INVALID_POLICY",
+                        "Missing policy patch object.",
+                    );
+                }
+                return {
+                    status: 200,
+                    body: s.updatePolicy({
+                        idempotencyKey: optionalString(
+                            body.idempotencyKey,
+                            200,
+                        ),
+                        expectedPolicyVersion,
+                        patch: body.patch as Partial<
+                            Omit<TimePolicy, "policyVersion">
+                        >,
+                        receivedAtMs: optionalNumber(body.receivedAtMs),
+                    }),
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/operation",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const id = searchParams.get("id") || "";
+                if (!id.trim()) {
+                    throw new TimeStoreError(
+                        400,
+                        "MISSING_FIELD",
+                        "Missing operation id or idempotencyKey.",
+                    );
+                }
+                const op = s.getOperation(id.trim());
+                if (!op) {
+                    return {
+                        status: 404,
+                        body: { found: false, operation: null },
+                    };
+                }
+                if (coordinator && op.state === "pending_reconcile") {
+                    const detail = await coordinator.inspectPendingOperation(
+                        op.operationId,
+                    );
+                    return { status: 200, body: { found: true, ...detail } };
+                }
+                return { status: 200, body: { found: true, operation: op } };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/start",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const idempotencyKey = requiredString(
+                    body.idempotencyKey,
+                    "idempotencyKey",
+                    200,
+                );
+                const timingPlanId = optionalString(body.timingPlanId, 64);
+                const taskUuid = optionalString(body.taskUuid, 64);
+                let title = optionalString(body.title, 500);
+                let projectSnapshot = optionalString(body.projectSnapshot, 200);
+                let tags = optionalStringArray(body.tags);
+
+                // Read-only task lookup if taskUuid is provided without explicit title (never mutates Taskwarrior).
+                if (taskUuid && (!title || !projectSnapshot)) {
+                    try {
+                        const raw = await service.rawTask(taskUuid);
+                        if (!title) title = raw.description;
+                        if (
+                            !projectSnapshot &&
+                            typeof raw.project === "string" &&
+                            raw.project
+                        ) {
+                            projectSnapshot = raw.project;
+                        }
+                        if (!tags && Array.isArray(raw.tags)) {
+                            tags = raw.tags.filter(
+                                (t): t is string => typeof t === "string",
+                            );
+                        }
+                    } catch {
+                        // Fall back to supplied title; native Time logs don't require Taskwarrior availability.
+                    }
+                }
+                if (!title && !timingPlanId) {
+                    throw new TimeStoreError(
+                        400,
+                        "MISSING_FIELD",
+                        "Missing required field: title.",
+                    );
+                }
+
+                const receipt = s.startActivity({
+                    idempotencyKey,
+                    receivedAtMs: optionalNumber(body.receivedAtMs),
+                    effectiveAtMs: optionalNumber(body.effectiveAtMs),
+                    title,
+                    timingPlanId,
+                    explicitCategoryId: optionalString(
+                        body.explicitCategoryId,
+                        100,
+                    ),
+                    taskUuid,
+                    projectSnapshot,
+                    tags,
+                    source: optionalString(body.source, 40) as
+                        ActivitySource | undefined,
+                    note: optionalString(body.note, 2000),
+                    rawInput: optionalString(body.rawInput, 2000),
+                    sameTaskNoop: Boolean(body.sameTaskNoop),
+                    expectedSessionVersion: optionalNumber(
+                        body.expectedSessionVersion,
+                    ),
+                });
+                const plan = receipt.activity?.timingPlanId
+                    ? (s.getTimingPlan(receipt.activity.timingPlanId) ??
+                      undefined)
+                    : undefined;
+                return {
+                    status: 200,
+                    body: plan ? { ...receipt, plan } : receipt,
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/stop",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const receipt = s.stopActivity({
+                    idempotencyKey: requiredString(
+                        body.idempotencyKey,
+                        "idempotencyKey",
+                        200,
+                    ),
+                    receivedAtMs: optionalNumber(body.receivedAtMs),
+                    effectiveAtMs: optionalNumber(body.effectiveAtMs),
+                    expectedActivityId: optionalString(
+                        body.expectedActivityId,
+                        64,
+                    ),
+                    expectedVersion: optionalNumber(body.expectedVersion),
+                    expectedSessionVersion: optionalNumber(
+                        body.expectedSessionVersion,
+                    ),
+                    pause: optionalBoolean(body.pause, "pause"),
+                });
+                const plan = receipt.activity?.timingPlanId
+                    ? (s.getTimingPlan(receipt.activity.timingPlanId) ??
+                      undefined)
+                    : undefined;
+                return {
+                    status: 200,
+                    body: plan ? { ...receipt, plan } : receipt,
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/confirm",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const receipt = s.confirmActivity({
+                    idempotencyKey: requiredString(
+                        body.idempotencyKey,
+                        "idempotencyKey",
+                        200,
+                    ),
+                    receivedAtMs: optionalNumber(body.receivedAtMs),
+                    activityId: requiredString(
+                        body.activityId,
+                        "activityId",
+                        64,
+                    ),
+                    expectedVersion: requiredNumber(
+                        body.expectedVersion,
+                        "expectedVersion",
+                    ),
+                    throughMs: optionalNumber(body.throughMs),
+                    nextCheckpointSeconds: optionalNumber(
+                        body.nextCheckpointSeconds,
+                    ),
+                });
+                const plan = receipt.activity?.timingPlanId
+                    ? (s.getTimingPlan(receipt.activity.timingPlanId) ??
+                      undefined)
+                    : undefined;
+                return {
+                    status: 200,
+                    body: plan ? { ...receipt, plan } : receipt,
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/plans",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const includeArchivedRaw = searchParams.get("includeArchived");
+                const includeArchived =
+                    includeArchivedRaw === "1" || includeArchivedRaw === "true";
+                const taskUuid = optionalString(
+                    searchParams.get("taskUuid"),
+                    64,
+                );
+                return {
+                    status: 200,
+                    body: {
+                        plans: s.listTimingPlans({ includeArchived, taskUuid }),
+                    },
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/plan",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const id = requiredString(searchParams.get("id"), "id", 64);
+                const plan = s.getTimingPlan(id);
+                if (!plan) {
+                    throw new TimeStoreError(
+                        404,
+                        "TIMING_PLAN_NOT_FOUND",
+                        "Timing plan not found.",
+                    );
+                }
+                return { status: 200, body: { plan } };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/plans/create",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const receivedAtMs = optionalNumber(body.receivedAtMs);
+                const taskUuid = optionalString(body.taskUuid, 64);
+                let title = optionalString(body.title, 500);
+                let projectSnapshot = optionalString(body.projectSnapshot, 200);
+                let tags = optionalStringArray(body.tags);
+
+                if (taskUuid && (!title || !projectSnapshot)) {
+                    try {
+                        const raw = await service.rawTask(taskUuid);
+                        if (!title) title = raw.description;
+                        if (
+                            !projectSnapshot &&
+                            typeof raw.project === "string" &&
+                            raw.project
+                        ) {
+                            projectSnapshot = raw.project;
+                        }
+                        if (!tags && Array.isArray(raw.tags)) {
+                            tags = raw.tags.filter(
+                                (t): t is string => typeof t === "string",
+                            );
+                        }
+                    } catch {
+                        // Optional read-only task enrichment.
+                    }
+                }
+                if (!title) {
+                    throw new TimeStoreError(
+                        400,
+                        "MISSING_FIELD",
+                        "Missing required field: title.",
+                    );
+                }
+
+                const timeZone = s.getStatus().policy.timezone;
+                const defaultDate = localDateOf(
+                    receivedAtMs ?? Date.now(),
+                    timeZone,
+                );
+                const allowanceSeconds =
+                    body.allowanceSeconds !== undefined &&
+                    body.allowanceSeconds !== null
+                        ? requiredNumber(
+                              body.allowanceSeconds,
+                              "allowanceSeconds",
+                          )
+                        : body.allowanceMinutes !== undefined &&
+                            body.allowanceMinutes !== null
+                          ? Math.round(
+                                requiredNumber(
+                                    body.allowanceMinutes,
+                                    "allowanceMinutes",
+                                ) * 60,
+                            )
+                          : undefined;
+                const plannedStartParsed = parseTimestampInput(body, {
+                    msKey: "plannedStartAtMs",
+                    isoKey: "plannedStartAt",
+                    dateKey: "plannedStartDate",
+                    timeKey: "plannedStartTime",
+                    timeZone,
+                    defaultDate,
+                });
+                const hardStopParsed = parseTimestampInput(body, {
+                    msKey: "hardStopAtMs",
+                    isoKey: "hardStopAt",
+                    dateKey: "hardStopDate",
+                    timeKey: "hardStopTime",
+                    timeZone,
+                    defaultDate,
+                });
+
+                const result = s.createTimingPlan({
+                    idempotencyKey: optionalString(body.idempotencyKey, 200),
+                    receivedAtMs,
+                    title,
+                    categoryId: optionalString(body.categoryId, 100),
+                    taskUuid,
+                    projectSnapshot,
+                    tags,
+                    note: optionalString(body.note, 2000),
+                    allowanceSeconds,
+                    plannedStartAtMs:
+                        plannedStartParsed === null
+                            ? undefined
+                            : plannedStartParsed,
+                    hardStopAtMs:
+                        hardStopParsed === null ? undefined : hardStopParsed,
+                });
+                return { status: 200, body: result };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/plans/update",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const receivedAtMs = optionalNumber(body.receivedAtMs);
+                const timeZone = s.getStatus().policy.timezone;
+                const defaultDate = localDateOf(
+                    receivedAtMs ?? Date.now(),
+                    timeZone,
+                );
+
+                const allowanceSeconds =
+                    body.allowanceSeconds !== undefined
+                        ? optionalNullableNumber(
+                              body.allowanceSeconds,
+                              "allowanceSeconds",
+                          )
+                        : body.allowanceMinutes !== undefined
+                          ? body.allowanceMinutes === null
+                              ? null
+                              : Math.round(
+                                    requiredNumber(
+                                        body.allowanceMinutes,
+                                        "allowanceMinutes",
+                                    ) * 60,
+                                )
+                          : undefined;
+                const addAllowanceSeconds =
+                    body.addAllowanceSeconds !== undefined
+                        ? requiredNumber(
+                              body.addAllowanceSeconds,
+                              "addAllowanceSeconds",
+                          )
+                        : body.addAllowanceMinutes !== undefined
+                          ? Math.round(
+                                requiredNumber(
+                                    body.addAllowanceMinutes,
+                                    "addAllowanceMinutes",
+                                ) * 60,
+                            )
+                          : undefined;
+                const plannedStartAtMs = parseTimestampInput(body, {
+                    msKey: "plannedStartAtMs",
+                    isoKey: "plannedStartAt",
+                    dateKey: "plannedStartDate",
+                    timeKey: "plannedStartTime",
+                    timeZone,
+                    defaultDate,
+                });
+                const hardStopAtMs = parseTimestampInput(body, {
+                    msKey: "hardStopAtMs",
+                    isoKey: "hardStopAt",
+                    dateKey: "hardStopDate",
+                    timeKey: "hardStopTime",
+                    timeZone,
+                    defaultDate,
+                });
+
+                const result = s.updateTimingPlan({
+                    idempotencyKey: optionalString(body.idempotencyKey, 200),
+                    receivedAtMs,
+                    planId: requiredString(body.planId, "planId", 64),
+                    expectedVersion: requiredNumber(
+                        body.expectedVersion,
+                        "expectedVersion",
+                    ),
+                    expectedSessionVersion: optionalNumber(
+                        body.expectedSessionVersion,
+                    ),
+                    expectedActivityId: optionalString(
+                        body.expectedActivityId,
+                        64,
+                    ),
+                    expectedActivityVersion: optionalNumber(
+                        body.expectedActivityVersion,
+                    ),
+                    patch: {
+                        title: optionalString(body.title, 500),
+                        categoryId: optionalNullableString(
+                            body.categoryId,
+                            "categoryId",
+                            100,
+                        ),
+                        taskUuid: optionalNullableString(
+                            body.taskUuid,
+                            "taskUuid",
+                            64,
+                        ),
+                        projectSnapshot: optionalNullableString(
+                            body.projectSnapshot,
+                            "projectSnapshot",
+                            200,
+                        ),
+                        tags:
+                            body.tags === null
+                                ? null
+                                : optionalStringArray(body.tags),
+                        note: optionalNullableString(body.note, "note", 2000),
+                        allowanceSeconds,
+                        addAllowanceSeconds,
+                        plannedStartAtMs,
+                        hardStopAtMs,
+                        archived: optionalBoolean(body.archived, "archived"),
+                    },
+                });
+                return { status: 200, body: result };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/plans/start",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const planId = requiredString(body.planId, "planId", 64);
+                const receipt = s.startActivity({
+                    idempotencyKey: requiredString(
+                        body.idempotencyKey,
+                        "idempotencyKey",
+                        200,
+                    ),
+                    receivedAtMs: optionalNumber(body.receivedAtMs),
+                    effectiveAtMs: optionalNumber(body.effectiveAtMs),
+                    timingPlanId: planId,
+                    sameTaskNoop: optionalBoolean(
+                        body.sameTaskNoop,
+                        "sameTaskNoop",
+                    ),
+                    expectedSessionVersion: optionalNumber(
+                        body.expectedSessionVersion,
+                    ),
+                });
+                const plan = receipt.activity?.timingPlanId
+                    ? (s.getTimingPlan(receipt.activity.timingPlanId) ??
+                      undefined)
+                    : (s.getTimingPlan(planId) ?? undefined);
+                return {
+                    status: 200,
+                    body: plan ? { ...receipt, plan } : receipt,
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/events",
+            handle: async ({ searchParams }) => {
+                const s = requireStore();
+                const includeRaw = searchParams.get("includeAcknowledged");
+                const includeAcknowledged =
+                    includeRaw === "1" || includeRaw === "true";
+                const limitRaw = searchParams.get("limit");
+                const limit =
+                    limitRaw !== null && limitRaw !== ""
+                        ? Number(limitRaw)
+                        : undefined;
+                if (
+                    limit !== undefined &&
+                    (!Number.isFinite(limit) || limit <= 0)
+                ) {
+                    throw new TimeStoreError(
+                        400,
+                        "INVALID_FIELD",
+                        "Invalid limit.",
+                    );
+                }
+                return {
+                    status: 200,
+                    body: {
+                        events: s.listTimeEvents({
+                            includeAcknowledged,
+                            limit,
+                        }),
+                    },
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/events/ack",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                const eventIds = requiredStringArray(body.eventIds, "eventIds");
+                return {
+                    status: 200,
+                    body: s.ackTimeEvents(eventIds),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/log",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                return {
+                    status: 200,
+                    body: s.logLocatedActivity({
+                        idempotencyKey: requiredString(
+                            body.idempotencyKey,
+                            "idempotencyKey",
+                            200,
+                        ),
+                        receivedAtMs: optionalNumber(body.receivedAtMs),
+                        title: requiredString(body.title, "title", 500),
+                        startMs: requiredNumber(body.startMs, "startMs"),
+                        endMs: requiredNumber(body.endMs, "endMs"),
+                        explicitCategoryId: optionalString(
+                            body.explicitCategoryId,
+                            100,
+                        ),
+                        taskUuid: optionalString(body.taskUuid, 64),
+                        projectSnapshot: optionalString(
+                            body.projectSnapshot,
+                            200,
+                        ),
+                        tags: optionalStringArray(body.tags),
+                        precision:
+                            body.precision === "estimated_bounds" ||
+                            body.precision === "approximate"
+                                ? "estimated_bounds"
+                                : "exact",
+                        source: optionalString(body.source, 40) as
+                            ActivitySource | undefined,
+                        note: optionalString(body.note, 2000),
+                        rawInput: optionalString(body.rawInput, 2000),
+                    }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/estimate",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                return {
+                    status: 200,
+                    body: s.logUnlocatedEstimate({
+                        idempotencyKey: requiredString(
+                            body.idempotencyKey,
+                            "idempotencyKey",
+                            200,
+                        ),
+                        receivedAtMs: optionalNumber(body.receivedAtMs),
+                        title: requiredString(body.title, "title", 500),
+                        estimatedSeconds: requiredNumber(
+                            body.estimatedSeconds,
+                            "estimatedSeconds",
+                        ),
+                        targetDate: optionalString(body.targetDate, 10),
+                        windowStartMs: optionalNumber(body.windowStartMs),
+                        windowEndMs: optionalNumber(body.windowEndMs),
+                        explicitCategoryId: optionalString(
+                            body.explicitCategoryId,
+                            100,
+                        ),
+                        taskUuid: optionalString(body.taskUuid, 64),
+                        projectSnapshot: optionalString(
+                            body.projectSnapshot,
+                            200,
+                        ),
+                        tags: optionalStringArray(body.tags),
+                        source: optionalString(body.source, 40) as
+                            ActivitySource | undefined,
+                        note: optionalString(body.note, 2000),
+                        rawInput: optionalString(body.rawInput, 2000),
+                    }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/locate",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                return {
+                    status: 200,
+                    body: s.locateEstimate({
+                        idempotencyKey: requiredString(
+                            body.idempotencyKey,
+                            "idempotencyKey",
+                            200,
+                        ),
+                        activityId: requiredString(
+                            body.activityId,
+                            "activityId",
+                            64,
+                        ),
+                        expectedVersion: requiredNumber(
+                            body.expectedVersion,
+                            "expectedVersion",
+                        ),
+                        startMs: requiredNumber(body.startMs, "startMs"),
+                        endMs: requiredNumber(body.endMs, "endMs"),
+                        receivedAtMs: optionalNumber(body.receivedAtMs),
+                    }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/update",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                if (!body.patch || typeof body.patch !== "object") {
+                    throw new TimeStoreError(
+                        400,
+                        "INVALID_PATCH",
+                        "Missing update patch object.",
+                    );
+                }
+                return {
+                    status: 200,
+                    body: s.updateActivity({
+                        idempotencyKey: requiredString(
+                            body.idempotencyKey,
+                            "idempotencyKey",
+                            200,
+                        ),
+                        activityId: requiredString(
+                            body.activityId,
+                            "activityId",
+                            64,
+                        ),
+                        expectedVersion: requiredNumber(
+                            body.expectedVersion,
+                            "expectedVersion",
+                        ),
+                        receivedAtMs: optionalNumber(body.receivedAtMs),
+                        patch: body.patch as Parameters<
+                            TimeStore["updateActivity"]
+                        >[0]["patch"],
+                    }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/undo",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                return {
+                    status: 200,
+                    body: s.undoOperation({
+                        idempotencyKey: requiredString(
+                            body.idempotencyKey,
+                            "idempotencyKey",
+                            200,
+                        ),
+                        targetOperationId: requiredString(
+                            body.targetOperationId,
+                            "targetOperationId",
+                            64,
+                        ),
+                        receivedAtMs: optionalNumber(body.receivedAtMs),
+                    }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/sleep/confirm",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                return {
+                    status: 200,
+                    body: s.confirmSleepCandidate({
+                        idempotencyKey: requiredString(
+                            body.idempotencyKey,
+                            "idempotencyKey",
+                            200,
+                        ),
+                        date: requiredString(body.date, "date", 10),
+                        receivedAtMs: optionalNumber(body.receivedAtMs),
+                    }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/sleep/dismiss",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody();
+                return {
+                    status: 200,
+                    body: s.dismissSleepCandidate({
+                        idempotencyKey: requiredString(
+                            body.idempotencyKey,
+                            "idempotencyKey",
+                            200,
+                        ),
+                        date: requiredString(body.date, "date", 10),
+                        receivedAtMs: optionalNumber(body.receivedAtMs),
+                    }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/operation/resolve",
+            handle: async ({ readBody }) => {
+                requireEnabledStore();
+                if (!coordinator) {
+                    throw new TimeStoreError(
+                        503,
+                        "COORDINATOR_UNAVAILABLE",
+                        "Time coordinator unavailable.",
+                    );
+                }
+                const body = await readBody();
+                const operationId = requiredString(
+                    body.operationId,
+                    "operationId",
+                    64,
+                );
+                const action = requiredString(body.action, "action", 32);
+                if (
+                    action !== "dismiss" &&
+                    action !== "accept_started" &&
+                    action !== "stop_active"
+                ) {
+                    throw new TimeStoreError(
+                        400,
+                        "INVALID_ACTION",
+                        "Unsupported resolve action.",
+                    );
+                }
+                return {
+                    status: 200,
+                    body: await coordinator.resolvePending({
+                        operationId,
+                        action,
+                        effectiveAtMs: optionalNumber(body.effectiveAtMs),
+                    }),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/import/preview",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody(8 * 1024 * 1024);
+                const intervals = await loadImportIntervals(body);
+                const taskLookup = await loadReadOnlyTaskLookup();
+                const cutoverAtMs =
+                    optionalNumber(body.cutoverAtMs) ??
+                    optionalNumber(body.cutoverMs) ??
+                    s.getStatus().cutoverAtMs ??
+                    Date.now();
+                return {
+                    status: 200,
+                    body: analyzeTimewarriorSnapshot(s, {
+                        intervals,
+                        cutoverAtMs,
+                        clipOpenToCutover: Boolean(
+                            body.clipOpenToCutover ??
+                            body.acceptOpenIntervalAsActivity,
+                        ),
+                        taskLookup,
+                    }).preview,
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/import/apply",
+            handle: async ({ readBody }) => {
+                const s = requireEnabledStore();
+                const body = await readBody(8 * 1024 * 1024);
+                const intervals = await loadImportIntervals(body);
+                const taskLookup = await loadReadOnlyTaskLookup();
+                const cutoverAtMs =
+                    optionalNumber(body.cutoverAtMs) ??
+                    optionalNumber(body.cutoverMs) ??
+                    s.getStatus().cutoverAtMs ??
+                    Date.now();
+                return {
+                    status: 200,
+                    body: applyTimewarriorSnapshotImport(s, {
+                        intervals,
+                        cutoverAtMs,
+                        clipOpenToCutover: Boolean(
+                            body.clipOpenToCutover ??
+                            body.acceptOpenIntervalAsActivity,
+                        ),
+                        taskLookup,
+                        nowMs: optionalNumber(body.receivedAtMs),
+                    }),
+                };
+            },
+        },
+        {
+            method: "GET",
+            route: "api/time/backup/export",
+            handle: async () => {
+                requireStore();
+                if (!backup) {
+                    throw new TimeStoreError(
+                        503,
+                        "BACKUP_UNAVAILABLE",
+                        "Time backup unavailable.",
+                    );
+                }
+                return {
+                    status: 200,
+                    body: await backup.exportBundle(),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/backup/preview",
+            handle: async ({ readBody }) => {
+                requireStore();
+                if (!backup) {
+                    throw new TimeStoreError(
+                        503,
+                        "BACKUP_UNAVAILABLE",
+                        "Time backup unavailable.",
+                    );
+                }
+                const body = await readBody(16 * 1024 * 1024);
+                const sqliteBase64 = requiredString(
+                    body.sqliteBase64,
+                    "sqliteBase64",
+                    16 * 1024 * 1024,
+                );
+                const bytes = Buffer.from(sqliteBase64, "base64");
+                return {
+                    status: 200,
+                    body: await backup.previewRestoreBuffer(bytes),
+                };
+            },
+        },
+        {
+            method: "POST",
+            route: "api/time/backup/restore",
+            skipGate: true,
+            handle: async ({ readBody }) => {
+                requireStore();
+                if (!backup) {
+                    throw new TimeStoreError(
+                        503,
+                        "BACKUP_UNAVAILABLE",
+                        "Time backup unavailable.",
+                    );
+                }
+                if (restoringTime) {
+                    throw Object.assign(
+                        new Error("Another Time restore is already running."),
+                        { status: 423 },
+                    );
+                }
+                const body = await readBody();
+                const token = requiredString(body.token, "token", 128);
+                restoringTime = true;
+                try {
+                    return {
+                        status: 200,
+                        body: await gate.exclusive(() =>
+                            backup.applyRestore(token),
+                        ),
+                    };
+                } finally {
+                    restoringTime = false;
+                }
+            },
+        },
+        {
+            method: "POST",
+            route: "api/internal/maintenance/backup",
+            skipGate: true,
+            handle: async ({ readBody, transport }) => {
+                if (transport !== "ipc") {
+                    throw Object.assign(
+                        new Error("Forbidden on public HTTP transport."),
+                        {
+                            status: 403,
+                        },
+                    );
+                }
+                const body = await readBody();
+                const backupId = requiredString(body.backupId, "backupId", 64);
+                const releaseId = optionalString(body.releaseId, 64);
+                const taskchampionDbPath = paths.resolveTaskchampionDbPath
+                    ? await paths.resolveTaskchampionDbPath()
+                    : undefined;
+                const result = await gate.exclusive(() =>
+                    runMaintenanceBackup({
+                        backupId,
+                        releaseId,
+                        sourceIdentity: identity,
+                        dataDir: paths.dataDir,
+                        organizationFile: paths.organizationFile,
+                        recoveryFile: paths.recoveryFile,
+                        timeFile: paths.timeFile,
+                        taskchampionDbPath,
+                        timeEnabled: isEnabled(),
+                        timeBackup: backup,
+                    }),
+                );
+                return {
+                    status: 200,
+                    body: result,
+                };
+            },
+        },
+    ];
+
+    return routes;
 }

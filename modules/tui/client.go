@@ -68,6 +68,7 @@ type Placement struct {
 }
 type ActiveActivitySnapshot struct {
 	ID               string `json:"id"`
+	Version          int    `json:"version,omitempty"`
 	Title            string `json:"title"`
 	CategoryID       string `json:"categoryId"`
 	TaskUUID         string `json:"taskUuid,omitempty"`
@@ -78,21 +79,26 @@ type ActiveActivitySnapshot struct {
 	TimingPlanID     string `json:"timingPlanId,omitempty"`
 	ReviewDueAt      string `json:"reviewDueAt,omitempty"`
 	ConfirmedThrough string `json:"confirmedThrough,omitempty"`
+	HourlyRateCents  int64  `json:"hourlyRateCents,omitempty"`
 }
 
 type TimerSnapshot struct {
-	Backend           string                  `json:"backend"`
-	ContractVersion   int                     `json:"contractVersion"`
-	TimeEpoch         int64                   `json:"timeEpoch"`
-	TaskDataEpoch     int64                   `json:"taskDataEpoch"`
-	State             string                  `json:"state"`
-	SessionVersion    int64                   `json:"sessionVersion"`
-	SnapshotAt        string                  `json:"snapshotAt"`
-	LiveUntil         string                  `json:"liveUntil"`
-	ActiveActivity    *ActiveActivitySnapshot `json:"activeActivity"`
-	TaskTotalsSeconds map[string]float64      `json:"taskTotalsSeconds"`
-	TotalsComplete    bool                    `json:"totalsComplete"`
-	HistoryComplete   bool                    `json:"historyComplete"`
+	Backend               string                     `json:"backend"`
+	ContractVersion       int                        `json:"contractVersion"`
+	TimeEpoch             int64                      `json:"timeEpoch"`
+	TaskDataEpoch         int64                      `json:"taskDataEpoch"`
+	State                 string                     `json:"state"`
+	SessionVersion        int64                      `json:"sessionVersion"`
+	SnapshotAt            string                     `json:"snapshotAt"`
+	LiveUntil             string                     `json:"liveUntil"`
+	ActiveActivity        *ActiveActivitySnapshot    `json:"activeActivity"`
+	TaskTotalsSeconds     map[string]float64         `json:"taskTotalsSeconds"`
+	HourlyRateCents       int64                      `json:"hourlyRateCents,omitempty"`
+	TaskListHighlightCost *bool                      `json:"taskListHighlightCost,omitempty"`
+	TaskCosts             map[string]TaskCostSummary `json:"taskCosts,omitempty"`
+	TotalsComplete        bool                       `json:"totalsComplete"`
+	CoverageFrom          string                     `json:"coverageFrom,omitempty"`
+	HistoryComplete       bool                       `json:"historyComplete"`
 }
 
 type Organization struct {
@@ -354,6 +360,13 @@ func (c Client) read(route string, out any) error {
 		return err
 	}
 	return c.request(route, nil, out)
+}
+
+func (c Client) post(route string, data any, out any) error {
+	if _, err := c.workspace(); err != nil {
+		return err
+	}
+	return c.request(route, data, out)
 }
 func writePrivateFile(path string, data []byte) error {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)

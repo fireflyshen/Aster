@@ -209,7 +209,21 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 		f.now,
 	)
 	if isTimeMode {
-		if !secsKnown {
+		_, cappedExtra, _ := m.snapshotLiveStatus(f.now)
+		liveExtra := 0.0
+		if isTiming {
+			liveExtra = cappedExtra
+		}
+		if handled, costGroups := m.renderTaskMetaTimeCost(
+			t,
+			isTiming,
+			started,
+			secs,
+			secsKnown,
+			liveExtra,
+		); handled {
+			groups = append(groups, costGroups...)
+		} else if !secsKnown {
 			lbl := "⧖ —"
 			st := dim
 			if isTiming {
@@ -552,7 +566,10 @@ func (m model) taskView() bool {
 		"tags",
 		"columns",
 		"backup",
-		"recovery":
+		"recovery",
+		"time.today",
+		"time.weekly",
+		"time.report":
 		return false
 	}
 	return true
@@ -579,6 +596,9 @@ func (m model) emptyMessage() string {
 	}
 	if m.view == "recovery" {
 		return "没有可恢复的已删除任务。"
+	}
+	if m.isTimeNavView() {
+		return "暂无时间或成本数据。按 : 补记时段或新建有界计划，按 r 刷新。"
 	}
 	return "当前视图没有任务。按 a 新建任务，或按 A 一句话捕捉。"
 }
@@ -825,6 +845,19 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			} else if !secsKnown {
 				kv("累计", "—", muted)
 			}
+			canTick, cappedExtra, _ := m.snapshotLiveStatus(f.now)
+			m.inspectTaskCostSection(
+				t,
+				isTiming,
+				canTick,
+				cappedExtra,
+				bodyW,
+				kv,
+				add,
+				addStyled,
+				sectionRule,
+				&lines,
+			)
 		} else {
 			if t.Start != "" && !td.start.IsZero() {
 				kv(
@@ -978,10 +1011,20 @@ func (m model) inspector(w, h int, f renderFrame) string {
 		add("每个列表分组对应一列看板。任务位置、组内排序与栏目顺序共用同一份数据。")
 		lines = append(lines, "", dim.Render("Space 折叠 / 展开 · : 管理分组"))
 	default:
-		add("选择任务或项目查看详情。")
-		add("按 : 打开操作菜单，S 添加子任务。")
-		add("按 ! 快速设优先级，@ 快速改期。")
-		add("Tab 切换工作区与任务列表。")
+		if !m.inspectTimeRow(
+			r,
+			bodyW,
+			kv,
+			add,
+			addStyled,
+			sectionRule,
+			&lines,
+		) {
+			add("选择任务或项目查看详情。")
+			add("按 : 打开操作菜单，S 添加子任务。")
+			add("按 ! 快速设优先级，@ 快速改期。")
+			add("Tab 切换工作区与任务列表。")
+		}
 	}
 	return panelWithRight(
 		"详情",
@@ -1067,8 +1110,8 @@ func (m model) overlay(w, h int) string {
 	case "form":
 		title = m.formTitle
 		hint = "Tab 切换 · Enter 选择 / 换行 · Ctrl+S 保存 · Esc 保留草稿"
-		if clean(m.formHint) != "" {
-			for _, part := range strings.Split(wrap(m.formHint, bodyWidth), "\n") {
+		if fh := clean(m.dynamicFormHint()); fh != "" {
+			for _, part := range strings.Split(wrap(fh, bodyWidth), "\n") {
 				lines = append(lines, dim.Render(part))
 			}
 		}
@@ -1226,13 +1269,35 @@ func (m model) View() string {
 		default:
 			if m.timerSnap != nil && m.timerSnap.ActiveActivity != nil {
 				act := m.timerSnap.ActiveActivity
-				lbl := act.Title
+				lbl := clean(act.Title)
 				if lbl == "" {
-					lbl = act.CategoryID
+					if act.CategoryID == "sleep" {
+						lbl = "睡眠"
+					} else {
+						lbl = "计时"
+					}
 				}
-				text := "▶ " + clip(clean(lbl), 14)
-				if secs, ok := m.activeActivityElapsed(now); ok {
+				text := "▶ " + clip(lbl, 12)
+				secs, hasSecs := m.activeActivityElapsed(now)
+				if hasSecs {
 					text += " " + formatDurationShort(secs)
+				}
+				if w >= 85 {
+					if isSleep, _, provCents, ok := displayedActiveCost(
+						m.timerSnap,
+						now,
+						secs,
+						hasSecs,
+					); ok {
+						if isSleep {
+							text += " · ¥0(睡)"
+						} else if provCents > 0 {
+							text += " · 暂计 " + formatCurrencyCny(provCents)
+						}
+					}
+					if cd, ok := formatAutoStopCountdown(act.AutoStopAt, now); ok {
+						text += " · " + cd
+					}
 				}
 				if stateLabel == "stale" {
 					text += " [待刷新]"
@@ -1244,7 +1309,7 @@ func (m model) View() string {
 					lipgloss.NewStyle().
 						Foreground(timerColor).
 						Bold(true).
-						Render(text),
+						Render(clip(text, max(16, w-30))),
 				)
 			}
 		}
@@ -1321,6 +1386,9 @@ func (m model) View() string {
 						"d / u / r        删除 / 撤销最近操作 / 刷新核对",
 						"b / ← →          列表看板切换 / 切换栏目",
 						"p / n / g        Focus 项目 / 下一步 / 新增分组",
+						"T / B / P / $    时间视图 / 设预算 / 建计划 / 联账单",
+						"c / , / [ ] .    确认或明细 / 单价设置 / 时间翻期",
+						"w / o / v        成本报告周月 / 排序 / 任务项目切换",
 						"/ / PgUp / PgDn  搜索视图 / 滚动详情",
 						"表单按键         Tab 切换 · Enter 选择 · Ctrl+S 保存",
 						"Esc / q          关闭或暂存草稿 / 退出",

@@ -82,6 +82,7 @@ type model struct {
 	previewToken                                 string
 	undo                                         *undoChange
 	ready                                        bool
+	timeState                                    TimeState
 }
 
 func newModel(c Client) model {
@@ -404,6 +405,9 @@ func (m model) nav() []entry {
 		{"columns", "▤  分组 / 栏目"},
 		{"recovery", "↶  删除恢复"},
 		{"backup", "⇩  备份与恢复"},
+		{"time.today", "◷  今日时间与计划"},
+		{"time.weekly", "◫  本周项目与标签"},
+		{"time.report", "¥  成本报告"},
 	}
 	for _, p := range m.org.Projects {
 		es = append(
@@ -523,6 +527,11 @@ func (m *model) navigate(view string) tea.Cmd {
 	if view == "backup" {
 		m.busy = true
 		return m.read("points", "/api/backup/points")
+	}
+	if view == "time.today" || view == "time.weekly" || view == "time.report" {
+		m.syncTimeExtraRows()
+		m.busy = true
+		return m.loadTimeViewCmd(view)
 	}
 	if strings.HasPrefix(view, "filter:") {
 		for _, f := range m.org.Filters {
@@ -652,9 +661,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.read("points", "/api/backup/points"),
 			)
 		}
+		if m.isTimeNavView() {
+			return m, tea.Batch(
+				m.refresh(),
+				m.loadTimeViewCmd(m.view),
+			)
+		}
 		return m, m.refresh()
 	case result:
 		return m.handleResult(msg)
+	case timeDataLoadedMsg:
+		return m.handleTimeLoaded(msg)
+	case timeMutationMsg:
+		return m.handleTimeMutation(msg)
 	case tea.MouseMsg:
 		if msg.Type == tea.MouseWheelDown {
 			m.detailScroll++
@@ -704,6 +723,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if k == "ctrl+r" || k == "r" {
 			m.busy = true
+			if m.isTimeNavView() {
+				return m, tea.Batch(m.refresh(), m.loadTimeViewCmd(m.view))
+			}
 			return m, m.refresh()
 		}
 		if k == ":" || k == "ctrl+k" {
@@ -793,6 +815,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.action("restore")
 			default:
 				m.detail = !m.detail
+				if m.detail && r.kind == "task" && m.isTimeMode() &&
+					!strings.EqualFold(m.timeState.TaskDetailUUID, r.id) {
+					m.busy = true
+					return m, m.fetchTaskCostDetailCmd(r.id)
+				}
 			}
 			return m, nil
 		}
@@ -805,6 +832,36 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if r.kind == "task" && len(m.viewIdx().childrenOf[r.id]) > 0 {
 				m.expandedSubtasks[r.id] = !m.expandedSubtasks[r.id]
 				return m, nil
+			}
+		}
+		if m.isTimeNavView() {
+			switch k {
+			case "[":
+				return m, m.action("time.date.prev")
+			case "]":
+				return m, m.action("time.date.next")
+			case ".":
+				return m, m.action("time.date.today")
+			case "w":
+				if m.view == "time.report" {
+					return m, m.action("time.report.granularity")
+				}
+			case "o":
+				if m.view == "time.report" {
+					return m, m.action("time.report.sort")
+				}
+			case "v":
+				if m.view == "time.report" {
+					return m, m.action("time.report.group")
+				}
+			}
+		}
+		if k == "c" {
+			if m.current().kind == "time.segment" {
+				return m, m.action("time.segment.confirm")
+			}
+			if m.current().kind == "task" && m.isTimeMode() {
+				return m, m.action("task.cost_detail")
 			}
 		}
 		actions := map[string]string{
@@ -823,6 +880,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			"p": "focus.choose",
 			"n": "project.next",
 			"g": "column.new",
+			"T": "time.go.today",
+			"B": "task.budget",
+			"P": "time.plan.new",
+			"$": "task.bill.link",
+			",": "time.settings",
 		}
 		if a, ok := actions[k]; ok {
 			return m, m.action(a)

@@ -6,131 +6,135 @@ import { WorkspaceError, type WorkspaceCall } from "../transport.ts";
 export const uuidSchema = z.string().uuid();
 
 export const idempotencyKeySchema = z
-  .string()
-  .min(1)
-  .max(200)
-  .describe(
-    "Stable client-generated idempotency key; reuse only when retrying the exact same logical request.",
-  );
+    .string()
+    .min(1)
+    .max(200)
+    .describe(
+        "Stable client-generated idempotency key; reuse only when retrying the exact same logical request.",
+    );
 
 export function resolveIdempotencyKey(
-  key: string | undefined,
-  prefix = "mcp",
+    key: string | undefined,
+    prefix = "mcp",
 ): string {
-  return key && key.trim() ? key.trim() : `${prefix}:${randomUUID()}`;
+    return key && key.trim() ? key.trim() : `${prefix}:${randomUUID()}`;
 }
 
 export const revisionSchema = z
-  .number()
-  .int()
-  .nonnegative()
-  .describe(
-    "Revision from the latest workspace_get or organization write; never automatically overwrite a conflict.",
-  );
+    .number()
+    .int()
+    .nonnegative()
+    .describe(
+        "Revision from the latest workspace_get or organization write; never automatically overwrite a conflict.",
+    );
 
 export const dateSchema = z
-  .string()
-  .regex(/^(?:\d{8}T\d{6}Z)?$/)
-  .describe("UTC YYYYMMDDTHHmmssZ; empty clears the value.");
+    .string()
+    .regex(/^(?:\d{8}T\d{6}Z)?$/)
+    .describe("UTC YYYYMMDDTHHmmssZ; empty clears the value.");
 
 export const colorSchema = z.enum([
-  "berry",
-  "red",
-  "orange",
-  "yellow",
-  "olive",
-  "lime",
-  "green",
-  "mint",
-  "teal",
-  "blue",
-  "purple",
-  "gray",
+    "berry",
+    "red",
+    "orange",
+    "yellow",
+    "olive",
+    "lime",
+    "green",
+    "mint",
+    "teal",
+    "blue",
+    "purple",
+    "gray",
 ]);
 
 export interface McpToolRegistrar {
-  register: (
-    name: string,
-    description: string,
-    schema: z.ZodRawShape,
-    read: boolean,
-    run: (input: any) => Promise<unknown>,
-    destructive?: boolean,
-  ) => void;
-  get: (path: string) => Promise<any>;
-  post: (path: string, value: unknown) => Promise<any>;
-  org: (value: unknown) => Promise<any>;
+    register: (
+        name: string,
+        description: string,
+        schema: z.ZodRawShape,
+        read: boolean,
+        run: (input: any) => Promise<unknown>,
+        destructive?: boolean,
+    ) => void;
+    get: (path: string) => Promise<any>;
+    post: (path: string, value: unknown) => Promise<any>;
+    org: (value: unknown) => Promise<any>;
 }
 
 /** Creates typed HTTP/MCP tool registration helpers around a shared workspace call transport. */
 export function createToolRegistrar(
-  server: McpServer,
-  call: WorkspaceCall,
+    server: McpServer,
+    call: WorkspaceCall,
 ): McpToolRegistrar {
-  const register: McpToolRegistrar["register"] = (
-    name,
-    description,
-    schema,
-    read,
-    run,
-    destructive = !read,
-  ) => {
-    server.registerTool(
-      name,
-      {
+    const register: McpToolRegistrar["register"] = (
+        name,
         description,
-        inputSchema: z.object(schema).strict(),
-        annotations: {
-          readOnlyHint: read,
-          destructiveHint: destructive,
-          idempotentHint: read,
-          openWorldHint: false,
-        },
-      },
-      async (input) => {
-        try {
-          const result = await run(input);
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(result ?? { ok: true }),
-              },
-            ],
-          };
-        } catch (error) {
-          const e = error as Error;
-          return {
-            isError: true,
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify({
-                  error: e.message,
-                  ...(e instanceof WorkspaceError
-                    ? {
-                        status: e.status,
-                        outcome: e.outcome,
-                        ...(e.code ? { code: e.code } : {}),
-                        ...(e.details ? { details: e.details } : {}),
-                      }
-                    : {}),
-                }),
-              },
-            ],
-          };
-        }
-      },
-    );
-  };
+        schema,
+        read,
+        run,
+        destructive = !read,
+    ) => {
+        server.registerTool(
+            name,
+            {
+                description,
+                inputSchema: z.object(schema).strict(),
+                annotations: {
+                    readOnlyHint: read,
+                    destructiveHint: destructive,
+                    idempotentHint: read,
+                    openWorldHint: false,
+                },
+            },
+            async (input) => {
+                try {
+                    const result = await run(input);
+                    return {
+                        content: [
+                            {
+                                type: "text" as const,
+                                text: JSON.stringify(result ?? { ok: true }),
+                            },
+                        ],
+                    };
+                } catch (error) {
+                    const e = error as Error;
+                    return {
+                        isError: true,
+                        content: [
+                            {
+                                type: "text" as const,
+                                text: JSON.stringify({
+                                    error: e.message,
+                                    ...(e instanceof WorkspaceError
+                                        ? {
+                                              status: e.status,
+                                              outcome: e.outcome,
+                                              ...(e.code
+                                                  ? { code: e.code }
+                                                  : {}),
+                                              ...(e.details
+                                                  ? { details: e.details }
+                                                  : {}),
+                                          }
+                                        : {}),
+                                }),
+                            },
+                        ],
+                    };
+                }
+            },
+        );
+    };
 
-  const get = (path: string) => call("GET", path);
-  const post = (path: string, value: unknown) => call("POST", path, value);
+    const get = (path: string) => call("GET", path);
+    const post = (path: string, value: unknown) => call("POST", path, value);
 
-  return {
-    register,
-    get,
-    post,
-    org: (value: unknown) => post("/api/organization", value),
-  };
+    return {
+        register,
+        get,
+        post,
+        org: (value: unknown) => post("/api/organization", value),
+    };
 }
