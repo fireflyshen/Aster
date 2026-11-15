@@ -51,7 +51,8 @@ export function TimeLedgerWorkspace({
       {ledger.lastUndoable && (
         <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-2 text-xs text-muted-foreground">
           <span className="truncate">
-            已记录：<span className="text-foreground">{ledger.lastUndoable.label}</span>
+            已记录：
+            <span className="text-foreground">{ledger.lastUndoable.label}</span>
           </span>
           <div className="flex shrink-0 items-center gap-1">
             <Button

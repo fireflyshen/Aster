@@ -1,10 +1,13 @@
 # Aster TUI 工作台
 
-独立 Go 模块，采用 Bubble Tea、Bubbles 和 Lip Gloss；通过系统 OpenSSH 连接 dmit，与 Web 和 TinyCast 使用同一份 Taskwarrior 与工作区。设计、功能映射及边界见 [设计说明](../../docs/tui-design.md)。
+独立 Go 模块，采用 Bubble Tea、Bubbles 和 Lip
+Gloss；通过系统 OpenSSH 连接 dmit，与 Web 和 TinyCast 使用同一份 Taskwarrior 与工作区。设计、功能映射及边界见
+[设计说明](../../docs/tui-design.md)。
 
 ## 构建与连接
 
-需要 Go 1.24+。先在终端运行 `ssh dmit`，确认指纹并完成密钥登录。本机不需要 Taskwarrior、Node 或新的服务端口。
+需要 Go 1.24+。先在终端运行
+`ssh dmit`，确认指纹并完成密钥登录。本机不需要 Taskwarrior、Node 或新的服务端口。
 
 ```sh
 cd modules/tui
@@ -19,15 +22,19 @@ aster --ssh dmit --task /usr/local/bin/task \
   --socket /opt/aster/data/workspace.sock
 ```
 
-`--no-color` 禁用颜色。颜色默认适配终端。当前使用 SSH 共享模式；不提供离线写入或独立本地 Taskwarrior 模式。
+`--no-color`
+禁用颜色。颜色默认适配终端。当前使用 SSH 共享模式；不提供离线写入或独立本地 Taskwarrior 模式。
 
-服务端需启用 `WORKSPACE_SOCKET`。完整功能需要部署此版本的 Web 服务：新增私有任务查询、快速解析、备份导出/预览/恢复端点。旧服务仍可读取基础任务和进行原有工作区操作，新功能遇到旧接口会明确提示升级。不会为了兼容而绕过服务端直接写组织资料。
+服务端需启用
+`WORKSPACE_SOCKET`。完整功能需要部署此版本的 Web 服务：新增私有任务查询、快速解析、备份导出/预览/恢复端点。旧服务仍可读取基础任务和进行原有工作区操作，新功能遇到旧接口会明确提示升级。不会为了兼容而绕过服务端直接写组织资料。
 
 ## 布局
 
 宽屏：导航、任务区和可滚动详情。看板优先给栏目空间，Enter 可展开详情。窄屏自动收起辅助区，Tab 打开导航、Enter 查看详情，Esc 返回。底部固定显示连接、保存、冲突和错误状态。
 
-列表分组和看板栏目共用 `board.columns`、`placements`、`order`，包括默认“未分组”和空栏目。重复任务继承系列位置。移动分组或组内位置不改变任务状态。`b` 切换布局，看板用左右键切换当前栏目。
+列表分组和看板栏目共用
+`board.columns`、`placements`、`order`，包括默认“未分组”和空栏目。重复任务继承系列位置。移动分组或组内位置不改变任务状态。`b`
+切换布局，看板用左右键切换当前栏目。
 
 ## 操作
 
@@ -50,7 +57,9 @@ aster --ssh dmit --task /usr/local/bin/task \
 | `r` / `?`              | 刷新 / 帮助                                 |
 | `Esc` / `q` / `Ctrl+C` | 返回 / 退出 / 退出                          |
 
-表单用 Tab / Shift+Tab 切换，Enter 打开选择器或在多行文本中换行，**Ctrl+S 保存**。选择器输入搜索，标签 Enter 多选、Esc 完成；新标签也可直接输入逗号分隔文本。日期接受 `YYYY-MM-DD HH:MM`、`YYYY-MM-DD`、今天、明天；手动日期按本机时区解释，未修改的日期保留原秒数。快速捕捉使用服务端现有解析器，进入表单核对后保存。
+表单用 Tab /
+Shift+Tab 切换，Enter 打开选择器或在多行文本中换行，**Ctrl+S 保存**。选择器输入搜索，标签 Enter 多选、Esc 完成；新标签也可直接输入逗号分隔文本。日期接受
+`YYYY-MM-DD HH:MM`、`YYYY-MM-DD`、今天、明天；手动日期按本机时区解释，未修改的日期保留原秒数。快速捕捉使用服务端现有解析器，进入表单核对后保存。
 
 项目支持点路径层级、描述、颜色、完成目标、下一步及激活/暂停/完成/重开。Focus 保持最多三个，替换通过选择器明确指定。完成项目只改组织资料，保留任务。
 
@@ -69,4 +78,5 @@ go vet ./...
 
 测试覆盖来源不匹配、未知写入、不重试、大载荷通过 stdin、栏目继承和排序、过滤保留隐藏位置、实体选择器、精确日期、revision 冲突、备份确认、中文与宽窄屏尺寸。
 
-可用 `ASTER_PREVIEW_DIR=/absolute/path go test -run TestPreviewArtifacts` 从同一个视图渲染器输出示例 ANSI 屏幕；示例不连接远端。
+可用 `ASTER_PREVIEW_DIR=/absolute/path go test -run TestPreviewArtifacts`
+从同一个视图渲染器输出示例 ANSI 屏幕；示例不连接远端。

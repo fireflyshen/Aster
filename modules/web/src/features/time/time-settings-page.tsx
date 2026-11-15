@@ -238,7 +238,9 @@ export function TimeSettingsPage({
 
             <div className="flex flex-wrap items-center justify-between gap-4 py-3.5">
               <div>
-                <div className="text-sm text-foreground">长计时提醒（分钟）</div>
+                <div className="text-sm text-foreground">
+                  长计时提醒（分钟）
+                </div>
                 <div className="text-xs text-muted-foreground">
                   单条计时超出该时长后温和提示是否忘记结束
                 </div>
@@ -313,7 +315,9 @@ export function TimeSettingsPage({
               >
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">项目</span>
-                  <span className="text-sm text-foreground">{rule.pattern}</span>
+                  <span className="text-sm text-foreground">
+                    {rule.pattern}
+                  </span>
                   <span className="text-muted-foreground/50">→</span>
                   <span className="text-muted-foreground">
                     {resolveCategoryLabel(rule.categoryId, policy)}
@@ -385,7 +389,9 @@ export function TimeSettingsPage({
               type="text"
               className="min-w-[120px] flex-1 bg-transparent py-1 text-xs text-foreground placeholder:text-muted-foreground/55 outline-none"
               placeholder={
-                newRuleKind === "project" ? "输入项目名如 Study…" : "输入标签如 reading…"
+                newRuleKind === "project"
+                  ? "输入项目名如 Study…"
+                  : "输入标签如 reading…"
               }
               value={newRulePattern}
               onChange={(e) => setNewRulePattern(e.target.value)}

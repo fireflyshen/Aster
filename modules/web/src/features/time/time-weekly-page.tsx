@@ -122,7 +122,10 @@ export function TimeWeeklyPage({
                 weekly.coveredSeconds > 0
                   ? Math.round((secs / weekly.coveredSeconds) * 100)
                   : 0;
-              const barPct = Math.max(2, Math.round((secs / maxCatSeconds) * 100));
+              const barPct = Math.max(
+                2,
+                Math.round((secs / maxCatSeconds) * 100),
+              );
               return (
                 <div key={catId} className="space-y-1.5">
                   <div className="flex items-baseline justify-between text-xs">

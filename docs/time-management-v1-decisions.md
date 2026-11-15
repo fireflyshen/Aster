@@ -6,17 +6,29 @@
 
 采纳评估提出的睡眠候选、统计口径、分类映射、存储隔离、首版裁剪、导航命名和提醒归属问题。进一步核对发现：
 
-- `modules/server/src/task-actions.ts` 的 start 分支确实会因计时不可用和精力耗尽拒绝操作。
-- `modules/web/src/app/hooks/use-task-completion.ts` 和 `modules/desktop/src/ui/use-task-list-actions.ts` 也有前置拦截。仅修改服务端不能解决全部问题。
-- `modules/core/workspace/energy.ts` 使用运行进程本地时间的 06:00 日界；Time 需要独立的用户时区日界。
-- `organization-store.ts` 全量写 JSON、共用 revision；`organization-service.ts` 的 workspace 读取和 change 前置读取会加载任务及 Timewarrior。Time 不复用这条读写链路。
+- `modules/server/src/task-actions.ts`
+  的 start 分支确实会因计时不可用和精力耗尽拒绝操作。
+- `modules/web/src/app/hooks/use-task-completion.ts` 和
+  `modules/desktop/src/ui/use-task-list-actions.ts`
+  也有前置拦截。仅修改服务端不能解决全部问题。
+- `modules/core/workspace/energy.ts`
+  使用运行进程本地时间的 06:00 日界；Time 需要独立的用户时区日界。
+- `organization-store.ts` 全量写 JSON、共用 revision；`organization-service.ts`
+  的 workspace 读取和 change 前置读取会加载任务及 Timewarrior。Time 不复用这条读写链路。
 - “约五小时耗尽”只是近似；精力还受启动次数和加成影响，不能写成固定计时上限。
 - Taskwarrior 的多个任务可有 start 标记，不能据此认定用户同时实际从事了多项活动。
-- MCP README 只说“如果 bot 部署在 dmit，可以直连 socket”，并不证明现有 bot 的位置、调度或推送能力。
-- Timewarrior 的 @id 是位置索引。`taskUuid + start` 也会因修改开始时间而改变，且活动未必有关联任务，不能作为不可变身份。
-- `native-restore.ts` 的 `sqliteSnapshot()` 已使用 `DatabaseSync`、`backup()` 和 `PRAGMA integrity_check`；`deploy/deploy.sh` 也已在线备份 Taskwarrior SQLite，但未覆盖 Time。运行时支持已有代码先例，仍需验证实际运行进程。
-- Web 的 `taskTrackedSeconds()`、TUI 的 `taskMetaSpans()` 和 `inspector()` 会从 task.start 推导跳表，必须连同列表、详情与操作按钮一起适配。
-- `backupRestore.applyPrepared()` 会在 `gate.exclusive()` 内替换原生数据库；`repair()` 当前只处理 prepared manifest。恢复后的 Time 核对需要覆盖成功、回滚和进程崩溃后的启动修复。
+- MCP
+  README 只说“如果 bot 部署在 dmit，可以直连 socket”，并不证明现有 bot 的位置、调度或推送能力。
+- Timewarrior 的 @id 是位置索引。`taskUuid + start`
+  也会因修改开始时间而改变，且活动未必有关联任务，不能作为不可变身份。
+- `native-restore.ts` 的 `sqliteSnapshot()` 已使用 `DatabaseSync`、`backup()` 和
+  `PRAGMA integrity_check`；`deploy/deploy.sh` 也已在线备份 Taskwarrior
+  SQLite，但未覆盖 Time。运行时支持已有代码先例，仍需验证实际运行进程。
+- Web 的 `taskTrackedSeconds()`、TUI 的 `taskMetaSpans()` 和 `inspector()`
+  会从 task.start 推导跳表，必须连同列表、详情与操作按钮一起适配。
+- `backupRestore.applyPrepared()` 会在 `gate.exclusive()`
+  内替换原生数据库；`repair()` 当前只处理 prepared
+  manifest。恢复后的 Time 核对需要覆盖成功、回滚和进程崩溃后的启动修复。
 
 未检查生产服务器或 Grok bot 仓库；以下方案不等于线上现状。
 
@@ -34,9 +46,12 @@ V1 排除：伴随活动单独统计、窗口内多分类时长分配、自动�
 
 ### 已定位账本
 
-一条记录有明确的起止区间。起止可由计时获得，也可由用户大致指定；后者保留“估计边界”标记。所有区间按用户时区裁切到报表范围，并采用半开区间 `[start, end)`，相邻端点不算重叠。
+一条记录有明确的起止区间。起止可由计时获得，也可由用户大致指定；后者保留“估计边界”标记。所有区间按用户时区裁切到报表范围，并采用半开区间
+`[start, end)`，相邻端点不算重叠。
 
-在过去时段内，互不重叠、已接纳的区间累计为覆盖 C；报表已过去的总容量为 T；未记录 U = T - C。所有领域之和为 C，并始终满足 C + U = T。运行中活动只算到查询时刻；未来不算空白。
+在过去时段内，互不重叠、已接纳的区间累计为覆盖 C；报表已过去的总容量为 T；未记录 U
+= T - C。所有领域之和为 C，并始终满足 C + U =
+T。运行中活动只算到查询时刻；未来不算空白。
 
 ### 待定位估记
 
@@ -50,9 +65,12 @@ V1 不把“19:00–21:00 吃饭和看电影各一小时”自动填满两小时
 
 ### 带窗口的估记如何展示
 
-估记可带成对的 `windowStart/windowEnd`，另存 `estimatedSeconds`；窗口只表达“可能发生在这里”，不是实际区间，也不预留时间容量。有窗口的估记作为注释卡靠近该时间段显示，标明“约 X 分钟 · 待定位”，不画成按时长占据空白的已记账色块。窗口与已记录活动重叠时仍保留注释，不暗示估记一定发生在空白中；无窗口的估记放在独立列表。
+估记可带成对的 `windowStart/windowEnd`，另存
+`estimatedSeconds`；窗口只表达“可能发生在这里”，不是实际区间，也不预留时间容量。有窗口的估记作为注释卡靠近该时间段显示，标明“约 X 分钟 · 待定位”，不画成按时长占据空白的已记账色块。窗口与已记录活动重叠时仍保留注释，不暗示估记一定发生在空白中；无窗口的估记放在独立列表。
 
-点击注释只打开这一条记录的定位表单。提交时携带原 activity UUID、版本和明确起止，事务内重新验证重叠，再将原记录转为区间；其他估记不自动拆分或定位。跨日/跨多个空白槽的同一估记按 activity UUID 去重，周报不能重复累计。取消编辑不改变记录。V1 不新增自动拆分 UI。
+点击注释只打开这一条记录的定位表单。提交时携带原 activity
+UUID、版本和明确起止，事务内重新验证重叠，再将原记录转为区间；其他估记不自动拆分或定位。跨日/跨多个空白槽的同一估记按 activity
+UUID 去重，周报不能重复累计。取消编辑不改变记录。V1 不新增自动拆分 UI。
 
 ## 4. 睡眠和分类降低日常操作量
 
@@ -62,21 +80,27 @@ V1 不把“19:00–21:00 吃饭和看电影各一小时”自动填满两小时
 
 候选有稳定的日期、模板版本和候选标识；重复确认只产生一条活动。模板变化不改历史，忽略候选也不追发提醒。不另设必做的晨间确认。
 
-分类规则从明确到一般：本次指定 → 任务级覆盖 → 最长项目路径匹配 → 按显式优先级选择的标签规则 → 未分类。项目匹配遵循路径段边界，`Aster` 可匹配 `Aster.Time`，不能误匹配 `AsterOther`。
+分类规则从明确到一般：本次指定 → 任务级覆盖 → 最长项目路径匹配 → 按显式优先级选择的标签规则 → 未分类。项目匹配遵循路径段边界，`Aster`
+可匹配 `Aster.Time`，不能误匹配 `AsterOther`。
 
-例如 `Aster.* → 工作/项目`、`Learn.* → 学习`。落账时保存分类、规则版本和项目名称快照；修改映射默认只影响未来，历史重分类需要单独预览操作。不会为每次计时调用模型或反复询问分类。
+例如
+`Aster.* → 工作/项目`、`Learn.* → 学习`。落账时保存分类、规则版本和项目名称快照；修改映射默认只影响未来，历史重分类需要单独预览操作。不会为每次计时调用模型或反复询问分类。
 
 ## 5. Time 拥有新计时，Energy 退出准入控制
 
 以 workspace 为范围，Time 最多有一条打开的主活动。开始下一活动在同一个 SQLite 事务内关闭上一活动并创建下一活动，使用同一个服务端时间点。并发操作使用当前活动的版本检查；旧请求不能意外停止另一客户端刚启动的新活动。
 
-Time 自己生成 activity UUID，结束、修正、分类变化不会改变它。数据库持久化失败时不能向用户返回“已开始”。
+Time 自己生成 activity
+UUID，结束、修正、分类变化不会改变它。数据库持久化失败时不能向用户返回“已开始”。
 
-Time 模式下，Energy 作为可选展示指标保留。删除服务端、Web、桌面共享模式中的“精力不足不能开始”逻辑；保留故障和数据完整性校验。通过服务端能力字段明确当前 timer backend、是否存在硬性精力限制及 Time 可用状态，客户端不根据 energy.remaining 猜测权限。
+Time 模式下，Energy 作为可选展示指标保留。删除服务端、Web、桌面共享模式中的“精力不足不能开始”逻辑；保留故障和数据完整性校验。通过服务端能力字段明确当前 timer
+backend、是否存在硬性精力限制及 Time 可用状态，客户端不根据 energy.remaining 猜测权限。
 
 Time 报表用用户时区 00:00 日界。Energy 保留 06:00 周期并显式使用相同配置时区、标明周期；Time 模式下其任务计时输入只来自同一账本中关联任务的已定位记录，不把睡眠、休闲或待定位估记算成精力消耗。既有精力状态保留，周期切换需按原规则初始化，不能删除用户历史。
 
-不能只替换区间来源后原样调用旧精力算法：`calculateEnergy` 会对缺少区间的 task.start 补算时间，`liveEnergySummary` 也依赖活动数量。Time 模式必须停用这些基于任务 start 的兜底，当前活动只来自 Time 的单活动状态。切换当期若历史尚未导入，标明周期数据不完整并暂停剩余精力推算，不能将缺失历史视为零投入或自动恢复满格。
+不能只替换区间来源后原样调用旧精力算法：`calculateEnergy`
+会对缺少区间的 task.start 补算时间，`liveEnergySummary`
+也依赖活动数量。Time 模式必须停用这些基于任务 start 的兜底，当前活动只来自 Time 的单活动状态。切换当期若历史尚未导入，标明周期数据不完整并暂停剩余精力推算，不能将缺失历史视为零投入或自动恢复满格。
 
 Time 页面显示实际活动时长；任务侧边栏明确标成“精力周期/任务投入”，避免和全生活的自然日合计混淆。
 
@@ -84,7 +108,8 @@ Timewarrior 不可用时仅历史导入/旧数据能力受影响，不阻止原�
 
 ### 5.1 全部客户端共用计时快照
 
-服务端提供版本化 `TimerSnapshot`，通过独立 Time 查询和任务列表的轻量附加数据复用；不得为了获取它调用旧 organization 全量读取。以下为待实现契约，不代表现有字段：
+服务端提供版本化
+`TimerSnapshot`，通过独立 Time 查询和任务列表的轻量附加数据复用；不得为了获取它调用旧 organization 全量读取。以下为待实现契约，不代表现有字段：
 
 | 字段                               | 含义                                                                                                                            |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -96,13 +121,18 @@ Timewarrior 不可用时仅历史导入/旧数据能力受影响，不阻止原�
 | `taskTotalsSeconds`                | 当前结果涉及任务截至 snapshotAt 的已记录投入，已包含活动中区间，不重复叠加其完整时长                                            |
 | `coverageFrom` / `historyComplete` | 已知记录范围与完整性；缺少旧历史时不显示为完整生命周期总计                                                                      |
 
-每个任务行的显示算法固定为：基础值取 `taskTotalsSeconds[uuid]`；仅当快照 ready、活动 running 且其 taskUuid 等于该行 UUID 时，加上收到快照后的单调时钟经过秒数，最多加到 liveUntil。客户端收到新快照时整体替换基础值，不叠加旧的外推值；外推仅用于显示，不能写回账本。
+每个任务行的显示算法固定为：基础值取
+`taskTotalsSeconds[uuid]`；仅当快照 ready、活动 running 且其 taskUuid 等于该行 UUID 时，加上收到快照后的单调时钟经过秒数，最多加到 liveUntil。客户端收到新快照时整体替换基础值，不叠加旧的外推值；外推仅用于显示，不能写回账本。
 
-初始 `liveUntil` 设为 snapshotAt 后 30 秒；若查询有固定结束边界，则取较早值。客户端可每 15 秒刷新活动快照。失联、页面休眠后恢复、超过 liveUntil 或进入核对/恢复状态时停止外推，显示“待刷新/待核对”；不回退到 task.start 或本机墙上时钟计算。时间戳与截止上限由服务端提供，经过时间使用客户端单调时钟。
+初始 `liveUntil`
+设为 snapshotAt 后 30 秒；若查询有固定结束边界，则取较早值。客户端可每 15 秒刷新活动快照。失联、页面休眠后恢复、超过 liveUntil 或进入核对/恢复状态时停止外推，显示“待刷新/待核对”；不回退到 task.start 或本机墙上时钟计算。时间戳与截止上限由服务端提供，经过时间使用客户端单调时钟。
 
 Time 模式下，缺失任务合计键表示未知，显示“—”；明确返回 0 才显示零。无任务活动仍可显示全局时钟，但所有任务行都保持静态。
 
-必须修改的显示链路包括：Web `use-workspace-data.ts` 的跳表触发与 `taskTrackedSeconds`，`task-row.tsx`、`task-meta-chips.tsx` 及详情中的状态文案；TUI `view.go` 的 `taskMetaSpans` 与 `inspector`；桌面共享模式中的任务操作与时长显示。任务的“进行中”仍取 Taskwarrior 状态，“正在计时”及计时按钮行为取 activeActivity，两者不能复用同一个布尔值。
+必须修改的显示链路包括：Web `use-workspace-data.ts` 的跳表触发与
+`taskTrackedSeconds`，`task-row.tsx`、`task-meta-chips.tsx`
+及详情中的状态文案；TUI `view.go` 的 `taskMetaSpans` 与
+`inspector`；桌面共享模式中的任务操作与时长显示。任务的“进行中”仍取 Taskwarrior 状态，“正在计时”及计时按钮行为取 activeActivity，两者不能复用同一个布尔值。
 
 验收示例：先 task_start(A)，再 task_start(B)。A 可继续显示“进行中 · 已记录 20 分钟”，只有 B 显示运行时钟。stop(A) 只停止 A 的任务标记，不让 B 的时钟停下。快照乱序返回时，按 epoch、sessionVersion 和 snapshotAt 拒绝旧结果；恢复后必须整份刷新。
 
@@ -110,13 +140,15 @@ Time 模式下，缺失任务合计键表示未知，显示“—”；明确返
 
 关闭上一活动和开始新活动仍在一个事务中完成，不因提醒打断切换。关闭时按保存的阈值检查上一活动；默认非睡眠活动超过 6 小时产生软提示，睡眠不套用这个默认阈值，可另行配置或关闭。阈值是产品提醒规则，不是对活动真实性的判断。
 
-成功回执包含 `warnings: [{ code: LONG_ACTIVITY_CLOSED, activityId, activityVersion, durationSeconds, suggestedAction: edit_end }]`。例如“刚结束的看书持续了 14 小时，可以修正结束时间”。保留原区间并标记待核对，统计仍按其区间计入，同时展示包含待核对时长；不自动猜测昨晚何时停止。
+成功回执包含
+`warnings: [{ code: LONG_ACTIVITY_CLOSED, activityId, activityVersion, durationSeconds, suggestedAction: edit_end }]`。例如“刚结束的看书持续了 14 小时，可以修正结束时间”。保留原区间并标记待核对，统计仍按其区间计入，同时展示包含待核对时长；不自动猜测昨晚何时停止。
 
 修正携带旧 activity 的版本，只修改旧记录；当前散步活动不受影响。缩短后释放的时段成为空白。相同操作的重试返回相同回执；消息展示按 operationId 去重，不反复发送额外提醒。
 
 ## 6. 任务兼容不靠双写碰运气
 
-Time 原生 API 的 taskUuid 只是关联：`time_start(taskUuid)`、`time_stop` 不改变 Taskwarrior 的 start、status、due 或 UUID。
+Time 原生 API 的 taskUuid 只是关联：`time_start(taskUuid)`、`time_stop`
+不改变 Taskwarrior 的 start、status、due 或 UUID。
 
 现有任务接口保持任务语义，并通过服务端协调器连接同一个 Time 引擎：
 
@@ -135,7 +167,8 @@ Time 原生 API 的 taskUuid 只是关联：`time_start(taskUuid)`、`time_stop`
 
 1. 在持久化操作表记录幂等键、任务动作、操作前状态、期望当前活动版本和固定的有效时间；暂时占用该工作区的计时协调槽。
 2. 执行既有任务命令。确认成功后，在一个数据库事务中应用 Time 变化并保存成功回执。
-3. 明确未执行时标记失败，不改 Time；任务动作可能已执行但响应或账本落盘失败时标记 `pending_reconcile`，不返回完整成功。
+3. 明确未执行时标记失败，不改 Time；任务动作可能已执行但响应或账本落盘失败时标记
+   `pending_reconcile`，不返回完整成功。
 4. 重启后和继续计时前，依据持久化操作记录核对任务与 Time。证据足够才完成该操作缺失的本地步骤；存在外部修改或无法确认时保留待核对，不再次盲目执行任务命令。
 5. 未解决的跨系统操作仅暂停相关计时切换，不把无关的任务列表、看板和 Time 历史读取全部锁死。后台不可能在不核对的情况下保证跨系统恰好执行一次。
 
@@ -145,7 +178,9 @@ Time 原生 API 的 taskUuid 只是关联：`time_start(taskUuid)`、`time_stop`
 
 ### 6.1 已开始任务、未知结果与操作依赖
 
-协调器持久化至少包含：`operationId/idempotencyKey`、规范化输入摘要、`taskDataEpoch/timeEpoch`、`targetTaskUuid`、操作前任务快照（status/start/modified）、`preActiveActivityId/preSessionVersion`、固定 `effectiveAt`、`externalDisposition`、`state` 和最终回执。任务 start 非空不是操作身份，modified 也不是唯一执行凭证。
+协调器持久化至少包含：`operationId/idempotencyKey`、规范化输入摘要、`taskDataEpoch/timeEpoch`、`targetTaskUuid`、操作前任务快照（status/start/modified）、`preActiveActivityId/preSessionVersion`、固定
+`effectiveAt`、`externalDisposition`、`state`
+和最终回执。任务 start 非空不是操作身份，modified 也不是唯一执行凭证。
 
 | 分支                                          | 外部任务命令                                   | Time 处理与恢复依据                                              |
 | --------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------- |
@@ -158,11 +193,16 @@ Time 原生 API 的 taskUuid 只是关联：`time_start(taskUuid)`、`time_stop`
 
 preState 读取、判断和依赖预留在同一个协调器调度范围完成。已有 start 时不再依赖“命令前后 start 是否变化”。对于原来没有 start 的未知命令，后续看到 start 非空甚至 modified 变化，也不能证明本次执行成功：可能来自外部 CLI、其他操作或恢复。此时可提示“任务现在已开始，是否接纳这笔计时”，但不能仅凭这两个字段自动写成功回执。
 
-`prepared → external_acknowledged/skipped → applied` 为正常路径；存在不确定外部结果时转 `pending_reconcile`。操作状态持久化失败也按未知处理。始终不把 SQLite 事务跨越网络/子进程 await；Taskwarrior 写队列只进入一次，避免持有它再递归调用 runner.write。
+`prepared → external_acknowledged/skipped → applied`
+为正常路径；存在不确定外部结果时转
+`pending_reconcile`。操作状态持久化失败也按未知处理。始终不把 SQLite 事务跨越网络/子进程 await；Taskwarrior 写队列只进入一次，避免持有它再递归调用 runner.write。
 
-统一锁顺序为工作区 gate 许可 → 协调器依赖预留 → Taskwarrior 写队列（如需要）→ 短 SQLite 事务。每一笔请求结束均释放内存许可，待核对状态由持久化记录维持；恢复独占锁不会被等待用户回复的操作长期占住。
+统一锁顺序为工作区 gate 许可 → 协调器依赖预留 →
+Taskwarrior 写队列（如需要）→ 短 SQLite 事务。每一笔请求结束均释放内存许可，待核对状态由持久化记录维持；恢复独占锁不会被等待用户回复的操作长期占住。
 
-依赖集合至少包括目标任务、操作前活动及其关联任务、当前计时槽。未完成操作冻结这些依赖和全局计时切换，不能冻结所有任务写入。A 既不是当前活动的任务，也不在任何待核对操作的依赖集合内时，complete/delete(A) 直接走原任务动作，无需获得计时槽；返回 `timeEffect: none`。若任务 B 的未知切换涉及 A 的旧活动，则 A 属于依赖，不能仅用 `activeActivity.taskUuid !== A` 判定无关。
+依赖集合至少包括目标任务、操作前活动及其关联任务、当前计时槽。未完成操作冻结这些依赖和全局计时切换，不能冻结所有任务写入。A 既不是当前活动的任务，也不在任何待核对操作的依赖集合内时，complete/delete(A) 直接走原任务动作，无需获得计时槽；返回
+`timeEffect: none`。若任务 B 的未知切换涉及 A 的旧活动，则 A 属于依赖，不能仅用
+`activeActivity.taskUuid !== A` 判定无关。
 
 与当前活动有关的 complete/delete 必须继续使用协调器。无关任务动作仍经过已有任务队列和工作区 gate；恢复进行中时不能绕过 423。V1 不承诺捕获绕过服务端的原生命令并发，发现不一致即核对。
 
@@ -172,7 +212,8 @@ preState 读取、判断和依赖预留在同一个协调器调度范围完成�
 
 首次启用发现正在运行的旧计时时，展示现状，让用户选择延续哪一条或从当前时刻开始。历史部分与新活动在 C 衔接，保留迁移关联，不假装发生了实际休息。多个任务 start 标记不能自动生成多个活动，也不能为统一时钟自动停止其他任务。
 
-历史导入采用：固定导出文件 → 摘要/范围/冲突预览 → 接纳导入。保存快照校验和、批次 UUID、原始记录、裁切范围与每条新 activity UUID 的映射。
+历史导入采用：固定导出文件 → 摘要/范围/冲突预览 → 接纳导入。保存快照校验和、批次 UUID、原始记录、裁切范围与每条新 activity
+UUID 的映射。
 
 同一个冻结快照中的记录序号可以用作批内定位；它不等于 Timewarrior 跨导出的稳定 @id。重复提交同一批次返回原结果。不同快照覆盖同一历史范围时，先预览差异和本地修订，不自动追加或覆盖。导入时发现重叠记录先隔离为候选，不加入主图。
 
@@ -180,19 +221,26 @@ Time 内的历史修正保留来源与修订，不回写 Timewarrior。由此避
 
 ## 8. 独立 SQLite 存储、版本与备份
 
-选用工作区数据目录下的 `time.sqlite`。活动、策略、分类映射、当前计时、操作回执和导入批次同库事务处理；不采用按月 JSON 分片，避免跨午夜、跨月切换需要多文件事务。
+选用工作区数据目录下的
+`time.sqlite`。活动、策略、分类映射、当前计时、操作回执和导入批次同库事务处理；不采用按月 JSON 分片，避免跨午夜、跨月切换需要多文件事务。
 
-采用 `node:sqlite`，与现有服务端的无第三方运行时依赖方向一致，现有 sqliteSnapshot 可复用在线备份与完整性校验思路。模块通过最小存储适配层访问数据库。上线前锁定实际 Node 小版本并验证 API、迁移和恢复；Node 22 分支使用 backup() 的最低版本为 22.16.0，不能沿用笼统的“Node 22+”或仅验证 DatabaseSync。
+采用
+`node:sqlite`，与现有服务端的无第三方运行时依赖方向一致，现有 sqliteSnapshot 可复用在线备份与完整性校验思路。模块通过最小存储适配层访问数据库。上线前锁定实际 Node 小版本并验证 API、迁移和恢复；Node
+22 分支使用 backup() 的最低版本为 22.16.0，不能沿用笼统的“Node
+22+”或仅验证 DatabaseSync。
 
-此前本地验证仅证明 Node v24.21.0 可创建内存数据库并执行查询，不证明 dmit 已具备运行条件。仓库现有 backup() 用法说明已经有相同依赖，不代表生产运行时版本已核实。部署预检需要使用实际运行服务的 Node，执行一次临时数据库备份及 integrity_check 后清理临时文件。
+此前本地验证仅证明 Node
+v24.21.0 可创建内存数据库并执行查询，不证明 dmit 已具备运行条件。仓库现有 backup() 用法说明已经有相同依赖，不代表生产运行时版本已核实。部署预检需要使用实际运行服务的 Node，执行一次临时数据库备份及 integrity_check 后清理临时文件。
 
 版本边界：activity 有行版本；当前计时有独立 session 版本；策略有 policy 版本。与 organization.revision 无关。同一时间范围内的并发补记仍须在数据库事务内重新检测重叠，不能仅凭行版本绕过。
 
-传输继续走现有 HTTP/Unix Socket 与认证、source identity 和工作区恢复闸门。独立 revision 只隔离业务冲突，不绕过恢复独占锁，也不新增一个未经保护的写入口。持久化的待核对计时操作不长期占住全工作区锁。
+传输继续走现有 HTTP/Unix Socket 与认证、source
+identity 和工作区恢复闸门。独立 revision 只隔离业务冲突，不绕过恢复独占锁，也不新增一个未经保护的写入口。持久化的待核对计时操作不长期占住全工作区锁。
 
 Time 接口独立读取日期范围和索引，不调用 organization.load/change。关联任务只按需解析并缓存展示信息，失效时仍可展示已存快照。Time 不再让每笔记账都全量导出 task/timew。现有组织接口自身的性能改善另行评估，不混入首版。
 
-备份必须覆盖数据库、策略、操作回执和导入清单。提供独立 Time 导出/预览/恢复，不塞进旧 8 MiB organization 备份载荷。界面明确旧 Aster 备份不包含 Time。
+备份必须覆盖数据库、策略、操作回执和导入清单。提供独立 Time 导出/预览/恢复，不塞进旧 8
+MiB organization 备份载荷。界面明确旧 Aster 备份不包含 Time。
 
 备份采用数据库一致性快照或维护锁下的完整快照；若启用 WAL，不直接复制单个打开中的 .sqlite 文件。恢复前停止 Time 写入、保存恢复前副本、校验 schema 和来源，恢复后核对操作日志。恢复出的打开活动进入待核对状态，不能自动累计服务器停机期间的时长。
 
@@ -200,38 +248,61 @@ Time 接口独立读取日期范围和索引，不调用 organization.load/chang
 
 ### 8.1 发版备份必须包含 Time
 
-`deploy/deploy.sh` 的备份清单增加 time.sqlite 及 Time 恢复代次/屏障元数据。不能仅扩大 JSON 备份循环，也不能复制活动数据库的单个文件。发版脚本、独立 Time 备份与恢复前备份使用同一套 SQLite 快照和校验实现。
+`deploy/deploy.sh`
+的备份清单增加 time.sqlite 及 Time 恢复代次/屏障元数据。不能仅扩大 JSON 备份循环，也不能复制活动数据库的单个文件。发版脚本、独立 Time 备份与恢复前备份使用同一套 SQLite 快照和校验实现。
 
 执行顺序固定为：
 
 1. 预检实际运行方式（容器或 systemd），使用该服务的 Node 与数据路径，不因为宿主机存在另一个 Node 就优先使用它。确认 DatabaseSync、backup、目标目录权限、空余磁盘及 schema 支持。
-2. 服务正常运行时，通过受保护的内部维护入口进入 gate.exclusive，排空服务管理的任务和 Time 写入，再顺序备份原有 JSON、Taskwarrior SQLite 和 Time SQLite。只在这个短检查点阻塞新写；不把构建或上传放进锁内。该入口与恢复入口都不能持有同一 gate.enter 许可再等待 exclusive，内部快照助手也不再次 enter；采用既有恢复流程的“前置许可释放后进入独占”模式。绕过服务端的原生 CLI 写入需在维护窗口暂停，SQLite 单库在线备份本身不保证多个存储同时一致。
-3. 快照先写入数据目录内的唯一临时目录（如 `/opt/aster/data/backup-staging/<backupId>`）。systemd 模板的 ReadWritePaths 允许数据目录，不允许假设服务能写 `/opt/aster/backups`；容器路径也需与已挂载数据目录一致。内部入口不接受任意输出路径。
+2. 服务正常运行时，通过受保护的内部维护入口进入 gate.exclusive，排空服务管理的任务和 Time 写入，再顺序备份原有 JSON、Taskwarrior
+   SQLite 和 Time
+   SQLite。只在这个短检查点阻塞新写；不把构建或上传放进锁内。该入口与恢复入口都不能持有同一 gate.enter 许可再等待 exclusive，内部快照助手也不再次 enter；采用既有恢复流程的“前置许可释放后进入独占”模式。绕过服务端的原生 CLI 写入需在维护窗口暂停，SQLite 单库在线备份本身不保证多个存储同时一致。
+3. 快照先写入数据目录内的唯一临时目录（如
+   `/opt/aster/data/backup-staging/<backupId>`）。systemd 模板的 ReadWritePaths 允许数据目录，不允许假设服务能写
+   `/opt/aster/backups`；容器路径也需与已挂载数据目录一致。内部入口不接受任意输出路径。
 4. `await backup()`，在 finally 关闭连接；用新连接执行完整性校验，读取 schema/代次，记录字节数与校验和。全部文件完成后发布完成清单，释放检查点。脚本再把封闭的快照搬到 REMOTE_BACKUP 并复核清单，不依赖跨文件系统 rename 的原子性。
-5. 清单至少包括 backupId、releaseId、source identity、创建时间、每个数据文件的存在状态/校验和/大小、Time schemaVersion/timeEpoch/taskDataEpoch 和当前计时/待核对操作摘要。临时文件不能被识别为完成备份。
-6. Time 已启用而数据库缺失、运行时不支持 backup、校验失败或超时，必须在切换版本前退出；服务恢复接收正常请求，旧发布保持运行。尚未初始化 Time 时明确记录 `time: not_initialized`。Time 已禁用但文件仍存在时仍备份，不能当作未初始化跳过。
+5. 清单至少包括 backupId、releaseId、source
+   identity、创建时间、每个数据文件的存在状态/校验和/大小、Time
+   schemaVersion/timeEpoch/taskDataEpoch 和当前计时/待核对操作摘要。临时文件不能被识别为完成备份。
+6. Time 已启用而数据库缺失、运行时不支持 backup、校验失败或超时，必须在切换版本前退出；服务恢复接收正常请求，旧发布保持运行。尚未初始化 Time 时明确记录
+   `time: not_initialized`。Time 已禁用但文件仍存在时仍备份，不能当作未初始化跳过。
 
-首次升级的旧服务可能没有内部检查点入口。此时先上传构建产物，再用短维护窗口停止受管理的写入进程、执行同一快照助手、校验成功后切换重启；失败则启动旧发布。容器已停止时不能再 docker exec，须用相同镜像及数据挂载运行维护助手；systemd 使用配置中的实际 Node。没有可验证的运行时就中止。不能因旧服务不支持入口就悄悄略过 Time 备份。新接口沿用本地 Socket 的认证/source 校验，不新增公网维护端口。
+首次升级的旧服务可能没有内部检查点入口。此时先上传构建产物，再用短维护窗口停止受管理的写入进程、执行同一快照助手、校验成功后切换重启；失败则启动旧发布。容器已停止时不能再 docker
+exec，须用相同镜像及数据挂载运行维护助手；systemd 使用配置中的实际 Node。没有可验证的运行时就中止。不能因旧服务不支持入口就悄悄略过 Time 备份。新接口沿用本地 Socket 的认证/source 校验，不新增公网维护端口。
 
-数据库迁移只在完整备份已确认后执行。健康检查需要覆盖 Time schema 可读及恢复屏障已加载，不能只以 HTTP 200 代表 Time 可用。自动回滚前校验旧发布是否支持迁移后的 schema；不支持时禁止让旧程序写新库，也不能直接还原发版前快照丢弃上线后的新活动。V1 优先使用兼容旧版本的增量迁移；非兼容迁移保留维护状态并走明确恢复方案。
+数据库迁移只在完整备份已确认后执行。健康检查需要覆盖 Time
+schema 可读及恢复屏障已加载，不能只以 HTTP
+200 代表 Time 可用。自动回滚前校验旧发布是否支持迁移后的 schema；不支持时禁止让旧程序写新库，也不能直接还原发版前快照丢弃上线后的新活动。V1 优先使用兼容旧版本的增量迁移；非兼容迁移保留维护状态并走明确恢复方案。
 
-systemd 文件中的 MemoryMax=192M 只是该模板的限制，容器实际限制须另查。预发布同时运行记录写入、周报查询和在线备份，记录峰值内存与耗时；在 192 MiB 配置下先以至少 32 MiB 峰值余量为发布门槛，超出则优化分页、范围查询与备份批次后重测，不默默修改线上内存限制。该门槛是待验证的工程预算，不是已测结果。
+systemd 文件中的 MemoryMax=192M 只是该模板的限制，容器实际限制须另查。预发布同时运行记录写入、周报查询和在线备份，记录峰值内存与耗时；在 192
+MiB 配置下先以至少 32
+MiB 峰值余量为发布门槛，超出则优化分页、范围查询与备份批次后重测，不默默修改线上内存限制。该门槛是待验证的工程预算，不是已测结果。
 
 ### 8.2 旧任务恢复与 Time 的核对钩子
 
 旧 Aster 备份载荷仍不包含 Time，旧链路对原生运行计时的停止要求也保留。新增的是恢复前后的依赖协调，不把 time.sqlite 加进旧原生文件替换列表。Time 独立备份/预览/恢复不调用 recovery.export、nativePaths 或 Timewarrior 可用性检查。
 
-旧恢复预览同时展示 Time 影响：关联任务的打开活动、待核对操作及将暂停的记录。预览令牌绑定 `timeEpoch/taskDataEpoch/sessionVersion/pendingOperationRevision`；任一变化时需重新预览，不能在准备阶段和实际交换之间漏掉新计时。
+旧恢复预览同时展示 Time 影响：关联任务的打开活动、待核对操作及将暂停的记录。预览令牌绑定
+`timeEpoch/taskDataEpoch/sessionVersion/pendingOperationRevision`；任一变化时需重新预览，不能在准备阶段和实际交换之间漏掉新计时。
 
 恢复顺序与崩溃处理：
 
-1. 在 applyPrepared 的最终 gate.exclusive 内再次校验原生指纹和上述 Time 版本。所有 HTTP/Socket Time 写入和后台修改均须持有 gate.enter 许可；独占恢复开始后新请求得到 423，已有请求排空。被独占函数调用的内部钩子不再次 enter，避免拒绝自身或死锁。
-2. 在移动任何原生文件前，将 restoreId、Time 核对要求和恢复阶段写入现有恢复 manifest，并在 Time 中幂等执行 `prepareTaskRestore(restoreId)`：生成新的 taskDataEpoch，失效旧任务操作预条件，冻结关联任务的当前活动至固定 `suspendAt`。恢复标记必须在文件交换前持久化；写失败则不开始交换。
+1. 在 applyPrepared 的最终 gate.exclusive 内再次校验原生指纹和上述 Time 版本。所有 HTTP/Socket
+   Time 写入和后台修改均须持有 gate.enter 许可；独占恢复开始后新请求得到 423，已有请求排空。被独占函数调用的内部钩子不再次 enter，避免拒绝自身或死锁。
+2. 在移动任何原生文件前，将 restoreId、Time 核对要求和恢复阶段写入现有恢复 manifest，并在 Time 中幂等执行
+   `prepareTaskRestore(restoreId)`：生成新的 taskDataEpoch，失效旧任务操作预条件，冻结关联任务的当前活动至固定
+   `suspendAt`。恢复标记必须在文件交换前持久化；写失败则不开始交换。
 3. 冻结不删除历史，不猜测实际停止时刻。被影响的打开活动标记 review_required，显示和统计不越过 suspendAt；用户后来可确认结束时间，或从确认时刻创建新的继续记录。与任务无关的活动不因任务恢复自动终止。
-4. 执行既有原生文件交换/回滚逻辑。得到明确的 committed 或 rolled_back 结果后，按 restoreId 调用 `finalizeTaskRestore` 核对引用：任务消失/完成/删除时保留历史快照和失效关联；任务被重开或 start 变化时保持待核对。即使当前状态看似相同，也不能替用户自动续计或重新执行旧 pending 操作。
-5. taskDataEpoch 在回滚时也不退回旧值。受影响 pending 操作标记 `TASK_DATA_EPOCH_CHANGED` 并保留原回执供检查；无关任务读写在原生恢复完成后可继续，计时槽有待核对依赖时仍阻止切换。
+4. 执行既有原生文件交换/回滚逻辑。得到明确的 committed 或 rolled_back 结果后，按 restoreId 调用
+   `finalizeTaskRestore`
+   核对引用：任务消失/完成/删除时保留历史快照和失效关联；任务被重开或 start 变化时保持待核对。即使当前状态看似相同，也不能替用户自动续计或重新执行旧 pending 操作。
+5. taskDataEpoch 在回滚时也不退回旧值。受影响 pending 操作标记
+   `TASK_DATA_EPOCH_CHANGED`
+   并保留原回执供检查；无关任务读写在原生恢复完成后可继续，计时槽有待核对依赖时仍阻止切换。
 6. 原生文件已提交但 Time 核对失败时，报告“任务恢复已完成，时间记录待核对”，持久化剩余工作。不要因为后置钩子异常进入原生交换 catch 并再次回滚 Taskwarrior。Time 写入在屏障未完成时关闭，任务只读服务可保留；无法确定原生恢复结果时沿用已有整体恢复保护。
-7. 启动顺序为原生 repair → 重放未完成的 Time 恢复核对 → 开放正常计时写入。不能只扫描 prepared manifest：committed/rolled_back 但 Time 钩子未确认的 manifest 也要处理，restoreId 去重避免二次冻结。崩溃发生在标记与 Time 事务之间时，依据 manifest 先补齐屏障，禁止先运行旧 pending 操作。
+7. 启动顺序为原生 repair
+   → 重放未完成的 Time 恢复核对 → 开放正常计时写入。不能只扫描 prepared
+   manifest：committed/rolled_back 但 Time 钩子未确认的 manifest 也要处理，restoreId 去重避免二次冻结。崩溃发生在标记与 Time 事务之间时，依据 manifest 先补齐屏障，禁止先运行旧 pending 操作。
 
 restoreId 标记位于旧恢复目录、不会随被还原的 Taskwarrior/organization 文件回退；Time 自身恢复还需使用不随数据库回退的恢复屏障。manifest 路径白名单与原生 repair 的校验保留，不能让钩子接受备份提供的任意路径或执行指令。
 
@@ -239,7 +310,8 @@ restoreId 标记位于旧恢复目录、不会随被还原的 Taskwarrior/organi
 
 ## 9. bot 负责调度，Aster 负责摘要和写入规则
 
-链路：bot 的定时调度 → 调用只读 `time_reconcile_digest` → bot 根据用户设置发消息 → 回复经 MCP 写入。MCP 本身不是推送调度器。
+链路：bot 的定时调度 → 调用只读 `time_reconcile_digest` →
+bot 根据用户设置发消息 → 回复经 MCP 写入。MCP 本身不是推送调度器。
 
 Aster 返回明确的日期/时区、候选标识、值得询问的空白、数据版本和可展示摘要，不主动发送通知。bot 负责用户和会话绑定、提醒时间、静默时段、当天是否已发送及发送失败处理。每日最多一次合并提示，不对每段空白分别打扰。
 
@@ -249,18 +321,23 @@ Aster 返回明确的日期/时区、候选标识、值得询问的空白、数�
 
 - 幂等身份至少包含 workspace/source、会话、原始消息 ID、逻辑动作编号。同一消息的规范化输入及解析结果先持久化，重试复用，不能每次重新让模型拆出不同动作。
 - 同一个键、相同输入返回原回执；同键不同输入拒绝。编辑消息或纠错使用新的显式修正操作，并引用原 operation/activity。
-- 记录 `receivedAt`、用户时区和明确目标日期。相对日期依据原消息上下文解析，跨午夜重试不漂移。凌晨的“昨晚”有歧义时问明确日期，或展示候选让用户选择，不能套用财务记账日猜测。
-- 提供 `operation_get`。结果未知时先查询，不由模型重复提交；Time 原生操作在其事务和幂等记录可证明结果后，可复用同一个键取回结果。跨系统操作遵循前述待核对流程。
+- 记录
+  `receivedAt`、用户时区和明确目标日期。相对日期依据原消息上下文解析，跨午夜重试不漂移。凌晨的“昨晚”有歧义时问明确日期，或展示候选让用户选择，不能套用财务记账日猜测。
+- 提供
+  `operation_get`。结果未知时先查询，不由模型重复提交；Time 原生操作在其事务和幂等记录可证明结果后，可复用同一个键取回结果。跨系统操作遵循前述待核对流程。
 - 撤销是一笔带版本检查的新操作，只作用于原操作仍匹配的记录。原记录已被其他客户端改过时返回冲突；不重放整个旧快照覆盖后续工作。撤销 Time 记录不自动撤销已经完成的任务动作。
 - bot 发送端自身也需持久化发送状态；平台不支持发送幂等时，不宣称网络结果未知情况下能保证提醒恰好一次。
 
 ### 9.1 平台消息编辑的适配契约
 
-bot 持久化 `平台/会话/作者/messageId → 原 operationId、activityIds、各记录版本、原 receivedAt/时区、已处理编辑版本` 的映射。没有这份映射时先查询或提示无法关联，不能将编辑事件当作新的创建消息。
+bot 持久化
+`平台/会话/作者/messageId → 原 operationId、activityIds、各记录版本、原 receivedAt/时区、已处理编辑版本`
+的映射。没有这份映射时先查询或提示无法关联，不能将编辑事件当作新的创建消息。
 
 收到平台编辑事件时，使用独立的 eventId 或单调 editRevision 构造新的幂等键，并引用原操作。平台仅给 editedAt 时同时保存内容摘要用于去重；版本先后不能可靠判定时不自动覆盖，转为核对。重复编辑事件返回原修正结果，旧版本乱序到达不覆盖较新编辑。
 
-修改文字、分类、估计时长或明确区间，转成 `time_update(activityId, expectedVersion, patch)`；明确撤销才调用 time_undo。原始输入内容仍保留作审计。编辑消息不会再次执行“开始活动”、再次切换时钟，也不会自动撤销已执行的 Taskwarrior 动作。
+修改文字、分类、估计时长或明确区间，转成
+`time_update(activityId, expectedVersion, patch)`；明确撤销才调用 time_undo。原始输入内容仍保留作审计。编辑消息不会再次执行“开始活动”、再次切换时钟，也不会自动撤销已执行的 Taskwarrior 动作。
 
 原消息仍是 pending_reconcile 时先处理原结果；已被网页或另一条消息修改过的活动发生版本冲突时显示差异，不刷新版本后强行覆盖。原消息生成多条活动且新文字不能一一对应，或编辑改变动作类型时，给出待确认的变更清单；V1 不实现猜测式批量替换。
 
@@ -277,7 +354,8 @@ bot 持久化 `平台/会话/作者/messageId → 原 operationId、activityIds�
 | C：用户闭环 | 今日时间线、本周分布、bot 补记、睡眠候选、映射     | 16 + 8 + 待定位估记不变成 25；分类不反复询问；冲突输入保留；睡眠需确认 |
 | D：使用验证 | 接入 bot 提醒（条件具备时），连续使用两周          | 实际维护负担、是否看懂分布、漏记后能否继续、是否作出一次有价值的调整   |
 
-日界验收包括跨午夜、跨月、用户时区、夏令时造成的非 24 小时日；Energy 06:00 与账本 00:00 分开验证。日期区间统计不能重复或丢失跨日活动。
+日界验收包括跨午夜、跨月、用户时区、夏令时造成的非 24 小时日；Energy
+06:00 与账本 00:00 分开验证。日期区间统计不能重复或丢失跨日活动。
 
 恢复、导入和任务兼容属于有状态的高风险部分，需使用隔离数据做故障注入和回归验证；产品设计修订本身不代表上述测试已经完成。只有 A–C 通过后才启用真实 Time 记录，D 的“两周”指使用观察期，不是承诺开发工期。
 

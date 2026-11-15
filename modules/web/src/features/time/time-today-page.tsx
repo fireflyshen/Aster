@@ -397,7 +397,8 @@ export function TimeTodayPage({
             </div>
             {longActivityAlert && (
               <p className="text-xs text-amber-600/90 dark:text-amber-400/90">
-                已持续超过 {thresholdMinutesLabel} 分钟，若早已结束可在时间线中修正。
+                已持续超过 {thresholdMinutesLabel}{" "}
+                分钟，若早已结束可在时间线中修正。
               </p>
             )}
           </div>
