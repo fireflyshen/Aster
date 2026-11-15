@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
 import { createTimeHandlers } from "../../server/src/time/time-api.ts";
 import { createTimeBackupService } from "../../server/src/time/time-backup.ts";
-import { createTimeStore, TimeStoreError } from "../../server/src/time/time-store.ts";
+import {
+  createTimeStore,
+  TimeStoreError,
+} from "../../server/src/time/time-store.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(here, "..");
@@ -200,8 +203,13 @@ test("web time-api routes cleanly through real server handlers without double /a
 
     // 3. Independent backup export -> preview -> restore field contract
     const exported = await timeApi.exportTimeBackup();
-    assert.ok(typeof exported.sqliteBase64 === "string" && exported.sqliteBase64.length > 0);
-    const preview = await timeApi.previewTimeBackupRestore(exported.sqliteBase64);
+    assert.ok(
+      typeof exported.sqliteBase64 === "string" &&
+        exported.sqliteBase64.length > 0,
+    );
+    const preview = await timeApi.previewTimeBackupRestore(
+      exported.sqliteBase64,
+    );
     assert.ok(typeof preview.candidateCounts.activities === "number");
     assert.ok(typeof preview.currentCounts.timeEpoch === "number");
     assert.ok(Array.isArray(preview.warnings));

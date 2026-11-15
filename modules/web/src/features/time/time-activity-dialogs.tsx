@@ -572,8 +572,7 @@ export function EditSegmentDialog({
       ...(clearTaskLink ? { clearTaskLink: true } : {}),
       ...(confirmReview ? { confirmReview: true } : {}),
     };
-    const timesChanged =
-      startTime !== origStartTime || endTime !== origEndTime;
+    const timesChanged = startTime !== origStartTime || endTime !== origEndTime;
     if (!segment.running && timesChanged) {
       try {
         const startMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
