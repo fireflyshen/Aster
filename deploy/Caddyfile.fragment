@@ -1,8 +1,8 @@
-task.caten.top {
+tasks.example.com {
 	tls {
 		issuer acme {
 			disable_tlsalpn_challenge
 		}
 	}
-	reverse_proxy 172.19.0.1:4180
+	reverse_proxy 127.0.0.1:4180
 }

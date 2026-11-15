@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { createOrganizationStore } from "../src/organization-store.ts";
+import { createOrganizationStore } from "../src/organization/organization-store.ts";
 import type {
   SavedProject,
   OrganizationChange,

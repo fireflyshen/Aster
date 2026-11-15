@@ -10,10 +10,10 @@ import {
   chmod,
 } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import type { TaskService } from "../../core/tasks/service.ts";
-import type { createOrganizationService } from "./organization-service.ts";
+import type { TaskService } from "../../../core/tasks/service.ts";
+import type { createOrganizationService } from "../organization/organization-service.ts";
 import type { createRecoveryService } from "./recovery.ts";
-import type { createWorkspaceGate } from "./workspace-gate.ts";
+import type { createWorkspaceGate } from "../transport/workspace-gate.ts";
 import {
   backupCounts,
   pausedBackup,
@@ -31,8 +31,8 @@ import {
 import type {
   RestorePreview,
   RestorePoint,
-} from "../../core/workspace/backup.ts";
-import type { TimeStore } from "./time/time-store.ts";
+} from "../../../core/workspace/backup.ts";
+import type { TimeStore } from "../time/time-store.ts";
 
 type Item = {
   live: string;

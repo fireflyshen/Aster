@@ -1,32 +1,31 @@
 # Aster TUI 工作台
 
 独立 Go 模块，采用 Bubble Tea、Bubbles 和 Lip
-Gloss；通过系统 OpenSSH 连接 dmit，与 Web 和 TinyCast 使用同一份 Taskwarrior 与工作区。设计、功能映射及边界见
-[设计说明](../../docs/tui-design.md)。
+Gloss；通过系统 OpenSSH 连接运行 Aster Server 的远程主机，与 Web、MCP 和 Desktop 共享同一份 Taskwarrior 与工作区。
 
 ## 构建与连接
 
 需要 Go 1.24+。先在终端运行
-`ssh dmit`，确认指纹并完成密钥登录。本机不需要 Taskwarrior、Node 或新的服务端口。
+`ssh <your-vps-ssh-alias>`，确认指纹并完成密钥登录。本机不需要 Taskwarrior、Node 或新的服务端口。
 
 ```sh
 cd modules/tui
 go build -o ../../dist/tui/aster .
-../../dist/tui/aster
+../../dist/tui/aster --ssh <your-vps-ssh-alias>
 ```
 
 ```sh
-aster --ssh dmit --task /usr/local/bin/task \
+aster --ssh <your-vps-ssh-alias> --task /usr/local/bin/task \
   --taskrc /etc/taskwarrior/taskrc \
   --node /opt/aster/runtime/node \
   --socket /opt/aster/data/workspace.sock
 ```
 
-`--no-color`
+`-ssh` 缺省值为 `dmit`（可通过参数覆盖为任意 SSH host alias）。`--no-color`
 禁用颜色。颜色默认适配终端。当前使用 SSH 共享模式；不提供离线写入或独立本地 Taskwarrior 模式。
 
 服务端需启用
-`WORKSPACE_SOCKET`。完整功能需要部署此版本的 Web 服务：新增私有任务查询、快速解析、备份导出/预览/恢复端点。旧服务仍可读取基础任务和进行原有工作区操作，新功能遇到旧接口会明确提示升级。不会为了兼容而绕过服务端直接写组织资料。
+`WORKSPACE_SOCKET`。完整功能需要部署对应版本的 [`modules/server`](../server/README.md)：提供私有任务查询、快速解析、Time 计时快照、备份导出/预览/恢复端点。遇到旧服务接口时会明确提示升级，不会绕过服务端直接改写工作区资料。
 
 ## 布局
 

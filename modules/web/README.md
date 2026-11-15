@@ -11,12 +11,13 @@ Vite，代码按应用、功能、基础控件和 DTO 导出分组；后端接�
 
 ```sh
 pnpm install
-npm run dev:web
+SSH_TARGET=<your-vps-ssh-alias> npm run dev:web   # 通过 SSH 连接远程 Taskwarrior
+# 或连接本机 Taskwarrior：
+SSH_TARGET= npm run dev:web
 ```
 
-打开 **http://localhost:4180/**。`dev:web` 会同时启动 `modules/server`（内部端口
-`4181`）和 Vite 开发服务（`4180`），默认通过 SSH 连接
-`dmit`。首次连接先确保终端能运行 `ssh dmit 'task --version'`。
+打开 **http://localhost:4180/**。`dev:web` 会同时启动 [`modules/server`](../server/README.md)（默认内部端口
+`4181`，`SSH_TARGET` 默认示例值 `dmit`）和 Vite 开发服务（`4180`）。若使用 SSH 模式，请先确保终端能运行 `ssh <your-vps-ssh-alias> 'task --version'`。
 
 ```sh
 npm run check:web
@@ -83,21 +84,17 @@ Meet with Ada tomorrow at 14
 
 - 收件箱、今天、等待、已完成；搜索与项目筛选。
 - 新建、编辑、完成、重新打开，以及确认后删除。
-- 手机与桌面客户端操作同一份 dmit Taskwarrior 数据；任务数据不另建数据库。
+- 手机、Web 与桌面客户端操作同一份服务端 Taskwarrior 数据；任务数据不另建数据库。
 - 联网使用，不缓存私人任务，不自动重试写入。结果无法确认时先刷新检查。
-- 模块独立运行，不引用其他 Flowspace 应用的域名、登录配置或部署文件。
 
-正式部署使用独立域名 **https://task.caten.top/** 和 `/opt/aster`，由
-`aster.service` 管理，详见
-[部署说明](../../deploy/README.md)。已有服务器代码在生产模式下要求显式设置
-`CF_ACCESS_TEAM_DOMAIN`、`CF_ACCESS_AUD` 和
-`PUBLIC_ORIGIN`，不会读取其他应用的配置。
+生产部署通常与反向代理 / Cloudflare Access 配合使用（详见
+[部署说明](../../deploy/README.md)），服务端仅要求显式设置 `PUBLIC_ORIGIN` 以校验浏览器写操作来源。
 
 ## 过滤器与标签
 
 侧栏的「过滤器与标签」集中管理保存的查询和真实任务标签；收藏的条目显示在侧栏。列表、颜色菜单、收藏开关和编辑弹框均使用 shadcn/ui；水滴、标签和管理入口使用与参考图一致的独立 SVG 轮廓。
 
-过滤器直接由 dmit 的 Taskwarrior 执行，支持属性与修饰符、`+标签` /
+过滤器直接由服务端关联的 Taskwarrior 执行，支持属性与修饰符、`+标签` /
 `-标签`、`and` / `or` / `xor`、括号和引号。兼容 `@标签`，会转换为
 `+标签`。只接受筛选条件，不接受 Taskwarrior 操作命令、配置覆盖或 shell 指令。结果排除已删除任务；需要只看待办时请写
 `status:pending`，也可以明确筛选已完成任务。
@@ -111,21 +108,19 @@ status:completed +Work
 ```
 
 普通 `Ready` 与虚拟标签 `READY`
-不同；系统虚拟标签不会混入可编辑标签列表。新建标签可以暂不分配任务；改名同步更新 dmit 上非删除任务及已保存过滤器中的直接标签条件，删除仅移除标签，保留任务。计数显示未完成任务数量。
+不同；系统虚拟标签不会混入可编辑标签列表。新建标签可以暂不分配任务；改名同步更新 Taskwarrior 上非删除任务及已保存过滤器中的直接标签条件，删除仅移除标签，保留任务。计数显示未完成任务数量。
 
-Taskwarrior 保存任务及实际标签。过滤器定义、颜色和收藏作为本网页模块的元数据，保存在服务进程工作目录的
-`data/organization.json`（用上述命令运行时为
-`modules/web/data/organization.json`）；可通过 `ORGANIZATION_FILE`
-指定绝对路径，生产运行应将它放在持久化目录。文件采用原子替换和版本号检查；冲突保留草稿，用户显式重新加载后再保存。线上文件为
-`/opt/aster/data/organization.json`，与代码发布分开保存。
+Taskwarrior 保存任务及实际标签。过滤器定义、颜色和收藏作为工作区元数据，保存在服务端数据目录的
+`organization.json`（可通过 `ORGANIZATION_FILE` 指定绝对路径，生产部署通常位于
+`/opt/aster/data/organization.json`）。文件采用原子替换和版本号检查；冲突保留草稿，用户显式重新加载后再保存，发布更新不会覆盖数据目录。
 
 ## 完成反馈与项目描述
 
-勾选后立即显示完成状态，dmit 确认并刷新成功后任务平滑收起，通知中的 **Undo**
+勾选后立即显示完成状态，服务端确认并刷新成功后任务平滑收起，通知中的 **Undo**
 可以撤销完成或重新打开。明确失败会恢复原状态；结果未知时要求先刷新核对，不会自动重试。系统开启减少动态效果时跳过动画。
 
 打开项目，在标题下点击 **Add description**，或在项目的 **… → Edit project**
-中编辑描述。支持换行，最多 2,000 个字符。描述与过滤器、颜色、收藏一起保存在网页模块的
+中编辑描述。支持换行，最多 2,000 个字符。描述与过滤器、颜色、收藏一起保存在服务端
 `data/organization.json`，刷新或重启后保留；它是 Aster 的项目资料，不写入 Taskwarrior 任务正文。版本冲突时保留草稿，选择
 **Reload and keep draft** 后再保存。
 
@@ -144,7 +139,7 @@ Taskwarrior 保存任务及实际标签。过滤器定义、颜色和收藏作�
 
 拖动、排序和 Undo 只保存栏目位置，不修改 Taskwarrior 的完成状态、开始时间、等待日期或任务内容。完成与重新打开仍由任务圆圈控制，任务完成后保留在原栏目；即使栏目名为 Done 或 Todo，也不会触发状态操作。
 
-栏目和位置持久化在网页模块的
+栏目和位置持久化在服务端
 `data/organization.json`，使用版本检查和原子保存；失败回到原位置，版本冲突或结果未知时先重新加载核对，编辑草稿保留。过滤或搜索不会丢失隐藏任务的位置。看板交互代码按需加载；布局偏好保存在本浏览器，私人任务不写入浏览器缓存。
 
 ## Appearance
@@ -194,10 +189,10 @@ preserve goal fields when older clients omit them.
 Desktop（Raycast / TinyCast）、MCP 与 Go
 TUI 通过现有 SSH 连接访问同一服务端进程上的
 `/opt/aster/data/workspace.sock`（权限
-`0600`）或在本地直连 HTTP 服务。服务端通过 `modules/server/src/workspace-api.ts`
+`0600`）或在本地直连 HTTP 服务。服务端通过 `modules/server/src/transport/workspace-api.ts`
 对 HTTP 与 Unix
-Socket 暴露统一的任务查询、动作、组织资料、恢复与备份接口；公网 HTTP
-API 依然强制 Cloudflare Access 与 Origin 校验。
+Socket 暴露统一的任务查询、动作、组织资料、时间账本、恢复与备份接口；浏览器 HTTP
+写请求强制校验 `PUBLIC_ORIGIN` 与 `application/json`。
 
 ### Nested projects
 
@@ -227,8 +222,15 @@ The sidebar's **Data & recovery** opens deleted-task recovery and a full JSON
 export. Task editing adds **Repeat** / **Ends**, **Edit series** for existing
 occurrences, and multiline **Notes**. Stop series preserves existing tasks.
 These use native Taskwarrior recurrence and annotations; the recovery journal
-remains separate workspace metadata. See
-[behavior, limitations and validation](../../docs/reliability-2026-11-03.md).
+remains separate workspace metadata.
+
+## 极简时间账本与计时计划（Time Ledger）
+
+Web 端 `src/features/time/` 提供极简、留白优先的时间账本视图，对应设计见
+[产品设计](../../docs/time-management-design.md)：
+
+- **Today / Weekly / Settings** 三个精简子页面，展示当日覆盖率（`C + U = T`）、待确认睡眠候选、未定位估记、空白时间块与规则配置；
+- **执行条 & 定时计划（TimingPlan）**：遵循 **手动开始 → 到限自动停止 → 确认或修正记录** 流程。到期自动停止或跨小时检查点通过顶部单行极简提示呈现，支持一键确认、暂停/继续（共享同一剩余额度与最晚停止时刻）、加时或修改结束时刻。
 
 ## 列表分组与看板统一
 

@@ -20,9 +20,9 @@ import {
   readBarrierState,
   sqliteOnlineBackup,
   verifySqliteIntegrity,
-} from "./time/time-barrier.ts";
-import type { TimeBackupService } from "./time/time-backup.ts";
-import { CURRENT_TIME_SCHEMA_VERSION } from "./time/time-schema.ts";
+} from "../time/time-barrier.ts";
+import type { TimeBackupService } from "../time/time-backup.ts";
+import { CURRENT_TIME_SCHEMA_VERSION } from "../time/time-schema.ts";
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
 

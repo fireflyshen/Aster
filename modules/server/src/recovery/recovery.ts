@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { requireUuid } from "../../core/tasks/arguments.ts";
-import type { RawTask } from "../../core/tasks/raw.ts";
-import type { createTaskService } from "../../core/tasks/service.ts";
-import type { createOrganizationService } from "./organization-service.ts";
-import type { DeletedTask } from "../../core/workspace/recovery.ts";
+import { requireUuid } from "../../../core/tasks/arguments.ts";
+import type { RawTask } from "../../../core/tasks/raw.ts";
+import type { createTaskService } from "../../../core/tasks/service.ts";
+import type { createOrganizationService } from "../organization/organization-service.ts";
+import type { DeletedTask } from "../../../core/workspace/recovery.ts";
 
 type Entry = {
   task: RawTask;

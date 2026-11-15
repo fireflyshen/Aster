@@ -7,13 +7,13 @@ import {
   itemColor,
   type Organization,
 } from "../../../core/workspace/organization.ts";
-import { toneColor } from "./palette";
+import { toneColor } from "../lib/palette";
 import {
   displayDate,
   priorityBadgeLabel,
   priorityTagColor,
   priorityTextLabel,
-} from "./task-list-model";
+} from "../lib/task-list-model";
 
 function markdownText(value: string): string {
   return value.replace(/([\\`*_{}[\]()#+\-.!|>])/g, "\\$1");

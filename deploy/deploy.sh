@@ -290,6 +290,6 @@ if ! ssh "$SSH_TARGET" "$RESTART_REMOTE"; then
 fi
 
 echo "==> [5/5] Verified release ${RELEASE_ID}"
-echo "✓ Deployed ${RELEASE_ID} to ${SSH_TARGET} (https://task.caten.top)"
+echo "✓ Deployed ${RELEASE_ID} to ${SSH_TARGET}${PUBLIC_ORIGIN:+ ($PUBLIC_ORIGIN)}"
 echo "  Previous release: ${PREV_RELEASE:-none}"
 echo "  Backup saved at:  ${REMOTE_BACKUP}"

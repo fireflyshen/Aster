@@ -1,20 +1,20 @@
-import type { createTaskService } from "../../core/tasks/service.ts";
-import { isVirtualTag } from "../../core/tasks/options.ts";
-import { loadTimewarriorIntervals } from "../../core/tasks/timewarrior.ts";
-import type { TimerSnapshot } from "../../core/time/model.ts";
+import type { createTaskService } from "../../../core/tasks/service.ts";
+import { isVirtualTag } from "../../../core/tasks/options.ts";
+import { loadTimewarriorIntervals } from "../../../core/tasks/timewarrior.ts";
+import type { TimerSnapshot } from "../../../core/time/model.ts";
 import {
   calculateEnergy,
   calculateTimeModeEnergy,
   type EnergySummary,
-} from "../../core/workspace/energy.ts";
+} from "../../../core/workspace/energy.ts";
 import type {
   OrganizationChange,
   SavedFilter,
   WorkspaceTiming,
-} from "../../core/workspace/organization.ts";
-import { projectNames } from "../../core/workspace/projects.ts";
+} from "../../../core/workspace/organization.ts";
+import { projectNames } from "../../../core/workspace/projects.ts";
 import { createOrganizationStore } from "./organization-store.ts";
-import type { TimeStore } from "./time/time-store.ts";
+import type { TimeStore } from "../time/time-store.ts";
 
 export type OrganizationTimeBridge = {
   isEnabled: () => boolean;

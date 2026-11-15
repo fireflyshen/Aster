@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { filterArguments, tagName } from "../../core/tasks/filter.ts";
+import { filterArguments, tagName } from "../../../core/tasks/filter.ts";
 import {
   defaultBoard,
   inheritSubtaskColumns,
@@ -7,15 +7,15 @@ import {
   taskColumnId,
   type BoardChange,
   type BoardTask,
-} from "../../core/workspace/board.ts";
+} from "../../../core/workspace/board.ts";
 import {
   colors,
   type Organization,
   type OrganizationChange,
   type SavedFilter,
   type SavedTag,
-} from "../../core/workspace/organization.ts";
-import { changeBoardState } from "./board-changes.ts";
+} from "../../../core/workspace/organization.ts";
+import { changeBoardState } from "../tasks/board-changes.ts";
 
 /** Validates and applies board column/task placement changes onto `data`. */
 export function applyBoardChange(

@@ -1,11 +1,11 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync, backup } from "node:sqlite";
-import { executeProcess } from "../../core/connection/execute.ts";
-import { buildCommand } from "../../core/connection/command.ts";
-import type { TaskService } from "../../core/tasks/service.ts";
-import { resolveTimewarriorCommand } from "../../core/tasks/timewarrior.ts";
-import { importableTask, parseRawTasks } from "../../core/tasks/raw.ts";
+import { executeProcess } from "../../../core/connection/execute.ts";
+import { buildCommand } from "../../../core/connection/command.ts";
+import type { TaskService } from "../../../core/tasks/service.ts";
+import { resolveTimewarriorCommand } from "../../../core/tasks/timewarrior.ts";
+import { importableTask, parseRawTasks } from "../../../core/tasks/raw.ts";
 import type { AsterBackup, RawInterval } from "./backup-validation.ts";
 
 export function canonical(value: unknown): string {

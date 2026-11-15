@@ -4,7 +4,7 @@ import {
   type McpToolRegistrar,
   revisionSchema,
   uuidSchema,
-} from "./tool-helpers.ts";
+} from "./helpers.ts";
 
 const projectSchema = z
   .object({

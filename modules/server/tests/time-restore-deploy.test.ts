@@ -13,14 +13,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import type { AsterBackup } from "../src/backup-validation.ts";
-import { createBackupRestore } from "../src/backup-restore.ts";
-import { runMaintenanceBackup } from "../src/maintenance-backup.ts";
-import { createOrganizationService } from "../src/organization-service.ts";
-import { createRecoveryService } from "../src/recovery.ts";
+import type { AsterBackup } from "../src/recovery/backup-validation.ts";
+import { createBackupRestore } from "../src/recovery/backup-restore.ts";
+import { runMaintenanceBackup } from "../src/recovery/maintenance-backup.ts";
+import { createOrganizationService } from "../src/organization/organization-service.ts";
+import { createRecoveryService } from "../src/recovery/recovery.ts";
 import { createTimeBackupService } from "../src/time/time-backup.ts";
 import { createTimeStore } from "../src/time/time-store.ts";
-import { createWorkspaceGate } from "../src/workspace-gate.ts";
+import { createWorkspaceGate } from "../src/transport/workspace-gate.ts";
 import type { TaskService } from "../../core/tasks/service.ts";
 
 function sampleAsterBackup(uuid: string): AsterBackup {

@@ -3,7 +3,7 @@ import {
   dateSchema,
   type McpToolRegistrar,
   uuidSchema,
-} from "./tool-helpers.ts";
+} from "./helpers.ts";
 
 const taskSchema = z
   .object({

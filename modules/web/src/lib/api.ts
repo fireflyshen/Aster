@@ -23,7 +23,7 @@ export async function api<T = { ok: true }>(
   } catch {
     const error = new RequestError(
       data === undefined
-        ? "Unable to connect to dmit. Check your connection and try again."
+        ? "Unable to connect to the Aster server. Check your connection and try again."
         : "Result unconfirmed. Refresh and check tasks before trying again.",
     );
     error.uncertain = data !== undefined;

@@ -3,8 +3,8 @@ import {
   inProject,
   projectStatus,
   type ProjectFocusChange,
-} from "../../core/workspace/focus.ts";
-import type { SavedProject } from "../../core/workspace/organization.ts";
+} from "../../../core/workspace/focus.ts";
+import type { SavedProject } from "../../../core/workspace/organization.ts";
 
 type GoalTask = { uuid: string; project?: string; status: string };
 export function validateGoal(project: SavedProject, tasks: GoalTask[]) {

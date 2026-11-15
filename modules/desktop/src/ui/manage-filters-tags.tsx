@@ -22,7 +22,7 @@ import {
   type SavedFilter,
   type SavedTag,
 } from "../../../core/workspace/organization.ts";
-import { toneColor } from "./palette";
+import { toneColor } from "../lib/palette";
 
 function FilterOrTagForm({
   kind,

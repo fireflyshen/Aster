@@ -6,12 +6,12 @@ import {
   validateBackup,
   pausedBackup,
   type AsterBackup,
-} from "../src/backup-validation.ts";
-import { createWorkspaceGate } from "../src/workspace-gate.ts";
-import { createBackupRestore } from "../src/backup-restore.ts";
+} from "../src/recovery/backup-validation.ts";
+import { createWorkspaceGate } from "../src/transport/workspace-gate.ts";
+import { createBackupRestore } from "../src/recovery/backup-restore.ts";
 import type { TaskService } from "../../core/tasks/service.ts";
-import type { createRecoveryService } from "../src/recovery.ts";
-import type { createOrganizationService } from "../src/organization-service.ts";
+import type { createRecoveryService } from "../src/recovery/recovery.ts";
+import type { createOrganizationService } from "../src/organization/organization-service.ts";
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 function fixture(): AsterBackup {
   return {

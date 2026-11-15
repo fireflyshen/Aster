@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { WorkspaceError, type WorkspaceCall } from "./transport.ts";
+import { WorkspaceError, type WorkspaceCall } from "../transport.ts";
 
 export const uuidSchema = z.string().uuid();
 

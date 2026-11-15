@@ -1,175 +1,179 @@
 # Aster
 
-## AI 调用接口（MCP）
+Aster 是一个基于 **Taskwarrior 3** 构建的个人任务与时间工作区 Monorepo：用统一的共享后端整合 **Web（桌面 & 手机）**、**Desktop（Raycast / TinyCast）**、**Go TUI 终端** 与 **MCP（AI / Grok Bot）** 四套客户端，在保留 Taskwarrior 原生存储的同时补齐 Focus、看板分组、嵌套子任务、误删恢复与 **Time Ledger 时间账本**。
 
-独立模块 [`modules/mcp`](modules/mcp/README.md)
-为支持 MCP 的 AI 客户端提供任务、项目与 Focus、标签、过滤器、栏目排序、计时与精力、恢复及备份工具。复用现有 SSH 私有工作区，支持本地 Unix
-socket；不新增公网端口。设计与功能覆盖见 [AI 接口设计](modules/mcp/DESIGN.md)。
+---
 
-```sh
-npm ci --prefix modules/mcp
-ASTER_SSH_TARGET=dmit npm run start:mcp
+## 核心特性
+
+1. **统一共享服务端（`modules/server`）**
+   - Node.js 22.16+ 原生实现（零第三方运行时依赖），通过 HTTP（Web / 本地客户端）与私有 Unix Socket IPC（SSH 远程客户端、MCP、Go TUI）对外提供同一套序列化事务与并发门控。
+   - **Organization 独立持久化队列**：使用 `organization.json` 乐观版本号队列管理项目树、最多 3 个 Active 的 Focus 目标、看板自定义分栏与排序、saved filters、项目与任务 Markdown 说明及颜色。
+   - **Time Ledger（SQLite WAL）**：独立 `time.sqlite` + 恢复隔离屏障（`.barrier.json`）管理 24h 时间覆盖（`C + U = T`）、睡眠候选识别、待定位估记、跨小时检查点与两阶段 Taskwarrior 协调事务。
+   - **TimingPlan 自动停止机制**：支持「预计用时」+「计划开始」+「最晚停止」的清晰边界，采用 **手动开始 → 到限自动停止 → 确认或修正记录** 流程；服务重启仍按原定时限准确结算，不会无故把计划直接变成已执行记录。详见 [产品设计](docs/time-management-design.md) 与 [工程契约](docs/time-management-v1-decisions.md)。
+2. **极简 Web 应用（`modules/web`）**
+   - React 19 + shadcn/ui + Tailwind CSS，支持 Todoist 风格快速捕捉（`Q`）、行内编辑、树形子任务、List/Board 一体化视图、Data & Recovery 备份恢复。
+   - 提供极简留白的 **Time Ledger（Today / Weekly / Settings）** 与顶部单行执行条、到限确认与修正弹窗。
+3. **AI / Grok Bot 接口（`modules/mcp`）**
+   - 标准 MCP stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务规划、看板拆解、Time 随手记账、TimingPlan 定时安排与对账摘要。
+   - 给 Grok Bot / AI 助手配置 System Prompt、可用工具与**合法分类字典**，请直接阅读 [`modules/mcp/README.md`](modules/mcp/README.md)。
+4. **桌面扩展 & 终端工作台（`modules/desktop` & `modules/tui`）**
+   - **Desktop（Raycast / TinyCast）**：提供 `My Tasks`、`Focus & Projects` 与 `Quick Add Task` 三个命令入口，复用 SSH / 本地共享工作区或原生 Taskwarrior 3。
+   - **Go TUI**：单二进制终端界面，支持宽窄屏自适应布局、Focus/看板管理、实时计时状态与全量备份导出恢复。
+
+---
+
+## 仓库架构
+
+```text
+modules/
+  core/                    无平台依赖的共用领域内核
+    connection/            本机 / SSH OpenSSH 执行器与数据源标识
+    tasks/                 Taskwarrior 3 数据模型、过滤解析、Quick Add 与 Timewarrior 导入解析
+    time/                  Time Ledger 分类规则、C+U=T 账本计算、快照合并与时区处理
+    workspace/             Organization 契约、Focus/看板/子任务模型、恢复/备份与 WorkspaceClient
+
+  server/                  统一服务端（零外部运行时依赖）
+    src/
+      index.ts             启动组合根、环境装配与默认本地/SSH 模式选择
+      transport/           HTTP 服务（静态资源、CSP、/healthz）、路由适配、Unix IPC、并发门控、CLI 维护
+      tasks/               任务动作、看板与 Focus 变更处理器
+      organization/        organization.json 版本存储与 Taskwarrior/Time 联动服务
+      recovery/            误删恢复快照、全量导出校验、原子恢复与部署前一致性备份
+      time/                SQLite Time Ledger、TimingPlan 到限调度器、协调器、导入与备份恢复
+    tests/                 57 项服务端单测与 HTTP/IPC 真实进程集成测试
+
+  web/                     前端 Web 应用（React + shadcn/ui + Vite）
+    shared/                前端复用 DTO 类型导出（@shared/*）
+    src/
+      app/                 应用骨架、导航、全局快捷键与主题（Light / Dark / System）
+      features/            tasks、projects、organization、recovery、time（Today/Weekly/Settings）
+      components/          自定义图标与 shadcn/ui 基础组件
+      lib/                 HTTP API 请求工具与平台辅助
+    tests/                 Web 模型、视图与 Time API 契约测试
+
+  desktop/                 Raycast / TinyCast 桌面扩展
+    src/
+      my-tasks.tsx         My Tasks 入口
+      projects.tsx         Focus & Projects 入口
+      quick-add.tsx        Quick Add Task 入口
+      hooks/               useWorkspace / useTaskService / useTaskListActions
+      lib/                 列表模型与配色辅助
+      ui/                  Raycast 视图、表单与操作菜单组件
+
+  mcp/                     Model Context Protocol (MCP) stdio 服务端
+    src/
+      index.ts / server.ts / transport.ts
+      tools/               helpers / tasks / workspace / time / planning 工具分组
+    tests/                 基于官方 MCP SDK 的契约、幂等键与故障场景测试
+
+  tui/                     Go Bubble Tea 终端客户端
+deploy/                    自托管部署脚本（Docker Compose / systemd / Caddyfile 示例与回滚测试）
+docs/                      时间管理产品设计与 V1 工程契约
 ```
 
-## 终端客户端（Go TUI）
+各模块更详细的使用说明：
 
-独立模块 [`modules/tui`](modules/tui/README.md)
-提供 Focus、任务列表与编辑、项目聚焦、计时和栏目移动，沿用 dmit 的 SSH 连接和共享工作区。
+- [服务端说明](modules/server/README.md)
+- [Web 模块说明](modules/web/README.md)
+- [MCP 与 Grok Bot 指南](modules/mcp/README.md)
+- [TUI 使用指南](modules/tui/README.md)
+- [VPS 自托管部署说明](deploy/README.md)
+
+---
+
+## 快速开始
+
+### 1. 环境准备
+
+- **Node.js 22.16+**（需要内置 TypeScript strip-types 与 `node:sqlite` `backup()` 支持）
+- **Taskwarrior 3**（可安装在本机，或仅安装在你的远程 Linux VPS 上通过 SSH 连接）
+- 可选：**Go 1.24+**（编译 TUI）、**Raycast / TinyCast**（运行桌面扩展）
+
+在仓库根目录安装依赖：
+
+```sh
+pnpm install
+npm ci --prefix modules/mcp
+npm ci --prefix modules/web
+```
+
+### 2. 本地调试 Web + 服务端
+
+```sh
+# 方式 A：连接你本机安装的 Taskwarrior 3
+SSH_TARGET= npm run dev:web
+
+# 方式 B：通过系统 ~/.ssh/config 别名代理连接远程 VPS 上的 Taskwarrior 3
+SSH_TARGET=<your-vps-ssh-alias> npm run dev:web
+```
+
+启动后访问 **http://localhost:4180/**（Vite 会将 `/api` 与 `/healthz` 代理到内部运行的 `modules/server`）。
+
+### 3. 启动 MCP（连接 Grok Bot / Claude / Cursor）
+
+```sh
+# 本地通过 SSH 隧道复用服务端 Unix Socket：
+ASTER_SSH_TARGET=<your-vps-ssh-alias> npm run start:mcp
+
+# 若与 Aster 部署在同一台服务器内，直接配置 ASTER_SOCKET=/opt/aster/data/workspace.sock：
+npm run start:mcp
+```
+
+完整 Prompt 写法、时间分类规范与工具清单见 [`modules/mcp/README.md`](modules/mcp/README.md)。
+
+### 4. 构建 Go TUI
 
 ```sh
 cd modules/tui
 go build -o ../../dist/tui/aster .
-../../dist/tui/aster
+../../dist/tui/aster --ssh <your-vps-ssh-alias>
 ```
 
-## Web 客户端（桌面与手机）
-
-网页客户端是本仓库的独立模块
-[`modules/web`](modules/web/README.md)，界面使用 React +
-shadcn/ui，继续连接 dmit 的同一份 Taskwarrior 数据。
+### 5. 运行 Raycast / TinyCast 桌面端
 
 ```sh
-npm ci --prefix modules/web
-npm run dev:web
+npm run dev:desktop
 ```
 
-本地入口为 **http://localhost:4180/**。正式入口为
-**https://task.caten.top/**，已独立部署到 dmit，使用 Cloudflare
-Access 登录保护。模块拥有独立依赖与构建配置，不挂载在其他应用中。
+扩展首选项可在 Raycast 设置中调整 `Connection Mode`（`ssh` / `local` / `wsl`）、`SSH Target`、`Remote Task Command` 与 `Shared Workspace` URL（SSH 模式下设 `auto` 会自动经现有 SSH 隧道访问 `WORKSPACE_SOCKET`）。
 
-## 桌面客户端
+---
 
-Aster 是运行在本机的 Taskwarrior
-3 客户端，通过 TinyCast（兼容 Raycast 扩展）查看和管理任务。默认连接 VPS
-`dmit`，本机无需安装 Taskwarrior。也支持已有的本地 Taskwarrior
-3，以及 Windows 上的 WSL。
+## 自托管部署到个人服务器
 
-## 日常使用
+别人拉取本仓库后，可以直接部署到任意具备 **Node.js 22.16+** 与 **Taskwarrior 3** 的 Linux VPS：
 
-**My Tasks** 是主入口：
-
-- 查看待办、今天与逾期、等待中、已完成的任务；已完成记录按完成时间倒序。
-- 搜索描述、项目和标签；下拉菜单可直接查看某个项目的待办。
-- 创建、编辑、完成、重新打开任务，以及确认后删除误建任务。
-- 设置等待日期或清除等待；开始、停止只影响选中的任务。
-- 查看备注及任务属性。菜单中可刷新列表或检查连接。
-
-列表中 `⌘N` 快速添加，`⌘E` 编辑，`⌘R` 刷新，`⌘O` 查看详情，`⌘Z`
-撤销最近一次完成或重开。`⌘⇧F` 输入 Taskwarrior 过滤表达式；`⌘⇧M`
-移动到栏目。Windows 使用对应 Ctrl 快捷键。默认回车完成任务，在已完成列表中回车重新打开。
-
-**Quick Add Task** 现在是一句话捕捉入口，输入
-`Submit report tomorrow at 14 #Work @focus p1`，实时预览任务名、日期时间、项目、标签与优先级，Enter 保存。中文日期同样支持；引用文字用引号保护。`⌘E`
-转为完整原生表单，表达式中的字段和具体时间会继承。关闭后保留草稿，`Ctrl+X`
-丢弃并退出（Windows 为 Ctrl+Shift+X）。可以在 TinyCast 为这个命令绑定全局快捷键。
-
-列表下拉还支持项目、标签、Inbox、In
-Progress，以及网页保存的过滤器和看板栏目。栏目视图包含该栏的未完成和已完成任务；移动栏目不改变完成状态。任务详情可显示网页的项目描述。
-
-**共享网页资料**：插件设置的 Web Workspace URL 默认
-`http://localhost:4180`，本机网页服务运行时，插件读取同一份过滤器、颜色、收藏、项目描述和栏目，不保存第二份。两边连接必须匹配。共享模式下，新增和修改也经由同一私有工作区，删除会保留恢复快照。工作区不可用时保留输入并提示重试；清空该设置可使用独立的原生 Taskwarrior 模式，该模式没有共享删除快照。`⌘⇧O`
-打开网页进行完整管理。具体适配取舍见
-[TinyCast 产品说明](docs/desktop-product.md)。
-
-删除使用 Taskwarrior 的 `delete`，不执行永久清除。必要时可通过 Taskwarrior
-CLI 找到已删除任务并修改为
-`status:pending`。批量删除和清空数据库不放进日常客户端。
-
-暂不加入独立计时系统、统计报表、离线写入、多服务器切换或高级重复任务编辑。已有任务的备注、重复规则、依赖和调度字段会在编辑时保留。
-
-## 连接
-
-默认配置：
-
-| 配置                | 默认值                    |
-| ------------------- | ------------------------- |
-| Connection Mode     | SSH                       |
-| SSH Target          | `dmit`                    |
-| Remote Task Command | `/usr/local/bin/task`     |
-| Remote Taskrc       | `/etc/taskwarrior/taskrc` |
-
-使用系统 OpenSSH 的配置、密钥、agent 和 known_hosts，不保存凭据。端口及跳板机写在 SSH
-config 中。首次连接先在终端验证服务器指纹并完成密钥登录：
+1. 在服务器上准备 `/opt/aster/data`、参考 [`deploy/aster.env.example`](deploy/aster.env.example) 创建 `/opt/aster/aster.env`（设置 `PUBLIC_ORIGIN`、`ORGANIZATION_FILE`、`TIME_DB_FILE`、`WORKSPACE_SOCKET` 等）。
+2. 参考 [`deploy/aster.service`](deploy/aster.service)（systemd）或 Docker Compose 配置守护进程，并参考 [`deploy/Caddyfile.fragment`](deploy/Caddyfile.fragment) 配置 HTTPS 反向代理与身份认证（如 Cloudflare Access）。
+3. 在本地执行：
 
 ```sh
-ssh dmit 'task --version'
+SSH_TARGET=<your-vps-ssh-alias> bash deploy/deploy.sh
 ```
 
-Windows 远端模式使用 Windows OpenSSH，无需 WSL。更换服务器时调整 SSH
-Target 和远端路径；清空 Remote
-Taskrc 表示使用远端默认配置。修改设置后关闭并重新打开命令，已打开的列表和编辑页始终使用原连接。
+脚本会自动打包单文件服务端产物 `dist/server/server.mjs` 与静态前端 `dist/web/client/`、在远端执行一致性的预发布备份与校验、切换 `/opt/aster/current` 并检查 `/healthz`；若健康检查未通过则自动回滚。详细步骤见 [`deploy/README.md`](deploy/README.md)。
 
-连接中断后，无法确认结果的写入不会自动重试。表单保留输入并阻止再次提交；检查 My
-Tasks 后重新打开表单。写入成功但刷新失败仍会提示保存成功。所有修改使用 UUID，在当前扩展进程中按连接排队；其他进程和客户端仍可同时修改任务。
+---
 
-日期按客户端所选日历日期转换成明确的 UTC 时间，编辑其他字段时保留原截止时间。读取关闭 hooks 和垃圾回收；修改保留 Taskwarrior 的写入 hooks。
+## 桌面快捷捕捉与常用键盘操作
 
-Local 模式需要已有的 Taskwarrior 3。macOS 默认
-`/opt/homebrew/bin/task`，Windows 默认使用 Ubuntu WSL 中的
-`/usr/bin/task`。本次配置的本机 Taskwarrior 和 Timewarrior 已卸载，继续使用 SSH 模式即可。
+- **My Tasks**：`⌘N` 快速添加、`⌘E` 编辑、`⌘R` 刷新、`⌘O` 查看详情、`⌘Z` 撤销最近完成或重开、`⌘⇧F` 自定义过滤器、`⌘⇧M` 移动分组、`⌘⇧O` 在浏览器打开 Web 工作区。
+- **Quick Add Task**：支持中英文自然日期表达式与项目/标签/优先级符号，例如：
+  ```text
+  Submit report tomorrow at 14 #Work @focus p1
+  明天下午2点 写周报 #"产品 设计" %设计 p2
+  ```
+- Web 与 TUI 的完整快捷键说明分别见 [`modules/web/README.md`](modules/web/README.md) 与 [`modules/tui/README.md`](modules/tui/README.md)。
 
-## 代码结构
+---
 
-```text
-modules/
-  core/
-    connection/        连接配置、命令执行与错误
-    tasks/             Taskwarrior 数据、查询、操作与共用表达式解析
-    workspace/         组织资料契约、栏目计算与共用工作区客户端
-  server/              统一服务端（HTTP API + Unix Socket IPC，零外部运行时依赖）
-    src/               路由核、HTTP/IPC 适配、认证、校验、恢复与持久化
-    tests/             服务端存储、权限与 HTTP/IPC 集成测试
-  desktop/             Raycast / Tinycast 桌面端扩展
-    src/
-      my-tasks.tsx     列表入口
-      quick-add.tsx    创建入口
-      ui/              桌面客户端界面与状态
-    assets/            扩展图标
-  web/                 纯前端 Web 模块（React + shadcn/ui + Vite）
-    shared/            浏览器端 DTO 导出
-    src/
-      app/             应用编排、导航与全局样式
-      features/        任务、过滤器、标签、项目与恢复界面
-      components/      共用图标、shadcn/ui 基础控件
-      lib/             HTTP 请求工具
-    tests/             Web 拖拽模型单元测试
-  mcp/                 Model Context Protocol 服务与测试
-  tui/                 Go 终端客户端
-```
-
-服务端逻辑独立于
-`modules/server`，同时通过 HTTP（Web、本地桌面客户端）与私有 Unix
-Socket（SSH 桌面客户端、MCP、Go
-TUI）提供同一套路由与队列；各前端不再自行绕过服务端直连数据库（本地桌面端仅在未运行服务时回退到
-`TaskService`）。运行方式分别见 [服务端说明](modules/server/README.md) 与
-[Web 模块说明](modules/web/README.md)。
-
-## 开发
-
-需要 Node.js 22.14+ 和 Raycast。
+## 开发与验证
 
 ```sh
-pnpm install
-npm run dev
-npm run typecheck
-npm test
-npm --prefix modules/desktop run eslint
-npm run build
+npm run check                                                   # 全仓 TypeScript 类型检查
+npm --prefix modules/desktop run eslint                         # Desktop ESLint 检查
+node --experimental-strip-types --test modules/core/tests/*.test.ts  # Core 领域单测
+npm test                                                        # deploy + web + build:web + server + mcp 全量测试
+(cd modules/tui && go test ./...)                               # Go TUI 单元测试
 ```
-
-`npm run lint` 还会校验发布清单，发布前需将 `YOUR_RAYCAST_USERNAME`
-换成真实 Raycast 账号。VPS 布局见
-[remote setup](docs/remote-setup.md)。Taskwarrior 命令语义见
-[官方手册](https://taskwarrior.org/docs/man/task.1/)。
-
-## Aster 2.5
-
-- 网页 **Data & recovery →
-  Backups**：导出、上传备份、预览范围并恢复；恢复前副本可下载。
-- 网页及 TinyCast 任务编辑器支持重复规则和备注；TinyCast 的 **Data & Recovery**
-  可恢复删除任务，并打开网页管理完整备份。
-- 完整表单的标签可多选；网页支持搜索和就地新建，插件使用原生 TagPicker 和 New
-  Labels 字段。
-- 计时读取异常会明确显示不可用，精力值暂停计算。恢复不重新启动计时。
-
-恢复限制、验证和发布记录见 [2.5 版本说明](docs/release-2.5.md)。

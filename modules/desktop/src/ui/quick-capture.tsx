@@ -15,11 +15,11 @@ import { useEffect, useRef, useState } from "react";
 import { TaskExecutionError } from "../../../core/connection/errors.ts";
 import { parseQuickTask } from "../../../core/tasks/quick-task.ts";
 import type { TaskService } from "../../../core/tasks/service.ts";
-import { useWorkspace } from "./use-workspace";
+import { useWorkspace } from "../hooks/use-workspace";
 import { WorkspaceError } from "../../../core/workspace/client.ts";
 import { queryWorkspaceTasks } from "../../../core/workspace/task-views.ts";
 import { TaskForm } from "./task-form";
-import { useTaskService } from "./use-task-service";
+import { useTaskService } from "../hooks/use-task-service";
 
 export function QuickCapture({
   service: provided,

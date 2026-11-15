@@ -5,7 +5,7 @@ import {
   hydrateTaskwarriorTasks,
   taskGroup,
   type TaskwarriorTask,
-} from "../../core/tasks/model.ts";
+} from "../../../core/tasks/model.ts";
 import {
   defaultBoard,
   inheritSubtaskColumns,
@@ -13,21 +13,21 @@ import {
   UNSECTIONED,
   unsectionedColumn,
   type BoardColumn,
-} from "../../core/workspace/board.ts";
-import { inProject, projectStatus } from "../../core/workspace/focus.ts";
+} from "../../../core/workspace/board.ts";
+import { inProject, projectStatus } from "../../../core/workspace/focus.ts";
 import type {
   Organization,
   SavedProject,
-} from "../../core/workspace/organization.ts";
-import { buildSubtaskMeta } from "../../core/workspace/subtasks.ts";
+} from "../../../core/workspace/organization.ts";
+import { buildSubtaskMeta } from "../../../core/workspace/subtasks.ts";
 import {
   colorSchema,
   dateSchema,
   type McpToolRegistrar,
   revisionSchema,
   uuidSchema,
-} from "./tool-helpers.ts";
-import { WorkspaceError } from "./transport.ts";
+} from "./helpers.ts";
+import { WorkspaceError } from "../transport.ts";
 
 const planSubtaskSchema = z
   .object({

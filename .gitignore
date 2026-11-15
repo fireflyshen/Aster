@@ -5,3 +5,4 @@ dist
 .playwright-cli/
 output/playwright/
 modules/web/data/
+modules/server/data/

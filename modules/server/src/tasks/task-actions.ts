@@ -1,8 +1,8 @@
-import type { createTaskService } from "../../core/tasks/service.ts";
-import type { createOrganizationService } from "./organization-service.ts";
-import type { createRecoveryService } from "./recovery.ts";
-import type { TimeCoordinator } from "./time/time-coordinator.ts";
-import { taskInput } from "./validation.ts";
+import type { createTaskService } from "../../../core/tasks/service.ts";
+import type { createOrganizationService } from "../organization/organization-service.ts";
+import type { createRecoveryService } from "../recovery/recovery.ts";
+import type { TimeCoordinator } from "../time/time-coordinator.ts";
+import { taskInput } from "../transport/validation.ts";
 
 export function createTaskActions(
   service: ReturnType<typeof createTaskService>,

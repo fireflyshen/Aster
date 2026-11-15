@@ -10,10 +10,10 @@ import {
   CommonTaskActions,
   type CommonTaskActionsProps,
 } from "./task-list-actions";
-import { buildSubtaskMeta } from "./task-list-model";
+import { buildSubtaskMeta } from "../lib/task-list-model";
 import { TaskListRow } from "./task-row";
-import { useTaskListActions } from "./use-task-list-actions";
-import { useWorkspace } from "./use-workspace";
+import { useTaskListActions } from "../hooks/use-task-list-actions";
+import { useWorkspace } from "../hooks/use-workspace";
 
 export interface SubtaskListProps {
   parentUuid: string;

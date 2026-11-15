@@ -250,6 +250,7 @@ const IPC_SCRIPT = `const http=require('node:http');const p=JSON.parse(Buffer.fr
 export function createSshWorkspaceClient(
   connection: Connection,
   executor: Executor = executeProcess,
+  webUrl?: string,
 ): WorkspaceClient {
   if (connection.kind !== "ssh") {
     throw new Error("SSH workspace requires an SSH connection.");
@@ -375,6 +376,10 @@ export function createSshWorkspaceClient(
     deleted,
     series,
     tasks,
-    url: "https://task.caten.top/",
+    url:
+      webUrl ||
+      process.env.ASTER_WEB_URL ||
+      process.env.PUBLIC_ORIGIN ||
+      "http://localhost:4180/",
   };
 }

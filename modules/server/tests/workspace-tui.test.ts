@@ -4,8 +4,8 @@ import { request } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { startWorkspaceSocket } from "../src/workspace-ipc.ts";
-import { createWorkspaceGate } from "../src/workspace-gate.ts";
+import { startWorkspaceSocket } from "../src/transport/workspace-ipc.ts";
+import { createWorkspaceGate } from "../src/transport/workspace-gate.ts";
 import { parseQuickTask } from "../../core/tasks/quick-task.ts";
 
 test("TUI private reads and backup operations enforce source identity and release the gate before restore", async () => {

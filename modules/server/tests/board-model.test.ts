@@ -86,7 +86,7 @@ test("new repeating occurrences inherit the series home while explicit placement
 });
 
 test("the first series home assignment does not relocate already generated siblings", async () => {
-  const { changeBoardState } = await import("../src/board-changes.ts");
+  const { changeBoardState } = await import("../src/tasks/board-changes.ts");
   const parent = "123e4567-e89b-42d3-a456-426614174000";
   const first = "123e4567-e89b-42d3-a456-426614174001";
   const sibling = "123e4567-e89b-42d3-a456-426614174002";

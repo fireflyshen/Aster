@@ -1,4 +1,4 @@
-import type { Organization } from "../../core/workspace/organization.ts";
+import type { Organization } from "../../../core/workspace/organization.ts";
 
 /** Validates an already-parsed organization JSON payload and normalizes column projects. */
 export function validateOrganizationData(raw: unknown): Organization {

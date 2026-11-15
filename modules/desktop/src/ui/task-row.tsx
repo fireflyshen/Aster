@@ -20,7 +20,7 @@ import {
   type SubtaskMeta,
   taskAccessories,
   taskItemIcon,
-} from "./task-list-model";
+} from "../lib/task-list-model";
 import type { TrackedTimerSnapshot } from "../../../core/time/snapshot.ts";
 
 interface TaskListRowProps {

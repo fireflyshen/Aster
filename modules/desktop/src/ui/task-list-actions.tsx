@@ -23,13 +23,13 @@ import { FocusProjects } from "./focus-projects";
 import { ManageColumns } from "./manage-columns";
 import { ManageFiltersAndTags } from "./manage-filters-tags";
 import { MoveTask } from "./move-task";
-import { toneColor } from "./palette";
+import { toneColor } from "../lib/palette";
 import { QuickCapture } from "./quick-capture";
 import { TaskDetail } from "./task-detail";
 import { NotesList, RecoveryListView, SeriesForm } from "./task-extras";
 import { TaskForm } from "./task-form";
-import { VIEWS } from "./task-list-model";
-import type { useTaskListActions } from "./use-task-list-actions";
+import { VIEWS } from "../lib/task-list-model";
+import type { useTaskListActions } from "../hooks/use-task-list-actions";
 
 export type TaskActionsController = ReturnType<typeof useTaskListActions>;
 

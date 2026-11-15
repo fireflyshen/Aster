@@ -1,10 +1,10 @@
-import { parseQuickTask } from "../../core/tasks/quick-task.ts";
-import type { TaskService } from "../../core/tasks/service.ts";
-import type { TimerSnapshot } from "../../core/time/model.ts";
-import type { Organization } from "../../core/workspace/organization.ts";
-import type { createBackupRestore } from "./backup-restore.ts";
-import type { createOrganizationService } from "./organization-service.ts";
-import type { createRecoveryService } from "./recovery.ts";
+import { parseQuickTask } from "../../../core/tasks/quick-task.ts";
+import type { TaskService } from "../../../core/tasks/service.ts";
+import type { TimerSnapshot } from "../../../core/time/model.ts";
+import type { Organization } from "../../../core/workspace/organization.ts";
+import type { createBackupRestore } from "../recovery/backup-restore.ts";
+import type { createOrganizationService } from "../organization/organization-service.ts";
+import type { createRecoveryService } from "../recovery/recovery.ts";
 import { taskInput } from "./validation.ts";
 import type { createWorkspaceGate } from "./workspace-gate.ts";
 

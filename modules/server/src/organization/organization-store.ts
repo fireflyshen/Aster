@@ -1,20 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { BoardTask } from "../../core/workspace/board.ts";
+import type { BoardTask } from "../../../core/workspace/board.ts";
 import {
   applyEnergyElixir,
   calculateEnergy,
   type EnergyTaskLike,
   type TimewarriorInterval,
-} from "../../core/workspace/energy.ts";
+} from "../../../core/workspace/energy.ts";
 import type {
   Organization,
   OrganizationChange,
   SavedProject,
   SavedTag,
-} from "../../core/workspace/organization.ts";
-import { changeProjectFocus } from "./focus-changes.ts";
+} from "../../../core/workspace/organization.ts";
+import { changeProjectFocus } from "../tasks/focus-changes.ts";
 import {
   applyBoardChange,
   applyDescriptionChange,

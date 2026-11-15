@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { createConnection } from "node:net";
 import { chmod, lstat, unlink } from "node:fs/promises";
-import type { Organization } from "../../core/workspace/organization.ts";
+import type { Organization } from "../../../core/workspace/organization.ts";
 import { body } from "./validation.ts";
 import {
   createWorkspaceRoutes,

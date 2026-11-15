@@ -8,7 +8,7 @@ import {
   type Organization,
 } from "../../../core/workspace/organization.ts";
 import { projectPath, projectTree } from "../../../core/workspace/projects.ts";
-import { VIEWS } from "./task-list-model";
+import { VIEWS } from "../lib/task-list-model";
 
 interface TaskViewDropdownProps {
   filter: string;

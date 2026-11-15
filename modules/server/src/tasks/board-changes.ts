@@ -7,7 +7,7 @@ import {
   type BoardChange,
   type BoardState,
   type BoardTask,
-} from "../../core/workspace/board.ts";
+} from "../../../core/workspace/board.ts";
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

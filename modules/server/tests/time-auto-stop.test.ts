@@ -9,7 +9,7 @@ import { createTimeHandlers } from "../src/time/time-api.ts";
 import { createTimeCoordinator } from "../src/time/time-coordinator.ts";
 import { createTimeAutoStopScheduler } from "../src/time/time-scheduler.ts";
 import { createTimeStore, TimeStoreError } from "../src/time/time-store.ts";
-import { createWorkspaceGate } from "../src/workspace-gate.ts";
+import { createWorkspaceGate } from "../src/transport/workspace-gate.ts";
 
 function at(hhmm: string, date = "2026-11-15"): number {
   return zonedDateTimeToUtcMs(date, hhmm, "Asia/Shanghai");

@@ -1,23 +1,23 @@
-import { filterArguments } from "../../core/tasks/filter.ts";
-import { type BoardTask } from "../../core/workspace/board.ts";
-import type { EnergyTaskLike } from "../../core/workspace/energy.ts";
+import { filterArguments } from "../../../core/tasks/filter.ts";
+import { type BoardTask } from "../../../core/workspace/board.ts";
+import type { EnergyTaskLike } from "../../../core/workspace/energy.ts";
 import {
   FOCUS_LIMIT,
   inProject,
   projectStatus,
-} from "../../core/workspace/focus.ts";
+} from "../../../core/workspace/focus.ts";
 import {
   colors,
   type Organization,
   type OrganizationChange,
   type SavedProject,
-} from "../../core/workspace/organization.ts";
+} from "../../../core/workspace/organization.ts";
 import {
   projectNames,
   remapProject,
   validateProjectName,
-} from "../../core/workspace/projects.ts";
-import { validateGoal } from "./focus-changes.ts";
+} from "../../../core/workspace/projects.ts";
+import { validateGoal } from "../tasks/focus-changes.ts";
 
 export type ProjectChangeContext = {
   tasks: (BoardTask & EnergyTaskLike & { project?: string })[];

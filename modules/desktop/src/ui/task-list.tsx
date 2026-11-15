@@ -37,11 +37,11 @@ import {
   partitionFocusTasks,
   selectSectionTasks,
   type TaskSectionEntry,
-} from "./task-list-model";
+} from "../lib/task-list-model";
 import { TaskListRow } from "./task-row";
-import { useTaskListActions } from "./use-task-list-actions";
-import { useTaskService } from "./use-task-service";
-import { useWorkspace } from "./use-workspace";
+import { useTaskListActions } from "../hooks/use-task-list-actions";
+import { useTaskService } from "../hooks/use-task-service";
+import { useWorkspace } from "../hooks/use-workspace";
 
 const INSPECTOR_STORAGE_KEY = "aster:showInspector";
 

@@ -1,7 +1,7 @@
 import { FocusProjects } from "./ui/focus-projects";
 import { TaskListScreen } from "./ui/task-list";
-import { useTaskService } from "./ui/use-task-service";
-import { useWorkspace } from "./ui/use-workspace";
+import { useTaskService } from "./hooks/use-task-service";
+import { useWorkspace } from "./hooks/use-workspace";
 
 export default function ProjectsCommand() {
   const service = useTaskService();

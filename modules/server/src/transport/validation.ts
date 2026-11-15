@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "node:http";
-import { isCompactTaskDate } from "../../core/tasks/model.ts";
-import type { TaskInput } from "../../core/tasks/arguments.ts";
+import { isCompactTaskDate } from "../../../core/tasks/model.ts";
+import type { TaskInput } from "../../../core/tasks/arguments.ts";
 
 export async function body(req: IncomingMessage, limit = 65536) {
   const chunks: Buffer[] = [];

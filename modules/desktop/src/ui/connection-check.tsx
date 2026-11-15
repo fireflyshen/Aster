@@ -1,7 +1,7 @@
 import { Action, ActionPanel, Detail, Icon } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
 import type { TaskService } from "../../../core/tasks/service.ts";
-import { useTaskService } from "./use-task-service";
+import { useTaskService } from "../hooks/use-task-service";
 
 export default function CheckConnection({
   service: providedService,

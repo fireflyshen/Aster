@@ -31,7 +31,7 @@ import {
 } from "../../../core/workspace/task-views.ts";
 import { uniqueTags } from "../../../core/tasks/options.ts";
 import type { TaskService } from "../../../core/tasks/service.ts";
-import { useTaskService } from "./use-task-service";
+import { useTaskService } from "../hooks/use-task-service";
 
 interface TaskFormValues {
   description: string;

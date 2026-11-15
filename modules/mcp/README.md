@@ -12,11 +12,11 @@ Ledger)** 与 **多端对账**。不需要模型 API Key，不依赖 AI 厂商 S
 
 ```sh
 npm ci --prefix modules/mcp
-ASTER_SSH_TARGET=dmit npm run start:mcp
+ASTER_SSH_TARGET=<your-vps-ssh-alias> npm run start:mcp
 ```
 
-`dmit` 为默认远程 VPS 示例（按实际 SSH config 替换）。服务器运行 Web 服务并启用
-`WORKSPACE_SOCKET=/opt/aster/data/workspace.sock`；SSH 用户需要该文件读写权限（0600）且允许 Unix
+将 `<your-vps-ssh-alias>` 替换为 `~/.ssh/config` 中的服务器别名。服务端运行 Aster Server 并启用
+`WORKSPACE_SOCKET=/opt/aster/data/workspace.sock`；SSH 用户需要该文件读写权限（`0600`）且允许 Unix
 socket 转发。
 
 ### 客户端配置示例
@@ -30,10 +30,10 @@ socket 转发。
       "command": "node",
       "args": [
         "--experimental-strip-types",
-        "/Users/enmu/nexus/flowspace/Aster/modules/mcp/src/index.ts"
+        "<ASTER_REPO>/modules/mcp/src/index.ts"
       ],
       "env": {
-        "ASTER_SSH_TARGET": "dmit",
+        "ASTER_SSH_TARGET": "<your-vps-ssh-alias>",
         "ASTER_REMOTE_SOCKET": "/opt/aster/data/workspace.sock"
       }
     }
@@ -41,7 +41,7 @@ socket 转发。
 }
 ```
 
-#### 模式 B：Grok Bot 与 Aster 部署在同一台 VPS / 容器内（本地直连）
+#### 模式 B：AI 助手与 Aster 部署在同一台主机 / 容器内（本地直连）
 
 如果你的 Grok Bot 直接运行在 VPS 上，无需走 SSH 转发，配置本地 socket 即可：
 
@@ -77,18 +77,20 @@ Ledger）。
 
 ### 1. 时间账本（Time）分类字典规范
 
-Aster 的时间账本将生活与工作划分为固定的宏观领域。在调用
-`time_start`、`time_log`、`time_estimate` 等工具时，请在 `explicitCategoryId`
-字段中严格使用以下合法的分类 ID，切勿自行发明分类字符串：
+Aster 的时间账本内置以下 8 个固定分类 ID（定义于
+`modules/core/time/model.ts`）。在调用 `time_start`、`time_log`、`time_estimate`、`time_plan_create`
+等工具时，请在 `explicitCategoryId` 字段中严格使用以下合法 ID，切勿自行发明或改写分类字符串：
 
-- `work`：工作、产出、客户沟通、工程开发、运维
-- `study`：学习、阅读、研究、技能练习、深度思考
-- `life`：生活杂务、就餐、通勤、家务、购物、日常杂项
-- `health`：运动、健身、散步、就医、冥想、体检
-- `leisure`：娱乐、游戏、电影、社交聊天、摸鱼放松
 - `sleep`：睡眠、午休、打盹
+- `work`：工作/项目、产出、客户沟通、工程开发、运维
+- `study`：学习、阅读、研究、技能练习、深度思考
+- `exercise`：运动、健身、散步、跑步、身体训练
+- `life`：生活事务、家务、就医、购物、日常杂项
+- `commute`：通勤、交通出行、赶路
+- `leisure`：休闲、娱乐、游戏、电影、摸鱼放松
+- `social`：社交、聚会、聊天陪伴
 
-> 提示：如果无法确定分类，可以省略该字段，系统会自动根据项目前缀或标签规则进行自动匹配，未命中则自动归入未分类，绝不要强行臆测。
+> 提示：如果无法确定分类，请省略 `explicitCategoryId` 字段，系统会根据规则引擎或任务项目/标签自动归类；仍未命中时暂归入 `uncategorized`，绝不要强行猜测或拼造不存在的 ID。
 
 ### 2. 日常随手记账与交互映射
 
@@ -98,7 +100,7 @@ Aster 的时间账本将生活与工作划分为固定的宏观领域。在调�
   `time_start`，`title: "研究 Aster 时间模块"`, `explicitCategoryId: "work"` 或
   `"study"`。
 - “结束，接下来去运动” → 先调用 `time_stop` 结束上一活动，再调用
-  `time_start`，`title: "运动"`, `explicitCategoryId: "health"`。
+  `time_start`，`title: "运动"`, `explicitCategoryId: "exercise"`。
 - “刚才八点到九点在看书” → 调用 `time_log`，精确指定 `startMs` 与
   `endMs`，`explicitCategoryId: "study"`。
 - “昨晚大概打了一个半小时游戏” → 调用

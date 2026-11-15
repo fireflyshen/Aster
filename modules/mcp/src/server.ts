@@ -2,12 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   registerPlanningPrompts,
   registerPlanningTools,
-} from "./planning-tools.ts";
-import { registerTaskTools } from "./task-tools.ts";
-import { createToolRegistrar } from "./tool-helpers.ts";
+} from "./tools/planning.ts";
+import { registerTaskTools } from "./tools/tasks.ts";
+import { createToolRegistrar } from "./tools/helpers.ts";
 import type { WorkspaceCall } from "./transport.ts";
-import { registerTimeTools } from "./time-tools.ts";
-import { registerWorkspaceTools } from "./workspace-tools.ts";
+import { registerTimeTools } from "./tools/time.ts";
+import { registerWorkspaceTools } from "./tools/workspace.ts";
 
 /** Creates the Aster MCP server with all task, workspace, Time ledger, and AI planning tools/prompts. */
 export function createAiServer(call: WorkspaceCall) {

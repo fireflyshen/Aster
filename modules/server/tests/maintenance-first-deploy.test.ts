@@ -13,7 +13,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { runMaintenanceBackup } from "../src/maintenance-backup.ts";
+import { runMaintenanceBackup } from "../src/recovery/maintenance-backup.ts";
 import { createTimeStore } from "../src/time/time-store.ts";
 
 async function fixture() {

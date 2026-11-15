@@ -4,9 +4,9 @@ import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { createTaskService } from "../../core/tasks/service.ts";
 import { resolveConnection } from "../../core/connection/settings.ts";
-import { createOrganizationService } from "../src/organization-service.ts";
-import { createRecoveryService } from "../src/recovery.ts";
-import { createOrganizationStore } from "../src/organization-store.ts";
+import { createOrganizationService } from "../src/organization/organization-service.ts";
+import { createRecoveryService } from "../src/recovery/recovery.ts";
+import { createOrganizationStore } from "../src/organization/organization-store.ts";
 import type { RawTask } from "../../core/tasks/raw.ts";
 const uuid = "123e4567-e89b-42d3-a456-426614174000";
 
