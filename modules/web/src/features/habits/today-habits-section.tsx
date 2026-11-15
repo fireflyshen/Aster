@@ -1,14 +1,18 @@
-import { Button } from "@/components/ui/button";
+import type { TaskRenderFn } from "@/app/hooks/use-task-renderer";
+import { HabitExecutionRow } from "@/features/habits/habit-execution-row";
 import type { TodayHabitsResponse } from "@core/habits/model";
 import type { SavedTag } from "@core/workspace/organization";
-import { cn } from "cn";
+import type { Task } from "@shared/tasks";
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { HabitExecutionRow } from "./habit-execution-row";
 
 export type TodayHabitsActions = {
   disabled?: boolean;
-  onTogglePositive: (habitId: string, date: string, completed?: boolean) => void;
+  onTogglePositive: (
+    habitId: string,
+    date: string,
+    completed?: boolean,
+  ) => void;
   onSetChecklistItem: (input: {
     habitId: string;
     itemId: string;
@@ -29,95 +33,107 @@ export type TodayHabitsActions = {
     date: string,
   ) => void;
   onSetDailyNote: (habitId: string, note: string, date: string) => void;
-  onOpenHabitsPage: () => void;
+  onOpenHabitsPage?: () => void;
   onOpenHabitDetail?: (habitId: string) => void;
 };
 
-/** Collapsible "习惯" section displayed inside Today view for scheduled daily habits. */
+/**
+ * Renders today's scheduled habits at the top of the Today view using Aster's standard `TaskRow`.
+ * Habits remain unified Todos backed by `Task` + `taskUuid`, while daily completion state lives in `todayData`.
+ */
 export function TodayHabitsSection({
   todayData,
-  availableLabels,
+  todayHabitTasks = [],
+  renderTask,
+  availableLabels = [],
   actions,
+  disabled,
 }: {
   todayData: TodayHabitsResponse | null;
-  availableLabels: readonly SavedTag[];
+  todayHabitTasks?: Task[];
+  renderTask?: TaskRenderFn;
+  availableLabels?: readonly SavedTag[];
   actions: TodayHabitsActions;
+  disabled?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
-  if (!todayData || todayData.items.length === 0) {
-    return null;
-  }
+  if (!todayData || todayData.items.length === 0) return null;
 
-  const { summary, todayDate, items } = todayData;
-  const summaryParts: string[] = [];
-  if (summary.positiveTotal > 0) {
-    summaryParts.push(`打卡 ${summary.positiveDone}/${summary.positiveTotal}`);
-  }
-  if (summary.negativeTotal > 0) {
-    summaryParts.push(`未破例 ${summary.negativeClean}/${summary.negativeTotal}`);
-  }
+  const taskByUuid = new Map(todayHabitTasks.map((t) => [t.uuid, t]));
+  const totalCount = todayData.items.length;
+  const doneCount = todayData.items.filter(
+    (item) => item.evaluation.achieved,
+  ).length;
+  const rowDisabled = Boolean(disabled || actions.disabled);
 
   return (
-    <section aria-label="今日习惯" className="min-w-0">
-      <div className="mb-1 flex h-10 items-center justify-between gap-2 border-b border-border/80">
+    <section
+      data-today-habits-section
+      aria-label="今日习惯"
+      className="min-w-0"
+    >
+      <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
         <button
           type="button"
-          aria-expanded={!collapsed}
           onClick={() => setCollapsed((prev) => !prev)}
-          className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
+          className="inline-flex cursor-pointer items-center gap-1.5 text-[13px] font-semibold text-foreground hover:text-foreground/85"
         >
           <ChevronRight
-            className={cn(
-              "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-              !collapsed && "rotate-90",
-            )}
+            className={`size-3.5 text-muted-foreground transition-transform duration-150 ${collapsed ? "" : "rotate-90"}`}
           />
-          <h2 className="text-sm font-semibold text-foreground">习惯</h2>
-          <span className="text-xs font-normal tabular-nums text-muted-foreground/80">
-            {summary.total}
+          <span>习惯</span>
+          <span className="text-xs font-normal text-muted-foreground tabular-nums">
+            {doneCount}/{totalCount}
           </span>
-          {summaryParts.length > 0 && (
-            <span className="hidden text-xs font-normal tabular-nums text-muted-foreground/75 sm:inline">
-              · {summaryParts.join(" · ")}
-            </span>
-          )}
         </button>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          onClick={actions.onOpenHabitsPage}
-          className="h-7 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
-        >
-          管理与热力图
-        </Button>
+        {actions.onOpenHabitsPage && (
+          <button
+            type="button"
+            onClick={actions.onOpenHabitsPage}
+            className="cursor-pointer text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+          >
+            管理习惯
+          </button>
+        )}
       </div>
 
-      <div hidden={collapsed} className="pl-1">
-        {items.map((entry) => (
-          <HabitExecutionRow
-            key={entry.habit.id}
-            habit={entry.habit}
-            evaluation={entry.evaluation}
-            availablePlans={entry.availablePlans}
-            streak={entry.streak}
-            availableLabels={availableLabels}
-            date={todayDate}
-            isToday
-            disabled={actions.disabled}
-            onTogglePositive={actions.onTogglePositive}
-            onSetChecklistItem={actions.onSetChecklistItem}
-            onSwitchPlan={actions.onSwitchPlan}
-            onRecordNegative={actions.onRecordNegative}
-            onUndoNegative={actions.onUndoNegative}
-            onUpdateNegativeNote={actions.onUpdateNegativeNote}
-            onSetDailyNote={actions.onSetDailyNote}
-            onOpenDetail={actions.onOpenHabitDetail}
-          />
-        ))}
-      </div>
+      {!collapsed && (
+        <div className="divide-y divide-border/50">
+          {todayData.items.map((item) => {
+            const linkedTask = item.habit.taskUuid
+              ? taskByUuid.get(item.habit.taskUuid)
+              : undefined;
+            if (linkedTask && renderTask) {
+              return (
+                <div key={linkedTask.uuid}>{renderTask(linkedTask)}</div>
+              );
+            }
+            return (
+              <HabitExecutionRow
+                key={item.habit.id}
+                habit={item.habit}
+                evaluation={item.evaluation}
+                availablePlans={item.availablePlans}
+                streak={item.streak}
+                availableLabels={availableLabels}
+                date={todayData.todayDate}
+                isToday
+                disabled={rowDisabled}
+                onTogglePositive={actions.onTogglePositive}
+                onSetChecklistItem={actions.onSetChecklistItem}
+                onSwitchPlan={actions.onSwitchPlan}
+                onRecordNegative={actions.onRecordNegative}
+                onUndoNegative={actions.onUndoNegative}
+                onUpdateNegativeNote={actions.onUpdateNegativeNote}
+                onSetDailyNote={actions.onSetDailyNote}
+                onOpenDetail={actions.onOpenHabitDetail}
+              />
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }

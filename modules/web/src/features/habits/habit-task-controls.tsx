@@ -83,7 +83,7 @@ export function HabitNegativeStatusRing({
 }: {
   habit: HabitListItem;
 }) {
-  const count = habit.todayEvaluation?.occurrenceCount ?? 0;
+  const count = habit.todayEvaluation?.events.length ?? 0;
   const broken = count > 0;
   const paused = habit.status === "paused";
 
@@ -131,7 +131,7 @@ export function HabitNegativeRowControls({
 }) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState("");
-  const count = habit.todayEvaluation?.occurrenceCount ?? 0;
+  const count = habit.todayEvaluation?.events.length ?? 0;
   const paused = habit.status === "paused";
   const latestNote = habit.todayEvaluation?.events.at(-1)?.note;
 
@@ -277,8 +277,8 @@ export function HabitMetaChip({
   onOpenDetail?: (habitId: string) => void;
 }) {
   const scheduleLabel = formatScheduleLabel(habit.schedule);
-  const currentStreak = habit.streak.current;
-  const unit = habit.streak.unit === "days" ? "天" : "次";
+  const currentStreak = habit.streak.currentStreak;
+  const unit = habit.streak.unit;
   const activePlan = habit.todayEvaluation?.planId
     ? habit.plans.find((p) => p.id === habit.todayEvaluation?.planId)
     : undefined;

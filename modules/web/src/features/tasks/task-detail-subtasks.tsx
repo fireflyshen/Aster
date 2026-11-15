@@ -1,6 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  HabitSubtaskMetricsButton,
+  type HabitTaskActions,
+} from "@/features/habits/habit-task-controls";
+import type { HabitListItem } from "@core/habits/model";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { ArrowUpRight, Plus, Trash2 } from "lucide-react";
@@ -11,6 +16,9 @@ type TaskDetailSubtasksProps = {
   subtasks: Task[];
   project?: string;
   disabled: boolean;
+  habit?: HabitListItem;
+  habitTodayDate?: string;
+  habitActions?: HabitTaskActions;
   onAddSubtask?: (input: TaskInput) => Promise<boolean>;
   onToggleSubtask?: (subtask: Task, completed: boolean) => void;
   onDeleteSubtask?: (subtaskUuid: string) => void;
@@ -24,6 +32,9 @@ export function TaskDetailSubtasks({
   subtasks,
   project,
   disabled,
+  habit,
+  habitTodayDate,
+  habitActions,
   onAddSubtask,
   onToggleSubtask,
   onDeleteSubtask,
@@ -38,9 +49,11 @@ export function TaskDetailSubtasks({
     () => onDirtyChange(Boolean(title.trim())),
     [title, onDirtyChange],
   );
-  const doneCount = subtasks.filter(
-    (item) => item.status === "completed",
-  ).length;
+  const isSubtaskDone = (item: Task) =>
+    habit
+      ? Boolean(habit.todayEvaluation?.checklistProgress[item.uuid]?.done)
+      : item.status === "completed";
+  const doneCount = subtasks.filter(isSubtaskDone).length;
 
   async function submit(event?: FormEvent) {
     if (event) event.preventDefault();
@@ -77,7 +90,7 @@ export function TaskDetailSubtasks({
       {subtasks.length > 0 && (
         <div className="divide-y divide-border/70 border-t border-border/70">
           {subtasks.map((subtask) => {
-            const done = subtask.status === "completed";
+            const done = isSubtaskDone(subtask);
             return (
               <div
                 key={subtask.uuid}
@@ -92,7 +105,19 @@ export function TaskDetailSubtasks({
                     priority={subtask.priority}
                     description={subtask.description}
                     disabled={disabled}
-                    onComplete={() => onToggleSubtask?.(subtask, done)}
+                    onComplete={() => {
+                      if (habit && habitActions && habitTodayDate) {
+                        void habitActions.setChecklistItem({
+                          habitId: habit.id,
+                          itemId: subtask.uuid,
+                          date: habitTodayDate,
+                          planId: habit.todayEvaluation?.planId,
+                          done: !done,
+                        });
+                        return;
+                      }
+                      onToggleSubtask?.(subtask, done);
+                    }}
                   />
                   {onOpenSubtask ? (
                     <button
@@ -118,6 +143,16 @@ export function TaskDetailSubtasks({
                     </span>
                   )}
                 </div>
+                {habit && habitActions && habitTodayDate && (
+                  <HabitSubtaskMetricsButton
+                    parentHabit={habit}
+                    subtaskUuid={subtask.uuid}
+                    date={habitTodayDate}
+                    disabled={disabled}
+                    onSetChecklistItem={habitActions.setChecklistItem}
+                    onAssignSubtaskPlan={habitActions.assignSubtaskPlan}
+                  />
+                )}
                 <div className="flex items-center gap-1 opacity-80 transition-opacity md:opacity-0 md:group-hover/subtask:opacity-100 md:group-focus-within/subtask:opacity-100">
                   {onUnlinkSubtask && (
                     <Button

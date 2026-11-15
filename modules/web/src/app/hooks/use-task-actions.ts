@@ -151,6 +151,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
       input: TaskInput & { taskDescription?: string },
       columnId?: string,
       origin?: "quick",
+      onCreated?: (createdUuid: string) => Promise<void> | void,
     ) => {
       if (writeLock.current || needsCheck) return false;
       const knownUuids = new Set(tasks.map((item) => item.uuid));
@@ -167,6 +168,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
               input.taskDescription,
               columnId,
             );
+            await onCreated?.(created.uuid);
           }
         },
       );

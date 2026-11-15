@@ -166,7 +166,7 @@ const habitRoutes = createHabitHandlers({
   store: habitStore,
   loadCatalog: async () => {
     const [tasks, org] = await Promise.all([
-      service.listTasks(),
+      service.loadTasks("pending"),
       organization.load(),
     ]);
     return {

@@ -77,6 +77,8 @@ type TaskBoardProps = {
   onClearError: () => void;
   todayHabits?: {
     todayData: TodayHabitsResponse | null;
+    todayHabitTasks?: Task[];
+    excludedTaskUuids?: Set<string>;
     actions: TodayHabitsActions;
   };
 };

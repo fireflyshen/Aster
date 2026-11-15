@@ -23,6 +23,7 @@ import type { QuickToken } from "@core/tasks/quick-task";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
 import { cn } from "cn";
 import { ArrowUp, CircleHelp, Flag, ListPlus, X } from "lucide-react";
+import type { ReactNode } from "react";
 
 const CHIP_CLASS =
   "h-9 gap-1.5 md:h-7 rounded-[6px] border-input px-2 py-0 text-[12px] font-normal text-muted-foreground shadow-none has-[>svg]:px-2";
@@ -92,6 +93,7 @@ export function QuickAddOptionRow({
   onSetField,
   onIgnoreDue,
   onOpenFullEditor,
+  extraControl,
 }: {
   locked: boolean;
   dueDay: string;
@@ -105,6 +107,7 @@ export function QuickAddOptionRow({
   onSetField: (kind: QuickToken["kind"], expression: string) => void;
   onIgnoreDue: (tokenId: string) => void;
   onOpenFullEditor: () => void;
+  extraControl?: ReactNode;
 }) {
   const activePriority = priorityOption(priorityValue);
   return (
@@ -190,6 +193,8 @@ export function QuickAddOptionRow({
           onSetField("tag", nextTags.map((t) => "@" + t).join(" "))
         }
       />
+
+      {extraControl}
 
       <Popover>
         <PopoverTrigger asChild>

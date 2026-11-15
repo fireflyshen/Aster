@@ -236,3 +236,99 @@ test("habit API handlers validate and route GET/POST requests cleanly", async ()
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("task-bound habit syncs title, metadata, and real subtasks from catalog, unbinds cleanly, and cleans up on delete", () => {
+  return (async () => {
+    const dir = await mkdtemp(join(tmpdir(), "aster-habits-bind-"));
+    try {
+      const fakeNow = zonedDateTimeToUtcMs("2026-11-15", "09:00", "Asia/Shanghai");
+      const store = createHabitStore(join(dir, "habits.sqlite"), {
+        now: () => fakeNow,
+        getTimezone: () => "Asia/Shanghai",
+      });
+
+      const catalog = {
+        tasks: [
+          {
+            uuid: "task-train-1",
+            description: "力量训练",
+            project: "身体维护",
+            tags: ["晚间"],
+            status: "pending",
+          },
+          {
+            uuid: "sub-pushup",
+            description: "俯卧撑",
+            project: "身体维护",
+            tags: [],
+            status: "pending",
+          },
+          {
+            uuid: "sub-row",
+            description: "划船",
+            project: "身体维护",
+            tags: [],
+            status: "pending",
+          },
+        ],
+        subtasks: {
+          "sub-pushup": "task-train-1",
+          "sub-row": "task-train-1",
+        },
+        descriptions: {
+          "task-train-1": "保持节奏，注意热身",
+        },
+      };
+
+      const bound = store.bindTaskHabit(
+        {
+          taskUuid: "task-train-1",
+          kind: "positive",
+          schedule: { type: "daily" },
+          abEnabled: true,
+          subtaskPlans: { "sub-row": "B" },
+        },
+        catalog,
+      );
+      assert.equal(bound.taskUuid, "task-train-1");
+      assert.equal(bound.title, "力量训练");
+      assert.equal(bound.project, "身体维护");
+      assert.equal(bound.completionMode, "checklist");
+      assert.equal(bound.plans.length, 2);
+      assert.equal(bound.plans[0].items[0].id, "sub-pushup");
+      assert.equal(bound.plans[1].items[0].id, "sub-row");
+
+      // Rename task & subtask in catalog, then syncFromTaskCatalog
+      catalog.tasks[0].description = "全身力量训练";
+      catalog.tasks[1].description = "上斜俯卧撑";
+      store.syncFromTaskCatalog(catalog);
+
+      const synced = store.getHabitDetail("task-train-1").habit;
+      assert.equal(synced.title, "全身力量训练");
+      assert.equal(synced.plans[0].items[0].title, "上斜俯卧撑");
+
+      // Delete cleanup via deleteHabitIfExists(taskUuid)
+      store.deleteHabitIfExists("task-train-1");
+      assert.throws(() => store.getHabitDetail("task-train-1"), HabitStoreError);
+      // Calling deleteHabitIfExists again on missing id is a safe no-op
+      store.deleteHabitIfExists("task-train-1");
+
+      // Re-bind then unbind
+      store.bindTaskHabit(
+        {
+          taskUuid: "task-train-1",
+          kind: "negative",
+          schedule: { type: "daily" },
+        },
+        catalog,
+      );
+      assert.equal(store.getHabitDetail("task-train-1").habit.kind, "negative");
+      store.unbindTaskHabit("task-train-1");
+      assert.throws(() => store.getHabitDetail("task-train-1"), HabitStoreError);
+
+      store.close();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  })();
+});

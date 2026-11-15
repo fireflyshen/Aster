@@ -127,7 +127,10 @@ type WorkspaceContentProps = {
   onReloadAll: () => Promise<Organization | undefined>;
   onRestoreEnergy: () => Promise<unknown>;
   onRescheduleOverdue: (overdueTasks: Task[]) => Promise<void>;
-  onOpenEditor: (task?: Task, initial?: TaskInput) => void;
+  onOpenEditor: (
+    task?: Task,
+    initial?: TaskInput & { habitPreset?: boolean },
+  ) => void;
   onMoveTask: (
     task: Task,
     columnId: string,
@@ -277,6 +280,20 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     !organizationPage && !timePage && !habitsPage && layout === "board"
       ? "board"
       : "list";
+  const excludedHabitTaskUuids = new Set(
+    habitsController.habitByTaskUuid?.keys() || [],
+  );
+  const taskByUuid = new Map(tasks.map((item) => [item.uuid, item]));
+  const todayHabitTasks = (habitsController.todayData?.items || [])
+    .map((item) =>
+      item.habit.taskUuid ? taskByUuid.get(item.habit.taskUuid) : undefined,
+    )
+    .filter((item): item is Task => Boolean(item));
+  const isDefaultTodayView =
+    view === "today" && !currentProject && !activeEntry;
+  const visibleTasksForBoard = isDefaultTodayView
+    ? topLevelVisible.filter((item) => !excludedHabitTaskUuids.has(item.uuid))
+    : topLevelVisible;
 
   return (
     <main
@@ -421,10 +438,19 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
         {habitsPage ? (
           <HabitsWorkspace
             controller={habitsController}
+            tasks={tasks}
             projects={filterProjects}
             availableLabels={organization.tags}
             formOpen={habitFormOpen}
             onFormOpenChange={setHabitFormOpen}
+            onOpenNewHabit={() =>
+              onOpenEditor(undefined, {
+                description: "",
+                tags: [],
+                habitPreset: true,
+              })
+            }
+            onOpenEditTask={(task) => onOpenEditor(task)}
           />
         ) : timePage ? (
           <TimeLedgerWorkspace
@@ -520,8 +546,11 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                 <div className="mb-4">
                   <TodayHabitsSection
                     todayData={habitsController.todayData}
+                    todayHabitTasks={todayHabitTasks}
+                    renderTask={renderTask}
                     availableLabels={organization.tags}
                     actions={todayHabitsActions}
+                    disabled={boardDisabled}
                   />
                 </div>
               )}
@@ -539,7 +568,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                 onScrollPositionChange={(position) => {
                   boardScroll.current = position;
                 }}
-                tasks={topLevelVisible}
+                tasks={visibleTasksForBoard}
                 allTasks={tasks}
                 board={organization.board || defaultBoard()}
                 revision={organization.revision}
@@ -593,6 +622,8 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                 onAdd={(nextDraft) => onOpenEditor(undefined, nextDraft)}
                 todayHabits={{
                   todayData: habitsController.todayData,
+                  todayHabitTasks,
+                  excludedTaskUuids: excludedHabitTaskUuids,
                   actions: todayHabitsActions,
                 }}
               />

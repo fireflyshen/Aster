@@ -223,7 +223,19 @@ test("web habits-api routes cleanly through real server handlers end-to-end", as
     const deleted = await habitsApi.deleteHabitApi(noSugar.id);
     assert.equal(deleted.ok, true);
 
-    assert.ok(fetchedUrls.length >= 16);
+    const bound = await habitsApi.bindTaskHabitApi({
+      taskUuid: "todo-uuid-1",
+      title: "喝水",
+      kind: "positive",
+      schedule: { type: "daily" },
+    });
+    assert.equal(bound.habit.taskUuid, "todo-uuid-1");
+    assert.equal(bound.habit.title, "喝水");
+
+    const unbound = await habitsApi.unbindTaskHabitApi("todo-uuid-1");
+    assert.equal(unbound.ok, true);
+
+    assert.ok(fetchedUrls.length >= 18);
     for (const u of fetchedUrls) {
       assert.ok(u.startsWith("/api/habits"), `Unexpected route: ${u}`);
     }

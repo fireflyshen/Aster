@@ -15,6 +15,7 @@ import type {
   HabitStatus,
 } from "@core/habits/model";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
+import type { Task } from "@shared/tasks";
 import { cn } from "cn";
 import {
   Archive,
@@ -41,18 +42,28 @@ export type HabitsWorkspaceController = ReturnType<typeof useHabitsWorkspace>;
 /** Main "习惯" workspace page for review, heatmap filtering, backfill, and habit management. */
 export function HabitsWorkspace({
   controller,
+  tasks = [],
   projects,
   availableLabels,
   formOpen,
   onFormOpenChange,
+  onOpenNewHabit,
+  onOpenEditTask,
 }: {
   controller: HabitsWorkspaceController;
+  tasks?: Task[];
   projects: string[];
   availableLabels: SavedTag[];
   formOpen: boolean;
   onFormOpenChange: (open: boolean) => void;
+  onOpenNewHabit?: () => void;
+  onOpenEditTask?: (task: Task) => void;
 }) {
   const [editingHabit, setEditingHabit] = useState<HabitListItem | null>(null);
+  const taskByUuid = useMemo(
+    () => new Map(tasks.map((item) => [item.uuid, item])),
+    [tasks],
+  );
 
   const labelColorMap = useMemo(
     () => new Map(availableLabels.map((tag) => [tag.name, itemColor(tag.color)])),
@@ -81,11 +92,22 @@ export function HabitsWorkspace({
     new Date().toISOString().slice(0, 10);
 
   function openCreate() {
+    if (onOpenNewHabit) {
+      onOpenNewHabit();
+      return;
+    }
     setEditingHabit(null);
     onFormOpenChange(true);
   }
 
   function openEdit(habit: HabitListItem) {
+    if (habit.taskUuid && onOpenEditTask) {
+      const linkedTask = taskByUuid.get(habit.taskUuid);
+      if (linkedTask) {
+        onOpenEditTask(linkedTask);
+        return;
+      }
+    }
     setEditingHabit(habit);
     onFormOpenChange(true);
   }

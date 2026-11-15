@@ -1,9 +1,16 @@
+import type { HabitTaskActions } from "@/features/habits/habit-task-controls";
+import {
+  buildBindInputFromDraft,
+  currentLocalTodayDate,
+  type TaskHabitDraft,
+} from "@/features/habits/task-habit-field";
 import { QuickAdd } from "@/features/tasks/quick-add";
 import { SeriesEditor } from "@/features/tasks/series-editor";
 import { TaskEditor } from "@/features/tasks/task-editor";
 import { TaskForm } from "@/features/tasks/task-form";
 import { TaskToast } from "@/features/tasks/task-toast";
 import { useEditorGuard } from "@/features/tasks/use-editor-guard";
+import type { BindTaskHabitInput, HabitListItem } from "@core/habits/model";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,7 +63,11 @@ export type TaskWorkspaceDialogsProps = {
   setEditing: (task: Task | undefined) => void;
   editingParent?: Task;
   subtasksMap: Map<string, Task[]>;
-  draft: TaskInput & { taskDescription?: string };
+  draft: TaskInput & {
+    taskDescription?: string;
+    habitPreset?: boolean;
+    habitDraft?: TaskHabitDraft;
+  };
   setDraft: (draft: TaskInput) => void;
   due: string;
   setDue: (due: string) => void;
@@ -64,13 +75,26 @@ export type TaskWorkspaceDialogsProps = {
   setTags: (tags: string) => void;
   formError: string;
   setFormError: (err: string) => void;
-  onOpenEditor: (task?: Task, initial?: TaskInput) => void;
+  onOpenEditor: (
+    task?: Task,
+    initial?: TaskInput & {
+      taskDescription?: string;
+      habitPreset?: boolean;
+      habitDraft?: TaskHabitDraft;
+    },
+  ) => void;
   applyViewDefaults: <T extends TaskInput>(input: T) => T;
   onCreateTaskInView: (
     input: TaskInput & { taskDescription?: string },
     columnId?: string,
     origin?: "quick",
+    onCreated?: (createdUuid: string) => Promise<void> | void,
   ) => Promise<boolean>;
+  habitByTaskUuid?: Map<string, HabitListItem>;
+  habitTodayDate?: string;
+  habitActions?: HabitTaskActions;
+  onBindTaskHabit?: (input: BindTaskHabitInput) => Promise<unknown>;
+  onUnbindTaskHabit?: (taskUuid: string) => Promise<unknown>;
   onCreateSubtask: (parentUuid: string, input: TaskInput) => Promise<boolean>;
   onToggleTask: (task: Task, completed: boolean) => Promise<boolean>;
   onToggleStart?: (task: Task) => Promise<boolean>;
@@ -158,6 +182,11 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
     hourlyRateCents = 10_000,
     taskCostSummary,
     onRefreshTimeSnapshot,
+    habitByTaskUuid,
+    habitTodayDate,
+    habitActions,
+    onBindTaskHabit,
+    onUnbindTaskHabit,
   } = props;
 
   const editorBusy = busy || organizationSaving;
@@ -189,7 +218,24 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
             if (!value) setQuickProject("");
           }
         }}
-        onAdd={(task) => onCreateTaskInView(task, undefined, "quick")}
+        onAdd={(task, habitDraft) =>
+          onCreateTaskInView(
+            task,
+            undefined,
+            "quick",
+            habitDraft?.enabled && onBindTaskHabit
+              ? async (createdUuid) => {
+                  await onBindTaskHabit(
+                    buildBindInputFromDraft(
+                      createdUuid,
+                      habitDraft,
+                      habitTodayDate || currentLocalTodayDate(),
+                    ),
+                  );
+                }
+              : undefined,
+          )
+        }
         onEdit={(task) => {
           setQuickOpen(false);
           setQuickProject("");
@@ -459,6 +505,13 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
               editing && taskCostSummary ? taskCostSummary(editing) : undefined
             }
             onRefreshTimeSnapshot={onRefreshTimeSnapshot}
+            habit={editing ? habitByTaskUuid?.get(editing.uuid) : undefined}
+            initialHabitPreset={!editing && Boolean(draft.habitPreset)}
+            initialHabitDraft={!editing ? draft.habitDraft : undefined}
+            habitTodayDate={habitTodayDate}
+            habitActions={habitActions}
+            onBindTaskHabit={onBindTaskHabit}
+            onUnbindTaskHabit={onUnbindTaskHabit}
           />
         )}
       </TaskEditor>

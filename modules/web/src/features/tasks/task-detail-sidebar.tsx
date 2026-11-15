@@ -18,6 +18,7 @@ import { itemColor, type SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { Ellipsis, Flag, Play, Plus, Square, Trash2, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { DatePicker } from "./date-picker";
 import { LabelsPicker } from "./labels-picker";
 import { ProjectPicker } from "./project-picker";
@@ -42,6 +43,7 @@ type TaskDetailSidebarProps = {
   onClearError: () => void;
   onEditSeries: (uuid: string) => void;
   onDelete: () => void;
+  habitSection?: ReactNode;
 };
 
 /** Right-hand property rail of the Todoist-aligned task detail modal. */
@@ -63,6 +65,7 @@ export function TaskDetailSidebar({
   onClearError,
   onEditSeries,
   onDelete,
+  habitSection,
 }: TaskDetailSidebarProps) {
   const tagList = tags
     .split(/[,，]/)
@@ -334,6 +337,8 @@ export function TaskDetailSidebar({
             }}
           />
         )}
+
+        {habitSection}
       </div>
 
       {editing && (

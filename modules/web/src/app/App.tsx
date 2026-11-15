@@ -1,3 +1,5 @@
+import type { HabitTaskActions } from "@/features/habits/habit-task-controls";
+import { currentLocalTodayDate } from "@/features/habits/task-habit-field";
 import { useHabitsWorkspace } from "@/features/habits/use-habits";
 import type { TodayHabitsActions } from "@/features/habits/today-habits-section";
 import { useMemo, useState } from "react";
@@ -88,11 +90,48 @@ export function App() {
     changeOrganization: data.changeOrganization,
   });
 
+  const workspaceSyncKey = useMemo(
+    () =>
+      `${data.organization.revision}:${data.tasks
+        .map(
+          (t) =>
+            `${t.uuid}:${t.status}:${t.description}:${t.project || ""}:${t.tags.join(",")}`,
+        )
+        .join("|")}`,
+    [data.organization.revision, data.tasks],
+  );
   const [habitFormOpen, setHabitFormOpen] = useState(false);
   const habits = useHabitsWorkspace({
     habitsPageActive: nav.habitsPage,
     isTodayView: nav.view === "today" && !nav.currentProject && !nav.specialPage,
+    workspaceSyncKey,
   });
+
+  const habitTaskActions = useMemo<HabitTaskActions>(
+    () => ({
+      togglePositive: habits.togglePositive,
+      setChecklistItem: habits.setChecklistItem,
+      switchPlan: habits.switchPlan,
+      recordNegative: habits.recordNegative,
+      undoNegative: habits.undoNegative,
+      assignSubtaskPlan: (parentHabit, subtaskUuid, planKey) =>
+        habits.bindTaskHabit({
+          taskUuid: parentHabit.taskUuid || parentHabit.id,
+          kind: parentHabit.kind,
+          schedule: parentHabit.schedule,
+          abEnabled: parentHabit.abEnabled,
+          subtaskPlans: {
+            ...(parentHabit.subtaskPlans || {}),
+            [subtaskUuid]: planKey,
+          },
+        }),
+      openDetail: (habitId) => {
+        nav.openHabitsPage();
+        habits.setDetailId(habitId);
+      },
+    }),
+    [habits, nav],
+  );
 
   const todayHabitsActions = useMemo<TodayHabitsActions>(
     () => ({
@@ -212,6 +251,8 @@ export function App() {
     createSubtask: taskActions.createSubtask,
     unlinkSubtask: taskActions.unlinkSubtask,
     moveTask: (task, columnId) => taskActions.moveTask(task, columnId, null),
+    habitByTaskUuid: habits.habitByTaskUuid,
+    habitActions: habitTaskActions,
   });
 
   const projectOutcome =
@@ -437,9 +478,19 @@ export function App() {
         onOpenOrganization={() => nav.openManagementPage("organization")}
         onOpenHabits={nav.openHabitsPage}
         onAddHabit={() => {
-          nav.openHabitsPage();
-          setHabitFormOpen(true);
+          taskActions.openEditor(undefined, {
+            description: "",
+            tags: [],
+            habitPreset: true,
+          } as never);
         }}
+        habitByTaskUuid={habits.habitByTaskUuid}
+        habitTodayDate={
+          habits.todayData?.todayDate || currentLocalTodayDate()
+        }
+        habitActions={habitTaskActions}
+        onBindTaskHabit={habits.bindTaskHabit}
+        onUnbindTaskHabit={habits.unbindTaskHabit}
         onEditProject={projectActions.editProject}
         onTransitionProject={projectActions.transition}
         onOpenEditor={taskActions.openEditor}

@@ -3,7 +3,20 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  HabitNegativeStatusRing,
+  type HabitTaskActions,
+} from "@/features/habits/habit-task-controls";
+import {
+  buildBindInputFromDraft,
+  createHabitDraftFromItem,
+  currentLocalTodayDate,
+  isHabitDraftDirty,
+  TaskHabitSidebarField,
+  type TaskHabitDraft,
+} from "@/features/habits/task-habit-field";
 import { setTaskBudget } from "@/features/time/time-api";
+import type { BindTaskHabitInput, HabitListItem } from "@core/habits/model";
 import { taskDate } from "@core/tasks/quick-task";
 import {
   DEFAULT_HOURLY_RATE_CENTS,
@@ -73,6 +86,13 @@ type TaskFormProps = {
   hourlyRateCents?: number;
   costSummary?: TaskCostSummary;
   onRefreshTimeSnapshot?: () => Promise<unknown>;
+  habit?: HabitListItem;
+  initialHabitPreset?: boolean;
+  initialHabitDraft?: TaskHabitDraft;
+  habitTodayDate?: string;
+  habitActions?: HabitTaskActions;
+  onBindTaskHabit?: (input: BindTaskHabitInput) => Promise<unknown>;
+  onUnbindTaskHabit?: (taskUuid: string) => Promise<unknown>;
   onSubmit: (
     event: FormEvent<HTMLFormElement>,
     keepOpen?: boolean,
@@ -123,17 +143,31 @@ export function TaskForm({
   hourlyRateCents = DEFAULT_HOURLY_RATE_CENTS,
   costSummary,
   onRefreshTimeSnapshot,
+  habit,
+  initialHabitPreset = false,
+  initialHabitDraft,
+  habitTodayDate,
+  habitActions,
+  onBindTaskHabit,
+  onUnbindTaskHabit,
 }: TaskFormProps) {
+  const effectiveTodayDate = habitTodayDate || currentLocalTodayDate();
   const [descriptionDraft, setDescriptionDraft] = useState(
     taskDescription || "",
   );
   const [editingDescription, setEditingDescription] = useState(false);
   const [savingDescription, setSavingDescription] = useState(false);
+  const [savingHabitOnly, setSavingHabitOnly] = useState(false);
   const [descriptionError, setDescriptionError] = useState("");
   const [commentDirty, setCommentDirty] = useState(false);
   const [subtaskDirty, setSubtaskDirty] = useState(false);
   const [budgetDraft, setBudgetDraft] = useState<TaskBudgetDraft>(
     createEmptyTaskBudgetDraft,
+  );
+  const [habitDraft, setHabitDraft] = useState<TaskHabitDraft>(
+    () =>
+      initialHabitDraft ??
+      createHabitDraftFromItem(habit, initialHabitPreset),
   );
   const descriptionLock = useRef(false);
   const initialDraft = useRef(JSON.stringify({ draft, due, tags }));
@@ -141,6 +175,13 @@ export function TaskForm({
   useEffect(() => {
     setBudgetDraft(createEmptyTaskBudgetDraft());
   }, [editing?.uuid]);
+
+  useEffect(() => {
+    setHabitDraft(
+      initialHabitDraft ??
+        createHabitDraftFromItem(habit, initialHabitPreset),
+    );
+  }, [editing?.uuid, habit?.id, initialHabitPreset, initialHabitDraft]);
 
   useEffect(() => {
     if (editing && !editingDescription) {
@@ -194,13 +235,33 @@ export function TaskForm({
       JSON.stringify({ draft, due, tags }) !== initialDraft.current;
   const descriptionChanged =
     descriptionDraft.trim() !== (taskDescription || "").trim();
-  const changed = taskChanged || descriptionChanged;
+  const habitDirty = isHabitDraftDirty(habitDraft, habit);
+  const changed = taskChanged || descriptionChanged || habitDirty;
   const dirty = changed || commentDirty || subtaskDirty;
 
   useLayoutEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
-  const locked = busy || needsCheck || savingDescription;
+  const locked = busy || needsCheck || savingDescription || savingHabitOnly;
   const error = descriptionError || formError;
+
+  async function saveHabitSetting(targetUuid: string) {
+    if (!habitDraft.enabled) {
+      if (habit && onUnbindTaskHabit) {
+        await onUnbindTaskHabit(targetUuid);
+      }
+      return;
+    }
+    if (onBindTaskHabit) {
+      await onBindTaskHabit(
+        buildBindInputFromDraft(
+          targetUuid,
+          habitDraft,
+          effectiveTodayDate,
+          habit,
+        ),
+      );
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -212,6 +273,24 @@ export function TaskForm({
       !(await handleSaveDescription())
     )
       return;
+
+    if (editing && !taskChanged && !descriptionChanged && habitDirty) {
+      setSavingHabitOnly(true);
+      try {
+        await saveHabitSetting(editing.uuid);
+        if (!commentDirty && !subtaskDirty) {
+          onCheck();
+        }
+      } catch (err) {
+        setDescriptionError(
+          err instanceof Error ? err.message : "习惯设置保存失败，请重试。",
+        );
+      } finally {
+        setSavingHabitOnly(false);
+      }
+      return;
+    }
+
     const minutesNum = Number(budgetDraft.minutes.trim());
     const shouldSaveNewBudget =
       !editing &&
@@ -228,31 +307,39 @@ export function TaskForm({
     const timeZone =
       Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
     const todayStr = localDateOf(Date.now(), timeZone);
+    const shouldSyncHabit = habitDirty || (!editing && habitDraft.enabled);
+    const hasPostHook = Boolean(budgetPayload || shouldSyncHabit);
     onSubmit(
       event,
       commentDirty || subtaskDirty,
       editing ? undefined : descriptionDraft.trim(),
-      budgetPayload
+      hasPostHook
         ? async (createdUuid) => {
-            if (!createdUuid) return;
-            await setTaskBudget({
-              taskUuid: createdUuid,
-              mode: "set",
-              allowanceSeconds: budgetPayload.allowanceSeconds,
-              ...(budgetPayload.plannedStartTime
-                ? {
-                    plannedStartDate: todayStr,
-                    plannedStartTime: budgetPayload.plannedStartTime,
-                  }
-                : {}),
-              ...(budgetPayload.hardStopTime
-                ? {
-                    hardStopDate: todayStr,
-                    hardStopTime: budgetPayload.hardStopTime,
-                  }
-                : {}),
-            });
-            await onRefreshTimeSnapshot?.();
+            const targetUuid = editing?.uuid || createdUuid;
+            if (!targetUuid) return;
+            if (budgetPayload && createdUuid) {
+              await setTaskBudget({
+                taskUuid: createdUuid,
+                mode: "set",
+                allowanceSeconds: budgetPayload.allowanceSeconds,
+                ...(budgetPayload.plannedStartTime
+                  ? {
+                      plannedStartDate: todayStr,
+                      plannedStartTime: budgetPayload.plannedStartTime,
+                    }
+                  : {}),
+                ...(budgetPayload.hardStopTime
+                  ? {
+                      hardStopDate: todayStr,
+                      hardStopTime: budgetPayload.hardStopTime,
+                    }
+                  : {}),
+              });
+              await onRefreshTimeSnapshot?.();
+            }
+            if (shouldSyncHabit) {
+              await saveHabitSetting(targetUuid);
+            }
           }
         : undefined,
     );
@@ -295,20 +382,42 @@ export function TaskForm({
           )}
 
           <div className="task-detail-title items-start">
-            {editing && onToggleTask && (
+            {editing && habit?.kind === "negative" ? (
+              <div className="mt-1 shrink-0">
+                <HabitNegativeStatusRing habit={habit} />
+              </div>
+            ) : editing && (onToggleTask || habit) ? (
               <div className="mt-1 shrink-0">
                 <TaskCheckbox
                   id={`detail-complete-${editing.uuid}`}
                   size="lg"
-                  checked={editing.status === "completed"}
-                  completed={editing.status === "completed"}
+                  checked={
+                    habit
+                      ? Boolean(habit.todayEvaluation?.achieved)
+                      : editing.status === "completed"
+                  }
+                  completed={
+                    habit
+                      ? Boolean(habit.todayEvaluation?.achieved)
+                      : editing.status === "completed"
+                  }
                   priority={editing.priority}
                   description={editing.description}
                   disabled={locked}
-                  onComplete={onToggleTask}
+                  onComplete={() => {
+                    if (habit && habitActions) {
+                      void habitActions.togglePositive(
+                        habit.id,
+                        effectiveTodayDate,
+                        !Boolean(habit.todayEvaluation?.achieved),
+                      );
+                      return;
+                    }
+                    onToggleTask?.();
+                  }}
                 />
               </div>
-            )}
+            ) : null}
 
             <div className="min-w-0 flex-1">
               <Label htmlFor="description" className="sr-only">
@@ -483,6 +592,9 @@ export function TaskForm({
               subtasks={subtasks}
               project={draft.project}
               disabled={locked}
+              habit={habit}
+              habitTodayDate={effectiveTodayDate}
+              habitActions={habitActions}
               onAddSubtask={onAddSubtask}
               onToggleSubtask={onToggleSubtask}
               onDeleteSubtask={onDeleteSubtask}
@@ -538,6 +650,18 @@ export function TaskForm({
           onClearError={onClearError}
           onEditSeries={onEditSeries}
           onDelete={onDelete}
+          habitSection={
+            onBindTaskHabit ? (
+              <TaskHabitSidebarField
+                value={habitDraft}
+                existingHabit={habit}
+                disabled={locked}
+                hasSubtasks={subtasks.length > 0}
+                onChange={setHabitDraft}
+                onOpenDetail={habitActions?.openDetail}
+              />
+            ) : undefined
+          }
         />
       </div>
 

@@ -15,9 +15,7 @@ Aster 是一个基于 **Taskwarrior 3**
    - Node.js 22.16+ 原生实现（零第三方运行时依赖），通过 HTTP（Web
      / 本地客户端）与私有 Unix Socket IPC（SSH 远程客户端、MCP、Go
      TUI）对外提供同一套序列化事务与并发门控。
-   - **Organization 独立持久化队列**：使用 `organization.json`
-     乐观版本号队列管理项目树、最多 3 个 Active 的 Focus 目标、看板自定义分栏与排序、saved
-     filters、项目与任务 Markdown 说明及颜色。
+   - 统一持久化 **Organization & Habits**：`organization.json` 队列管理项目树、最多 3 个 Active 的 Focus 目标、看板自定义分栏与排序、saved filters、项目与任务 Markdown 说明及颜色；`habits.sqlite` 存储习惯配置与每日记录，绑定到 Todo 的 `taskUuid`，并与 Taskwarrior 任务及子任务自动保持同步。
    - **Time Ledger（SQLite WAL）**：独立
      `time.sqlite` + 恢复隔离屏障（`.barrier.json`）管理 24h 时间覆盖（`C + U = T`）、睡眠候选识别、待定位估记、跨小时检查点、两阶段 Taskwarrior 协调事务，以及**时间投入成本**（单一时薪单价、最初/追加预算快照、待核对金额隔离、周/月成本报告与只读 Bills 现金关联）。
    - **基于项目与标签统计**：直接关联 Taskwarrior 已有项目与标签（`projectSnapshot` +
@@ -35,11 +33,12 @@ Aster 是一个基于 **Taskwarrior 3**
    - 提供极简留白的 **Time
      Ledger（今日时间线 / 本周分布 / 成本报告 / 时间设置）**
      与顶部单行执行条、到限确认与修正弹窗。
+   - 新增 **习惯管理（Habits，Web 端）**：习惯直接作为 Todo 的扩展属性字段，与普通任务共享项目、标签、说明与原生子任务。支持正向打卡、反向习惯（不发生即达成、仅记破例与备注）、可展开动作清单（可选 A/B 训练方案与组/次/重成绩）及统一低饱和灰绿综合热力图。
 3. **AI / Grok Bot 接口（`modules/mcp`）**
    - 标准 MCP
      stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务规划、看板拆解、Time 随手记账、TimingPlan 定时安排与对账摘要。
    - 给 Grok Bot / AI 助手配置 System
-     Prompt、项目/标签归类规范与投入成本工具清单，请直接阅读
+     Prompt、项目/标签归类规范、**习惯 Todo 保护原则（不误调用 `task_complete`/`task_delete`）**与投入成本工具清单，请直接阅读
      [`modules/mcp/README.md`](modules/mcp/README.md)。
 4. **桌面扩展 & 终端工作台（`modules/desktop` & `modules/tui`）**
    - **Desktop（Raycast / TinyCast）**：提供 `My Tasks`、`Focus & Projects` 与
@@ -56,6 +55,7 @@ Aster 是一个基于 **Taskwarrior 3**
 modules/
   core/                    无平台依赖的共用领域内核
     connection/            本机 / SSH OpenSSH 执行器与数据源标识
+    habits/                Habit 领域模型、周期调度、动作清单/A/B 映射、连续统计与热力图计算
     tasks/                 Taskwarrior 3 数据模型、过滤解析、Quick Add 与 Timewarrior 导入解析
     time/                  Time Ledger 分类规则、C+U=T 账本计算、快照合并与时区处理
     workspace/             Organization 契约、Focus/看板/子任务模型、恢复/备份与 WorkspaceClient
@@ -64,6 +64,7 @@ modules/
     src/
       index.ts             启动组合根、环境装配与默认本地/SSH 模式选择
       transport/           HTTP 服务（静态资源、CSP、/healthz）、路由适配、Unix IPC、并发门控、CLI 维护
+      habits/              habits.sqlite 持久化、Taskwarrior 目录同步与 /api/habits/* 路由处理
       tasks/               任务动作、看板与 Focus 变更处理器
       organization/        organization.json 版本存储与 Taskwarrior/Time 联动服务
       recovery/            误删恢复快照、全量导出校验、原子恢复与部署前一致性备份
@@ -74,7 +75,7 @@ modules/
     shared/                前端复用 DTO 类型导出（@shared/*）
     src/
       app/                 应用骨架、导航、全局快捷键与主题（Light / Dark / System）
-      features/            tasks、projects、organization、recovery、time（Today/Weekly/Settings）
+      features/            tasks、habits、projects、organization、recovery、time（Today/Weekly/Settings）
       components/          自定义图标与 shadcn/ui 基础组件
       lib/                 HTTP API 请求工具与平台辅助
     tests/                 Web 模型、视图与 Time API 契约测试

@@ -9,6 +9,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  createHabitDraftFromItem,
+  QuickAddHabitButton,
+  type TaskHabitDraft,
+} from "@/features/habits/task-habit-field";
+import {
   QuickAddFooter,
   QuickAddOptionRow,
   QuickAddSuggestions,
@@ -45,8 +50,16 @@ export function QuickAdd({
   error: string;
   onClearError: () => void;
   onCheck: () => void;
-  onAdd: (task: TaskInput & { taskDescription?: string }) => Promise<boolean>;
-  onEdit: (task: TaskInput & { taskDescription?: string }) => void;
+  onAdd: (
+    task: TaskInput & { taskDescription?: string },
+    habitDraft?: TaskHabitDraft,
+  ) => Promise<boolean>;
+  onEdit: (
+    task: TaskInput & {
+      taskDescription?: string;
+      habitDraft?: TaskHabitDraft;
+    },
+  ) => void;
   projects: string[];
   availableLabels?: SavedTag[];
   defaultProject?: string;
@@ -56,6 +69,9 @@ export function QuickAdd({
   const [note, setNote] = useState("");
   const [ignored, setIgnored] = useState<string[]>([]);
   const [attempted, setAttempted] = useState(false);
+  const [habitDraft, setHabitDraft] = useState<TaskHabitDraft>(() =>
+    createHabitDraftFromItem(),
+  );
   const mirror = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLTextAreaElement>(null);
 
@@ -108,10 +124,15 @@ export function QuickAdd({
     setNote("");
     setIgnored([]);
     setAttempted(false);
+    setHabitDraft(createHabitDraftFromItem());
   }
 
   function editForm() {
-    onEdit({ ...parsed.task, taskDescription: note.trim() });
+    onEdit({
+      ...parsed.task,
+      taskDescription: note.trim(),
+      ...(habitDraft.enabled ? { habitDraft } : {}),
+    });
     resetState();
     onClearError();
   }
@@ -129,7 +150,7 @@ export function QuickAdd({
       ...withProject(result.task),
       ...(note.trim() ? { taskDescription: note.trim() } : {}),
     };
-    if (await onAdd(payload)) {
+    if (await onAdd(payload, habitDraft.enabled ? habitDraft : undefined)) {
       resetState();
       onClearError();
     }
@@ -294,6 +315,13 @@ export function QuickAdd({
                 setIgnored((items) => [...items, tokenId])
               }
               onOpenFullEditor={editForm}
+              extraControl={
+                <QuickAddHabitButton
+                  value={habitDraft}
+                  disabled={locked}
+                  onChange={setHabitDraft}
+                />
+              }
             />
           </div>
 

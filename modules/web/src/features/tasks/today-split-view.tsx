@@ -50,6 +50,8 @@ type TodaySplitViewProps = {
   onAdd: (draft?: TaskInput) => void;
   todayHabits?: {
     todayData: TodayHabitsResponse | null;
+    todayHabitTasks?: Task[];
+    excludedTaskUuids?: Set<string>;
     actions: TodayHabitsActions;
   };
 };
@@ -76,12 +78,17 @@ export function TodaySplitView({
   const [reschedulingOverdue, setReschedulingOverdue] = useState(false);
 
   const visibleColumnIds = new Set(columns.map((col) => col.id));
-  const ordered = columns.flatMap((col) =>
-    columnTasks(tasks, displayBoard, col.id, visibleColumnIds).map((task) => ({
-      task,
-      column: col,
-    })),
-  );
+  const excludedUuids = todayHabits?.excludedTaskUuids;
+  const ordered = columns
+    .flatMap((col) =>
+      columnTasks(tasks, displayBoard, col.id, visibleColumnIds).map(
+        (task) => ({
+          task,
+          column: col,
+        }),
+      ),
+    )
+    .filter(({ task }) => !excludedUuids?.has(task.uuid));
   const overdueEntries = ordered.filter(({ task }) =>
     isTaskOverdue({ due: task.due, status: "pending" }),
   );
@@ -123,8 +130,11 @@ export function TodaySplitView({
       {todayHabits && hasTodayHabits && (
         <TodayHabitsSection
           todayData={todayHabits.todayData}
+          todayHabitTasks={todayHabits.todayHabitTasks}
+          renderTask={renderTask}
           availableLabels={availableLabels}
           actions={todayHabits.actions}
+          disabled={disabled}
         />
       )}
 

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildPlansFromSubtasks,
   computeHabitStreak,
   computeHeatmap,
   evaluateHabitOnDate,
@@ -447,4 +448,44 @@ test("heatmap distinguishes unscheduled hollow, zero neutral gray, partial not c
   const fByDate = new Map(filteredHm.cells.map((c) => [c.date, c]));
   assert.equal(fByDate.get("2026-11-13")?.status, "zero");
   assert.equal(fByDate.get("2026-11-14")?.status, "level4");
+});
+
+test("buildPlansFromSubtasks maps Todo subtasks to simple, single checklist, or A/B plans", () => {
+  const simple = buildPlansFromSubtasks([], false);
+  assert.equal(simple.completionMode, "simple");
+  assert.equal(simple.plans.length, 1);
+
+  const singleChecklist = buildPlansFromSubtasks(
+    [
+      { uuid: "sub-1", description: "俯卧撑" },
+      { uuid: "sub-2", description: "深蹲" },
+    ],
+    false,
+  );
+  assert.equal(singleChecklist.completionMode, "checklist");
+  assert.equal(singleChecklist.plans.length, 1);
+  assert.deepEqual(
+    singleChecklist.plans[0].items.map((i) => i.id),
+    ["sub-1", "sub-2"],
+  );
+
+  const ab = buildPlansFromSubtasks(
+    [
+      { uuid: "sub-1", description: "卧推" },
+      { uuid: "sub-2", description: "划船" },
+      { uuid: "sub-3", description: "深蹲" },
+    ],
+    true,
+    { "sub-2": "B" },
+  );
+  assert.equal(ab.completionMode, "checklist");
+  assert.equal(ab.plans.length, 2);
+  assert.deepEqual(
+    ab.plans[0].items.map((i) => i.id),
+    ["sub-1", "sub-3"],
+  );
+  assert.deepEqual(
+    ab.plans[1].items.map((i) => i.id),
+    ["sub-2"],
+  );
 });
