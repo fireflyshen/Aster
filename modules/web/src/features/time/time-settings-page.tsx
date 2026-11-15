@@ -69,6 +69,7 @@ export function TimeSettingsPage({
     useState<TimewarriorImportPreview | null>(null);
   const [clipOpenToCutover, setClipOpenToCutover] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState("");
 
   const backupInputRef = useRef<HTMLInputElement>(null);
   const [backupPreview, setBackupPreview] = useState<TimeBackupPreview | null>(
@@ -137,9 +138,12 @@ export function TimeSettingsPage({
 
   async function handlePreviewImport() {
     setImportBusy(true);
+    setImportError("");
     try {
       const preview = await previewTimewarriorImport({ clipOpenToCutover });
       setImportPreview(preview);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "预览导入失败");
     } finally {
       setImportBusy(false);
     }
@@ -440,6 +444,10 @@ export function TimeSettingsPage({
           )}
         </div>
 
+        {importError && (
+          <p className="text-xs text-destructive">{importError}</p>
+        )}
+
         {importPreview && (
           <Alert>
             <AlertDescription className="space-y-1 text-xs">
@@ -449,9 +457,11 @@ export function TimeSettingsPage({
                 {importPreview.conflictCount} 条 · 未闭合{" "}
                 {importPreview.openAtCutoverCount} 条
               </div>
-              {importPreview.alreadyImported && (
+              {importPreview.alreadyImportedBatchId && (
                 <div className="text-muted-foreground">
-                  该快照已导入过，不会重复创建活动。
+                  该快照已导入过（批次{" "}
+                  {importPreview.alreadyImportedBatchId.slice(0, 8)}
+                  ），不会重复创建活动。
                 </div>
               )}
             </AlertDescription>
@@ -507,15 +517,15 @@ export function TimeSettingsPage({
           <Alert>
             <AlertDescription className="space-y-2 text-xs">
               <div>
-                校验通过：包含 {backupPreview.activityCount}{" "}
-                条活动，恢复后将从代际 {backupPreview.currentTimeEpoch} 推进至{" "}
-                {backupPreview.nextTimeEpoch}。
+                校验通过：包含 {backupPreview.candidateCounts.activities}{" "}
+                条活动，恢复后将从代际 {backupPreview.currentCounts.timeEpoch}{" "}
+                推进至 {backupPreview.currentCounts.timeEpoch + 1}。
               </div>
-              {backupPreview.activeFrozenWarning && (
-                <div className="text-amber-600 dark:text-amber-400">
-                  {backupPreview.activeFrozenWarning}
+              {backupPreview.warnings.map((w) => (
+                <div key={w} className="text-amber-600 dark:text-amber-400">
+                  {w}
                 </div>
-              )}
+              ))}
               <Button
                 type="button"
                 size="xs"

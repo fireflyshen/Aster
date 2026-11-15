@@ -211,21 +211,39 @@ export function TimeTodayPage({
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    <Button
-                      type="button"
-                      size="xs"
-                      disabled={busy}
-                      onClick={() =>
-                        void runMutation("确认任务已开始并补记计时", () =>
-                          resolveTimeOperation({
-                            operationId: op.operationId,
-                            action: "accept_started",
-                          }),
-                        )
-                      }
-                    >
-                      按实际已开始确认
-                    </Button>
+                    {op.kind === "task_start" ? (
+                      <Button
+                        type="button"
+                        size="xs"
+                        disabled={busy}
+                        onClick={() =>
+                          void runMutation("确认任务已开始并补记计时", () =>
+                            resolveTimeOperation({
+                              operationId: op.operationId,
+                              action: "accept_started",
+                            }),
+                          )
+                        }
+                      >
+                        按实际已开始确认
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="xs"
+                        disabled={busy}
+                        onClick={() =>
+                          void runMutation("确认结束关联活动计时", () =>
+                            resolveTimeOperation({
+                              operationId: op.operationId,
+                              action: "stop_active",
+                            }),
+                          )
+                        }
+                      >
+                        停止关联计时
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       size="xs"
@@ -240,7 +258,7 @@ export function TimeTodayPage({
                         )
                       }
                     >
-                      确认未发生
+                      {op.kind === "task_start" ? "确认未发生" : "忽略此记录"}
                     </Button>
                   </div>
                 </div>
@@ -645,7 +663,12 @@ export function TimeTodayPage({
                     size="xs"
                     variant="ghost"
                     disabled={busy}
-                    onClick={() =>
+                    onClick={() => {
+                      const gapEndDate = localDateOf(item.gap.endMs, timeZone);
+                      const endTime =
+                        gapEndDate === selectedDate
+                          ? formatClockInZone(item.gap.endMs, timeZone)
+                          : "23:59";
                       setLogDialogSeed({
                         mode: "log",
                         date: selectedDate,
@@ -653,15 +676,15 @@ export function TimeTodayPage({
                           item.gap.startMs,
                           timeZone,
                         ),
-                        endTime: formatClockInZone(item.gap.endMs, timeZone),
+                        endTime,
                         estimatedMinutes: String(
                           Math.max(
                             1,
                             Math.round(item.gap.durationSeconds / 60),
                           ),
                         ),
-                      })
-                    }
+                      });
+                    }}
                   >
                     补记这段时间
                   </Button>

@@ -9,7 +9,7 @@ importers:
   .:
     devDependencies:
       '@types/node':
-        specifier: ^22.20.1
+        specifier: ^22.20.5
         version: 22.20.5
       prettier:
         specifier: ^3.5.3

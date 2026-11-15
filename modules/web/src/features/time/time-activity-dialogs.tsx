@@ -526,6 +526,8 @@ export function EditSegmentDialog({
   const [categoryId, setCategoryId] = useState("uncategorized");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [origStartTime, setOrigStartTime] = useState("");
+  const [origEndTime, setOrigEndTime] = useState("");
   const [approximate, setApproximate] = useState(false);
   const [clearTaskLink, setClearTaskLink] = useState(false);
   const [confirmReview, setConfirmReview] = useState(false);
@@ -533,10 +535,14 @@ export function EditSegmentDialog({
 
   useEffect(() => {
     if (!segment) return;
+    const initStart = formatClockInZone(segment.startMs, timeZone);
+    const initEnd = formatClockInZone(segment.endMs, timeZone);
     setTitle(segment.title);
     setCategoryId(segment.categoryId || "uncategorized");
-    setStartTime(formatClockInZone(segment.startMs, timeZone));
-    setEndTime(formatClockInZone(segment.endMs, timeZone));
+    setStartTime(initStart);
+    setEndTime(initEnd);
+    setOrigStartTime(initStart);
+    setOrigEndTime(initEnd);
     setApproximate(segment.precision === "estimated_bounds");
     setClearTaskLink(false);
     setConfirmReview(segment.reviewState === "review_required");
@@ -566,7 +572,9 @@ export function EditSegmentDialog({
       ...(clearTaskLink ? { clearTaskLink: true } : {}),
       ...(confirmReview ? { confirmReview: true } : {}),
     };
-    if (!segment.running) {
+    const timesChanged =
+      startTime !== origStartTime || endTime !== origEndTime;
+    if (!segment.running && timesChanged) {
       try {
         const startMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
         const endMs = zonedDateTimeToUtcMs(date, endTime, timeZone);

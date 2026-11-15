@@ -219,10 +219,23 @@ run_candidate_node -e '
       throw new Error(\"Checksum mismatch in backup file: \" + rec.relativePath);
     }
     if (rec.relativePath.endsWith(\".sqlite\") || rec.relativePath.endsWith(\".sqlite3\")) {
-      const db = new DatabaseSync(fp, { readOnly: true });
-      const row = db.prepare(\"PRAGMA integrity_check\").get();
-      db.close();
-      if (!row || row.integrity_check !== \"ok\") throw new Error(\"SQLite integrity check failed: \" + rec.relativePath);
+      // A closed WAL-mode snapshot may still need writable -wal/-shm files
+      // during integrity_check. Verify the hash-checked bytes in scratch space,
+      // preserving the read-only archive mount and the original snapshot.
+      const scratch = fs.mkdtempSync(path.join(require(\"node:os\").tmpdir(), \"aster-sqlite-verify-\"));
+      try {
+        const copy = path.join(scratch, \"snapshot.sqlite\");
+        fs.writeFileSync(copy, buf, { mode: 0o600 });
+        const db = new DatabaseSync(copy);
+        try {
+          const row = db.prepare(\"PRAGMA integrity_check\").get();
+          if (!row || row.integrity_check !== \"ok\") throw new Error(\"SQLite integrity check failed: \" + rec.relativePath);
+        } finally {
+          db.close();
+        }
+      } finally {
+        fs.rmSync(scratch, { recursive: true, force: true });
+      }
     }
   }
 ' '${REMOTE_BACKUP}' || { rm -rf '${REMOTE_BACKUP}' \"\${STAGING_DIR}\"; exit 1; }

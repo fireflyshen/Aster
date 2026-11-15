@@ -43,6 +43,9 @@ The active container mounts only `current`, so host paths under `releases/` and
 `backups/` are not visible there. Deployment uses a one-off Compose service
 container with explicit read-only mounts for the candidate release and backup
 archive. It retains the service image, environment, user and data volumes.
+SQLite integrity checks use a temporary writable copy of the hash-verified
+snapshot bytes: WAL-mode files may require sidecar files even when opened for
+reading. The archive remains mounted read-only and is never modified by checks.
 Candidate syntax and visibility are checked before stopping the active service.
 If live checkpoint backup is unavailable, the service is paused for maintenance
 backup; any subsequent backup-stage failure restarts the previous service.

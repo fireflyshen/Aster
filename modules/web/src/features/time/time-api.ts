@@ -9,15 +9,19 @@ import type {
 import { api } from "@/lib/api";
 
 export type TimeStatusResponse = {
+  initialized?: boolean;
   enabled: boolean;
-  state: TimerSnapshot["state"];
-  timeEpoch: number;
-  taskDataEpoch: number;
-  sessionVersion: number;
-  pendingOperationsCount: number;
+  available?: boolean;
+  restoring?: boolean;
+  state?: TimerSnapshot["state"];
+  schemaVersion?: number;
+  timeEpoch?: number;
+  taskDataEpoch?: number;
+  restoreBarrierAt?: number;
+  sessionVersion?: number;
+  pendingOperationsCount?: number;
   cutoverAtMs?: number;
-  activeActivity: Activity | null;
-  policy: TimePolicy;
+  activeActivity?: Activity | null;
 };
 
 export type TimeReceipt = {
@@ -39,8 +43,8 @@ export type UnresolvedOperationItem = {
   targetTaskUuid?: string;
   targetActivityId?: string;
   externalDisposition?: string;
-  createdAtMs: number;
-  updatedAtMs: number;
+  receivedAtMs: number;
+  effectiveAtMs?: number;
 };
 
 export type InspectOperationResponse = {
@@ -52,28 +56,39 @@ export type InspectOperationResponse = {
 export type TimeReconcileDigest = {
   date: string;
   timezone: string;
-  dailySummary: DailyLedgerSummary;
-  unresolvedOperations: UnresolvedOperationItem[];
-  reviewRequiredSegments: DailyLedgerSummary["locatedSegments"];
-  unlocatedEstimates: Activity[];
-  gaps: DailyLedgerSummary["gaps"];
+  asOfMs: number;
+  policyVersion: number;
+  sessionVersion: number;
+  timeEpoch: number;
+  coveredSeconds: number;
+  unrecordedSeconds: number;
   sleepCandidates: DailyLedgerSummary["sleepCandidates"];
+  gaps: DailyLedgerSummary["gaps"];
+  unlocatedEstimates: Activity[];
+  reviewItems: DailyLedgerSummary["locatedSegments"];
+  pendingOperations: UnresolvedOperationItem[];
 };
 
 export type TimewarriorImportPreview = {
-  alreadyImported?: boolean;
+  snapshotHash: string;
+  cutoverAtMs: number;
+  alreadyImportedBatchId?: string;
+  totalIntervals: number;
   importableCount: number;
   skippedAfterCutoverCount: number;
   conflictCount: number;
   openAtCutoverCount: number;
-  cutoverAtMs: number;
   rangeStartMs?: number;
   rangeEndMs?: number;
-  openIntervalsAtCutover?: Array<{
+  openIntervalsAtCutover: Array<{
+    batchIndex: number;
     startMs: number;
+    taskUuid?: string;
+    tags: string[];
     title: string;
   }>;
-  conflicts?: Array<{
+  conflicts: Array<{
+    batchIndex: number;
     title: string;
     startMs: number;
     endMs: number;
@@ -82,13 +97,22 @@ export type TimewarriorImportPreview = {
 };
 
 export type TimeBackupPreview = {
-  valid: boolean;
   token: string;
-  schemaVersion: number;
-  activityCount: number;
-  currentTimeEpoch: number;
-  nextTimeEpoch: number;
-  activeFrozenWarning?: string;
+  candidateSchemaVersion: number;
+  candidateCounts: {
+    activities: number;
+    operations: number;
+    importBatches: number;
+    hasOpenActivity: boolean;
+  };
+  currentCounts: {
+    activities: number;
+    timeEpoch: number;
+    taskDataEpoch: number;
+    sessionVersion: number;
+    hasOpenActivity: boolean;
+  };
+  warnings: string[];
 };
 
 export function makeTimeIdempotencyKey(prefix: string): string {
@@ -100,12 +124,12 @@ export function makeTimeIdempotencyKey(prefix: string): string {
 }
 
 export function fetchTimeStatus(): Promise<TimeStatusResponse> {
-  return api<TimeStatusResponse>("api/time/status");
+  return api<TimeStatusResponse>("time/status");
 }
 
 export function fetchDailySummary(date?: string): Promise<DailyLedgerSummary> {
   const qs = date ? `?date=${encodeURIComponent(date)}` : "";
-  return api<DailyLedgerSummary>(`api/time/daily${qs}`);
+  return api<DailyLedgerSummary>(`time/daily${qs}`);
 }
 
 export function fetchWeeklySummary(
@@ -114,30 +138,27 @@ export function fetchWeeklySummary(
   const qs = dateOrWeekStart
     ? `?date=${encodeURIComponent(dateOrWeekStart)}`
     : "";
-  return api<WeeklyDistributionSummary>(`api/time/weekly${qs}`);
+  return api<WeeklyDistributionSummary>(`time/weekly${qs}`);
 }
 
 export function fetchReconcileDigest(
   date?: string,
 ): Promise<TimeReconcileDigest> {
   const qs = date ? `?date=${encodeURIComponent(date)}` : "";
-  return api<TimeReconcileDigest>(`api/time/reconcile-digest${qs}`);
+  return api<TimeReconcileDigest>(`time/reconcile-digest${qs}`);
 }
 
 export function fetchTimePolicy(): Promise<TimePolicy> {
-  return api<TimePolicy>("api/time/policy");
+  return api<TimePolicy>("time/policy");
 }
 
 export function updateTimePolicy(input: {
   expectedPolicyVersion: number;
   patch: Partial<Omit<TimePolicy, "policyVersion">>;
-}): Promise<{ policy: TimePolicy; operationId: string }> {
-  return api("api/time/policy", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-policy"),
-      ...input,
-    }),
+}): Promise<TimePolicy> {
+  return api<TimePolicy>("time/policy", {
+    idempotencyKey: makeTimeIdempotencyKey("web-policy"),
+    ...input,
   });
 }
 
@@ -145,7 +166,7 @@ export function inspectTimeOperation(
   id: string,
 ): Promise<InspectOperationResponse> {
   return api<InspectOperationResponse>(
-    `api/time/operation?id=${encodeURIComponent(id)}`,
+    `time/operation?id=${encodeURIComponent(id)}`,
   );
 }
 
@@ -158,10 +179,7 @@ export function resolveTimeOperation(input: {
   state: string;
   receipt?: TimeReceipt;
 }> {
-  return api("api/time/operation/resolve", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
+  return api("time/operation/resolve", input);
 }
 
 export function startTimeActivity(input: {
@@ -172,13 +190,10 @@ export function startTimeActivity(input: {
   note?: string;
   expectedSessionVersion?: number;
 }): Promise<TimeReceipt> {
-  return api<TimeReceipt>("api/time/start", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-start"),
-      source: "manual",
-      ...input,
-    }),
+  return api<TimeReceipt>("time/start", {
+    idempotencyKey: makeTimeIdempotencyKey("web-start"),
+    source: "manual",
+    ...input,
   });
 }
 
@@ -187,12 +202,9 @@ export function stopTimeActivity(input?: {
   expectedVersion?: number;
   expectedSessionVersion?: number;
 }): Promise<TimeReceipt> {
-  return api<TimeReceipt>("api/time/stop", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-stop"),
-      ...(input || {}),
-    }),
+  return api<TimeReceipt>("time/stop", {
+    idempotencyKey: makeTimeIdempotencyKey("web-stop"),
+    ...(input || {}),
   });
 }
 
@@ -205,13 +217,10 @@ export function logTimeActivity(input: {
   precision?: ActivityPrecision | "approximate";
   note?: string;
 }): Promise<TimeReceipt> {
-  return api<TimeReceipt>("api/time/log", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-log"),
-      source: "manual",
-      ...input,
-    }),
+  return api<TimeReceipt>("time/log", {
+    idempotencyKey: makeTimeIdempotencyKey("web-log"),
+    source: "manual",
+    ...input,
   });
 }
 
@@ -225,13 +234,10 @@ export function estimateTimeActivity(input: {
   taskUuid?: string;
   note?: string;
 }): Promise<TimeReceipt> {
-  return api<TimeReceipt>("api/time/estimate", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-est"),
-      source: "manual",
-      ...input,
-    }),
+  return api<TimeReceipt>("time/estimate", {
+    idempotencyKey: makeTimeIdempotencyKey("web-est"),
+    source: "manual",
+    ...input,
   });
 }
 
@@ -241,12 +247,9 @@ export function locateTimeEstimate(input: {
   startMs: number;
   endMs: number;
 }): Promise<TimeReceipt> {
-  return api<TimeReceipt>("api/time/locate", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-loc"),
-      ...input,
-    }),
+  return api<TimeReceipt>("time/locate", {
+    idempotencyKey: makeTimeIdempotencyKey("web-loc"),
+    ...input,
   });
 }
 
@@ -268,44 +271,32 @@ export function updateTimeActivity(input: {
     windowEndMs?: number | null;
   };
 }): Promise<TimeReceipt> {
-  return api<TimeReceipt>("api/time/update", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-upd"),
-      ...input,
-    }),
+  return api<TimeReceipt>("time/update", {
+    idempotencyKey: makeTimeIdempotencyKey("web-upd"),
+    ...input,
   });
 }
 
 export function undoTimeOperation(
   targetOperationId: string,
 ): Promise<TimeReceipt> {
-  return api<TimeReceipt>("api/time/undo", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-undo"),
-      targetOperationId,
-    }),
+  return api<TimeReceipt>("time/undo", {
+    idempotencyKey: makeTimeIdempotencyKey("web-undo"),
+    targetOperationId,
   });
 }
 
 export function confirmSleepCandidate(date: string): Promise<TimeReceipt> {
-  return api<TimeReceipt>("api/time/sleep/confirm", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-sleep-ok"),
-      date,
-    }),
+  return api<TimeReceipt>("time/sleep/confirm", {
+    idempotencyKey: makeTimeIdempotencyKey("web-sleep-ok"),
+    date,
   });
 }
 
 export function dismissSleepCandidate(date: string): Promise<TimeReceipt> {
-  return api<TimeReceipt>("api/time/sleep/dismiss", {
-    method: "POST",
-    body: JSON.stringify({
-      idempotencyKey: makeTimeIdempotencyKey("web-sleep-skip"),
-      date,
-    }),
+  return api<TimeReceipt>("time/sleep/dismiss", {
+    idempotencyKey: makeTimeIdempotencyKey("web-sleep-skip"),
+    date,
   });
 }
 
@@ -313,50 +304,48 @@ export function previewTimewarriorImport(input?: {
   cutoverAtMs?: number;
   clipOpenToCutover?: boolean;
 }): Promise<TimewarriorImportPreview> {
-  return api<TimewarriorImportPreview>("api/time/import/preview", {
-    method: "POST",
-    body: JSON.stringify(input || {}),
-  });
+  return api<TimewarriorImportPreview>("time/import/preview", input || {});
 }
 
 export function applyTimewarriorImport(input?: {
   cutoverAtMs?: number;
   clipOpenToCutover?: boolean;
 }): Promise<{
-  alreadyImported?: boolean;
-  batchId?: string;
+  batchId: string;
+  snapshotHash: string;
+  reusedExistingBatch: boolean;
   importedCount: number;
   conflictCount: number;
   skippedCount: number;
+  createdActivityIds: string[];
 }> {
-  return api("api/time/import/apply", {
-    method: "POST",
-    body: JSON.stringify(input || {}),
-  });
+  return api("time/import/apply", input || {});
 }
 
 export function exportTimeBackup(): Promise<{
+  format: string;
+  version: number;
   manifest: Record<string, unknown>;
+  barrier: Record<string, unknown>;
   sqliteBase64: string;
 }> {
-  return api("api/time/backup/export");
+  return api("time/backup/export");
 }
 
 export function previewTimeBackupRestore(
   sqliteBase64: string,
 ): Promise<TimeBackupPreview> {
-  return api<TimeBackupPreview>("api/time/backup/preview", {
-    method: "POST",
-    body: JSON.stringify({ sqliteBase64 }),
-  });
+  return api<TimeBackupPreview>("time/backup/preview", { sqliteBase64 });
 }
 
 export function applyTimeBackupRestore(token: string): Promise<{
-  ok: boolean;
+  restoreId: string;
+  preRestoreDir: string;
   timeEpoch: number;
+  taskDataEpoch: number;
+  restoreBarrierAt: number;
+  frozenActiveActivityId: string | null;
+  pendingOperationsCount: number;
 }> {
-  return api("api/time/backup/restore", {
-    method: "POST",
-    body: JSON.stringify({ token }),
-  });
+  return api("time/backup/restore", { token });
 }

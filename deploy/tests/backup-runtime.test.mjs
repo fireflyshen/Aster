@@ -35,7 +35,8 @@ const remoteScript = execFileSync(
 );
 
 const candidate = `
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 const staging = join(process.env.TEST_ROOT, 'data/backup-staging/test-release');
@@ -43,7 +44,17 @@ mkdirSync(staging, {recursive:true});
 if (process.env.SCENARIO !== 'missing-manifest') {
   const data = 'snapshot';
   writeFileSync(join(staging, 'organization.json'), data);
-  writeFileSync(join(staging, 'manifest.json'), JSON.stringify({complete:true, files:{organization:{exists:true, relativePath:'organization.json', bytes:data.length, sha256:process.env.SCENARIO === 'bad-checksum' ? 'invalid' : createHash('sha256').update(data).digest('hex')}}}));
+  const files = {organization:{exists:true, relativePath:'organization.json', bytes:data.length, sha256:process.env.SCENARIO === 'bad-checksum' ? 'invalid' : createHash('sha256').update(data).digest('hex')}};
+  if (['readonly-wal', 'corrupt-sqlite'].includes(process.env.SCENARIO)) {
+    const fp = join(staging, 'snapshot.sqlite3');
+    const db = new DatabaseSync(fp);
+    db.exec('PRAGMA journal_mode=WAL; CREATE TABLE marker(id INTEGER); INSERT INTO marker VALUES(1);');
+    db.close();
+    if (process.env.SCENARIO === 'corrupt-sqlite') writeFileSync(fp, 'invalid sqlite snapshot');
+    const bytes = readFileSync(fp);
+    files.db = {exists:true, relativePath:'snapshot.sqlite3', bytes:bytes.length, sha256:createHash('sha256').update(bytes).digest('hex')};
+  }
+  writeFileSync(join(staging, 'manifest.json'), JSON.stringify({complete:true, files}));
 }
 `;
 
@@ -78,7 +89,22 @@ if(args[0] === '-e' && args[1].includes('socketPath: sock')) {
 if(args[0] === '--check') { log('preflight'); if(process.env.SCENARIO === 'preflight-failure') process.exit(1); }
 else if(args.includes('--maintenance-backup')) { log('backup'); if(args.includes('--allow-uninitialized-time')) log('legacy-migration'); if(process.env.SCENARIO === 'backup-failure') process.exit(1); }
 else if(args[0] === '-e' && args[1].includes('Checksum mismatch')) log('verify');
+const readonlyArchive = process.env.SCENARIO === 'readonly-wal' && args[0] === '-e' && args[1].includes('Checksum mismatch');
+const archive = root+'/backups/before-test-release';
+let original;
+if(readonlyArchive) {
+  original = fs.readFileSync(archive+'/snapshot.sqlite3');
+  for(const name of fs.readdirSync(archive)) fs.chmodSync(archive+'/'+name, 0o444);
+  fs.chmodSync(archive, 0o555);
+}
 const result = spawnSync(process.execPath,args,{env:process.env,stdio:'inherit'});
+if(readonlyArchive) {
+  fs.chmodSync(archive, 0o755);
+  for(const name of fs.readdirSync(archive)) fs.chmodSync(archive+'/'+name, 0o644);
+  if(!fs.readFileSync(archive+'/snapshot.sqlite3').equals(original) || fs.existsSync(archive+'/snapshot.sqlite3-wal') || fs.existsSync(archive+'/snapshot.sqlite3-shm')) {
+    console.error('Verification modified the original archive'); process.exit(93);
+  }
+}
 process.exit(result.status ?? 1);
 `;
 
@@ -213,4 +239,19 @@ test("only a legacy active release permits the initial Time migration", () => {
     "legacy-migration",
     "verify",
   ]);
+});
+
+test("WAL-mode SQLite snapshots pass integrity checks without writing to the read-only archive", () => {
+  const r = runScenario("readonly-wal");
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(r.events, ["preflight", "stop", "backup", "verify"]);
+  assert.equal(r.manifest.files.db.exists, true);
+});
+
+test("corrupt SQLite snapshot with a valid file hash still aborts and restarts the service", () => {
+  const r = runScenario("corrupt-sqlite");
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /not a database|malformed/);
+  assert.equal(r.events.at(-1), "restart");
+  assert.equal(r.running, "1");
 });

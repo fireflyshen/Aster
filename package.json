@@ -33,7 +33,7 @@
     "test": "npm run test:deploy && npm run test:web && npm run build:web && npm run test:server && npm run test:mcp"
   },
   "devDependencies": {
-    "@types/node": "^22.20.1",
+    "@types/node": "^22.20.5",
     "prettier": "^3.5.3",
     "typescript": "^5.8.2"
   }

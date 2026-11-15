@@ -96,9 +96,9 @@ export function useTimeLedger({
         ]);
         setDaily(nextDaily);
         setDigest(nextDigest);
-        if (nextDigest.unresolvedOperations?.length) {
+        if (nextDigest.pendingOperations?.length) {
           const details = await Promise.all(
-            nextDigest.unresolvedOperations.map(
+            nextDigest.pendingOperations.map(
               async (op): Promise<PendingOperationDetail> => {
                 try {
                   const res: InspectOperationResponse =
