@@ -17,18 +17,26 @@ import {
 } from "../../../core/time/ledger.ts";
 import {
   createDefaultTimePolicy,
+  DEFAULT_CHECKPOINT_INTERVAL_SECONDS,
   DEFAULT_TIMER_LIVE_WINDOW_MS,
   type Activity,
   type ActivityPrecision,
+  type ActivityReviewReason,
   type ActivityReviewState,
   type ActivitySource,
+  type ActivityStopReason,
   type DailyLedgerSummary,
   type OperationState,
   type RuleSource,
   type SleepCandidate,
+  type TimeEvent,
+  type TimeEventKind,
   type TimePolicy,
   type TimerSnapshot,
   type TimeWarning,
+  type TimingPlan,
+  type TimingPlanStatus,
+  type TimingPlanStopBasis,
   type WeeklyDistributionSummary,
 } from "../../../core/time/model.ts";
 import {
@@ -119,6 +127,16 @@ type ActivitySnapshotFields = {
   startMs: number | null;
   endMs: number | null;
   suspendMs: number | null;
+  confirmedThroughMs: number | null;
+  reviewDueAtMs: number | null;
+  reviewReason: ActivityReviewReason | null;
+  timingPlanId: string | null;
+  autoStopAtMs: number | null;
+  autoStopBasis: TimingPlanStopBasis | null;
+  limitVersion: number | null;
+  timerStoppedAtMs: number | null;
+  stopReason: ActivityStopReason | null;
+  processedAtMs: number | null;
   windowStartMs: number | null;
   windowEndMs: number | null;
   targetDate: string | null;
@@ -172,6 +190,16 @@ type ActivityRow = {
   start_ms: number | null;
   end_ms: number | null;
   suspend_ms: number | null;
+  confirmed_through_ms: number | null;
+  review_due_at_ms: number | null;
+  review_reason: ActivityReviewReason | null;
+  timing_plan_id: string | null;
+  auto_stop_at_ms: number | null;
+  auto_stop_basis: TimingPlanStopBasis | null;
+  limit_version: number | null;
+  timer_stopped_at_ms: number | null;
+  stop_reason: ActivityStopReason | null;
+  processed_at_ms: number | null;
   window_start_ms: number | null;
   window_end_ms: number | null;
   target_date: string | null;
@@ -187,6 +215,38 @@ type ActivityRow = {
   candidate_key: string | null;
   created_at_ms: number;
   updated_at_ms: number;
+};
+
+type TimingPlanRow = {
+  id: string;
+  version: number;
+  title: string;
+  category_id: string | null;
+  task_uuid: string | null;
+  project_snapshot: string | null;
+  tags_json: string | null;
+  note: string | null;
+  timezone: string;
+  allowance_seconds: number | null;
+  planned_start_at_ms: number | null;
+  hard_stop_at_ms: number | null;
+  archived_at_ms: number | null;
+  created_at_ms: number;
+  updated_at_ms: number;
+};
+
+type TimeEventRow = {
+  id: string;
+  dedup_key: string;
+  kind: TimeEventKind;
+  activity_id: string | null;
+  plan_id: string | null;
+  title: string;
+  message: string;
+  occurred_at_ms: number;
+  payload_json: string;
+  acknowledged_at_ms: number | null;
+  created_at_ms: number;
 };
 
 type OperationRow = {
@@ -244,6 +304,26 @@ function rowToActivity(row: ActivityRow): Activity {
     ...(row.start_ms !== null ? { startMs: row.start_ms } : {}),
     ...(row.end_ms !== null ? { endMs: row.end_ms } : {}),
     ...(row.suspend_ms !== null ? { suspendMs: row.suspend_ms } : {}),
+    ...(row.confirmed_through_ms !== null
+      ? { confirmedThroughMs: row.confirmed_through_ms }
+      : {}),
+    ...(row.review_due_at_ms !== null
+      ? { reviewDueAtMs: row.review_due_at_ms }
+      : {}),
+    ...(row.review_reason ? { reviewReason: row.review_reason } : {}),
+    ...(row.timing_plan_id ? { timingPlanId: row.timing_plan_id } : {}),
+    ...(row.auto_stop_at_ms !== null
+      ? { autoStopAtMs: row.auto_stop_at_ms }
+      : {}),
+    ...(row.auto_stop_basis ? { autoStopBasis: row.auto_stop_basis } : {}),
+    ...(row.limit_version !== null ? { limitVersion: row.limit_version } : {}),
+    ...(row.timer_stopped_at_ms !== null
+      ? { timerStoppedAtMs: row.timer_stopped_at_ms }
+      : {}),
+    ...(row.stop_reason ? { stopReason: row.stop_reason } : {}),
+    ...(row.processed_at_ms !== null
+      ? { processedAtMs: row.processed_at_ms }
+      : {}),
     ...(row.window_start_ms !== null
       ? { windowStartMs: row.window_start_ms }
       : {}),
@@ -278,6 +358,16 @@ function captureSnapshotFields(row: ActivityRow): ActivitySnapshotFields {
     startMs: row.start_ms,
     endMs: row.end_ms,
     suspendMs: row.suspend_ms,
+    confirmedThroughMs: row.confirmed_through_ms,
+    reviewDueAtMs: row.review_due_at_ms,
+    reviewReason: row.review_reason,
+    timingPlanId: row.timing_plan_id,
+    autoStopAtMs: row.auto_stop_at_ms,
+    autoStopBasis: row.auto_stop_basis,
+    limitVersion: row.limit_version,
+    timerStoppedAtMs: row.timer_stopped_at_ms,
+    stopReason: row.stop_reason,
+    processedAtMs: row.processed_at_ms,
     windowStartMs: row.window_start_ms,
     windowEndMs: row.window_end_ms,
     targetDate: row.target_date,
@@ -287,6 +377,24 @@ function captureSnapshotFields(row: ActivityRow): ActivitySnapshotFields {
     reviewState: row.review_state,
     note: row.note,
     candidateKey: row.candidate_key,
+  };
+}
+
+function rowToTimeEvent(row: TimeEventRow): TimeEvent {
+  return {
+    id: row.id,
+    dedupKey: row.dedup_key,
+    kind: row.kind,
+    ...(row.activity_id ? { activityId: row.activity_id } : {}),
+    ...(row.plan_id ? { planId: row.plan_id } : {}),
+    title: row.title,
+    message: row.message,
+    occurredAtMs: row.occurred_at_ms,
+    payload: JSON.parse(row.payload_json || "{}") as Record<string, unknown>,
+    ...(row.acknowledged_at_ms !== null
+      ? { acknowledgedAtMs: row.acknowledged_at_ms }
+      : {}),
+    createdAtMs: row.created_at_ms,
   };
 }
 
@@ -376,6 +484,17 @@ export async function createTimeStore(
     nowMs: nowFn(),
   });
   let restoring = false;
+  const scheduleListeners = new Set<() => void>();
+
+  function notifyScheduleListeners(): void {
+    for (const listener of scheduleListeners) {
+      try {
+        listener();
+      } catch {
+        // Listener errors must never abort committed store transitions.
+      }
+    }
+  }
 
   async function syncBarrierFromDb(meta: MetaRow): Promise<TimeBarrierState> {
     initialBarrier = await writeBarrierState(barrierPath, {
@@ -628,11 +747,14 @@ export async function createTimeStore(
         `INSERT INTO activities (
           id, version, kind, title, category_id, rule_version, rule_source,
           task_uuid, project_snapshot, start_ms, end_ms, suspend_ms,
+          confirmed_through_ms, review_due_at_ms, review_reason,
+          timing_plan_id, auto_stop_at_ms, auto_stop_basis, limit_version,
+          timer_stopped_at_ms, stop_reason, processed_at_ms,
           window_start_ms, window_end_ms, target_date, estimated_seconds,
           precision, source, review_state, raw_input, note, timezone,
           import_batch_id, source_record_id, candidate_key,
           created_at_ms, updated_at_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         activity.id,
@@ -647,6 +769,16 @@ export async function createTimeStore(
         activity.startMs ?? null,
         activity.endMs ?? null,
         activity.suspendMs ?? null,
+        activity.confirmedThroughMs ?? null,
+        activity.reviewDueAtMs ?? null,
+        activity.reviewReason ?? null,
+        activity.timingPlanId ?? null,
+        activity.autoStopAtMs ?? null,
+        activity.autoStopBasis ?? null,
+        activity.limitVersion ?? null,
+        activity.timerStoppedAtMs ?? null,
+        activity.stopReason ?? null,
+        activity.processedAtMs ?? null,
         activity.windowStartMs ?? null,
         activity.windowEndMs ?? null,
         activity.targetDate ?? null,
@@ -663,6 +795,483 @@ export async function createTimeStore(
         activity.createdAtMs,
         activity.updatedAtMs,
       );
+  }
+
+  function computeStopLimit(params: {
+    startMs: number;
+    remainingAllowanceSeconds?: number;
+    hardStopAtMs?: number;
+  }): {
+    autoStopAtMs?: number;
+    autoStopBasis?: TimingPlanStopBasis;
+  } {
+    const durationStopMs =
+      params.remainingAllowanceSeconds !== undefined
+        ? params.startMs + params.remainingAllowanceSeconds * 1000
+        : undefined;
+    const hardStopMs = params.hardStopAtMs;
+    if (durationStopMs !== undefined && hardStopMs !== undefined) {
+      if (durationStopMs < hardStopMs) {
+        return {
+          autoStopAtMs: durationStopMs,
+          autoStopBasis: "duration_limit",
+        };
+      }
+      if (hardStopMs < durationStopMs) {
+        return { autoStopAtMs: hardStopMs, autoStopBasis: "hard_deadline" };
+      }
+      return { autoStopAtMs: durationStopMs, autoStopBasis: "both_limits" };
+    }
+    if (durationStopMs !== undefined) {
+      return { autoStopAtMs: durationStopMs, autoStopBasis: "duration_limit" };
+    }
+    if (hardStopMs !== undefined) {
+      return { autoStopAtMs: hardStopMs, autoStopBasis: "hard_deadline" };
+    }
+    return {};
+  }
+
+  function emitTimeEventTx(
+    conn: DatabaseSync,
+    event: {
+      dedupKey: string;
+      kind: TimeEventKind;
+      activityId?: string;
+      planId?: string;
+      title: string;
+      message: string;
+      occurredAtMs: number;
+      payload: Record<string, unknown>;
+      createdAtMs: number;
+    },
+  ): TimeEvent {
+    conn
+      .prepare(
+        `INSERT OR IGNORE INTO time_events (
+          id, dedup_key, kind, activity_id, plan_id, title, message,
+          occurred_at_ms, payload_json, acknowledged_at_ms, created_at_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
+      )
+      .run(
+        randomUUID(),
+        event.dedupKey,
+        event.kind,
+        event.activityId ?? null,
+        event.planId ?? null,
+        event.title,
+        event.message,
+        event.occurredAtMs,
+        JSON.stringify(event.payload),
+        event.createdAtMs,
+      );
+    const row = conn
+      .prepare("SELECT * FROM time_events WHERE dedup_key = ?")
+      .get(event.dedupKey) as TimeEventRow;
+    return rowToTimeEvent(row);
+  }
+
+  function buildTimingPlanTx(
+    conn: DatabaseSync,
+    planRow: TimingPlanRow,
+    refNowMs: number,
+  ): TimingPlan {
+    const segmentRows = conn
+      .prepare(
+        `SELECT * FROM activities
+         WHERE timing_plan_id = ?
+           AND kind = 'located'
+           AND review_state != 'voided'
+         ORDER BY COALESCE(start_ms, created_at_ms) ASC`,
+      )
+      .all(planRow.id) as ActivityRow[];
+
+    let consumedSeconds = 0;
+    let activeSegment: Activity | undefined;
+    let lastClosedSegment: Activity | undefined;
+
+    for (const segRow of segmentRows) {
+      const seg = rowToActivity(segRow);
+      if (seg.startMs === undefined) continue;
+      const segEnd = effectiveActivityEndMs(seg, refNowMs) ?? seg.startMs;
+      const segSeconds = Math.max(0, Math.floor((segEnd - seg.startMs) / 1000));
+      consumedSeconds += segSeconds;
+      if (seg.endMs === undefined && seg.suspendMs === undefined) {
+        activeSegment = seg;
+      } else if (seg.endMs !== undefined) {
+        lastClosedSegment = seg;
+      }
+    }
+
+    const allowanceSeconds =
+      planRow.allowance_seconds !== null
+        ? planRow.allowance_seconds
+        : undefined;
+    const remainingSeconds =
+      allowanceSeconds !== undefined
+        ? Math.max(0, allowanceSeconds - consumedSeconds)
+        : undefined;
+
+    const tags = planRow.tags_json
+      ? (JSON.parse(planRow.tags_json) as string[])
+      : undefined;
+
+    const isActivelyRunning = Boolean(
+      activeSegment &&
+      (activeSegment.autoStopAtMs === undefined ||
+        refNowMs < activeSegment.autoStopAtMs),
+    );
+
+    let effectiveAutoStopAtMs: number | undefined;
+    let effectiveAutoStopBasis: TimingPlanStopBasis | undefined;
+    if (isActivelyRunning && activeSegment) {
+      effectiveAutoStopAtMs = activeSegment.autoStopAtMs;
+      effectiveAutoStopBasis = activeSegment.autoStopBasis;
+    } else if (
+      planRow.archived_at_ms === null &&
+      (remainingSeconds === undefined || remainingSeconds > 0) &&
+      (planRow.hard_stop_at_ms === null || refNowMs < planRow.hard_stop_at_ms)
+    ) {
+      const preview = computeStopLimit({
+        startMs: refNowMs,
+        remainingAllowanceSeconds: remainingSeconds,
+        hardStopAtMs:
+          planRow.hard_stop_at_ms !== null
+            ? planRow.hard_stop_at_ms
+            : undefined,
+      });
+      effectiveAutoStopAtMs = preview.autoStopAtMs;
+      effectiveAutoStopBasis = preview.autoStopBasis;
+    }
+
+    let status: TimingPlanStatus;
+    if (planRow.archived_at_ms !== null) {
+      status = "archived";
+    } else if (isActivelyRunning) {
+      status = "active";
+    } else if (allowanceSeconds !== undefined && remainingSeconds === 0) {
+      status = "stopped";
+    } else if (
+      planRow.hard_stop_at_ms !== null &&
+      refNowMs >= planRow.hard_stop_at_ms
+    ) {
+      status = "expired";
+    } else if (segmentRows.length > 0) {
+      status = "paused";
+    } else {
+      status = "scheduled";
+    }
+
+    return {
+      id: planRow.id,
+      version: planRow.version,
+      title: planRow.title,
+      ...(planRow.category_id ? { categoryId: planRow.category_id } : {}),
+      ...(planRow.task_uuid ? { taskUuid: planRow.task_uuid } : {}),
+      ...(planRow.project_snapshot
+        ? { projectSnapshot: planRow.project_snapshot }
+        : {}),
+      ...(tags && tags.length > 0 ? { tags } : {}),
+      ...(planRow.note ? { note: planRow.note } : {}),
+      timezone: planRow.timezone,
+      ...(allowanceSeconds !== undefined ? { allowanceSeconds } : {}),
+      ...(planRow.planned_start_at_ms !== null
+        ? { plannedStartAtMs: planRow.planned_start_at_ms }
+        : {}),
+      ...(planRow.hard_stop_at_ms !== null
+        ? { hardStopAtMs: planRow.hard_stop_at_ms }
+        : {}),
+      consumedSeconds,
+      ...(remainingSeconds !== undefined ? { remainingSeconds } : {}),
+      ...(effectiveAutoStopAtMs !== undefined ? { effectiveAutoStopAtMs } : {}),
+      ...(effectiveAutoStopBasis ? { effectiveAutoStopBasis } : {}),
+      status,
+      ...(lastClosedSegment?.stopReason
+        ? { lastStopReason: lastClosedSegment.stopReason }
+        : {}),
+      ...(lastClosedSegment?.endMs !== undefined
+        ? { lastStoppedAtMs: lastClosedSegment.endMs }
+        : {}),
+      ...(isActivelyRunning && activeSegment
+        ? { activeActivityId: activeSegment.id }
+        : {}),
+      createdAtMs: planRow.created_at_ms,
+      updatedAtMs: planRow.updated_at_ms,
+      ...(planRow.archived_at_ms !== null
+        ? { archivedAtMs: planRow.archived_at_ms }
+        : {}),
+    };
+  }
+
+  function settleDueTimersTx(
+    conn: DatabaseSync,
+    nowMs: number,
+  ): {
+    settledActivity?: Activity;
+    checkpointEvent?: TimeEvent;
+    autoStopEvent?: TimeEvent;
+  } {
+    const meta = readMeta(conn);
+    if (!meta.active_activity_id) {
+      return {};
+    }
+    const activeRow = conn
+      .prepare("SELECT * FROM activities WHERE id = ?")
+      .get(meta.active_activity_id) as ActivityRow | undefined;
+    if (!activeRow || activeRow.end_ms !== null) {
+      return {};
+    }
+
+    // 1) Overdue auto-stop takes priority and stops strictly at autoStopAtMs.
+    if (
+      activeRow.auto_stop_at_ms !== null &&
+      nowMs >= activeRow.auto_stop_at_ms
+    ) {
+      const boundedStopMs =
+        activeRow.suspend_ms !== null
+          ? Math.min(activeRow.auto_stop_at_ms, activeRow.suspend_ms)
+          : activeRow.auto_stop_at_ms;
+      const stopAtMs = Math.max(
+        activeRow.start_ms ?? boundedStopMs,
+        boundedStopMs,
+      );
+      const stopReason: ActivityStopReason =
+        activeRow.auto_stop_basis ?? "duration_limit";
+      const unresolved = getUnresolvedTimerHolders(conn);
+
+      // STOP-11: If pending_reconcile exists across deadline, cap/freeze at stopAtMs
+      // without replaying/clearing pending Taskwarrior actions.
+      if (unresolved.length > 0) {
+        if (
+          activeRow.suspend_ms === null ||
+          activeRow.suspend_ms > stopAtMs ||
+          activeRow.timer_stopped_at_ms === null
+        ) {
+          conn
+            .prepare(
+              `UPDATE activities
+               SET suspend_ms = ?, review_state = 'review_required',
+                   review_reason = COALESCE(review_reason, 'auto_stopped'),
+                   timer_stopped_at_ms = COALESCE(timer_stopped_at_ms, ?),
+                   stop_reason = COALESCE(stop_reason, ?),
+                   processed_at_ms = COALESCE(processed_at_ms, ?),
+                   version = ?, updated_at_ms = ?
+               WHERE id = ? AND version = ?`,
+            )
+            .run(
+              stopAtMs,
+              stopAtMs,
+              stopReason,
+              nowMs,
+              activeRow.version + 1,
+              nowMs,
+              activeRow.id,
+              activeRow.version,
+            );
+          conn
+            .prepare(
+              "UPDATE time_meta SET session_version = ?, updated_at_ms = ? WHERE id = 1",
+            )
+            .run(meta.session_version + 1, nowMs);
+        }
+        return {};
+      }
+
+      const nextVersion = activeRow.version + 1;
+      const preservedConfirmed =
+        activeRow.confirmed_through_ms ?? activeRow.start_ms ?? null;
+      conn
+        .prepare(
+          `UPDATE activities
+           SET end_ms = ?,
+               confirmed_through_ms = ?,
+               review_state = 'review_required',
+               review_reason = 'auto_stopped',
+               timer_stopped_at_ms = ?,
+               stop_reason = ?,
+               processed_at_ms = ?,
+               version = ?,
+               updated_at_ms = ?
+           WHERE id = ? AND version = ?`,
+        )
+        .run(
+          stopAtMs,
+          preservedConfirmed,
+          stopAtMs,
+          stopReason,
+          nowMs,
+          nextVersion,
+          nowMs,
+          activeRow.id,
+          activeRow.version,
+        );
+      conn
+        .prepare(
+          "UPDATE time_meta SET active_activity_id = NULL, session_version = ?, updated_at_ms = ? WHERE id = 1",
+        )
+        .run(meta.session_version + 1, nowMs);
+
+      const settledActivity = rowToActivity(
+        conn
+          .prepare("SELECT * FROM activities WHERE id = ?")
+          .get(activeRow.id) as ActivityRow,
+      );
+      const durationSeconds =
+        settledActivity.startMs !== undefined
+          ? Math.max(0, Math.floor((stopAtMs - settledActivity.startMs) / 1000))
+          : 0;
+      const autoStopEvent = emitTimeEventTx(conn, {
+        dedupKey: `auto_stop:${settledActivity.id}:v${settledActivity.limitVersion ?? 1}`,
+        kind: "auto_stopped",
+        activityId: settledActivity.id,
+        planId: settledActivity.timingPlanId,
+        title: settledActivity.title,
+        message: `已自动停止 · 本次暂计 ${Math.round(durationSeconds / 60)} 分钟`,
+        occurredAtMs: stopAtMs,
+        payload: {
+          stopAtMs,
+          processedAtMs: nowMs,
+          durationSeconds,
+          stopReason,
+          limitVersion: settledActivity.limitVersion ?? 1,
+        },
+        createdAtMs: nowMs,
+      });
+      return { settledActivity, autoStopEvent };
+    }
+
+    // 2) Uncapped running activity hourly checkpoint reminder (never auto-stops!).
+    if (
+      activeRow.auto_stop_at_ms === null &&
+      activeRow.suspend_ms === null &&
+      activeRow.review_due_at_ms !== null &&
+      nowMs >= activeRow.review_due_at_ms
+    ) {
+      const checkpointEvent = emitTimeEventTx(conn, {
+        dedupKey: `checkpoint:${activeRow.id}:${activeRow.review_due_at_ms}`,
+        kind: "checkpoint_due",
+        activityId: activeRow.id,
+        title: activeRow.title,
+        message: `${activeRow.title} 已连续计时，请确认是否仍在进行`,
+        occurredAtMs: activeRow.review_due_at_ms,
+        payload: {
+          reviewDueAtMs: activeRow.review_due_at_ms,
+          confirmedThroughMs:
+            activeRow.confirmed_through_ms ?? activeRow.start_ms,
+        },
+        createdAtMs: nowMs,
+      });
+      return { checkpointEvent };
+    }
+
+    return {};
+  }
+
+  function needsDueSettlement(conn: DatabaseSync, nowMs: number): boolean {
+    if (restoring) return false;
+    const meta = readMeta(conn);
+    if (!meta.active_activity_id) return false;
+    const activeRow = conn
+      .prepare(
+        "SELECT id, end_ms, suspend_ms, auto_stop_at_ms, review_due_at_ms, timer_stopped_at_ms FROM activities WHERE id = ?",
+      )
+      .get(meta.active_activity_id) as
+      | Pick<
+          ActivityRow,
+          | "id"
+          | "end_ms"
+          | "suspend_ms"
+          | "auto_stop_at_ms"
+          | "review_due_at_ms"
+          | "timer_stopped_at_ms"
+        >
+      | undefined;
+    if (!activeRow || activeRow.end_ms !== null) return false;
+    if (
+      activeRow.auto_stop_at_ms !== null &&
+      nowMs >= activeRow.auto_stop_at_ms
+    ) {
+      // Avoid redundant write transactions when already frozen under pending_reconcile.
+      if (
+        activeRow.suspend_ms !== null &&
+        activeRow.suspend_ms <= activeRow.auto_stop_at_ms &&
+        activeRow.timer_stopped_at_ms !== null &&
+        getUnresolvedTimerHolders(conn).length > 0
+      ) {
+        return false;
+      }
+      return true;
+    }
+    if (
+      activeRow.auto_stop_at_ms === null &&
+      activeRow.suspend_ms === null &&
+      activeRow.review_due_at_ms !== null &&
+      nowMs >= activeRow.review_due_at_ms
+    ) {
+      const existingEvent = conn
+        .prepare("SELECT 1 FROM time_events WHERE dedup_key = ?")
+        .get(`checkpoint:${activeRow.id}:${activeRow.review_due_at_ms}`);
+      return !existingEvent;
+    }
+    return false;
+  }
+
+  function settleDueTimers(atMs?: number): {
+    settled: boolean;
+    activity?: Activity;
+    event?: TimeEvent;
+  } {
+    if (restoring) return { settled: false };
+    const conn = assertOpen();
+    const ts = atMs ?? nowFn();
+    if (!needsDueSettlement(conn, ts)) {
+      return { settled: false };
+    }
+    const res = inImmediateTx((txConn) => settleDueTimersTx(txConn, ts));
+    if (res.settledActivity) {
+      notifyScheduleListeners();
+    }
+    return {
+      settled: Boolean(res.settledActivity),
+      ...(res.settledActivity ? { activity: res.settledActivity } : {}),
+      ...(res.autoStopEvent
+        ? { event: res.autoStopEvent }
+        : res.checkpointEvent
+          ? { event: res.checkpointEvent }
+          : {}),
+    };
+  }
+
+  function getNextAutoStopDeadline(): number | null {
+    if (restoring) return null;
+    try {
+      const conn = assertOpen();
+      const meta = readMeta(conn);
+      if (!meta.active_activity_id) return null;
+      const active = conn
+        .prepare(
+          "SELECT end_ms, auto_stop_at_ms, review_due_at_ms FROM activities WHERE id = ?",
+        )
+        .get(meta.active_activity_id) as
+        | {
+            end_ms: number | null;
+            auto_stop_at_ms: number | null;
+            review_due_at_ms: number | null;
+          }
+        | undefined;
+      if (!active || active.end_ms !== null) return null;
+      if (active.auto_stop_at_ms !== null) return active.auto_stop_at_ms;
+      if (active.review_due_at_ms !== null) return active.review_due_at_ms;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  function subscribeScheduleChanges(listener: () => void): () => void {
+    scheduleListeners.add(listener);
+    return () => {
+      scheduleListeners.delete(listener);
+    };
   }
 
   function saveOperationReceipt(
@@ -711,6 +1320,7 @@ export async function createTimeStore(
   }
 
   function getStatus() {
+    settleDueTimers();
     const conn = assertOpen();
     const meta = readMeta(conn);
     const activeRow = meta.active_activity_id
@@ -832,6 +1442,7 @@ export async function createTimeStore(
     effectiveAtMs: number,
     ts: number,
     policy: TimePolicy,
+    options: { stopReason?: ActivityStopReason } = {},
   ): {
     closedActivity: Activity;
     modifiedEntry: UndoMetadata["modifiedActivities"][number];
@@ -844,10 +1455,13 @@ export async function createTimeStore(
         "Stop timestamp cannot be earlier than start time.",
       );
     }
-    const closeEndMs =
-      activeRow.suspend_ms !== null
-        ? Math.min(effectiveAtMs, activeRow.suspend_ms)
-        : effectiveAtMs;
+    let closeEndMs = effectiveAtMs;
+    if (activeRow.suspend_ms !== null) {
+      closeEndMs = Math.min(closeEndMs, activeRow.suspend_ms);
+    }
+    if (activeRow.auto_stop_at_ms !== null) {
+      closeEndMs = Math.min(closeEndMs, activeRow.auto_stop_at_ms);
+    }
     if (activeRow.start_ms !== null && closeEndMs > activeRow.start_ms) {
       const closingOverlaps = findLocatedOverlaps(
         conn,
@@ -870,6 +1484,17 @@ export async function createTimeStore(
       closeEndMs,
       policy,
     );
+    const stopReason: ActivityStopReason = options.stopReason ?? "manual_stop";
+    const keepUnconfirmed =
+      Boolean(warning) || activeRow.review_state === "review_required";
+    const nextConfirmedThrough = keepUnconfirmed
+      ? (activeRow.confirmed_through_ms ?? activeRow.start_ms ?? null)
+      : closeEndMs;
+    const nextReviewReason: ActivityReviewReason | null = warning
+      ? "long_activity"
+      : activeRow.review_state === "review_required"
+        ? activeRow.review_reason
+        : null;
     const nextVersion = activeRow.version + 1;
     const modifiedEntry: UndoMetadata["modifiedActivities"][number] = {
       id: activeRow.id,
@@ -879,12 +1504,26 @@ export async function createTimeStore(
     conn
       .prepare(
         `UPDATE activities
-         SET end_ms = ?, review_state = ?, version = ?, updated_at_ms = ?
+         SET end_ms = ?,
+             confirmed_through_ms = ?,
+             review_due_at_ms = NULL,
+             review_reason = ?,
+             review_state = ?,
+             timer_stopped_at_ms = ?,
+             stop_reason = ?,
+             processed_at_ms = ?,
+             version = ?,
+             updated_at_ms = ?
          WHERE id = ? AND version = ?`,
       )
       .run(
         closeEndMs,
+        nextConfirmedThrough,
+        nextReviewReason,
         reviewState,
+        closeEndMs,
+        stopReason,
+        ts,
         nextVersion,
         ts,
         activeRow.id,
@@ -911,6 +1550,10 @@ export async function createTimeStore(
       note?: string;
       rawInput?: string;
       effectiveAtMs: number;
+      timingPlanId?: string;
+      autoStopAtMs?: number;
+      autoStopBasis?: TimingPlanStopBasis;
+      limitVersion?: number;
     },
     ts: number,
     policy: TimePolicy,
@@ -936,6 +1579,10 @@ export async function createTimeStore(
       tags: input.tags,
     };
     const classified = resolveActivityCategory(policy, classificationInput);
+    const reviewDueAtMs =
+      input.autoStopAtMs === undefined
+        ? input.effectiveAtMs + DEFAULT_CHECKPOINT_INTERVAL_SECONDS * 1000
+        : undefined;
     const newActivity: Activity = {
       id: randomUUID(),
       version: 1,
@@ -949,6 +1596,16 @@ export async function createTimeStore(
         ? { projectSnapshot: input.projectSnapshot }
         : {}),
       startMs: input.effectiveAtMs,
+      confirmedThroughMs: input.effectiveAtMs,
+      ...(reviewDueAtMs !== undefined ? { reviewDueAtMs } : {}),
+      ...(input.timingPlanId ? { timingPlanId: input.timingPlanId } : {}),
+      ...(input.autoStopAtMs !== undefined
+        ? { autoStopAtMs: input.autoStopAtMs }
+        : {}),
+      ...(input.autoStopBasis ? { autoStopBasis: input.autoStopBasis } : {}),
+      ...(input.limitVersion !== undefined
+        ? { limitVersion: input.limitVersion }
+        : {}),
       precision: "exact",
       source: input.source ?? "timer",
       reviewState: "ok",
@@ -972,7 +1629,7 @@ export async function createTimeStore(
     idempotencyKey: string;
     receivedAtMs?: number;
     effectiveAtMs?: number;
-    title: string;
+    title?: string;
     explicitCategoryId?: string;
     taskUuid?: string;
     projectSnapshot?: string;
@@ -980,11 +1637,19 @@ export async function createTimeStore(
     source?: ActivitySource;
     note?: string;
     rawInput?: string;
+    timingPlanId?: string;
     sameTaskNoop?: boolean;
     expectedSessionVersion?: number;
   }): ActivityMutationReceipt {
-    const title = input.title.trim();
-    if (!title || title.length > 500) {
+    const rawTitle = input.title?.trim() ?? "";
+    if (!input.timingPlanId && (!rawTitle || rawTitle.length > 500)) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_TITLE",
+        "Activity title must be 1 to 500 characters.",
+      );
+    }
+    if (rawTitle.length > 500) {
       throw new TimeStoreError(
         400,
         "INVALID_TITLE",
@@ -994,7 +1659,7 @@ export async function createTimeStore(
     const receivedAtMs = input.receivedAtMs ?? nowFn();
     const effectiveAtMs = input.effectiveAtMs ?? nowFn();
     const normalized = {
-      title,
+      title: rawTitle,
       explicitCategoryId: input.explicitCategoryId,
       taskUuid: input.taskUuid,
       projectSnapshot: input.projectSnapshot,
@@ -1002,23 +1667,28 @@ export async function createTimeStore(
       source: input.source ?? "timer",
       note: input.note,
       rawInput: input.rawInput,
+      timingPlanId: input.timingPlanId,
       sameTaskNoop: Boolean(input.sameTaskNoop),
       expectedSessionVersion: input.expectedSessionVersion,
     };
     const inputHash = hashNormalizedInput("start", normalized);
 
-    return inImmediateTx((conn) => {
-      const meta = readMeta(conn);
+    const receipt = inImmediateTx((conn) => {
+      const initialMeta = readMeta(conn);
       const hit = checkExistingOperation<ActivityMutationReceipt>(
         conn,
-        meta,
+        initialMeta,
         input.idempotencyKey,
         inputHash,
         receivedAtMs,
       );
-      if (hit.hit) return hit.receipt;
+      if (hit.hit) return { receipt: hit.receipt, mutated: false };
 
       assertTimerSlotAvailable(conn);
+
+      const ts = nowFn();
+      const settlement = settleDueTimersTx(conn, ts);
+      const meta = readMeta(conn);
 
       if (
         input.expectedSessionVersion !== undefined &&
@@ -1033,7 +1703,6 @@ export async function createTimeStore(
       }
 
       const policy = parsePolicy(meta);
-      const ts = nowFn();
       const warnings: TimeWarning[] = [];
       const modifiedActivities: UndoMetadata["modifiedActivities"] = [];
 
@@ -1043,7 +1712,101 @@ export async function createTimeStore(
             .get(meta.active_activity_id) as ActivityRow | undefined)
         : undefined;
 
+      let resolvedTitle = rawTitle;
+      let resolvedCategoryId = input.explicitCategoryId;
+      let resolvedTaskUuid = input.taskUuid;
+      let resolvedProjectSnapshot = input.projectSnapshot;
+      let resolvedTags = input.tags;
+      let resolvedNote = input.note;
+      let autoStopAtMs: number | undefined;
+      let autoStopBasis: TimingPlanStopBasis | undefined;
+      let limitVersion: number | undefined;
+
+      if (input.timingPlanId) {
+        const planRow = conn
+          .prepare("SELECT * FROM timing_plans WHERE id = ?")
+          .get(input.timingPlanId) as TimingPlanRow | undefined;
+        if (!planRow || planRow.archived_at_ms !== null) {
+          throw new TimeStoreError(
+            404,
+            "TIMING_PLAN_NOT_FOUND",
+            "Timing plan not found or archived.",
+          );
+        }
+        if (
+          activeRow &&
+          activeRow.end_ms === null &&
+          activeRow.suspend_ms === null &&
+          activeRow.timing_plan_id === planRow.id
+        ) {
+          throw new TimeStoreError(
+            409,
+            "PLAN_ALREADY_ACTIVE",
+            "This timing plan already has an active running timer.",
+            { activeActivityId: activeRow.id, planId: planRow.id },
+          );
+        }
+        if (
+          planRow.hard_stop_at_ms !== null &&
+          effectiveAtMs >= planRow.hard_stop_at_ms
+        ) {
+          throw new TimeStoreError(
+            409,
+            "TIMING_PLAN_EXPIRED",
+            "原安排最晚停止时间已过，请重新安排或调整时间后再开始。",
+            { planId: planRow.id, hardStopAtMs: planRow.hard_stop_at_ms },
+          );
+        }
+        const planState = buildTimingPlanTx(conn, planRow, effectiveAtMs);
+        if (
+          planState.remainingSeconds !== undefined &&
+          planState.remainingSeconds <= 0
+        ) {
+          throw new TimeStoreError(
+            409,
+            "TIME_ALLOWANCE_EXHAUSTED",
+            "本次安排的计时额度已用完，请增加时长或新建安排。",
+            { planId: planRow.id, consumedSeconds: planState.consumedSeconds },
+          );
+        }
+        const stopLimit = computeStopLimit({
+          startMs: effectiveAtMs,
+          remainingAllowanceSeconds: planState.remainingSeconds,
+          hardStopAtMs: planState.hardStopAtMs,
+        });
+        if (
+          stopLimit.autoStopAtMs !== undefined &&
+          stopLimit.autoStopAtMs <= effectiveAtMs
+        ) {
+          throw new TimeStoreError(
+            409,
+            "TIMING_PLAN_EXPIRED",
+            "已无可用剩余时长，无法开始。",
+            { planId: planRow.id },
+          );
+        }
+        autoStopAtMs = stopLimit.autoStopAtMs;
+        autoStopBasis = stopLimit.autoStopBasis;
+        limitVersion = planRow.version;
+        resolvedTitle = resolvedTitle || planState.title;
+        resolvedCategoryId = resolvedCategoryId ?? planState.categoryId;
+        resolvedTaskUuid = resolvedTaskUuid ?? planState.taskUuid;
+        resolvedProjectSnapshot =
+          resolvedProjectSnapshot ?? planState.projectSnapshot;
+        resolvedTags = resolvedTags ?? planState.tags;
+        resolvedNote = resolvedNote ?? planState.note;
+      }
+
+      if (!resolvedTitle || resolvedTitle.length > 500) {
+        throw new TimeStoreError(
+          400,
+          "INVALID_TITLE",
+          "Activity title must be 1 to 500 characters.",
+        );
+      }
+
       if (
+        !input.timingPlanId &&
         activeRow &&
         input.sameTaskNoop &&
         input.taskUuid &&
@@ -1052,7 +1815,7 @@ export async function createTimeStore(
         activeRow.suspend_ms === null
       ) {
         const operationId = randomUUID();
-        const receipt: ActivityMutationReceipt = {
+        const sameReceipt: ActivityMutationReceipt = {
           operationId,
           idempotencyKey: input.idempotencyKey,
           changed: false,
@@ -1073,10 +1836,13 @@ export async function createTimeStore(
           targetActivityId: activeRow.id,
           targetTaskUuid: input.taskUuid,
           effectiveAtMs,
-          receipt,
+          receipt: sameReceipt,
           nowMs: ts,
         });
-        return receipt;
+        return {
+          receipt: sameReceipt,
+          mutated: Boolean(settlement.settledActivity),
+        };
       }
 
       let closedActivity: Activity | undefined;
@@ -1087,6 +1853,7 @@ export async function createTimeStore(
           effectiveAtMs,
           ts,
           policy,
+          { stopReason: "manual_switch" },
         );
         closedActivity = closedRes.closedActivity;
         modifiedActivities.push(closedRes.modifiedEntry);
@@ -1097,15 +1864,19 @@ export async function createTimeStore(
         conn,
         meta,
         {
-          title,
-          explicitCategoryId: input.explicitCategoryId,
-          taskUuid: input.taskUuid,
-          projectSnapshot: input.projectSnapshot,
-          tags: input.tags,
+          title: resolvedTitle,
+          explicitCategoryId: resolvedCategoryId,
+          taskUuid: resolvedTaskUuid,
+          projectSnapshot: resolvedProjectSnapshot,
+          tags: resolvedTags,
           source: input.source,
-          note: input.note,
+          note: resolvedNote,
           rawInput: input.rawInput,
           effectiveAtMs,
+          timingPlanId: input.timingPlanId,
+          autoStopAtMs,
+          autoStopBasis,
+          limitVersion,
         },
         ts,
         policy,
@@ -1120,7 +1891,7 @@ export async function createTimeStore(
         expectedPostActiveActivityId: newActivity.id,
         restoreActiveActivityId: activeRow?.id ?? null,
       };
-      const receipt: ActivityMutationReceipt = {
+      const appliedReceipt: ActivityMutationReceipt = {
         operationId,
         idempotencyKey: input.idempotencyKey,
         changed: true,
@@ -1141,13 +1912,16 @@ export async function createTimeStore(
         receivedAtMs,
         state: "applied",
         targetActivityId: newActivity.id,
-        targetTaskUuid: input.taskUuid,
+        targetTaskUuid: resolvedTaskUuid,
         effectiveAtMs,
-        receipt,
+        receipt: appliedReceipt,
         nowMs: ts,
       });
-      return receipt;
+      return { receipt: appliedReceipt, mutated: true };
     });
+
+    if (receipt.mutated) notifyScheduleListeners();
+    return receipt.receipt;
   }
 
   function stopActivity(input: {
@@ -1157,6 +1931,7 @@ export async function createTimeStore(
     expectedActivityId?: string;
     expectedVersion?: number;
     expectedSessionVersion?: number;
+    pause?: boolean;
   }): ActivityMutationReceipt {
     const receivedAtMs = input.receivedAtMs ?? nowFn();
     const effectiveAtMs = input.effectiveAtMs ?? nowFn();
@@ -1164,21 +1939,26 @@ export async function createTimeStore(
       expectedActivityId: input.expectedActivityId,
       expectedVersion: input.expectedVersion,
       expectedSessionVersion: input.expectedSessionVersion,
+      pause: Boolean(input.pause),
     };
     const inputHash = hashNormalizedInput("stop", normalized);
 
-    return inImmediateTx((conn) => {
-      const meta = readMeta(conn);
+    const outcome = inImmediateTx((conn) => {
+      const initialMeta = readMeta(conn);
       const hit = checkExistingOperation<ActivityMutationReceipt>(
         conn,
-        meta,
+        initialMeta,
         input.idempotencyKey,
         inputHash,
         receivedAtMs,
       );
-      if (hit.hit) return hit.receipt;
+      if (hit.hit) return { receipt: hit.receipt, mutated: false };
 
       assertTimerSlotAvailable(conn);
+
+      const ts = nowFn();
+      settleDueTimersTx(conn, ts);
+      const meta = readMeta(conn);
 
       if (
         input.expectedSessionVersion !== undefined &&
@@ -1234,12 +2014,13 @@ export async function createTimeStore(
         );
       }
       const policy = parsePolicy(meta);
-      const ts = nowFn();
       const {
         closedActivity: closed,
         modifiedEntry,
         warning,
-      } = closeActiveRowTx(conn, activeRow, effectiveAtMs, ts, policy);
+      } = closeActiveRowTx(conn, activeRow, effectiveAtMs, ts, policy, {
+        stopReason: input.pause ? "manual_pause" : "manual_stop",
+      });
       const warnings = warning ? [warning] : [];
 
       const nextSessionVersion = meta.session_version + 1;
@@ -1250,7 +2031,7 @@ export async function createTimeStore(
         .run(nextSessionVersion, ts);
 
       const operationId = randomUUID();
-      const receipt: ActivityMutationReceipt = {
+      const appliedReceipt: ActivityMutationReceipt = {
         operationId,
         idempotencyKey: input.idempotencyKey,
         changed: true,
@@ -1277,11 +2058,14 @@ export async function createTimeStore(
         targetActivityId: closed.id,
         targetTaskUuid: closed.taskUuid,
         effectiveAtMs,
-        receipt,
+        receipt: appliedReceipt,
         nowMs: ts,
       });
-      return receipt;
+      return { receipt: appliedReceipt, mutated: true };
     });
+
+    if (outcome.mutated) notifyScheduleListeners();
+    return outcome.receipt;
   }
 
   function logLocatedActivity(input: {
@@ -1347,6 +2131,8 @@ export async function createTimeStore(
       if (hit.hit) return hit.receipt;
 
       const ts = nowFn();
+      const settlement = settleDueTimersTx(conn, ts);
+      const settledMeta = settlement.settledActivity ? readMeta(conn) : meta;
       const overlaps = findLocatedOverlaps(
         conn,
         input.startMs,
@@ -1362,7 +2148,7 @@ export async function createTimeStore(
         );
       }
 
-      const policy = parsePolicy(meta);
+      const policy = parsePolicy(settledMeta);
       const classified = resolveActivityCategory(policy, {
         explicitCategoryId: input.explicitCategoryId,
         taskUuid: input.taskUuid,
@@ -1384,6 +2170,7 @@ export async function createTimeStore(
           : {}),
         startMs: input.startMs,
         endMs: input.endMs,
+        confirmedThroughMs: input.endMs,
         precision: input.precision ?? "exact",
         source: input.source ?? "manual",
         reviewState: "ok",
@@ -1688,6 +2475,7 @@ export async function createTimeStore(
            SET kind = 'located',
                start_ms = ?,
                end_ms = ?,
+               confirmed_through_ms = ?,
                precision = ?,
                review_state = 'ok',
                version = ?,
@@ -1696,6 +2484,7 @@ export async function createTimeStore(
         )
         .run(
           input.startMs,
+          input.endMs,
           input.endMs,
           nextPrecision,
           nextVersion,
@@ -1777,16 +2566,20 @@ export async function createTimeStore(
     };
     const inputHash = hashNormalizedInput("update_activity", normalized);
 
-    return inImmediateTx((conn) => {
-      const meta = readMeta(conn);
+    const outcome = inImmediateTx((conn) => {
+      const initialMeta = readMeta(conn);
       const hit = checkExistingOperation<ActivityMutationReceipt>(
         conn,
-        meta,
+        initialMeta,
         input.idempotencyKey,
         inputHash,
         receivedAtMs,
       );
-      if (hit.hit) return hit.receipt;
+      if (hit.hit) return { receipt: hit.receipt, notify: false };
+
+      const ts = nowFn();
+      const settlement = settleDueTimersTx(conn, ts);
+      const meta = settlement.settledActivity ? readMeta(conn) : initialMeta;
 
       const row = conn
         .prepare("SELECT * FROM activities WHERE id = ?")
@@ -1808,7 +2601,6 @@ export async function createTimeStore(
       }
 
       const policy = parsePolicy(meta);
-      const ts = nowFn();
       const patch = input.patch;
 
       const nextTitle =
@@ -1851,6 +2643,9 @@ export async function createTimeStore(
       let nextTargetDate = row.target_date;
       let nextEstimatedSeconds = row.estimated_seconds;
       let nextReviewState = row.review_state;
+      let updatedConfirmedThroughMs = row.confirmed_through_ms;
+      let updatedReviewDueAtMs = row.review_due_at_ms;
+      let updatedReviewReason = row.review_reason;
 
       if (row.kind === "located") {
         if (patch.startMs !== undefined) nextStartMs = patch.startMs;
@@ -1894,13 +2689,46 @@ export async function createTimeStore(
           );
         }
 
+        let nextConfirmedThroughMs = row.confirmed_through_ms;
+        let nextReviewDueAtMs = row.review_due_at_ms;
+        let nextReviewReason = row.review_reason;
+
         if (
           patch.confirmReview ||
           (patch.endMs !== undefined && row.review_state === "review_required")
         ) {
           nextReviewState = "ok";
-          if (nextEndMs !== null) nextSuspendMs = null;
+          nextReviewReason = null;
+          nextReviewDueAtMs = null;
+          if (nextEndMs !== null) {
+            nextSuspendMs = null;
+            nextConfirmedThroughMs = nextEndMs;
+          } else if (patch.confirmReview) {
+            nextConfirmedThroughMs = Math.min(
+              ts,
+              row.auto_stop_at_ms ?? ts,
+              nextSuspendMs ?? ts,
+            );
+          }
+        } else if (patch.endMs !== undefined && nextEndMs !== null) {
+          if (
+            nextConfirmedThroughMs !== null &&
+            nextEndMs < nextConfirmedThroughMs
+          ) {
+            nextConfirmedThroughMs = nextEndMs;
+          } else if (row.review_state === "ok") {
+            nextConfirmedThroughMs = nextEndMs;
+          }
         }
+        if (
+          nextConfirmedThroughMs !== null &&
+          nextConfirmedThroughMs < nextStartMs
+        ) {
+          nextConfirmedThroughMs = nextStartMs;
+        }
+        updatedConfirmedThroughMs = nextConfirmedThroughMs;
+        updatedReviewDueAtMs = nextReviewDueAtMs;
+        updatedReviewReason = nextReviewReason;
       } else {
         if (patch.estimatedSeconds !== undefined) {
           if (
@@ -1960,6 +2788,7 @@ export async function createTimeStore(
           `UPDATE activities
            SET title = ?, category_id = ?, rule_version = ?, rule_source = ?,
                task_uuid = ?, start_ms = ?, end_ms = ?, suspend_ms = ?,
+               confirmed_through_ms = ?, review_due_at_ms = ?, review_reason = ?,
                window_start_ms = ?, window_end_ms = ?, target_date = ?,
                estimated_seconds = ?, precision = ?, review_state = ?,
                note = ?, version = ?, updated_at_ms = ?
@@ -1974,6 +2803,9 @@ export async function createTimeStore(
           nextStartMs,
           nextEndMs,
           nextSuspendMs,
+          updatedConfirmedThroughMs,
+          updatedReviewDueAtMs,
+          updatedReviewReason,
           nextWindowStartMs,
           nextWindowEndMs,
           nextTargetDate,
@@ -2001,7 +2833,7 @@ export async function createTimeStore(
           .get(row.id) as ActivityRow,
       );
       const operationId = randomUUID();
-      const receipt: ActivityMutationReceipt = {
+      const appliedReceipt: ActivityMutationReceipt = {
         operationId,
         idempotencyKey: input.idempotencyKey,
         changed: true,
@@ -2033,11 +2865,16 @@ export async function createTimeStore(
         state: "applied",
         targetActivityId: updated.id,
         targetTaskUuid: updated.taskUuid,
-        receipt,
+        receipt: appliedReceipt,
         nowMs: ts,
       });
-      return receipt;
+      return {
+        receipt: appliedReceipt,
+        notify: Boolean(clearedActive || settlement.settledActivity),
+      };
     });
+    if (outcome.notify) notifyScheduleListeners();
+    return outcome.receipt;
   }
 
   function undoOperation(input: {
@@ -2054,7 +2891,8 @@ export async function createTimeStore(
       targetOperationId: input.targetOperationId,
     });
 
-    return inImmediateTx((conn) => {
+    let shouldNotify = false;
+    const outcome = inImmediateTx((conn) => {
       const meta = readMeta(conn);
       const hit = checkExistingOperation<{
         operationId: string;
@@ -2166,6 +3004,9 @@ export async function createTimeStore(
             `UPDATE activities
              SET kind = ?, title = ?, category_id = ?, rule_version = ?, rule_source = ?,
                  task_uuid = ?, project_snapshot = ?, start_ms = ?, end_ms = ?, suspend_ms = ?,
+                 confirmed_through_ms = ?, review_due_at_ms = ?, review_reason = ?,
+                 timing_plan_id = ?, auto_stop_at_ms = ?, auto_stop_basis = ?, limit_version = ?,
+                 timer_stopped_at_ms = ?, stop_reason = ?, processed_at_ms = ?,
                  window_start_ms = ?, window_end_ms = ?, target_date = ?, estimated_seconds = ?,
                  precision = ?, source = ?, review_state = ?, note = ?, candidate_key = ?,
                  version = ?, updated_at_ms = ?
@@ -2182,6 +3023,16 @@ export async function createTimeStore(
             r.startMs,
             r.endMs,
             r.suspendMs,
+            r.confirmedThroughMs ?? null,
+            r.reviewDueAtMs ?? null,
+            r.reviewReason ?? null,
+            r.timingPlanId ?? null,
+            r.autoStopAtMs ?? null,
+            r.autoStopBasis ?? null,
+            r.limitVersion ?? null,
+            r.timerStoppedAtMs ?? null,
+            r.stopReason ?? null,
+            r.processedAtMs ?? null,
             r.windowStartMs,
             r.windowEndMs,
             r.targetDate,
@@ -2208,6 +3059,7 @@ export async function createTimeStore(
         ? meta.session_version + 1
         : meta.session_version;
       if (undo.touchedTimer) {
+        shouldNotify = true;
         conn
           .prepare(
             "UPDATE time_meta SET active_activity_id = ?, session_version = ?, updated_at_ms = ? WHERE id = 1",
@@ -2241,6 +3093,8 @@ export async function createTimeStore(
       });
       return undoReceipt;
     });
+    if (shouldNotify) notifyScheduleListeners();
+    return outcome;
   }
 
   function confirmSleepCandidate(input: {
@@ -2346,6 +3200,7 @@ export async function createTimeStore(
         ruleSource: "explicit",
         startMs,
         endMs,
+        confirmedThroughMs: endMs,
         precision: "estimated_bounds",
         source: "sleep_candidate",
         reviewState: "ok",
@@ -2451,6 +3306,833 @@ export async function createTimeStore(
     });
   }
 
+  function confirmActivity(input: {
+    idempotencyKey: string;
+    receivedAtMs?: number;
+    activityId: string;
+    expectedVersion: number;
+    throughMs?: number;
+    nextCheckpointSeconds?: number;
+  }): ActivityMutationReceipt {
+    const receivedAtMs = input.receivedAtMs ?? nowFn();
+    const inputHash = hashNormalizedInput("confirm_activity", {
+      activityId: input.activityId,
+      expectedVersion: input.expectedVersion,
+      throughMs: input.throughMs,
+      nextCheckpointSeconds: input.nextCheckpointSeconds,
+    });
+
+    const outcome = inImmediateTx((conn) => {
+      const initialMeta = readMeta(conn);
+      const hit = checkExistingOperation<ActivityMutationReceipt>(
+        conn,
+        initialMeta,
+        input.idempotencyKey,
+        inputHash,
+        receivedAtMs,
+      );
+      if (hit.hit) return { receipt: hit.receipt, notify: false };
+
+      const ts = nowFn();
+      const settlement = settleDueTimersTx(conn, ts);
+      const meta = settlement.settledActivity ? readMeta(conn) : initialMeta;
+
+      const row = conn
+        .prepare("SELECT * FROM activities WHERE id = ?")
+        .get(input.activityId) as ActivityRow | undefined;
+      if (!row || row.review_state === "voided") {
+        throw new TimeStoreError(
+          404,
+          "ACTIVITY_NOT_FOUND",
+          "Activity not found.",
+        );
+      }
+      if (row.kind !== "located" || row.start_ms === null) {
+        throw new TimeStoreError(
+          400,
+          "INVALID_ACTIVITY",
+          "Only located activities can be checkpoint-confirmed.",
+        );
+      }
+      if (row.version !== input.expectedVersion) {
+        throw new TimeStoreError(
+          409,
+          "ACTIVITY_VERSION_CONFLICT",
+          "Activity was modified concurrently. Refresh before confirming.",
+          { currentVersion: row.version },
+        );
+      }
+
+      const maxUpperMs =
+        row.end_ms ??
+        Math.min(ts, row.suspend_ms ?? ts, row.auto_stop_at_ms ?? ts);
+      const requestedThrough =
+        input.throughMs !== undefined
+          ? Math.min(maxUpperMs, Math.max(row.start_ms, input.throughMs))
+          : maxUpperMs;
+      const existingConfirmed = row.confirmed_through_ms ?? row.start_ms;
+      const nextConfirmedThroughMs = Math.max(
+        existingConfirmed,
+        requestedThrough,
+      );
+
+      let nextReviewState: ActivityReviewState = row.review_state;
+      let nextReviewReason: ActivityReviewReason | null = row.review_reason;
+      let nextReviewDueAtMs: number | null = row.review_due_at_ms;
+      let nextSuspendMs: number | null = row.suspend_ms;
+
+      if (row.end_ms !== null) {
+        if (nextConfirmedThroughMs >= row.end_ms) {
+          nextReviewState = "ok";
+          nextReviewReason = null;
+          nextReviewDueAtMs = null;
+          nextSuspendMs = null;
+        }
+      } else {
+        // Active running activity checkpoint confirmation advances confirmed prefix
+        // and schedules next checkpoint ONLY when uncapped.
+        const checkpointSec =
+          input.nextCheckpointSeconds ?? DEFAULT_CHECKPOINT_INTERVAL_SECONDS;
+        if (row.auto_stop_at_ms === null) {
+          nextReviewDueAtMs =
+            nextConfirmedThroughMs + Math.max(60, checkpointSec) * 1000;
+        } else {
+          nextReviewDueAtMs = null;
+        }
+        if (row.suspend_ms === null) {
+          nextReviewState = "ok";
+          nextReviewReason = null;
+        }
+      }
+
+      const nextVersion = row.version + 1;
+      conn
+        .prepare(
+          `UPDATE activities
+           SET confirmed_through_ms = ?,
+               review_due_at_ms = ?,
+               review_reason = ?,
+               review_state = ?,
+               suspend_ms = ?,
+               version = ?,
+               updated_at_ms = ?
+           WHERE id = ? AND version = ?`,
+        )
+        .run(
+          nextConfirmedThroughMs,
+          nextReviewDueAtMs,
+          nextReviewReason,
+          nextReviewState,
+          nextSuspendMs,
+          nextVersion,
+          ts,
+          row.id,
+          row.version,
+        );
+
+      const updated = rowToActivity(
+        conn
+          .prepare("SELECT * FROM activities WHERE id = ?")
+          .get(row.id) as ActivityRow,
+      );
+      const operationId = randomUUID();
+      const appliedReceipt: ActivityMutationReceipt = {
+        operationId,
+        idempotencyKey: input.idempotencyKey,
+        changed: true,
+        activity: updated,
+        warnings: [],
+        sessionVersion: meta.session_version,
+        timeEpoch: meta.time_epoch,
+        taskDataEpoch: meta.task_data_epoch,
+        undo: {
+          modifiedActivities: [
+            {
+              id: row.id,
+              expectedPostVersion: nextVersion,
+              restore: captureSnapshotFields(row),
+            },
+          ],
+          touchedTimer: false,
+          expectedPostActiveActivityId: meta.active_activity_id,
+          restoreActiveActivityId: meta.active_activity_id,
+        },
+      };
+      saveOperationReceipt(conn, {
+        idempotencyKey: input.idempotencyKey,
+        operationId,
+        kind: "confirm_activity",
+        inputHash,
+        meta,
+        receivedAtMs,
+        state: "applied",
+        targetActivityId: updated.id,
+        targetTaskUuid: updated.taskUuid,
+        receipt: appliedReceipt,
+        nowMs: ts,
+      });
+      return {
+        receipt: appliedReceipt,
+        notify: updated.endMs === undefined,
+      };
+    });
+    if (outcome.notify) notifyScheduleListeners();
+    return outcome.receipt;
+  }
+
+  function createTimingPlan(input: {
+    idempotencyKey?: string;
+    receivedAtMs?: number;
+    title: string;
+    categoryId?: string;
+    taskUuid?: string;
+    projectSnapshot?: string;
+    tags?: string[];
+    note?: string;
+    allowanceSeconds?: number;
+    plannedStartAtMs?: number;
+    hardStopAtMs?: number;
+  }): {
+    operationId: string;
+    plan: TimingPlan;
+  } {
+    const idempotencyKey =
+      input.idempotencyKey ?? `plan_create:${randomUUID()}`;
+    const receivedAtMs = input.receivedAtMs ?? nowFn();
+    const title = input.title.trim();
+    if (!title || title.length > 500) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_TITLE",
+        "Plan title must be 1 to 500 characters.",
+      );
+    }
+    if (
+      input.allowanceSeconds !== undefined &&
+      (!Number.isFinite(input.allowanceSeconds) || input.allowanceSeconds <= 0)
+    ) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_TIMING_PLAN",
+        "Planned duration must be positive.",
+      );
+    }
+    if (
+      input.plannedStartAtMs !== undefined &&
+      !Number.isFinite(input.plannedStartAtMs)
+    ) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_TIMING_PLAN",
+        "Planned start time is invalid.",
+      );
+    }
+    if (
+      input.hardStopAtMs !== undefined &&
+      !Number.isFinite(input.hardStopAtMs)
+    ) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_TIMING_PLAN",
+        "Latest stop time is invalid.",
+      );
+    }
+    if (
+      input.allowanceSeconds === undefined &&
+      input.plannedStartAtMs === undefined &&
+      input.hardStopAtMs === undefined
+    ) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_TIMING_PLAN",
+        "Timing plan requires at least one of duration, planned start, or latest stop.",
+      );
+    }
+    if (
+      input.plannedStartAtMs !== undefined &&
+      input.hardStopAtMs !== undefined &&
+      input.plannedStartAtMs >= input.hardStopAtMs
+    ) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_TIMING_PLAN",
+        "最晚停止时间必须晚于计划开始时间。",
+      );
+    }
+
+    const allowanceSeconds =
+      input.allowanceSeconds !== undefined
+        ? Math.round(input.allowanceSeconds)
+        : undefined;
+    const inputHash = hashNormalizedInput("create_timing_plan", {
+      title,
+      categoryId: input.categoryId,
+      taskUuid: input.taskUuid,
+      projectSnapshot: input.projectSnapshot,
+      tags: input.tags,
+      note: input.note,
+      allowanceSeconds,
+      plannedStartAtMs: input.plannedStartAtMs,
+      hardStopAtMs: input.hardStopAtMs,
+    });
+
+    return inImmediateTx((conn) => {
+      const initialMeta = readMeta(conn);
+      const hit = checkExistingOperation<{
+        operationId: string;
+        plan: TimingPlan;
+      }>(conn, initialMeta, idempotencyKey, inputHash, receivedAtMs);
+      if (hit.hit) return hit.receipt;
+
+      const ts = nowFn();
+      const settlement = settleDueTimersTx(conn, ts);
+      const meta = settlement.settledActivity ? readMeta(conn) : initialMeta;
+      const policy = parsePolicy(meta);
+
+      if (input.hardStopAtMs !== undefined && input.hardStopAtMs <= ts) {
+        throw new TimeStoreError(
+          400,
+          "INVALID_TIMING_PLAN",
+          "最晚停止时间必须晚于当前时间。",
+        );
+      }
+
+      if (input.categoryId !== undefined) {
+        const valid = new Set(policy.categories.map((c) => c.id));
+        valid.add("uncategorized");
+        if (!valid.has(input.categoryId)) {
+          throw new TimeStoreError(
+            400,
+            "INVALID_CATEGORY",
+            `Unknown category: ${input.categoryId}`,
+          );
+        }
+      }
+
+      const id = randomUUID();
+      conn
+        .prepare(
+          `INSERT INTO timing_plans (
+            id, version, title, category_id, task_uuid, project_snapshot,
+            tags_json, note, timezone, allowance_seconds,
+            planned_start_at_ms, hard_stop_at_ms, archived_at_ms,
+            created_at_ms, updated_at_ms
+          ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+        )
+        .run(
+          id,
+          title,
+          input.categoryId ?? null,
+          input.taskUuid ?? null,
+          input.projectSnapshot ?? null,
+          input.tags && input.tags.length > 0
+            ? JSON.stringify(input.tags)
+            : null,
+          input.note ?? null,
+          policy.timezone,
+          allowanceSeconds ?? null,
+          input.plannedStartAtMs ?? null,
+          input.hardStopAtMs ?? null,
+          ts,
+          ts,
+        );
+
+      const planRow = conn
+        .prepare("SELECT * FROM timing_plans WHERE id = ?")
+        .get(id) as TimingPlanRow;
+      const plan = buildTimingPlanTx(conn, planRow, ts);
+      const operationId = randomUUID();
+      const receipt = { operationId, plan };
+      saveOperationReceipt(conn, {
+        idempotencyKey,
+        operationId,
+        kind: "create_timing_plan",
+        inputHash,
+        meta,
+        receivedAtMs,
+        state: "applied",
+        targetTaskUuid: input.taskUuid,
+        receipt,
+        nowMs: ts,
+      });
+      return receipt;
+    });
+  }
+
+  function updateTimingPlan(input: {
+    idempotencyKey?: string;
+    receivedAtMs?: number;
+    planId: string;
+    expectedVersion: number;
+    expectedSessionVersion?: number;
+    expectedActivityId?: string;
+    expectedActivityVersion?: number;
+    patch: {
+      title?: string;
+      categoryId?: string | null;
+      taskUuid?: string | null;
+      projectSnapshot?: string | null;
+      tags?: string[] | null;
+      note?: string | null;
+      allowanceSeconds?: number | null;
+      addAllowanceSeconds?: number;
+      plannedStartAtMs?: number | null;
+      hardStopAtMs?: number | null;
+      archived?: boolean;
+    };
+  }): {
+    operationId: string;
+    plan: TimingPlan;
+    updatedActivity?: Activity;
+    sessionVersion: number;
+  } {
+    const idempotencyKey =
+      input.idempotencyKey ?? `plan_update:${randomUUID()}`;
+    const receivedAtMs = input.receivedAtMs ?? nowFn();
+    const inputHash = hashNormalizedInput("update_timing_plan", {
+      planId: input.planId,
+      expectedVersion: input.expectedVersion,
+      expectedSessionVersion: input.expectedSessionVersion,
+      expectedActivityId: input.expectedActivityId,
+      expectedActivityVersion: input.expectedActivityVersion,
+      patch: input.patch,
+    });
+
+    const outcome = inImmediateTx((conn) => {
+      const initialMeta = readMeta(conn);
+      const hit = checkExistingOperation<{
+        operationId: string;
+        plan: TimingPlan;
+        updatedActivity?: Activity;
+        sessionVersion: number;
+      }>(conn, initialMeta, idempotencyKey, inputHash, receivedAtMs);
+      if (hit.hit) return { receipt: hit.receipt, notify: false };
+
+      assertTimerSlotAvailable(conn);
+
+      const ts = nowFn();
+      const settlement = settleDueTimersTx(conn, ts);
+      const meta = readMeta(conn);
+
+      if (
+        input.expectedSessionVersion !== undefined &&
+        input.expectedSessionVersion !== meta.session_version
+      ) {
+        throw new TimeStoreError(
+          409,
+          "SESSION_VERSION_CONFLICT",
+          "Timer session changed before plan update could be applied.",
+          { sessionVersion: meta.session_version },
+        );
+      }
+
+      const planRow = conn
+        .prepare("SELECT * FROM timing_plans WHERE id = ?")
+        .get(input.planId) as TimingPlanRow | undefined;
+      if (!planRow) {
+        throw new TimeStoreError(
+          404,
+          "TIMING_PLAN_NOT_FOUND",
+          "Timing plan not found.",
+        );
+      }
+      if (planRow.version !== input.expectedVersion) {
+        throw new TimeStoreError(
+          409,
+          "TIMING_PLAN_VERSION_CONFLICT",
+          "Timing plan was modified concurrently. Refresh before updating.",
+          { currentVersion: planRow.version },
+        );
+      }
+
+      const policy = parsePolicy(meta);
+      const patch = input.patch;
+      const nextTitle =
+        patch.title !== undefined ? patch.title.trim() : planRow.title;
+      if (!nextTitle || nextTitle.length > 500) {
+        throw new TimeStoreError(
+          400,
+          "INVALID_TITLE",
+          "Plan title must be 1 to 500 characters.",
+        );
+      }
+
+      let nextCategoryId = planRow.category_id;
+      if (patch.categoryId !== undefined) {
+        if (patch.categoryId !== null) {
+          const valid = new Set(policy.categories.map((c) => c.id));
+          valid.add("uncategorized");
+          if (!valid.has(patch.categoryId)) {
+            throw new TimeStoreError(
+              400,
+              "INVALID_CATEGORY",
+              `Unknown category: ${patch.categoryId}`,
+            );
+          }
+        }
+        nextCategoryId = patch.categoryId;
+      }
+
+      const nextTaskUuid =
+        patch.taskUuid === undefined ? planRow.task_uuid : patch.taskUuid;
+      const nextProject =
+        patch.projectSnapshot === undefined
+          ? planRow.project_snapshot
+          : patch.projectSnapshot;
+      const nextTagsJson =
+        patch.tags === undefined
+          ? planRow.tags_json
+          : patch.tags && patch.tags.length > 0
+            ? JSON.stringify(patch.tags)
+            : null;
+      const nextNote = patch.note === undefined ? planRow.note : patch.note;
+      const nextPlannedStart =
+        patch.plannedStartAtMs === undefined
+          ? planRow.planned_start_at_ms
+          : patch.plannedStartAtMs;
+      const nextHardStop =
+        patch.hardStopAtMs === undefined
+          ? planRow.hard_stop_at_ms
+          : patch.hardStopAtMs;
+      const nextArchivedAt =
+        patch.archived === undefined
+          ? planRow.archived_at_ms
+          : patch.archived
+            ? (planRow.archived_at_ms ?? ts)
+            : null;
+
+      if (
+        patch.addAllowanceSeconds !== undefined &&
+        (!Number.isFinite(patch.addAllowanceSeconds) ||
+          patch.addAllowanceSeconds <= 0)
+      ) {
+        throw new TimeStoreError(
+          400,
+          "INVALID_TIMING_PLAN",
+          "Added duration must be positive.",
+        );
+      }
+      if (
+        patch.allowanceSeconds !== undefined &&
+        patch.allowanceSeconds !== null &&
+        (!Number.isFinite(patch.allowanceSeconds) ||
+          patch.allowanceSeconds <= 0)
+      ) {
+        throw new TimeStoreError(
+          400,
+          "INVALID_TIMING_PLAN",
+          "Allowance duration must be positive.",
+        );
+      }
+
+      // Compute prior closed consumption vs active running segment consumption.
+      const linkedRows = conn
+        .prepare(
+          `SELECT * FROM activities
+           WHERE timing_plan_id = ?
+             AND kind = 'located'
+             AND review_state != 'voided'
+           ORDER BY COALESCE(start_ms, created_at_ms) ASC`,
+        )
+        .all(planRow.id) as ActivityRow[];
+
+      let priorClosedSeconds = 0;
+      let totalConsumedSeconds = 0;
+      let activeRow: ActivityRow | undefined;
+      for (const segRow of linkedRows) {
+        const seg = rowToActivity(segRow);
+        if (seg.startMs === undefined) continue;
+        const segEnd = effectiveActivityEndMs(seg, ts) ?? seg.startMs;
+        const secs = Math.max(0, Math.floor((segEnd - seg.startMs) / 1000));
+        totalConsumedSeconds += secs;
+        if (segRow.id === meta.active_activity_id && segRow.end_ms === null) {
+          activeRow = segRow;
+        } else {
+          priorClosedSeconds += secs;
+        }
+      }
+
+      if (
+        input.expectedActivityId !== undefined &&
+        activeRow?.id !== input.expectedActivityId
+      ) {
+        throw new TimeStoreError(
+          409,
+          "ACTIVE_ACTIVITY_MISMATCH",
+          "The active segment for this timing plan has already ended.",
+          { activeActivityId: activeRow?.id ?? null },
+        );
+      }
+      if (
+        input.expectedActivityVersion !== undefined &&
+        activeRow?.version !== input.expectedActivityVersion
+      ) {
+        throw new TimeStoreError(
+          409,
+          "ACTIVITY_VERSION_CONFLICT",
+          "Active segment changed before extending.",
+          { currentVersion: activeRow?.version ?? null },
+        );
+      }
+
+      let nextAllowance: number | null = planRow.allowance_seconds;
+      if (patch.allowanceSeconds !== undefined) {
+        nextAllowance =
+          patch.allowanceSeconds !== null
+            ? Math.round(patch.allowanceSeconds)
+            : null;
+      } else if (patch.addAllowanceSeconds !== undefined) {
+        const baseAllowance = planRow.allowance_seconds ?? totalConsumedSeconds;
+        nextAllowance = baseAllowance + Math.round(patch.addAllowanceSeconds);
+      }
+
+      if (
+        nextAllowance === null &&
+        nextPlannedStart === null &&
+        nextHardStop === null
+      ) {
+        throw new TimeStoreError(
+          400,
+          "INVALID_TIMING_PLAN",
+          "Timing plan must keep at least one of duration, planned start, or latest stop.",
+        );
+      }
+      if (
+        nextPlannedStart !== null &&
+        nextHardStop !== null &&
+        nextPlannedStart >= nextHardStop
+      ) {
+        throw new TimeStoreError(
+          400,
+          "INVALID_TIMING_PLAN",
+          "最晚停止时间必须晚于计划开始时间。",
+        );
+      }
+
+      const modifyingLimits =
+        patch.allowanceSeconds !== undefined ||
+        patch.addAllowanceSeconds !== undefined ||
+        patch.hardStopAtMs !== undefined;
+
+      if (modifyingLimits && nextHardStop !== null && nextHardStop <= ts) {
+        throw new TimeStoreError(
+          409,
+          "TIMING_PLAN_EXPIRED",
+          "最晚停止时间已过，若需延长时间请同时延后最晚停止时刻。",
+          { hardStopAtMs: nextHardStop },
+        );
+      }
+      if (
+        modifyingLimits &&
+        nextAllowance !== null &&
+        nextAllowance <= totalConsumedSeconds
+      ) {
+        throw new TimeStoreError(
+          409,
+          "NO_REMAINING_TIME",
+          "修改后的总时长已小于或等于已消耗时长，无可用剩余额度。",
+          {
+            allowanceSeconds: nextAllowance,
+            consumedSeconds: totalConsumedSeconds,
+          },
+        );
+      }
+
+      let updatedActivity: Activity | undefined;
+      let nextSessionVersion = meta.session_version;
+      if (activeRow && modifyingLimits && activeRow.start_ms !== null) {
+        const remainingForActiveSeg =
+          nextAllowance !== null
+            ? Math.max(0, nextAllowance - priorClosedSeconds)
+            : undefined;
+        const newStopLimit = computeStopLimit({
+          startMs: activeRow.start_ms,
+          remainingAllowanceSeconds: remainingForActiveSeg,
+          hardStopAtMs: nextHardStop ?? undefined,
+        });
+        if (
+          newStopLimit.autoStopAtMs !== undefined &&
+          newStopLimit.autoStopAtMs <= ts
+        ) {
+          throw new TimeStoreError(
+            409,
+            "NO_REMAINING_TIME",
+            "修改后的自动停止时间已过或无剩余时间。",
+            { autoStopAtMs: newStopLimit.autoStopAtMs },
+          );
+        }
+        const nextLimitVer = (activeRow.limit_version ?? 1) + 1;
+        const nextReviewDue =
+          newStopLimit.autoStopAtMs === undefined
+            ? (activeRow.review_due_at_ms ??
+              (activeRow.confirmed_through_ms ?? activeRow.start_ms) +
+                DEFAULT_CHECKPOINT_INTERVAL_SECONDS * 1000)
+            : null;
+        conn
+          .prepare(
+            `UPDATE activities
+             SET auto_stop_at_ms = ?,
+                 auto_stop_basis = ?,
+                 limit_version = ?,
+                 review_due_at_ms = ?,
+                 version = ?,
+                 updated_at_ms = ?
+             WHERE id = ? AND version = ?`,
+          )
+          .run(
+            newStopLimit.autoStopAtMs ?? null,
+            newStopLimit.autoStopBasis ?? null,
+            nextLimitVer,
+            nextReviewDue,
+            activeRow.version + 1,
+            ts,
+            activeRow.id,
+            activeRow.version,
+          );
+        nextSessionVersion += 1;
+        conn
+          .prepare(
+            "UPDATE time_meta SET session_version = ?, updated_at_ms = ? WHERE id = 1",
+          )
+          .run(nextSessionVersion, ts);
+        updatedActivity = rowToActivity(
+          conn
+            .prepare("SELECT * FROM activities WHERE id = ?")
+            .get(activeRow.id) as ActivityRow,
+        );
+      }
+
+      conn
+        .prepare(
+          `UPDATE timing_plans
+           SET title = ?, category_id = ?, task_uuid = ?, project_snapshot = ?,
+               tags_json = ?, note = ?, allowance_seconds = ?,
+               planned_start_at_ms = ?, hard_stop_at_ms = ?, archived_at_ms = ?,
+               version = ?, updated_at_ms = ?
+           WHERE id = ? AND version = ?`,
+        )
+        .run(
+          nextTitle,
+          nextCategoryId,
+          nextTaskUuid,
+          nextProject,
+          nextTagsJson,
+          nextNote,
+          nextAllowance,
+          nextPlannedStart,
+          nextHardStop,
+          nextArchivedAt,
+          planRow.version + 1,
+          ts,
+          planRow.id,
+          planRow.version,
+        );
+
+      const updatedPlanRow = conn
+        .prepare("SELECT * FROM timing_plans WHERE id = ?")
+        .get(planRow.id) as TimingPlanRow;
+      const plan = buildTimingPlanTx(conn, updatedPlanRow, ts);
+      const operationId = randomUUID();
+      const receipt = {
+        operationId,
+        plan,
+        ...(updatedActivity ? { updatedActivity } : {}),
+        sessionVersion: nextSessionVersion,
+      };
+      saveOperationReceipt(conn, {
+        idempotencyKey,
+        operationId,
+        kind: "update_timing_plan",
+        inputHash,
+        meta,
+        receivedAtMs,
+        state: "applied",
+        targetActivityId: updatedActivity?.id,
+        targetTaskUuid: plan.taskUuid,
+        receipt,
+        nowMs: ts,
+      });
+      return {
+        receipt,
+        notify: Boolean(updatedActivity || settlement.settledActivity),
+      };
+    });
+    if (outcome.notify) notifyScheduleListeners();
+    return outcome.receipt;
+  }
+
+  function getTimingPlan(planId: string, atMs?: number): TimingPlan | null {
+    if (atMs === undefined) settleDueTimers();
+    const conn = assertOpen();
+    const row = conn
+      .prepare("SELECT * FROM timing_plans WHERE id = ?")
+      .get(planId) as TimingPlanRow | undefined;
+    if (!row) return null;
+    return buildTimingPlanTx(conn, row, atMs ?? nowFn());
+  }
+
+  function listTimingPlans(filter?: {
+    includeArchived?: boolean;
+    taskUuid?: string;
+    atMs?: number;
+  }): TimingPlan[] {
+    if (filter?.atMs === undefined) settleDueTimers();
+    const conn = assertOpen();
+    const refNow = filter?.atMs ?? nowFn();
+    const rows = conn
+      .prepare("SELECT * FROM timing_plans ORDER BY created_at_ms DESC")
+      .all() as TimingPlanRow[];
+    return rows
+      .filter((r) => {
+        if (!filter?.includeArchived && r.archived_at_ms !== null) return false;
+        if (
+          filter?.taskUuid &&
+          r.task_uuid?.toLowerCase() !== filter.taskUuid.toLowerCase()
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .map((r) => buildTimingPlanTx(conn, r, refNow));
+  }
+
+  function listTimeEvents(filter?: {
+    includeAcknowledged?: boolean;
+    limit?: number;
+  }): TimeEvent[] {
+    settleDueTimers();
+    const conn = assertOpen();
+    const limit = Math.max(1, Math.min(200, filter?.limit ?? 50));
+    const rows = filter?.includeAcknowledged
+      ? (conn
+          .prepare(
+            "SELECT * FROM time_events ORDER BY occurred_at_ms DESC LIMIT ?",
+          )
+          .all(limit) as TimeEventRow[])
+      : (conn
+          .prepare(
+            "SELECT * FROM time_events WHERE acknowledged_at_ms IS NULL ORDER BY occurred_at_ms DESC LIMIT ?",
+          )
+          .all(limit) as TimeEventRow[]);
+    return rows.map(rowToTimeEvent);
+  }
+
+  function ackTimeEvents(eventIds: string[]): { acknowledgedCount: number } {
+    if (eventIds.length === 0) return { acknowledgedCount: 0 };
+    const ts = nowFn();
+    return inImmediateTx((conn) => {
+      let count = 0;
+      const stmt = conn.prepare(
+        "UPDATE time_events SET acknowledged_at_ms = COALESCE(acknowledged_at_ms, ?) WHERE id = ?",
+      );
+      for (const id of eventIds) {
+        const res = stmt.run(ts, id);
+        if (Number(res.changes ?? 0) > 0) count += 1;
+      }
+      return { acknowledgedCount: count };
+    });
+  }
+
   function loadAllActivities(conn: DatabaseSync): Activity[] {
     return (
       conn
@@ -2489,6 +4171,7 @@ export async function createTimeStore(
     endMs?: number;
     includeVoided?: boolean;
   }): Activity[] {
+    settleDueTimers();
     const conn = assertOpen();
     const activities = loadAllActivities(conn);
     const refNow = nowFn();
@@ -2519,6 +4202,7 @@ export async function createTimeStore(
   }
 
   function getDailySummary(date: string, atMs?: number): DailyLedgerSummary {
+    settleDueTimers();
     const conn = assertOpen();
     const meta = readMeta(conn);
     const policy = parsePolicy(meta);
@@ -2537,6 +4221,7 @@ export async function createTimeStore(
     dateOrWeekStart: string,
     atMs?: number,
   ): WeeklyDistributionSummary {
+    settleDueTimers();
     const conn = assertOpen();
     const meta = readMeta(conn);
     const policy = parsePolicy(meta);
@@ -2553,14 +4238,51 @@ export async function createTimeStore(
   }
 
   function getReconcileDigest(date: string, atMs?: number) {
+    settleDueTimers();
     const conn = assertOpen();
     const meta = readMeta(conn);
     const policy = parsePolicy(meta);
-    const summary = getDailySummary(date, atMs);
+    const refNow = atMs ?? nowFn();
+    const summary = computeDailyLedger(
+      date,
+      loadAllActivities(conn),
+      policy,
+      refNow,
+      loadSleepDecisions(conn),
+    );
     const unresolved = getUnresolvedTimerHolders(conn).map(rowToOperation);
     const reviewItems = summary.locatedSegments.filter(
-      (s) => s.reviewState === "review_required",
+      (s) =>
+        s.reviewState === "review_required" ||
+        (s.running &&
+          s.autoStopAtMs === undefined &&
+          s.reviewDueAtMs !== undefined &&
+          refNow >= s.reviewDueAtMs &&
+          s.provisionalSeconds > 0),
     );
+    const dueCheckpoints = summary.locatedSegments.filter(
+      (s) =>
+        s.running &&
+        s.autoStopAtMs === undefined &&
+        s.reviewDueAtMs !== undefined &&
+        refNow >= s.reviewDueAtMs &&
+        s.provisionalSeconds > 0,
+    );
+    const plans = (
+      conn
+        .prepare(
+          "SELECT * FROM timing_plans WHERE archived_at_ms IS NULL ORDER BY created_at_ms DESC",
+        )
+        .all() as TimingPlanRow[]
+    ).map((r) => buildTimingPlanTx(conn, r, refNow));
+    const unacknowledgedEvents = (
+      conn
+        .prepare(
+          "SELECT * FROM time_events WHERE acknowledged_at_ms IS NULL ORDER BY occurred_at_ms DESC LIMIT 20",
+        )
+        .all() as TimeEventRow[]
+    ).map(rowToTimeEvent);
+
     return {
       date: summary.date,
       timezone: policy.timezone,
@@ -2569,6 +4291,8 @@ export async function createTimeStore(
       sessionVersion: meta.session_version,
       timeEpoch: meta.time_epoch,
       coveredSeconds: summary.coveredSeconds,
+      provisionalSeconds: summary.provisionalSeconds,
+      reviewRequiredSeconds: summary.reviewRequiredSeconds,
       unrecordedSeconds: summary.unrecordedSeconds,
       sleepCandidates: summary.sleepCandidates.filter(
         (c) => c.status === "pending",
@@ -2576,6 +4300,9 @@ export async function createTimeStore(
       gaps: summary.gaps,
       unlocatedEstimates: summary.unlocatedEstimates,
       reviewItems,
+      dueCheckpoints,
+      unacknowledgedEvents,
+      plans,
       pendingOperations: unresolved,
     };
   }
@@ -2602,6 +4329,7 @@ export async function createTimeStore(
       };
     }
 
+    settleDueTimers();
     const conn = db;
     const meta = readMeta(conn);
     const ts = input?.nowMs ?? nowFn();
@@ -2617,10 +4345,19 @@ export async function createTimeStore(
     const state: TimerSnapshot["state"] =
       unresolved.length > 0 ? "pending_reconcile" : "ready";
     const isRunning = Boolean(
-      active && active.endMs === undefined && active.suspendMs === undefined,
+      active &&
+      active.endMs === undefined &&
+      active.suspendMs === undefined &&
+      (active.autoStopAtMs === undefined || ts < active.autoStopAtMs),
     );
-    const liveUntilMs =
-      state === "ready" && isRunning ? ts + DEFAULT_TIMER_LIVE_WINDOW_MS : ts;
+    const rawLiveUntilMs =
+      state === "ready" && isRunning
+        ? Math.min(
+            ts + DEFAULT_TIMER_LIVE_WINDOW_MS,
+            active?.autoStopAtMs ?? Number.POSITIVE_INFINITY,
+          )
+        : ts;
+    const liveUntilMs = Math.max(ts, rawLiveUntilMs);
 
     const earliest = activities
       .filter(
@@ -2657,6 +4394,25 @@ export async function createTimeStore(
                 : "running",
             ...(active.suspendMs !== undefined
               ? { suspendAt: new Date(active.suspendMs).toISOString() }
+              : {}),
+            ...(active.timingPlanId
+              ? { timingPlanId: active.timingPlanId }
+              : {}),
+            ...(active.autoStopAtMs !== undefined
+              ? { autoStopAt: new Date(active.autoStopAtMs).toISOString() }
+              : {}),
+            ...(active.limitVersion !== undefined
+              ? { limitVersion: active.limitVersion }
+              : {}),
+            ...(active.reviewDueAtMs !== undefined
+              ? { reviewDueAt: new Date(active.reviewDueAtMs).toISOString() }
+              : {}),
+            ...(active.confirmedThroughMs !== undefined
+              ? {
+                  confirmedThrough: new Date(
+                    active.confirmedThroughMs,
+                  ).toISOString(),
+                }
               : {}),
           }
         : null,
@@ -2706,6 +4462,7 @@ export async function createTimeStore(
     activeActivityId?: string;
     pendingOperationIds?: string[];
   } {
+    settleDueTimers();
     const conn = assertOpen();
     const normalized = taskUuid.toLowerCase();
     const meta = readMeta(conn);
@@ -3001,7 +4758,15 @@ export async function createTimeStore(
     closedActivity?: Activity;
     warnings?: TimeWarning[];
   } {
-    return inImmediateTx((conn) => {
+    const outcome = inImmediateTx<{
+      applied: boolean;
+      state: OperationState;
+      timeEffect: "started" | "switched" | "stopped" | "none";
+      receipt?: Record<string, unknown>;
+      activity?: Activity;
+      closedActivity?: Activity;
+      warnings?: TimeWarning[];
+    }>((conn) => {
       const op = conn
         .prepare("SELECT * FROM operations WHERE operation_id = ?")
         .get(input.operationId) as OperationRow | undefined;
@@ -3208,12 +4973,19 @@ export async function createTimeStore(
           targetUuid &&
           activeRow.task_uuid?.toLowerCase() === targetUuid
         ) {
+          const stopReason: ActivityStopReason =
+            op.kind === "task_complete"
+              ? "task_complete"
+              : op.kind === "task_delete"
+                ? "task_delete"
+                : "task_stop";
           const { closedActivity, modifiedEntry, warning } = closeActiveRowTx(
             conn,
             activeRow,
             effectiveAtMs,
             ts,
             policy,
+            { stopReason },
           );
           const warnings = warning ? [warning] : [];
           const nextSessionVersion = meta.session_version + 1;
@@ -3291,6 +5063,10 @@ export async function createTimeStore(
         `Unsupported coordinated operation kind: ${op.kind}`,
       );
     });
+    if (outcome.applied && outcome.timeEffect !== "none") {
+      notifyScheduleListeners();
+    }
+    return outcome;
   }
 
   function markPreparedOperationsPendingOnStartup(): TimeOperationRecord[] {
@@ -3369,7 +5145,7 @@ export async function createTimeStore(
     }
 
     if (input.action === "stop_active") {
-      return inImmediateTx((conn) => {
+      const outcome = inImmediateTx((conn) => {
         const op = conn
           .prepare("SELECT * FROM operations WHERE operation_id = ?")
           .get(input.operationId) as OperationRow | undefined;
@@ -3460,10 +5236,12 @@ export async function createTimeStore(
           warnings: warning ? [warning] : [],
         };
       });
+      if (outcome.timeEffect !== "none") notifyScheduleListeners();
+      return outcome;
     }
 
     // action === "accept_started"
-    return inImmediateTx((conn) => {
+    const outcome = inImmediateTx((conn) => {
       const op = conn
         .prepare("SELECT * FROM operations WHERE operation_id = ?")
         .get(input.operationId) as OperationRow | undefined;
@@ -3561,6 +5339,10 @@ export async function createTimeStore(
         warnings,
       };
     });
+    if (outcome.applied) {
+      notifyScheduleListeners();
+    }
+    return outcome;
   }
 
   async function prepareTaskRestore(
@@ -3609,11 +5391,18 @@ export async function createTimeStore(
             .prepare("SELECT * FROM activities WHERE id = ?")
             .get(meta.active_activity_id) as ActivityRow | undefined;
           if (active && active.task_uuid && active.end_ms === null) {
-            const appliedSuspendMs = active.suspend_ms ?? suspendMs;
+            const boundedSuspendMs =
+              active.auto_stop_at_ms !== null
+                ? Math.min(suspendMs, active.auto_stop_at_ms)
+                : suspendMs;
+            const appliedSuspendMs =
+              active.suspend_ms !== null
+                ? Math.min(active.suspend_ms, boundedSuspendMs)
+                : boundedSuspendMs;
             conn
               .prepare(
                 `UPDATE activities
-               SET suspend_ms = ?, review_state = 'review_required', version = ?, updated_at_ms = ?
+               SET suspend_ms = ?, confirmed_through_ms = COALESCE(confirmed_through_ms, start_ms), review_state = 'review_required', review_reason = COALESCE(review_reason, 'restore_freeze'), version = ?, updated_at_ms = ?
                WHERE id = ?`,
               )
               .run(appliedSuspendMs, active.version + 1, ts, active.id);
@@ -3768,9 +5557,13 @@ export async function createTimeStore(
 
   function setRestoring(value: boolean): void {
     restoring = value;
+    if (!value) {
+      notifyScheduleListeners();
+    }
   }
 
   function close(): void {
+    scheduleListeners.clear();
     db.close();
   }
 
@@ -3803,13 +5596,21 @@ export async function createTimeStore(
             .prepare("SELECT * FROM activities WHERE id = ?")
             .get(meta.active_activity_id) as ActivityRow | undefined;
           if (active && active.end_ms === null) {
+            const boundedFreezeMs =
+              active.auto_stop_at_ms !== null
+                ? Math.min(freezeMs, active.auto_stop_at_ms)
+                : freezeMs;
+            const appliedFreezeMs =
+              active.suspend_ms !== null
+                ? Math.min(active.suspend_ms, boundedFreezeMs)
+                : boundedFreezeMs;
             conn
               .prepare(
                 `UPDATE activities
-                 SET suspend_ms = COALESCE(suspend_ms, ?), review_state = 'review_required', version = ?, updated_at_ms = ?
+                 SET suspend_ms = ?, confirmed_through_ms = COALESCE(confirmed_through_ms, start_ms), review_state = 'review_required', review_reason = COALESCE(review_reason, 'restore_freeze'), version = ?, updated_at_ms = ?
                  WHERE id = ?`,
               )
-              .run(freezeMs, active.version + 1, ts, active.id);
+              .run(appliedFreezeMs, active.version + 1, ts, active.id);
             conn
               .prepare(
                 "UPDATE time_meta SET session_version = ?, updated_at_ms = ? WHERE id = 1",
@@ -3829,6 +5630,7 @@ export async function createTimeStore(
       });
     }
 
+    notifyScheduleListeners();
     return nextBarrier;
   }
 
@@ -3840,6 +5642,16 @@ export async function createTimeStore(
     updatePolicy,
     startActivity,
     stopActivity,
+    confirmActivity,
+    createTimingPlan,
+    updateTimingPlan,
+    getTimingPlan,
+    listTimingPlans,
+    listTimeEvents,
+    ackTimeEvents,
+    settleDueTimers,
+    getNextAutoStopDeadline,
+    subscribeScheduleChanges,
     logLocatedActivity,
     logUnlocatedEstimate,
     locateEstimate,

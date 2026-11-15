@@ -463,6 +463,7 @@ export function createTimeCoordinator(deps: {
     appliedFromAcknowledged: number;
     leftPending: number;
   }> {
+    store.settleDueTimers();
     const fromPrepared = store.markPreparedOperationsPendingOnStartup();
     const unresolved = store.listUnresolvedOperations();
     let appliedFromAcknowledged = 0;

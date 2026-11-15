@@ -35,7 +35,7 @@ test("time MCP tools validate inputs, auto-generate unique idempotency keys, and
     const missingPayload = JSON.parse(
       (missingTitle.content as Array<{ text: string }>)[0].text,
     );
-    assert.match(missingPayload.error, /Provide either title or taskUuid/);
+    assert.match(missingPayload.error, /Provide title, taskUuid, or timingPlanId/);
 
     // Task-linked start succeeds without title and gets unique auto-generated idempotency keys
     const start1 = await client.callTool({
@@ -46,16 +46,31 @@ test("time MCP tools validate inputs, auto-generate unique idempotency keys, and
       name: "time_start",
       arguments: { title: "Read Rust book" },
     });
+    const start3 = await client.callTool({
+      name: "time_start",
+      arguments: { timingPlanId: "plan-abc" },
+    });
+    const stopPause = await client.callTool({
+      name: "time_stop",
+      arguments: { pause: true },
+    });
     assert.ok(!start1.isError);
     assert.ok(!start2.isError);
-    const body1 = calls.at(-2)?.[2];
-    const body2 = calls.at(-1)?.[2];
+    assert.ok(!start3.isError);
+    assert.ok(!stopPause.isError);
+    const body1 = calls.at(-4)?.[2];
+    const body2 = calls.at(-3)?.[2];
+    const body3 = calls.at(-2)?.[2];
+    const body4 = calls.at(-1)?.[2];
     assert.equal(body1?.source, "bot");
     assert.equal(body2?.source, "bot");
+    assert.equal(body3?.timingPlanId, "plan-abc");
+    assert.equal(body4?.pause, true);
     assert.equal(typeof body1?.idempotencyKey, "string");
     assert.equal(typeof body2?.idempotencyKey, "string");
     assert.ok(String(body1?.idempotencyKey).startsWith("mcp-start:"));
     assert.ok(String(body2?.idempotencyKey).startsWith("mcp-start:"));
+    assert.ok(String(body4?.idempotencyKey).startsWith("mcp-stop:"));
     assert.notEqual(body1?.idempotencyKey, body2?.idempotencyKey);
 
     // Explicit idempotencyKey is preserved verbatim across retries for all core Time writes
@@ -102,6 +117,42 @@ test("time MCP tools validate inputs, auto-generate unique idempotency keys, and
           date: "2026-11-15",
         },
         "retry-sleep-1",
+      ],
+      [
+        "time_confirm",
+        {
+          idempotencyKey: "retry-confirm-1",
+          activityId: "act-1",
+          expectedVersion: 2,
+        },
+        "retry-confirm-1",
+      ],
+      [
+        "time_plan_create",
+        {
+          idempotencyKey: "retry-plan-new-1",
+          title: "Bounded block",
+          allowanceMinutes: 45,
+        },
+        "retry-plan-new-1",
+      ],
+      [
+        "time_plan_update",
+        {
+          idempotencyKey: "retry-plan-upd-1",
+          planId: "plan-1",
+          expectedVersion: 1,
+          addAllowanceMinutes: 15,
+        },
+        "retry-plan-upd-1",
+      ],
+      [
+        "time_plan_start",
+        {
+          idempotencyKey: "retry-plan-start-1",
+          planId: "plan-1",
+        },
+        "retry-plan-start-1",
       ],
     ];
 

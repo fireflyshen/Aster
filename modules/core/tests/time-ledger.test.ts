@@ -197,3 +197,91 @@ test("daily and weekly ledger keep C + U = T invariant with unlocated estimates 
   assert.equal(totals["task-1"], 16 * 3600);
   assert.equal(totals["task-untimed"], 0);
 });
+
+test("confirmedThrough isolates provisional auto-stop drafts from formal category totals and clamps overrun reads", () => {
+  const policy = createDefaultTimePolicy();
+  const tz = policy.timezone;
+  const day = "2026-11-15";
+
+  // Manual confirmed block 09:00..10:00 + unconfirmed auto-stopped block 13:40..14:40
+  const confirmedMorning: Activity = {
+    id: "act-morning",
+    version: 1,
+    kind: "located",
+    title: "Morning work",
+    categoryId: "work",
+    ruleVersion: 1,
+    ruleSource: "explicit",
+    startMs: zonedDateTimeToUtcMs(day, "09:00", tz),
+    endMs: zonedDateTimeToUtcMs(day, "10:00", tz),
+    confirmedThroughMs: zonedDateTimeToUtcMs(day, "10:00", tz),
+    precision: "exact",
+    source: "manual",
+    reviewState: "ok",
+    timezone: tz,
+    createdAtMs: zonedDateTimeToUtcMs(day, "09:00", tz),
+    updatedAtMs: zonedDateTimeToUtcMs(day, "10:00", tz),
+  };
+
+  // Running uncapped or auto-stopped draft with confirmedThrough = startMs (13:40) and autoStopAt = 14:40
+  const cappedDraft: Activity = {
+    id: "act-draft",
+    version: 2,
+    kind: "located",
+    title: "Deep study",
+    categoryId: "study",
+    ruleVersion: 1,
+    ruleSource: "explicit",
+    startMs: zonedDateTimeToUtcMs(day, "13:40", tz),
+    endMs: zonedDateTimeToUtcMs(day, "14:40", tz),
+    confirmedThroughMs: zonedDateTimeToUtcMs(day, "13:40", tz),
+    autoStopAtMs: zonedDateTimeToUtcMs(day, "14:40", tz),
+    timerStoppedAtMs: zonedDateTimeToUtcMs(day, "14:40", tz),
+    stopReason: "duration_limit",
+    reviewReason: "auto_stopped",
+    precision: "exact",
+    source: "timer",
+    reviewState: "review_required",
+    timezone: tz,
+    createdAtMs: zonedDateTimeToUtcMs(day, "13:40", tz),
+    updatedAtMs: zonedDateTimeToUtcMs(day, "14:40", tz),
+  };
+
+  const at1500 = zonedDateTimeToUtcMs(day, "15:00", tz);
+  const summary = computeDailyLedger(
+    day,
+    [confirmedMorning, cappedDraft],
+    policy,
+    at1500,
+  );
+  // Formal totals ONLY count confirmed morning 1h; unconfirmed study draft MUST NOT enter byCategorySeconds["study"].
+  assert.equal(summary.coveredSeconds, 3600);
+  assert.equal(summary.provisionalSeconds, 3600);
+  assert.equal(summary.reviewRequiredSeconds, 3600);
+  assert.equal(summary.byCategorySeconds.work, 3600);
+  assert.equal(summary.byCategorySeconds.study ?? 0, 0);
+  assert.equal(
+    summary.coveredSeconds + summary.unrecordedSeconds,
+    summary.pastCapacitySeconds,
+  );
+
+  // Even an unsettled active activity with autoStopAt = 14:40 clamps at 14:40 when queried at 16:00.
+  const activeCapped: Activity = {
+    ...cappedDraft,
+    endMs: undefined,
+    timerStoppedAtMs: undefined,
+    stopReason: undefined,
+    reviewState: "ok",
+    reviewReason: undefined,
+  };
+  const at1600 = zonedDateTimeToUtcMs(day, "16:00", tz);
+  const clampedSummary = computeDailyLedger(
+    day,
+    [activeCapped],
+    policy,
+    at1600,
+  );
+  assert.equal(clampedSummary.locatedSegments.length, 1);
+  assert.equal(clampedSummary.locatedSegments[0].durationSeconds, 3600);
+  assert.equal(clampedSummary.locatedSegments[0].running, false);
+});

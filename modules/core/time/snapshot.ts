@@ -112,12 +112,23 @@ export function snapshotLiveStatus(
   }
   const snapAtMs = Date.parse(snapshot.snapshotAt);
   const liveUntilMs = Date.parse(snapshot.liveUntil);
-  const maxLiveMs =
+  let maxLiveMs =
     Number.isFinite(snapAtMs) && Number.isFinite(liveUntilMs)
       ? Math.max(0, liveUntilMs - snapAtMs)
       : 0;
+  let autoStopMs = Number.NaN;
+  if (active.autoStopAt && Number.isFinite(snapAtMs)) {
+    autoStopMs = Date.parse(active.autoStopAt);
+    if (Number.isFinite(autoStopMs)) {
+      maxLiveMs = Math.min(maxLiveMs, Math.max(0, autoStopMs - snapAtMs));
+    }
+  }
   const elapsedMonoMs = Math.max(0, currentMonoMs - receivedMonoMs);
-  const expired = elapsedMonoMs > maxLiveMs;
+  const hitAutoStop =
+    Number.isFinite(autoStopMs) &&
+    Number.isFinite(snapAtMs) &&
+    snapAtMs + elapsedMonoMs >= autoStopMs;
+  const expired = hitAutoStop || elapsedMonoMs > maxLiveMs;
   const cappedExtraSeconds = Math.floor(
     Math.min(elapsedMonoMs, maxLiveMs) / 1000,
   );
@@ -185,10 +196,25 @@ export function displayedActiveActivitySeconds(
       return Math.max(0, Math.floor((suspendMs - startedMs) / 1000));
     }
   }
+  const maxAutoStopSeconds = active.autoStopAt
+    ? (() => {
+        const autoStopMs = Date.parse(active.autoStopAt);
+        return Number.isFinite(autoStopMs)
+          ? Math.max(0, Math.floor((autoStopMs - startedMs) / 1000))
+          : undefined;
+      })()
+    : undefined;
   const baseAtSnap = Math.max(0, Math.floor((snapAtMs - startedMs) / 1000));
+  const clampedBase =
+    maxAutoStopSeconds !== undefined
+      ? Math.min(baseAtSnap, maxAutoStopSeconds)
+      : baseAtSnap;
   if (tracked.snapshot.state !== "ready" || active.state !== "running") {
-    return baseAtSnap;
+    return clampedBase;
   }
   const live = snapshotLiveStatus(tracked, currentMonoMs);
-  return baseAtSnap + live.cappedExtraSeconds;
+  const total = clampedBase + live.cappedExtraSeconds;
+  return maxAutoStopSeconds !== undefined
+    ? Math.min(total, maxAutoStopSeconds)
+    : total;
 }

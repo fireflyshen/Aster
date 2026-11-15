@@ -40,10 +40,30 @@ export function effectiveActivityEndMs(
   if (activity.endMs !== undefined) {
     return activity.endMs;
   }
+  let upper = referenceNowMs;
   if (activity.suspendMs !== undefined) {
-    return Math.min(referenceNowMs, activity.suspendMs);
+    upper = Math.min(upper, activity.suspendMs);
   }
-  return referenceNowMs;
+  if (activity.autoStopAtMs !== undefined) {
+    upper = Math.min(upper, activity.autoStopAtMs);
+  }
+  return upper;
+}
+
+export function effectiveConfirmedEndMs(
+  activity: Activity,
+  effectiveEndMs: number,
+): number {
+  if (activity.startMs === undefined || effectiveEndMs <= activity.startMs) {
+    return activity.startMs ?? 0;
+  }
+  if (activity.confirmedThroughMs !== undefined) {
+    return Math.max(
+      activity.startMs,
+      Math.min(effectiveEndMs, activity.confirmedThroughMs),
+    );
+  }
+  return activity.reviewState === "ok" ? effectiveEndMs : activity.startMs;
 }
 
 export function sleepCandidateKey(
@@ -170,6 +190,7 @@ export function computeDailyLedger(
   const byCategorySeconds: Record<string, number> = Object.create(null);
   const locatedSegments: LocatedSegment[] = [];
   let coveredSeconds = 0;
+  let provisionalSeconds = 0;
   let estimatedBoundsSeconds = 0;
   let reviewRequiredSeconds = 0;
 
@@ -191,16 +212,50 @@ export function computeDailyLedger(
     if (clippedEndMs <= clippedStartMs) continue;
 
     const durationSeconds = secondsDelta(clippedStartMs, clippedEndMs);
-    coveredSeconds += durationSeconds;
-    byCategorySeconds[activity.categoryId] =
-      (byCategorySeconds[activity.categoryId] || 0) + durationSeconds;
+    const confirmedEndMs = effectiveConfirmedEndMs(activity, rawEndMs);
+    const clippedConfirmedEndMs = Math.max(
+      clippedStartMs,
+      Math.min(confirmedEndMs, clippedEndMs),
+    );
+    const confirmedSeconds = secondsDelta(
+      clippedStartMs,
+      clippedConfirmedEndMs,
+    );
+    const segmentProvisionalSeconds = Math.max(
+      0,
+      durationSeconds - confirmedSeconds,
+    );
+
+    coveredSeconds += confirmedSeconds;
+    provisionalSeconds += segmentProvisionalSeconds;
+    if (confirmedSeconds > 0) {
+      byCategorySeconds[activity.categoryId] =
+        (byCategorySeconds[activity.categoryId] || 0) + confirmedSeconds;
+    }
 
     if (activity.precision === "estimated_bounds") {
-      estimatedBoundsSeconds += durationSeconds;
+      estimatedBoundsSeconds += confirmedSeconds;
     }
-    if (activity.reviewState === "review_required") {
-      reviewRequiredSeconds += durationSeconds;
+    const checkpointOverdue =
+      activity.endMs === undefined &&
+      activity.suspendMs === undefined &&
+      activity.autoStopAtMs === undefined &&
+      activity.reviewDueAtMs !== undefined &&
+      nowMs >= activity.reviewDueAtMs &&
+      segmentProvisionalSeconds > 0;
+    if (activity.reviewState === "review_required" || checkpointOverdue) {
+      reviewRequiredSeconds +=
+        segmentProvisionalSeconds > 0
+          ? segmentProvisionalSeconds
+          : durationSeconds;
     }
+
+    const exceededPlanSeconds =
+      activity.autoStopAtMs !== undefined &&
+      activity.endMs !== undefined &&
+      rawEndMs > activity.autoStopAtMs
+        ? secondsDelta(activity.autoStopAtMs, rawEndMs)
+        : undefined;
 
     locatedSegments.push({
       activityId: activity.id,
@@ -214,12 +269,35 @@ export function computeDailyLedger(
       startMs: clippedStartMs,
       endMs: clippedEndMs,
       durationSeconds,
-      running: activity.endMs === undefined && activity.suspendMs === undefined,
+      confirmedSeconds,
+      provisionalSeconds: segmentProvisionalSeconds,
+      running:
+        activity.endMs === undefined &&
+        activity.suspendMs === undefined &&
+        (activity.autoStopAtMs === undefined || nowMs < activity.autoStopAtMs),
       precision: activity.precision,
       source: activity.source,
       reviewState: activity.reviewState,
       ...(activity.suspendMs !== undefined
         ? { suspendMs: activity.suspendMs }
+        : {}),
+      ...(activity.confirmedThroughMs !== undefined
+        ? { confirmedThroughMs: activity.confirmedThroughMs }
+        : {}),
+      ...(activity.reviewDueAtMs !== undefined
+        ? { reviewDueAtMs: activity.reviewDueAtMs }
+        : {}),
+      ...(activity.reviewReason ? { reviewReason: activity.reviewReason } : {}),
+      ...(activity.timingPlanId ? { timingPlanId: activity.timingPlanId } : {}),
+      ...(activity.autoStopAtMs !== undefined
+        ? { autoStopAtMs: activity.autoStopAtMs }
+        : {}),
+      ...(activity.timerStoppedAtMs !== undefined
+        ? { timerStoppedAtMs: activity.timerStoppedAtMs }
+        : {}),
+      ...(activity.stopReason ? { stopReason: activity.stopReason } : {}),
+      ...(exceededPlanSeconds !== undefined && exceededPlanSeconds > 0
+        ? { exceededPlanSeconds }
         : {}),
     });
   }
@@ -279,6 +357,7 @@ export function computeDailyLedger(
     asOfMs,
     pastCapacitySeconds,
     coveredSeconds,
+    provisionalSeconds,
     unrecordedSeconds,
     estimatedBoundsSeconds,
     reviewRequiredSeconds,
@@ -316,6 +395,7 @@ export function computeWeeklyDistribution(
   const byCategorySeconds: Record<string, number> = Object.create(null);
   let pastCapacitySeconds = 0;
   let coveredSeconds = 0;
+  let provisionalSeconds = 0;
   let unrecordedSeconds = 0;
   let estimatedBoundsSeconds = 0;
   let reviewRequiredSeconds = 0;
@@ -323,6 +403,7 @@ export function computeWeeklyDistribution(
   for (const day of daily) {
     pastCapacitySeconds += day.pastCapacitySeconds;
     coveredSeconds += day.coveredSeconds;
+    provisionalSeconds += day.provisionalSeconds;
     unrecordedSeconds += day.unrecordedSeconds;
     estimatedBoundsSeconds += day.estimatedBoundsSeconds;
     reviewRequiredSeconds += day.reviewRequiredSeconds;
@@ -351,6 +432,7 @@ export function computeWeeklyDistribution(
     isPartialWeek,
     pastCapacitySeconds,
     coveredSeconds,
+    provisionalSeconds,
     unrecordedSeconds,
     estimatedBoundsSeconds,
     reviewRequiredSeconds,

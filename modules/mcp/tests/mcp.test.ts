@@ -509,6 +509,85 @@ const cases: [string, any, string, string, any?][] = [
     "/api/time/operation/resolve",
     { operationId: "op-pending-1", action: "accept_started" },
   ],
+  [
+    "time_confirm",
+    {
+      idempotencyKey: "k-confirm-1",
+      activityId: "act-1",
+      expectedVersion: 1,
+      throughMs: 1763175600000,
+    },
+    "POST",
+    "/api/time/confirm",
+    {
+      idempotencyKey: "k-confirm-1",
+      activityId: "act-1",
+      expectedVersion: 1,
+      throughMs: 1763175600000,
+    },
+  ],
+  [
+    "time_plan_create",
+    {
+      idempotencyKey: "k-plan-new-1",
+      title: "Focused draft",
+      allowanceMinutes: 60,
+      plannedStartTime: "14:00",
+      hardStopTime: "15:00",
+    },
+    "POST",
+    "/api/time/plans/create",
+    {
+      idempotencyKey: "k-plan-new-1",
+      title: "Focused draft",
+      allowanceMinutes: 60,
+      plannedStartTime: "14:00",
+      hardStopTime: "15:00",
+    },
+  ],
+  [
+    "time_plan_list",
+    { includeArchived: true },
+    "GET",
+    "/api/time/plans?includeArchived=1",
+  ],
+  [
+    "time_plan_update",
+    {
+      idempotencyKey: "k-plan-upd-1",
+      planId: "plan-1",
+      expectedVersion: 1,
+      addAllowanceMinutes: 15,
+    },
+    "POST",
+    "/api/time/plans/update",
+    {
+      idempotencyKey: "k-plan-upd-1",
+      planId: "plan-1",
+      expectedVersion: 1,
+      addAllowanceMinutes: 15,
+    },
+  ],
+  [
+    "time_plan_start",
+    { idempotencyKey: "k-plan-start-1", planId: "plan-1" },
+    "POST",
+    "/api/time/plans/start",
+    { idempotencyKey: "k-plan-start-1", planId: "plan-1" },
+  ],
+  [
+    "time_events_list",
+    { limit: 10 },
+    "GET",
+    "/api/time/events?limit=10",
+  ],
+  [
+    "time_events_ack",
+    { eventIds: ["ev-1"] },
+    "POST",
+    "/api/time/events/ack",
+    { eventIds: ["ev-1"] },
+  ],
 ];
 
 test("official MCP client discovers every tool and exercises all business mappings", async () => {

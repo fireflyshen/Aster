@@ -89,6 +89,12 @@ export function TimeWeeklyPage({
           <span className="text-foreground">
             {formatDurationCompact(weekly.coveredSeconds)}
           </span>
+          {(weekly.provisionalSeconds ?? 0) > 0 && (
+            <>
+              <span className="mx-1.5 opacity-40">·</span>
+              待核对 {formatDurationCompact(weekly.provisionalSeconds ?? 0)}
+            </>
+          )}
           <span className="mx-1.5 opacity-40">·</span>
           空白 {formatDurationCompact(weekly.unrecordedSeconds)}
           {weekly.unlocatedEstimates.length > 0 && (

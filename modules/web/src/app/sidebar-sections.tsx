@@ -268,6 +268,20 @@ export function SidebarEnergyMeter({
     (energy?.resetHour !== undefined
       ? `${String(energy.resetHour).padStart(2, "0")}:00 周期`
       : undefined);
+  const autoStopMs = activeActivity?.autoStopAt
+    ? Date.parse(activeActivity.autoStopAt)
+    : Number.NaN;
+  const hasAutoStop = Number.isFinite(autoStopMs);
+  const remainingAutoStopSec = hasAutoStop
+    ? Math.max(0, Math.ceil((autoStopMs - Date.now()) / 1000))
+    : undefined;
+  const autoStopClockLabel = hasAutoStop
+    ? new Intl.DateTimeFormat(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).format(new Date(autoStopMs))
+    : undefined;
 
   return (
     <>
@@ -326,8 +340,19 @@ export function SidebarEnergyMeter({
                 : "—"}
             </span>
           </div>
+          {hasAutoStop && remainingAutoStopSec !== undefined && (
+            <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground tabular-nums">
+              <span>
+                {remainingAutoStopSec <= 0
+                  ? "已到停止时刻"
+                  : `剩余 ${Math.max(1, Math.ceil(remainingAutoStopSec / 60))} 分钟`}
+              </span>
+              <span>{autoStopClockLabel} 停止</span>
+            </div>
+          )}
           {(timerLiveStatus?.stateLabel === "stale" ||
-            timerLiveStatus?.stateLabel === "review_required") && (
+            (timerLiveStatus?.stateLabel === "review_required" &&
+              !hasAutoStop)) && (
             <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
               <span>
                 {timerLiveStatus.stateLabel === "review_required"

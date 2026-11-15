@@ -201,6 +201,55 @@ test("web time-api routes cleanly through real server handlers without double /a
     });
     assert.equal(nextPolicy.longActivityThresholdSeconds, 5400);
 
+    // 2.5 TimingPlan lifecycle + pause + confirm + events contract
+    const createdPlan = await timeApi.createTimingPlan({
+      title: "Focused block",
+      categoryId: "work",
+      allowanceMinutes: 30,
+      hardStopAtMs: 1763197200000, // 17:00 Asia/Shanghai
+    });
+    assert.equal(createdPlan.plan.allowanceSeconds, 1800);
+
+    const plans = await timeApi.fetchTimingPlans();
+    assert.equal(plans.length, 1);
+
+    const startedPlan = await timeApi.startTimingPlan({
+      planId: createdPlan.plan.id,
+    });
+    assert.equal(startedPlan.activity?.timingPlanId, createdPlan.plan.id);
+
+    const pausedPlan = await timeApi.stopTimeActivity({
+      expectedActivityId: startedPlan.activity!.id,
+      expectedVersion: startedPlan.activity!.version,
+      pause: true,
+    });
+    assert.equal(pausedPlan.activity?.stopReason, "manual_pause");
+
+    const updatedPlan = await timeApi.updateTimingPlan({
+      planId: createdPlan.plan.id,
+      expectedVersion: createdPlan.plan.version,
+      addAllowanceMinutes: 15,
+    });
+    assert.equal(updatedPlan.plan.allowanceSeconds, 2700);
+
+    const events = await timeApi.fetchTimeEvents();
+    assert.ok(Array.isArray(events));
+
+    // Confirm activity endpoint contract on active uncapped timer
+    const openRun = await timeApi.startTimeActivity({
+      title: "Open run",
+    });
+    const confirmedOpen = await timeApi.confirmTimeActivity({
+      activityId: openRun.activity!.id,
+      expectedVersion: openRun.activity!.version,
+      throughMs: 1763193600000,
+    });
+    assert.equal(confirmedOpen.activity?.confirmedThroughMs, 1763193600000);
+    await timeApi.stopTimeActivity({
+      expectedActivityId: confirmedOpen.activity!.id,
+      expectedVersion: confirmedOpen.activity!.version,
+    });
+
     // 3. Independent backup export -> preview -> restore field contract
     const exported = await timeApi.exportTimeBackup();
     assert.ok(

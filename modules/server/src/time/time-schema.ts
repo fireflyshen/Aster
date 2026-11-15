@@ -47,6 +47,16 @@ export function initializeTimeDatabase(
       start_ms INTEGER NULL,
       end_ms INTEGER NULL,
       suspend_ms INTEGER NULL,
+      confirmed_through_ms INTEGER NULL,
+      review_due_at_ms INTEGER NULL,
+      review_reason TEXT NULL,
+      timing_plan_id TEXT NULL,
+      auto_stop_at_ms INTEGER NULL,
+      auto_stop_basis TEXT NULL,
+      limit_version INTEGER NULL,
+      timer_stopped_at_ms INTEGER NULL,
+      stop_reason TEXT NULL,
+      processed_at_ms INTEGER NULL,
       window_start_ms INTEGER NULL,
       window_end_ms INTEGER NULL,
       target_date TEXT NULL,
@@ -143,6 +153,75 @@ export function initializeTimeDatabase(
       summary_json TEXT NOT NULL,
       updated_at_ms INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS timing_plans (
+      id TEXT PRIMARY KEY,
+      version INTEGER NOT NULL DEFAULT 1,
+      title TEXT NOT NULL,
+      category_id TEXT NULL,
+      task_uuid TEXT NULL,
+      project_snapshot TEXT NULL,
+      tags_json TEXT NULL,
+      note TEXT NULL,
+      timezone TEXT NOT NULL,
+      allowance_seconds INTEGER NULL,
+      planned_start_at_ms INTEGER NULL,
+      hard_stop_at_ms INTEGER NULL,
+      archived_at_ms INTEGER NULL,
+      created_at_ms INTEGER NOT NULL,
+      updated_at_ms INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_timing_plans_updated
+      ON timing_plans (updated_at_ms DESC);
+    CREATE INDEX IF NOT EXISTS idx_timing_plans_task
+      ON timing_plans (task_uuid);
+
+    CREATE TABLE IF NOT EXISTS time_events (
+      id TEXT PRIMARY KEY,
+      dedup_key TEXT NOT NULL UNIQUE,
+      kind TEXT NOT NULL CHECK (kind IN ('auto_stopped', 'checkpoint_due', 'plan_reminder')),
+      activity_id TEXT NULL,
+      plan_id TEXT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      occurred_at_ms INTEGER NOT NULL,
+      payload_json TEXT NOT NULL,
+      acknowledged_at_ms INTEGER NULL,
+      created_at_ms INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_time_events_ack
+      ON time_events (acknowledged_at_ms, occurred_at_ms DESC);
+  `);
+
+  const activityCols = new Set(
+    (
+      db.prepare("PRAGMA table_info(activities)").all() as Array<{
+        name: string;
+      }>
+    ).map((c) => c.name),
+  );
+  const additiveActivityCols: ReadonlyArray<[string, string]> = [
+    ["confirmed_through_ms", "INTEGER NULL"],
+    ["review_due_at_ms", "INTEGER NULL"],
+    ["review_reason", "TEXT NULL"],
+    ["timing_plan_id", "TEXT NULL"],
+    ["auto_stop_at_ms", "INTEGER NULL"],
+    ["auto_stop_basis", "TEXT NULL"],
+    ["limit_version", "INTEGER NULL"],
+    ["timer_stopped_at_ms", "INTEGER NULL"],
+    ["stop_reason", "TEXT NULL"],
+    ["processed_at_ms", "INTEGER NULL"],
+  ];
+  for (const [col, def] of additiveActivityCols) {
+    if (!activityCols.has(col)) {
+      db.exec(`ALTER TABLE activities ADD COLUMN ${col} ${def};`);
+    }
+  }
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_activities_timing_plan
+      ON activities (timing_plan_id);
   `);
 
   const nowMs = options.nowMs ?? Date.now();

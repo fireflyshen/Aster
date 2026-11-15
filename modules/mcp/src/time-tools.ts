@@ -43,10 +43,11 @@ export function registerTimeTools({
 
   register(
     "time_start",
-    "Start a Time activity (either task-linked or standalone life activity). Automatically closes any previous running activity unless sameTaskNoop is true.",
+    "Start a Time activity (either task-linked, standalone, or linked to a TimingPlan). Automatically closes any previous running activity unless sameTaskNoop is true.",
     {
       idempotencyKey: idempotencyKeySchema.optional(),
       title: z.string().min(1).max(500).optional(),
+      timingPlanId: z.string().min(1).max(64).optional(),
       explicitCategoryId: z.string().min(1).max(100).optional(),
       taskUuid: uuidSchema.optional(),
       projectSnapshot: z.string().max(200).optional(),
@@ -61,8 +62,8 @@ export function registerTimeTools({
     },
     false,
     (i) => {
-      if (!i.title && !i.taskUuid) {
-        throw new Error("Provide either title or taskUuid.");
+      if (!i.title && !i.taskUuid && !i.timingPlanId) {
+        throw new Error("Provide title, taskUuid, or timingPlanId.");
       }
       return post("/api/time/start", {
         ...i,
@@ -75,12 +76,13 @@ export function registerTimeTools({
 
   register(
     "time_stop",
-    "Stop the currently active Time activity, returning a versioned receipt.",
+    "Stop or pause the currently active Time activity, returning a versioned receipt (with updated TimingPlan quota when linked).",
     {
       idempotencyKey: idempotencyKeySchema.optional(),
       expectedActivityId: z.string().min(1).max(64).optional(),
       expectedVersion: positiveVersionSchema.optional(),
       expectedSessionVersion: z.number().int().nonnegative().optional(),
+      pause: z.boolean().optional(),
       effectiveAtMs: z.number().int().positive().optional(),
       receivedAtMs: z.number().int().positive().optional(),
     },
@@ -390,5 +392,160 @@ export function registerTimeTools({
     },
     false,
     (i) => post("/api/time/operation/resolve", i),
+  );
+
+  register(
+    "time_confirm",
+    "Confirm an auto-stopped segment or an uncapped running activity checkpoint up to throughMs, moving verified time from provisional into formal totals.",
+    {
+      idempotencyKey: idempotencyKeySchema.optional(),
+      activityId: z.string().min(1).max(64),
+      expectedVersion: positiveVersionSchema,
+      throughMs: z.number().int().positive().optional(),
+      nextCheckpointSeconds: z.number().int().positive().optional(),
+      receivedAtMs: z.number().int().positive().optional(),
+    },
+    false,
+    (i) =>
+      post("/api/time/confirm", {
+        ...i,
+        idempotencyKey: resolveIdempotencyKey(i.idempotencyKey, "mcp-confirm"),
+      }),
+    false,
+  );
+
+  register(
+    "time_plan_create",
+    "Create a manual-start, auto-stop TimingPlan (never auto-starts at plannedStartAt). Enforces min(actualStart + remaining, hardStopAt).",
+    {
+      idempotencyKey: idempotencyKeySchema.optional(),
+      title: z.string().min(1).max(500),
+      categoryId: z.string().min(1).max(100).optional(),
+      taskUuid: uuidSchema.optional(),
+      projectSnapshot: z.string().max(200).optional(),
+      tags: z.array(z.string().min(1).max(80)).max(50).optional(),
+      note: z.string().max(2000).optional(),
+      allowanceSeconds: z.number().int().positive().optional(),
+      allowanceMinutes: z.number().positive().optional(),
+      plannedStartAtMs: z.number().int().positive().optional(),
+      plannedStartDate: localDateSchema.optional(),
+      plannedStartTime: localClockSchema.optional(),
+      hardStopAtMs: z.number().int().positive().optional(),
+      hardStopDate: localDateSchema.optional(),
+      hardStopTime: localClockSchema.optional(),
+      receivedAtMs: z.number().int().positive().optional(),
+    },
+    false,
+    (i) =>
+      post("/api/time/plans/create", {
+        ...i,
+        idempotencyKey: resolveIdempotencyKey(i.idempotencyKey, "mcp-plan-new"),
+      }),
+    false,
+  );
+
+  register(
+    "time_plan_list",
+    "List TimingPlans with consumed/remaining quota and computed status (scheduled, active, paused, stopped, expired, archived).",
+    {
+      includeArchived: z.boolean().optional(),
+      taskUuid: uuidSchema.optional(),
+    },
+    true,
+    (i) => {
+      const params = new URLSearchParams();
+      if (i.includeArchived) params.set("includeArchived", "1");
+      if (i.taskUuid) params.set("taskUuid", i.taskUuid);
+      const qs = params.toString() ? "?" + params.toString() : "";
+      return get("/api/time/plans" + qs);
+    },
+  );
+
+  register(
+    "time_plan_update",
+    "Update, extend (+addAllowanceSeconds / +addAllowanceMinutes), reschedule hardStopAt, or archive a TimingPlan with version checks.",
+    {
+      idempotencyKey: idempotencyKeySchema.optional(),
+      planId: z.string().min(1).max(64),
+      expectedVersion: positiveVersionSchema,
+      expectedSessionVersion: z.number().int().nonnegative().optional(),
+      expectedActivityId: z.string().min(1).max(64).optional(),
+      expectedActivityVersion: positiveVersionSchema.optional(),
+      title: z.string().min(1).max(500).optional(),
+      categoryId: z.string().min(1).max(100).nullable().optional(),
+      taskUuid: uuidSchema.nullable().optional(),
+      projectSnapshot: z.string().max(200).nullable().optional(),
+      tags: z.array(z.string().min(1).max(80)).max(50).nullable().optional(),
+      note: z.string().max(2000).nullable().optional(),
+      allowanceSeconds: z.number().int().positive().nullable().optional(),
+      allowanceMinutes: z.number().positive().nullable().optional(),
+      addAllowanceSeconds: z.number().int().positive().optional(),
+      addAllowanceMinutes: z.number().positive().optional(),
+      plannedStartAtMs: z.number().int().positive().nullable().optional(),
+      plannedStartDate: localDateSchema.optional(),
+      plannedStartTime: localClockSchema.nullable().optional(),
+      hardStopAtMs: z.number().int().positive().nullable().optional(),
+      hardStopDate: localDateSchema.optional(),
+      hardStopTime: localClockSchema.nullable().optional(),
+      archived: z.boolean().optional(),
+      receivedAtMs: z.number().int().positive().optional(),
+    },
+    false,
+    (i) =>
+      post("/api/time/plans/update", {
+        ...i,
+        idempotencyKey: resolveIdempotencyKey(i.idempotencyKey, "mcp-plan-upd"),
+      }),
+    false,
+  );
+
+  register(
+    "time_plan_start",
+    "Manually start or resume an existing TimingPlan. Returns 409 TIMING_PLAN_EXPIRED if past hardStopAt or 409 TIME_ALLOWANCE_EXHAUSTED if quota is 0.",
+    {
+      idempotencyKey: idempotencyKeySchema.optional(),
+      planId: z.string().min(1).max(64),
+      sameTaskNoop: z.boolean().optional(),
+      expectedSessionVersion: z.number().int().nonnegative().optional(),
+      effectiveAtMs: z.number().int().positive().optional(),
+      receivedAtMs: z.number().int().positive().optional(),
+    },
+    false,
+    (i) =>
+      post("/api/time/plans/start", {
+        ...i,
+        idempotencyKey: resolveIdempotencyKey(
+          i.idempotencyKey,
+          "mcp-plan-start",
+        ),
+      }),
+    false,
+  );
+
+  register(
+    "time_events_list",
+    "List Time notification events (auto_stopped, checkpoint_due) generated by server-side deadline/checkpoint settlement.",
+    {
+      includeAcknowledged: z.boolean().optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+    },
+    true,
+    (i) => {
+      const params = new URLSearchParams();
+      if (i.includeAcknowledged) params.set("includeAcknowledged", "1");
+      if (i.limit !== undefined) params.set("limit", String(i.limit));
+      const qs = params.toString() ? "?" + params.toString() : "";
+      return get("/api/time/events" + qs);
+    },
+  );
+
+  register(
+    "time_events_ack",
+    "Mark one or more Time notification events as acknowledged.",
+    {
+      eventIds: z.array(z.string().min(1).max(128)).min(1).max(100),
+    },
+    false,
+    (i) => post("/api/time/events/ack", { eventIds: i.eventIds }),
   );
 }

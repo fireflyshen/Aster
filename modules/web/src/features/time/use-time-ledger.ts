@@ -1,7 +1,9 @@
 import type {
   DailyLedgerSummary,
+  TimeEvent,
   TimePolicy,
   TimerSnapshot,
+  TimingPlan,
   WeeklyDistributionSummary,
 } from "@core/time/model";
 import { localDateOf } from "@core/time/zone";
@@ -9,10 +11,13 @@ import { useCallback, useEffect, useState } from "react";
 import { RequestError } from "@/lib/api";
 import type { TimePage } from "@/app/hooks/use-workspace-navigation";
 import {
+  ackTimeEvents,
   fetchDailySummary,
   fetchReconcileDigest,
+  fetchTimeEvents,
   fetchTimePolicy,
   fetchTimeStatus,
+  fetchTimingPlans,
   fetchWeeklySummary,
   inspectTimeOperation,
   undoTimeOperation,
@@ -65,6 +70,8 @@ export function useTimeLedger({
   );
   const [daily, setDaily] = useState<DailyLedgerSummary | null>(null);
   const [digest, setDigest] = useState<TimeReconcileDigest | null>(null);
+  const [plans, setPlans] = useState<TimingPlan[]>([]);
+  const [events, setEvents] = useState<TimeEvent[]>([]);
   const [weekly, setWeekly] = useState<WeeklyDistributionSummary | null>(null);
   const [pendingDetails, setPendingDetails] = useState<
     PendingOperationDetail[]
@@ -90,12 +97,17 @@ export function useTimeLedger({
       if (page === "today") {
         const targetDate =
           selectedDate || todayInZone(nextPolicy.timezone || "UTC");
-        const [nextDaily, nextDigest] = await Promise.all([
-          fetchDailySummary(targetDate),
-          fetchReconcileDigest(targetDate),
-        ]);
+        const [nextDaily, nextDigest, nextPlans, nextEvents] =
+          await Promise.all([
+            fetchDailySummary(targetDate),
+            fetchReconcileDigest(targetDate),
+            fetchTimingPlans(),
+            fetchTimeEvents(),
+          ]);
         setDaily(nextDaily);
         setDigest(nextDigest);
+        setPlans(nextPlans);
+        setEvents(nextEvents);
         if (nextDigest.pendingOperations?.length) {
           const details = await Promise.all(
             nextDigest.pendingOperations.map(
@@ -144,6 +156,30 @@ export function useTimeLedger({
     timerSnapshot?.taskDataEpoch,
     timerSnapshot?.sessionVersion,
     timerSnapshot?.state,
+  ]);
+
+  // Refresh automatically when a capped activity hits autoStopAt or an uncapped activity reaches reviewDueAt
+  useEffect(() => {
+    const active = status?.activeActivity;
+    if (page !== "today" || !active || active.endMs !== undefined) return;
+    const targetMs =
+      active.autoStopAtMs ?? active.reviewDueAtMs;
+    if (targetMs === undefined) return;
+    const delayMs = Math.max(250, Math.min(2_147_483_647, targetMs - Date.now() + 400));
+    const timer = window.setTimeout(() => {
+      void loadData();
+      onTimeMutated();
+    }, delayMs);
+    return () => window.clearTimeout(timer);
+  }, [
+    page,
+    status?.activeActivity?.id,
+    status?.activeActivity?.version,
+    status?.activeActivity?.autoStopAtMs,
+    status?.activeActivity?.reviewDueAtMs,
+    status?.activeActivity?.endMs,
+    loadData,
+    onTimeMutated,
   ]);
 
   const runMutation = useCallback(
@@ -198,6 +234,19 @@ export function useTimeLedger({
     }
   }, [lastUndoable, loadData, onTimeMutated]);
 
+  const handleAckEvents = useCallback(
+    async (eventIds: string[]) => {
+      if (eventIds.length === 0) return;
+      try {
+        await ackTimeEvents(eventIds);
+        setEvents((prev) => prev.filter((e) => !eventIds.includes(e.id)));
+      } catch (err) {
+        setError(errorMessage(err));
+      }
+    },
+    [],
+  );
+
   return {
     status,
     policy,
@@ -205,6 +254,8 @@ export function useTimeLedger({
     setSelectedDate,
     daily,
     digest,
+    plans,
+    events,
     weekly,
     pendingDetails,
     loading,
@@ -213,6 +264,7 @@ export function useTimeLedger({
     setError,
     lastUndoable,
     clearUndoable: () => setLastUndoable(null),
+    handleAckEvents,
     handleUndoLast,
     reload: loadData,
     runMutation,

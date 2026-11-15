@@ -214,6 +214,21 @@ func (m model) snapshotLiveStatus(
 	if snapAt.IsZero() || liveUntil.IsZero() || maxLive < 0 {
 		maxLive = 0
 	}
+	hitAutoStop := false
+	var autoStopRemaining time.Duration
+	if snap.ActiveActivity.AutoStopAt != "" {
+		if autoStop := date(
+			snap.ActiveActivity.AutoStopAt,
+		); !autoStop.IsZero() &&
+			!snapAt.IsZero() {
+			rem := max(time.Duration(0), autoStop.Sub(snapAt))
+			if rem < maxLive {
+				maxLive = rem
+			}
+			autoStopRemaining = rem
+			hitAutoStop = true
+		}
+	}
 	var elapsed time.Duration
 	if !m.snapReceived.IsZero() {
 		elapsed = now.Sub(m.snapReceived)
@@ -221,8 +236,8 @@ func (m model) snapshotLiveStatus(
 	if elapsed < 0 {
 		elapsed = 0
 	}
-	if elapsed > maxLive {
-		return false, maxLive.Seconds(), "stale"
+	if (hitAutoStop && elapsed >= autoStopRemaining) || elapsed > maxLive {
+		return false, min(elapsed, maxLive).Seconds(), "stale"
 	}
 	return true, elapsed.Seconds(), "live"
 }
@@ -247,11 +262,26 @@ func (m model) activeActivityElapsed(now time.Time) (float64, bool) {
 		}
 	}
 	base := max(0.0, snapAt.Sub(started).Seconds())
+	maxAutoStop := -1.0
+	if snap.ActiveActivity.AutoStopAt != "" {
+		if autoStop := date(
+			snap.ActiveActivity.AutoStopAt,
+		); !autoStop.IsZero() {
+			maxAutoStop = max(0.0, autoStop.Sub(started).Seconds())
+			if base > maxAutoStop {
+				base = maxAutoStop
+			}
+		}
+	}
 	if snap.State != "ready" || snap.ActiveActivity.State != "running" {
 		return base, true
 	}
 	_, extra, _ := m.snapshotLiveStatus(now)
-	return base + extra, true
+	total := base + extra
+	if maxAutoStop >= 0 && total > maxAutoStop {
+		total = maxAutoStop
+	}
+	return total, true
 }
 
 func (m model) resolveTaskTiming(

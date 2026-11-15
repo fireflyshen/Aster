@@ -280,3 +280,41 @@ test("Energy V1 adapts to timezone 06:00 boundary, ignores non-task activities, 
   assert.equal(resumed.paused, false);
   assert.equal(typeof resumed.remaining, "number");
 });
+
+test("TimerSnapshot live extrapolation clamps strictly at autoStopAt", () => {
+  const s = makeSnapshot({
+    snapshotAt: "2026-11-15T10:00:00.000Z",
+    liveUntil: "2026-11-15T10:00:30.000Z",
+    activeActivity: {
+      id: "act-cap",
+      version: 1,
+      title: "Capped session",
+      categoryId: "work",
+      taskUuid: "task-cap",
+      startedAt: "2026-11-15T09:50:00.000Z",
+      state: "running",
+      autoStopAt: "2026-11-15T10:00:12.000Z",
+      limitVersion: 1,
+    },
+    taskTotalsSeconds: { "task-cap": 600 },
+  });
+  const tracked = mergeTimerSnapshot(null, s, 1000);
+  // At +8s mono (10:00:08 < autoStopAt 10:00:12): still live, 608s.
+  assert.equal(snapshotLiveStatus(tracked, 9_000).canTick, true);
+  assert.equal(displayedActiveActivitySeconds(tracked, 9_000), 608);
+  assert.equal(
+    displayedTaskSecondsFromSnapshot(tracked, "task-cap", 9_000),
+    608,
+  );
+
+  // At +25s mono (still < 30s liveUntil, but PAST 12s autoStopAt!): must clamp strictly at 612s and stop ticking.
+  const pastStop = snapshotLiveStatus(tracked, 26_000);
+  assert.equal(pastStop.canTick, false);
+  assert.equal(pastStop.expired, true);
+  assert.equal(pastStop.cappedExtraSeconds, 12);
+  assert.equal(displayedActiveActivitySeconds(tracked, 26_000), 612);
+  assert.equal(
+    displayedTaskSecondsFromSnapshot(tracked, "task-cap", 26_000),
+    612,
+  );
+});

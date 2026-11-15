@@ -105,6 +105,18 @@ Aster 的时间账本将生活与工作划分为固定的宏观领域。在调�
   `time_estimate`，记录粗略估记（`estimatedSeconds: 5400`,
   `explicitCategoryId: "leisure"`），不编造虚假起止时间。
 - “睡眠照常” → 调用 `time_sleep_confirm`，确认当天作息模板。
+- “下午两点到三点专注写方案一小时（最晚三点停）” → 调用 `time_plan_create`
+  设定 `allowanceMinutes: 60`、`plannedStartTime: "14:00"`、`hardStopTime: "15:00"`。
+  **绝不假设到点自动开始**：等用户说“现在开始写方案”时再调用
+  `time_plan_start`（或带 `timingPlanId` 调用 `time_start`）；若已过 `hardStopAt`
+  收到 `409 TIMING_PLAN_EXPIRED`，先提示原安排已过期并询问是否重新安排，切勿静默延后。
+- “先暂停一下” → 调用 `time_stop` 并设 `pause: true`，保留同份额度与同一最晚停止限制。
+- “这段确实写完了 / 实际 14:10 就结束了 / 再加 15 分钟” →
+  - 确认整段或确认当前运行至此：调用 `time_confirm`；
+  - 修正结束时刻或补记实际多出时间：调用 `time_update`；
+  - 增加剩余可用时长或明确延后最晚停止时刻：调用 `time_plan_update`
+    （`addAllowanceMinutes` / `hardStopTime`）后再调用 `time_plan_start`。
+- 收到自动停止或小时检查事件：先告知“已自动停止 · 暂计 X 分钟（待核对）”，经用户确认或修正后再入正式统计。
 
 ### 3. 制定任务计划（Planning Workflow）
 
@@ -151,8 +163,11 @@ Aster MCP 提供两组高内聚工具：
 ### 时间账本工具（Time Ledger）
 
 - `time_status`：查询当前时间引擎状态、正在进行的活动、会话版本与未决操作数。
-- `time_start`：启动一项计时（可关联任务 `taskUuid` 或独立生活活动）。
-- `time_stop`：结束当前活动，返回带版本的时间回执。
+- `time_start`：启动一项计时（可关联任务 `taskUuid`、已有 `timingPlanId` 或独立生活活动）。
+- `time_stop`：结束（或设 `pause: true` 暂停）当前活动，返回带版本与最新额度的时间回执。
+- `time_confirm`：确认自动停止片段或无上限活动的当前检查点前缀，将暂计转为正式计入。
+- `time_plan_create` / `time_plan_list` / `time_plan_update` / `time_plan_start`：创建（手动开始、到限自动停止）、查询、加时/重排与启动定时安排。
+- `time_events_list` / `time_events_ack`：读取并确认服务端的自动停止（`auto_stopped`）或小时检查（`checkpoint_due`）事件通知。
 - `time_log`：补记一段已发生的固定时段（可设 `precision: "estimated_bounds"`
   标记为约数）。
 - `time_estimate`：记录粗略/未定位估记，不污染全天硬性起止时间。

@@ -1,6 +1,7 @@
 export const DEFAULT_TIMEZONE = "Asia/Shanghai";
 export const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
 export const DEFAULT_LONG_ACTIVITY_THRESHOLD_SECONDS = 6 * 3600;
+export const DEFAULT_CHECKPOINT_INTERVAL_SECONDS = 60 * 60;
 export const DEFAULT_TIMER_LIVE_WINDOW_MS = 30_000;
 
 export type TimeCategory = {
@@ -101,6 +102,34 @@ export type ActivityReviewState =
   | "review_required"
   | "conflict"
   | "voided";
+export type ActivityReviewReason =
+  | "long_activity"
+  | "checkpoint_overdue"
+  | "auto_stopped"
+  | "restore_freeze"
+  | "import_conflict";
+export type ActivityStopReason =
+  | "manual_stop"
+  | "manual_pause"
+  | "manual_switch"
+  | "duration_limit"
+  | "hard_deadline"
+  | "both_limits"
+  | "task_stop"
+  | "task_complete"
+  | "task_delete"
+  | "restore_freeze";
+export type TimingPlanStopBasis =
+  | "duration_limit"
+  | "hard_deadline"
+  | "both_limits";
+export type TimingPlanStatus =
+  | "scheduled"
+  | "active"
+  | "paused"
+  | "stopped"
+  | "expired"
+  | "archived";
 export type RuleSource =
   | "explicit"
   | "task_override"
@@ -121,6 +150,16 @@ export type Activity = {
   startMs?: number;
   endMs?: number;
   suspendMs?: number;
+  confirmedThroughMs?: number;
+  reviewDueAtMs?: number;
+  reviewReason?: ActivityReviewReason;
+  timingPlanId?: string;
+  autoStopAtMs?: number;
+  autoStopBasis?: TimingPlanStopBasis;
+  limitVersion?: number;
+  timerStoppedAtMs?: number;
+  stopReason?: ActivityStopReason;
+  processedAtMs?: number;
   windowStartMs?: number;
   windowEndMs?: number;
   targetDate?: string;
@@ -136,6 +175,48 @@ export type Activity = {
   candidateKey?: string;
   createdAtMs: number;
   updatedAtMs: number;
+};
+
+export type TimingPlan = {
+  id: string;
+  version: number;
+  title: string;
+  categoryId?: string;
+  taskUuid?: string;
+  projectSnapshot?: string;
+  tags?: string[];
+  note?: string;
+  timezone: string;
+  allowanceSeconds?: number;
+  plannedStartAtMs?: number;
+  hardStopAtMs?: number;
+  consumedSeconds: number;
+  remainingSeconds?: number;
+  effectiveAutoStopAtMs?: number;
+  effectiveAutoStopBasis?: TimingPlanStopBasis;
+  status: TimingPlanStatus;
+  lastStopReason?: ActivityStopReason;
+  lastStoppedAtMs?: number;
+  activeActivityId?: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+  archivedAtMs?: number;
+};
+
+export type TimeEventKind = "auto_stopped" | "checkpoint_due" | "plan_reminder";
+
+export type TimeEvent = {
+  id: string;
+  dedupKey: string;
+  kind: TimeEventKind;
+  activityId?: string;
+  planId?: string;
+  title: string;
+  message: string;
+  occurredAtMs: number;
+  payload: Record<string, unknown>;
+  acknowledgedAtMs?: number;
+  createdAtMs: number;
 };
 
 export type TimeWarning = {
@@ -155,6 +236,11 @@ export type ActiveActivitySnapshot = {
   startedAt: string;
   state: "running" | "review_required";
   suspendAt?: string;
+  timingPlanId?: string;
+  autoStopAt?: string;
+  limitVersion?: number;
+  reviewDueAt?: string;
+  confirmedThrough?: string;
 };
 
 export type TimerSnapshotState =
@@ -216,11 +302,21 @@ export type LocatedSegment = {
   startMs: number;
   endMs: number;
   durationSeconds: number;
+  confirmedSeconds: number;
+  provisionalSeconds: number;
   running: boolean;
   precision: ActivityPrecision;
   source: ActivitySource;
   reviewState: ActivityReviewState;
   suspendMs?: number;
+  confirmedThroughMs?: number;
+  reviewDueAtMs?: number;
+  reviewReason?: ActivityReviewReason;
+  timingPlanId?: string;
+  autoStopAtMs?: number;
+  timerStoppedAtMs?: number;
+  stopReason?: ActivityStopReason;
+  exceededPlanSeconds?: number;
 };
 
 export type DailyLedgerSummary = {
@@ -231,6 +327,7 @@ export type DailyLedgerSummary = {
   asOfMs: number;
   pastCapacitySeconds: number;
   coveredSeconds: number;
+  provisionalSeconds: number;
   unrecordedSeconds: number;
   estimatedBoundsSeconds: number;
   reviewRequiredSeconds: number;
@@ -249,6 +346,7 @@ export type WeeklyDistributionSummary = {
   isPartialWeek: boolean;
   pastCapacitySeconds: number;
   coveredSeconds: number;
+  provisionalSeconds: number;
   unrecordedSeconds: number;
   estimatedBoundsSeconds: number;
   reviewRequiredSeconds: number;

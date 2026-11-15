@@ -109,12 +109,15 @@ export function TimeLedgerWorkspace({
             selectedDate={ledger.selectedDate}
             onSelectDate={ledger.setSelectedDate}
             daily={ledger.daily}
+            plans={ledger.plans}
+            events={ledger.events}
             pendingDetails={ledger.pendingDetails}
             tasks={tasks}
             timerSnapshot={timerSnapshot}
             timerLiveStatus={timerLiveStatus}
             activeActivitySeconds={activeActivitySeconds}
             busy={ledger.busy}
+            onAckEvents={ledger.handleAckEvents}
             runMutation={ledger.runMutation}
           />
         ) : page === "weekly" && ledger.weekly ? (

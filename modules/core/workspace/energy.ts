@@ -347,7 +347,18 @@ export function calculateTimeModeEnergy(input: TimeEnergyInput): EnergySummary {
       continue;
     }
 
-    const rawEnd = activity.suspendMs ?? activity.endMs ?? nowMs;
+    const rawEnd =
+      activity.endMs ??
+      (() => {
+        let upper = nowMs;
+        if (activity.suspendMs !== undefined) {
+          upper = Math.min(upper, activity.suspendMs);
+        }
+        if (activity.autoStopAtMs !== undefined) {
+          upper = Math.min(upper, activity.autoStopAtMs);
+        }
+        return upper;
+      })();
     const endMs = Math.min(rawEnd, nowMs);
     if (endMs <= activity.startMs) continue;
 

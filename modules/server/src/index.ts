@@ -17,6 +17,7 @@ import { createTimeStore } from "./time/time-store.ts";
 import { createTimeBackupService } from "./time/time-backup.ts";
 import { createTimeCoordinator } from "./time/time-coordinator.ts";
 import { createTimeHandlers } from "./time/time-api.ts";
+import { createTimeAutoStopScheduler } from "./time/time-scheduler.ts";
 import { checkSqliteBackupSupport } from "./time/time-barrier.ts";
 import { runMaintenanceBackup } from "./maintenance-backup.ts";
 
@@ -155,6 +156,12 @@ await backupRestore.repair();
 if (timeCoordinator && isTimeEnabled()) {
   await timeCoordinator.reconcileStartup();
 }
+
+const timeScheduler =
+  timeStore && isTimeEnabled()
+    ? createTimeAutoStopScheduler({ store: timeStore, gate })
+    : undefined;
+timeScheduler?.start();
 
 const timeRoutes = createTimeHandlers({
   identity,

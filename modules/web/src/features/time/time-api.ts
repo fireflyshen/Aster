@@ -2,8 +2,10 @@ import type {
   Activity,
   ActivityPrecision,
   DailyLedgerSummary,
+  TimeEvent,
   TimePolicy,
   TimerSnapshot,
+  TimingPlan,
   WeeklyDistributionSummary,
 } from "@core/time/model";
 import { api } from "@/lib/api";
@@ -31,6 +33,7 @@ export type TimeReceipt = {
   changed?: boolean;
   activity?: Activity;
   closedActivity?: Activity;
+  plan?: TimingPlan;
   warnings?: string[];
   undoneOperationId?: string;
 };
@@ -61,6 +64,8 @@ export type TimeReconcileDigest = {
   sessionVersion: number;
   timeEpoch: number;
   coveredSeconds: number;
+  provisionalSeconds?: number;
+  reviewRequiredSeconds?: number;
   unrecordedSeconds: number;
   sleepCandidates: DailyLedgerSummary["sleepCandidates"];
   gaps: DailyLedgerSummary["gaps"];
@@ -184,6 +189,7 @@ export function resolveTimeOperation(input: {
 
 export function startTimeActivity(input: {
   title?: string;
+  timingPlanId?: string;
   explicitCategoryId?: string;
   taskUuid?: string;
   projectSnapshot?: string;
@@ -201,10 +207,23 @@ export function stopTimeActivity(input?: {
   expectedActivityId?: string;
   expectedVersion?: number;
   expectedSessionVersion?: number;
+  pause?: boolean;
 }): Promise<TimeReceipt> {
   return api<TimeReceipt>("time/stop", {
     idempotencyKey: makeTimeIdempotencyKey("web-stop"),
     ...(input || {}),
+  });
+}
+
+export function confirmTimeActivity(input: {
+  activityId: string;
+  expectedVersion: number;
+  throughMs?: number;
+  nextCheckpointSeconds?: number;
+}): Promise<TimeReceipt> {
+  return api<TimeReceipt>("time/confirm", {
+    idempotencyKey: makeTimeIdempotencyKey("web-confirm"),
+    ...input,
   });
 }
 
@@ -348,4 +367,104 @@ export function applyTimeBackupRestore(token: string): Promise<{
   pendingOperationsCount: number;
 }> {
   return api("time/backup/restore", { token });
+}
+
+export function fetchTimingPlans(input?: {
+  includeArchived?: boolean;
+  taskUuid?: string;
+}): Promise<TimingPlan[]> {
+  const params = new URLSearchParams();
+  if (input?.includeArchived) params.set("includeArchived", "1");
+  if (input?.taskUuid) params.set("taskUuid", input.taskUuid);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return api<{ plans: TimingPlan[] }>(`time/plans${qs}`).then(
+    (res) => res.plans,
+  );
+}
+
+export function createTimingPlan(input: {
+  title: string;
+  categoryId?: string;
+  taskUuid?: string;
+  projectSnapshot?: string;
+  tags?: string[];
+  note?: string;
+  allowanceSeconds?: number;
+  allowanceMinutes?: number;
+  plannedStartAtMs?: number;
+  plannedStartDate?: string;
+  plannedStartTime?: string;
+  hardStopAtMs?: number;
+  hardStopDate?: string;
+  hardStopTime?: string;
+}): Promise<{ operationId: string; plan: TimingPlan }> {
+  return api("time/plans/create", {
+    idempotencyKey: makeTimeIdempotencyKey("web-plan"),
+    ...input,
+  });
+}
+
+export function updateTimingPlan(input: {
+  planId: string;
+  expectedVersion: number;
+  expectedSessionVersion?: number;
+  expectedActivityId?: string;
+  expectedActivityVersion?: number;
+  title?: string;
+  categoryId?: string | null;
+  taskUuid?: string | null;
+  projectSnapshot?: string | null;
+  tags?: string[] | null;
+  note?: string | null;
+  allowanceSeconds?: number | null;
+  allowanceMinutes?: number | null;
+  addAllowanceSeconds?: number;
+  addAllowanceMinutes?: number;
+  plannedStartAtMs?: number | null;
+  plannedStartDate?: string;
+  plannedStartTime?: string | null;
+  hardStopAtMs?: number | null;
+  hardStopDate?: string;
+  hardStopTime?: string | null;
+  archived?: boolean;
+}): Promise<{
+  operationId: string;
+  plan: TimingPlan;
+  updatedActivity?: Activity;
+  sessionVersion: number;
+}> {
+  return api("time/plans/update", {
+    idempotencyKey: makeTimeIdempotencyKey("web-plan-upd"),
+    ...input,
+  });
+}
+
+export function startTimingPlan(input: {
+  planId: string;
+  expectedSessionVersion?: number;
+  sameTaskNoop?: boolean;
+}): Promise<TimeReceipt> {
+  return api<TimeReceipt>("time/plans/start", {
+    idempotencyKey: makeTimeIdempotencyKey("web-plan-start"),
+    ...input,
+  });
+}
+
+export function fetchTimeEvents(input?: {
+  includeAcknowledged?: boolean;
+  limit?: number;
+}): Promise<TimeEvent[]> {
+  const params = new URLSearchParams();
+  if (input?.includeAcknowledged) params.set("includeAcknowledged", "1");
+  if (input?.limit !== undefined) params.set("limit", String(input.limit));
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return api<{ events: TimeEvent[] }>(`time/events${qs}`).then(
+    (res) => res.events,
+  );
+}
+
+export function ackTimeEvents(
+  eventIds: string[],
+): Promise<{ acknowledgedCount: number }> {
+  return api("time/events/ack", { eventIds });
 }

@@ -92,8 +92,21 @@ test("time store preflight, single-active timer switching, long-activity warning
     assert.equal(edited.activity.reviewState, "ok");
 
     const dayNov16 = store.getDailySummary("2026-11-16", fakeNow + 600_000);
-    assert.equal(dayNov16.coveredSeconds, 600); // Only 10m walk, reading's 00:00..12:00 released!
+    assert.equal(dayNov16.coveredSeconds, 0);
+    assert.equal(dayNov16.provisionalSeconds, 600); // Only 10m provisional walk; reading's 00:00..12:00 released!
     assert.equal(store.getStatus().activeActivity?.id, switchWalk.activity.id);
+
+    // Stopping formalizes the 10m interval into coveredSeconds
+    store.stopActivity({
+      idempotencyKey: "msg-4",
+      effectiveAtMs: fakeNow + 600_000,
+    });
+    const dayNov16AfterStop = store.getDailySummary(
+      "2026-11-16",
+      fakeNow + 600_000,
+    );
+    assert.equal(dayNov16AfterStop.coveredSeconds, 600);
+    assert.equal(dayNov16AfterStop.provisionalSeconds, 0);
 
     store.close();
   } finally {
@@ -325,9 +338,11 @@ test("independent Time backup and restore bump monotonic epoch/barrier, freeze o
     assert.equal(snap.activeActivity?.state, "review_required");
     assert.equal(snap.activeActivity?.suspendAt, new Date(nowMs).toISOString());
 
-    // Downtime after restore (14:00..15:00) is NOT counted toward covered time
+    // Downtime after restore (14:00..15:00) is NOT counted; pre-restore frozen tail stays provisional until confirmed
     const daily = store.getDailySummary("2026-11-15", nowMs + 3600_000);
-    assert.equal(daily.coveredSeconds, 4 * 3600); // 10:00..14:00 only
+    assert.equal(daily.coveredSeconds, 0);
+    assert.equal(daily.provisionalSeconds, 4 * 3600); // 10:00..14:00 only
+    assert.equal(daily.reviewRequiredSeconds, 4 * 3600);
 
     // Delayed retry predating restoreBarrierAt is isolated cleanly (REST-05)
     assert.throws(

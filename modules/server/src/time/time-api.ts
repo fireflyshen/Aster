@@ -5,7 +5,7 @@ import type {
   ActivitySource,
   TimePolicy,
 } from "../../../core/time/model.ts";
-import { localDateOf } from "../../../core/time/zone.ts";
+import { localDateOf, zonedDateTimeToUtcMs } from "../../../core/time/zone.ts";
 import { runMaintenanceBackup } from "../maintenance-backup.ts";
 import type { WorkspaceGate, WorkspaceRouteSpec } from "../workspace-api.ts";
 import type { TimeBackupService } from "./time-backup.ts";
@@ -17,6 +17,158 @@ import {
   type TaskSnapshotLookup,
 } from "./time-import.ts";
 import { TimeStoreError, type TimeStore } from "./time-store.ts";
+
+function optionalBoolean(value: unknown, field: string): boolean | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "boolean") {
+    throw new TimeStoreError(
+      400,
+      "INVALID_FIELD",
+      `Invalid boolean: ${field}.`,
+    );
+  }
+  return value;
+}
+
+function optionalNullableString(
+  value: unknown,
+  field: string,
+  max = 500,
+): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "string") {
+    throw new TimeStoreError(400, "INVALID_FIELD", `Invalid string: ${field}.`);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max);
+}
+
+function optionalNullableNumber(
+  value: unknown,
+  field: string,
+): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TimeStoreError(400, "INVALID_FIELD", `Invalid number: ${field}.`);
+  }
+  return value;
+}
+
+function requiredStringArray(value: unknown, field: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new TimeStoreError(
+      400,
+      "INVALID_FIELD",
+      `Missing or invalid string array: ${field}.`,
+    );
+  }
+  const out: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== "string" || !entry.trim()) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_FIELD",
+        `Invalid array entry in ${field}.`,
+      );
+    }
+    out.push(entry.trim().slice(0, 128));
+  }
+  return out;
+}
+
+function normalizeWallTime(raw: string): string {
+  const trimmed = raw.trim();
+  return /^\d:\d{2}(?::\d{2})?$/.test(trimmed) ? `0${trimmed}` : trimmed;
+}
+
+function parseTimestampInput(
+  body: Record<string, unknown>,
+  options: {
+    msKey: string;
+    isoKey: string;
+    dateKey: string;
+    timeKey: string;
+    timeZone: string;
+    defaultDate: string;
+  },
+): number | null | undefined {
+  const rawMs = body[options.msKey];
+  if (rawMs === null) return null;
+  if (rawMs !== undefined) {
+    if (typeof rawMs !== "number" || !Number.isFinite(rawMs)) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_FIELD",
+        `Invalid numeric timestamp: ${options.msKey}.`,
+      );
+    }
+    return rawMs;
+  }
+
+  const rawIso = body[options.isoKey];
+  if (rawIso === null) return null;
+  if (rawIso !== undefined) {
+    if (typeof rawIso !== "string" || !rawIso.trim()) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_FIELD",
+        `Invalid timestamp string: ${options.isoKey}.`,
+      );
+    }
+    const parsed = Date.parse(rawIso.trim());
+    if (!Number.isFinite(parsed)) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_FIELD",
+        `Invalid ISO timestamp: ${options.isoKey}.`,
+      );
+    }
+    return parsed;
+  }
+
+  const rawTime = body[options.timeKey];
+  if (rawTime === null) return null;
+  if (rawTime !== undefined) {
+    if (typeof rawTime !== "string" || !rawTime.trim()) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_FIELD",
+        `Invalid local time: ${options.timeKey}.`,
+      );
+    }
+    const rawDate = body[options.dateKey];
+    let dateStr = options.defaultDate;
+    if (rawDate !== undefined && rawDate !== null) {
+      if (typeof rawDate !== "string" || !rawDate.trim()) {
+        throw new TimeStoreError(
+          400,
+          "INVALID_FIELD",
+          `Invalid local date: ${options.dateKey}.`,
+        );
+      }
+      dateStr = rawDate.trim();
+    }
+    try {
+      return zonedDateTimeToUtcMs(
+        dateStr,
+        normalizeWallTime(rawTime),
+        options.timeZone,
+      );
+    } catch (error) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_FIELD",
+        error instanceof Error
+          ? error.message
+          : `Invalid local date/time for ${options.timeKey}.`,
+      );
+    }
+  }
+  return undefined;
+}
 
 function optionalString(value: unknown, max = 500): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -397,6 +549,7 @@ export function createTimeHandlers(deps: {
           "idempotencyKey",
           200,
         );
+        const timingPlanId = optionalString(body.timingPlanId, 64);
         const taskUuid = optionalString(body.taskUuid, 64);
         let title = optionalString(body.title, 500);
         let projectSnapshot = optionalString(body.projectSnapshot, 200);
@@ -421,7 +574,7 @@ export function createTimeHandlers(deps: {
             // Fall back to supplied title; native Time logs don't require Taskwarrior availability.
           }
         }
-        if (!title) {
+        if (!title && !timingPlanId) {
           throw new TimeStoreError(
             400,
             "MISSING_FIELD",
@@ -434,6 +587,7 @@ export function createTimeHandlers(deps: {
           receivedAtMs: optionalNumber(body.receivedAtMs),
           effectiveAtMs: optionalNumber(body.effectiveAtMs),
           title,
+          timingPlanId,
           explicitCategoryId: optionalString(body.explicitCategoryId, 100),
           taskUuid,
           projectSnapshot,
@@ -444,7 +598,10 @@ export function createTimeHandlers(deps: {
           sameTaskNoop: Boolean(body.sameTaskNoop),
           expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
         });
-        return { status: 200, body: receipt };
+        const plan = receipt.activity?.timingPlanId
+          ? (s.getTimingPlan(receipt.activity.timingPlanId) ?? undefined)
+          : undefined;
+        return { status: 200, body: plan ? { ...receipt, plan } : receipt };
       },
     },
     {
@@ -453,20 +610,318 @@ export function createTimeHandlers(deps: {
       handle: async ({ readBody }) => {
         const s = requireEnabledStore();
         const body = await readBody();
+        const receipt = s.stopActivity({
+          idempotencyKey: requiredString(
+            body.idempotencyKey,
+            "idempotencyKey",
+            200,
+          ),
+          receivedAtMs: optionalNumber(body.receivedAtMs),
+          effectiveAtMs: optionalNumber(body.effectiveAtMs),
+          expectedActivityId: optionalString(body.expectedActivityId, 64),
+          expectedVersion: optionalNumber(body.expectedVersion),
+          expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
+          pause: optionalBoolean(body.pause, "pause"),
+        });
+        const plan = receipt.activity?.timingPlanId
+          ? (s.getTimingPlan(receipt.activity.timingPlanId) ?? undefined)
+          : undefined;
         return {
           status: 200,
-          body: s.stopActivity({
-            idempotencyKey: requiredString(
-              body.idempotencyKey,
-              "idempotencyKey",
+          body: plan ? { ...receipt, plan } : receipt,
+        };
+      },
+    },
+    {
+      method: "POST",
+      route: "api/time/confirm",
+      handle: async ({ readBody }) => {
+        const s = requireEnabledStore();
+        const body = await readBody();
+        const receipt = s.confirmActivity({
+          idempotencyKey: requiredString(
+            body.idempotencyKey,
+            "idempotencyKey",
+            200,
+          ),
+          receivedAtMs: optionalNumber(body.receivedAtMs),
+          activityId: requiredString(body.activityId, "activityId", 64),
+          expectedVersion: requiredNumber(
+            body.expectedVersion,
+            "expectedVersion",
+          ),
+          throughMs: optionalNumber(body.throughMs),
+          nextCheckpointSeconds: optionalNumber(body.nextCheckpointSeconds),
+        });
+        const plan = receipt.activity?.timingPlanId
+          ? (s.getTimingPlan(receipt.activity.timingPlanId) ?? undefined)
+          : undefined;
+        return {
+          status: 200,
+          body: plan ? { ...receipt, plan } : receipt,
+        };
+      },
+    },
+    {
+      method: "GET",
+      route: "api/time/plans",
+      handle: async ({ searchParams }) => {
+        const s = requireStore();
+        const includeArchivedRaw = searchParams.get("includeArchived");
+        const includeArchived =
+          includeArchivedRaw === "1" || includeArchivedRaw === "true";
+        const taskUuid = optionalString(searchParams.get("taskUuid"), 64);
+        return {
+          status: 200,
+          body: { plans: s.listTimingPlans({ includeArchived, taskUuid }) },
+        };
+      },
+    },
+    {
+      method: "GET",
+      route: "api/time/plan",
+      handle: async ({ searchParams }) => {
+        const s = requireStore();
+        const id = requiredString(searchParams.get("id"), "id", 64);
+        const plan = s.getTimingPlan(id);
+        if (!plan) {
+          throw new TimeStoreError(
+            404,
+            "TIMING_PLAN_NOT_FOUND",
+            "Timing plan not found.",
+          );
+        }
+        return { status: 200, body: { plan } };
+      },
+    },
+    {
+      method: "POST",
+      route: "api/time/plans/create",
+      handle: async ({ readBody }) => {
+        const s = requireEnabledStore();
+        const body = await readBody();
+        const receivedAtMs = optionalNumber(body.receivedAtMs);
+        const taskUuid = optionalString(body.taskUuid, 64);
+        let title = optionalString(body.title, 500);
+        let projectSnapshot = optionalString(body.projectSnapshot, 200);
+        let tags = optionalStringArray(body.tags);
+
+        if (taskUuid && (!title || !projectSnapshot)) {
+          try {
+            const raw = await service.rawTask(taskUuid);
+            if (!title) title = raw.description;
+            if (
+              !projectSnapshot &&
+              typeof raw.project === "string" &&
+              raw.project
+            ) {
+              projectSnapshot = raw.project;
+            }
+            if (!tags && Array.isArray(raw.tags)) {
+              tags = raw.tags.filter((t): t is string => typeof t === "string");
+            }
+          } catch {
+            // Optional read-only task enrichment.
+          }
+        }
+        if (!title) {
+          throw new TimeStoreError(
+            400,
+            "MISSING_FIELD",
+            "Missing required field: title.",
+          );
+        }
+
+        const timeZone = s.getStatus().policy.timezone;
+        const defaultDate = localDateOf(receivedAtMs ?? Date.now(), timeZone);
+        const allowanceSeconds =
+          body.allowanceSeconds !== undefined && body.allowanceSeconds !== null
+            ? requiredNumber(body.allowanceSeconds, "allowanceSeconds")
+            : body.allowanceMinutes !== undefined &&
+                body.allowanceMinutes !== null
+              ? Math.round(
+                  requiredNumber(body.allowanceMinutes, "allowanceMinutes") *
+                    60,
+                )
+              : undefined;
+        const plannedStartParsed = parseTimestampInput(body, {
+          msKey: "plannedStartAtMs",
+          isoKey: "plannedStartAt",
+          dateKey: "plannedStartDate",
+          timeKey: "plannedStartTime",
+          timeZone,
+          defaultDate,
+        });
+        const hardStopParsed = parseTimestampInput(body, {
+          msKey: "hardStopAtMs",
+          isoKey: "hardStopAt",
+          dateKey: "hardStopDate",
+          timeKey: "hardStopTime",
+          timeZone,
+          defaultDate,
+        });
+
+        const result = s.createTimingPlan({
+          idempotencyKey: optionalString(body.idempotencyKey, 200),
+          receivedAtMs,
+          title,
+          categoryId: optionalString(body.categoryId, 100),
+          taskUuid,
+          projectSnapshot,
+          tags,
+          note: optionalString(body.note, 2000),
+          allowanceSeconds,
+          plannedStartAtMs:
+            plannedStartParsed === null ? undefined : plannedStartParsed,
+          hardStopAtMs: hardStopParsed === null ? undefined : hardStopParsed,
+        });
+        return { status: 200, body: result };
+      },
+    },
+    {
+      method: "POST",
+      route: "api/time/plans/update",
+      handle: async ({ readBody }) => {
+        const s = requireEnabledStore();
+        const body = await readBody();
+        const receivedAtMs = optionalNumber(body.receivedAtMs);
+        const timeZone = s.getStatus().policy.timezone;
+        const defaultDate = localDateOf(receivedAtMs ?? Date.now(), timeZone);
+
+        const allowanceSeconds =
+          body.allowanceSeconds !== undefined
+            ? optionalNullableNumber(body.allowanceSeconds, "allowanceSeconds")
+            : body.allowanceMinutes !== undefined
+              ? body.allowanceMinutes === null
+                ? null
+                : Math.round(
+                    requiredNumber(body.allowanceMinutes, "allowanceMinutes") *
+                      60,
+                  )
+              : undefined;
+        const addAllowanceSeconds =
+          body.addAllowanceSeconds !== undefined
+            ? requiredNumber(body.addAllowanceSeconds, "addAllowanceSeconds")
+            : body.addAllowanceMinutes !== undefined
+              ? Math.round(
+                  requiredNumber(
+                    body.addAllowanceMinutes,
+                    "addAllowanceMinutes",
+                  ) * 60,
+                )
+              : undefined;
+        const plannedStartAtMs = parseTimestampInput(body, {
+          msKey: "plannedStartAtMs",
+          isoKey: "plannedStartAt",
+          dateKey: "plannedStartDate",
+          timeKey: "plannedStartTime",
+          timeZone,
+          defaultDate,
+        });
+        const hardStopAtMs = parseTimestampInput(body, {
+          msKey: "hardStopAtMs",
+          isoKey: "hardStopAt",
+          dateKey: "hardStopDate",
+          timeKey: "hardStopTime",
+          timeZone,
+          defaultDate,
+        });
+
+        const result = s.updateTimingPlan({
+          idempotencyKey: optionalString(body.idempotencyKey, 200),
+          receivedAtMs,
+          planId: requiredString(body.planId, "planId", 64),
+          expectedVersion: requiredNumber(
+            body.expectedVersion,
+            "expectedVersion",
+          ),
+          expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
+          expectedActivityId: optionalString(body.expectedActivityId, 64),
+          expectedActivityVersion: optionalNumber(body.expectedActivityVersion),
+          patch: {
+            title: optionalString(body.title, 500),
+            categoryId: optionalNullableString(
+              body.categoryId,
+              "categoryId",
+              100,
+            ),
+            taskUuid: optionalNullableString(body.taskUuid, "taskUuid", 64),
+            projectSnapshot: optionalNullableString(
+              body.projectSnapshot,
+              "projectSnapshot",
               200,
             ),
-            receivedAtMs: optionalNumber(body.receivedAtMs),
-            effectiveAtMs: optionalNumber(body.effectiveAtMs),
-            expectedActivityId: optionalString(body.expectedActivityId, 64),
-            expectedVersion: optionalNumber(body.expectedVersion),
-            expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
-          }),
+            tags: body.tags === null ? null : optionalStringArray(body.tags),
+            note: optionalNullableString(body.note, "note", 2000),
+            allowanceSeconds,
+            addAllowanceSeconds,
+            plannedStartAtMs,
+            hardStopAtMs,
+            archived: optionalBoolean(body.archived, "archived"),
+          },
+        });
+        return { status: 200, body: result };
+      },
+    },
+    {
+      method: "POST",
+      route: "api/time/plans/start",
+      handle: async ({ readBody }) => {
+        const s = requireEnabledStore();
+        const body = await readBody();
+        const planId = requiredString(body.planId, "planId", 64);
+        const receipt = s.startActivity({
+          idempotencyKey: requiredString(
+            body.idempotencyKey,
+            "idempotencyKey",
+            200,
+          ),
+          receivedAtMs: optionalNumber(body.receivedAtMs),
+          effectiveAtMs: optionalNumber(body.effectiveAtMs),
+          timingPlanId: planId,
+          sameTaskNoop: optionalBoolean(body.sameTaskNoop, "sameTaskNoop"),
+          expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
+        });
+        const plan = receipt.activity?.timingPlanId
+          ? (s.getTimingPlan(receipt.activity.timingPlanId) ?? undefined)
+          : (s.getTimingPlan(planId) ?? undefined);
+        return {
+          status: 200,
+          body: plan ? { ...receipt, plan } : receipt,
+        };
+      },
+    },
+    {
+      method: "GET",
+      route: "api/time/events",
+      handle: async ({ searchParams }) => {
+        const s = requireStore();
+        const includeRaw = searchParams.get("includeAcknowledged");
+        const includeAcknowledged = includeRaw === "1" || includeRaw === "true";
+        const limitRaw = searchParams.get("limit");
+        const limit =
+          limitRaw !== null && limitRaw !== "" ? Number(limitRaw) : undefined;
+        if (limit !== undefined && (!Number.isFinite(limit) || limit <= 0)) {
+          throw new TimeStoreError(400, "INVALID_FIELD", "Invalid limit.");
+        }
+        return {
+          status: 200,
+          body: {
+            events: s.listTimeEvents({ includeAcknowledged, limit }),
+          },
+        };
+      },
+    },
+    {
+      method: "POST",
+      route: "api/time/events/ack",
+      handle: async ({ readBody }) => {
+        const s = requireEnabledStore();
+        const body = await readBody();
+        const eventIds = requiredStringArray(body.eventIds, "eventIds");
+        return {
+          status: 200,
+          body: s.ackTimeEvents(eventIds),
         };
       },
     },

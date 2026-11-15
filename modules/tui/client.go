@@ -67,13 +67,17 @@ type Placement struct {
 	ColumnID string `json:"columnId"`
 }
 type ActiveActivitySnapshot struct {
-	ID         string `json:"id"`
-	Title      string `json:"title"`
-	CategoryID string `json:"categoryId"`
-	TaskUUID   string `json:"taskUuid,omitempty"`
-	StartedAt  string `json:"startedAt"`
-	State      string `json:"state"`
-	SuspendAt  string `json:"suspendAt,omitempty"`
+	ID               string `json:"id"`
+	Title            string `json:"title"`
+	CategoryID       string `json:"categoryId"`
+	TaskUUID         string `json:"taskUuid,omitempty"`
+	StartedAt        string `json:"startedAt"`
+	State            string `json:"state"`
+	SuspendAt        string `json:"suspendAt,omitempty"`
+	AutoStopAt       string `json:"autoStopAt,omitempty"`
+	TimingPlanID     string `json:"timingPlanId,omitempty"`
+	ReviewDueAt      string `json:"reviewDueAt,omitempty"`
+	ConfirmedThrough string `json:"confirmedThrough,omitempty"`
 }
 
 type TimerSnapshot struct {
