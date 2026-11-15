@@ -193,6 +193,7 @@ export function startTimeActivity(input: {
   explicitCategoryId?: string;
   taskUuid?: string;
   projectSnapshot?: string;
+  tags?: string[];
   note?: string;
   expectedSessionVersion?: number;
 }): Promise<TimeReceipt> {
@@ -233,6 +234,8 @@ export function logTimeActivity(input: {
   endMs: number;
   explicitCategoryId?: string;
   taskUuid?: string;
+  projectSnapshot?: string;
+  tags?: string[];
   precision?: ActivityPrecision | "approximate";
   note?: string;
 }): Promise<TimeReceipt> {
@@ -251,6 +254,8 @@ export function estimateTimeActivity(input: {
   windowEndMs?: number;
   explicitCategoryId?: string;
   taskUuid?: string;
+  projectSnapshot?: string;
+  tags?: string[];
   note?: string;
 }): Promise<TimeReceipt> {
   return api<TimeReceipt>("time/estimate", {

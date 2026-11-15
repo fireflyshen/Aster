@@ -123,7 +123,7 @@ export function TimeTodayPage({
   runMutation: <T extends TimeReceipt | Record<string, unknown>>(
     label: string,
     fn: () => Promise<T>,
-    options?: { undoable?: boolean },
+    options?: { undoable?: boolean; onError?: (message: string) => void },
   ) => Promise<T | undefined>;
 }) {
   const timeZone = policy.timezone || "UTC";
@@ -318,6 +318,7 @@ export function TimeTodayPage({
         categoryId,
         taskUuid: chosenTask?.uuid,
         projectSnapshot: chosenTask?.project || undefined,
+        tags: chosenTask?.tags?.length ? chosenTask.tags : undefined,
         allowanceSeconds: draftPlanEvaluation.allowanceSeconds,
         plannedStartAtMs: draftPlanEvaluation.plannedStartAtMs,
         hardStopAtMs: draftPlanEvaluation.hardStopAtMs,
@@ -360,6 +361,7 @@ export function TimeTodayPage({
           explicitCategoryId: categoryId,
           taskUuid: chosenTask?.uuid,
           projectSnapshot: chosenTask?.project || undefined,
+          tags: chosenTask?.tags?.length ? chosenTask.tags : undefined,
           expectedSessionVersion: status?.sessionVersion,
         }),
       { undoable: true },
@@ -438,6 +440,21 @@ export function TimeTodayPage({
       draftPlanEvaluation.hasLimit &&
       ("error" in draftPlanEvaluation || draftPlanEvaluation.hardStopPassed)
     );
+
+  async function submitInDialog(
+    label: string,
+    fn: () => Promise<TimeReceipt>,
+  ): Promise<string | null> {
+    let capturedError: string | null = null;
+    const ok = await runMutation(label, fn, {
+      undoable: true,
+      onError: (msg) => {
+        capturedError = msg;
+      },
+    });
+    if (ok) return null;
+    return capturedError ?? "保存失败，请检查输入后重试。";
+  }
 
   return (
     <div className="space-y-9">
@@ -1294,10 +1311,10 @@ export function TimeTodayPage({
                     disabled={busy}
                     onClick={() => {
                       const gapEndDate = localDateOf(item.gap.endMs, timeZone);
-                      const endTime =
-                        gapEndDate === selectedDate
-                          ? formatClockInZone(item.gap.endMs, timeZone)
-                          : "23:59";
+                      const endIsSameDay = gapEndDate === selectedDate;
+                      const endTime = endIsSameDay
+                        ? formatClockInZone(item.gap.endMs, timeZone)
+                        : "23:59";
                       setLogDialogSeed({
                         mode: "log",
                         date: selectedDate,
@@ -1312,6 +1329,8 @@ export function TimeTodayPage({
                             Math.round(item.gap.durationSeconds / 60),
                           ),
                         ),
+                        exactStartMs: item.gap.startMs,
+                        ...(endIsSameDay ? { exactEndMs: item.gap.endMs } : {}),
                       });
                     }}
                   >
@@ -1482,23 +1501,14 @@ export function TimeTodayPage({
         timeZone={timeZone}
         policy={policy}
         tasks={tasks}
+        segments={daily.locatedSegments}
         busy={busy}
-        onSubmitLog={async (input) =>
-          Boolean(
-            await runMutation(
-              `已补记：${input.title}`,
-              () => logTimeActivity(input),
-              { undoable: true },
-            ),
-          )
+        onSubmitLog={(input) =>
+          submitInDialog(`已补记：${input.title}`, () => logTimeActivity(input))
         }
-        onSubmitEstimate={async (input) =>
-          Boolean(
-            await runMutation(
-              `已记录估记：${input.title}`,
-              () => estimateTimeActivity(input),
-              { undoable: true },
-            ),
+        onSubmitEstimate={(input) =>
+          submitInDialog(`已记录估记：${input.title}`, () =>
+            estimateTimeActivity(input),
           )
         }
       />
@@ -1507,17 +1517,14 @@ export function TimeTodayPage({
         activity={locatingEstimate}
         defaultDate={selectedDate}
         timeZone={timeZone}
+        segments={daily.locatedSegments}
         busy={busy}
         onOpenChange={(open) => {
           if (!open) setLocatingEstimate(null);
         }}
-        onLocate={async (input) =>
-          Boolean(
-            await runMutation(
-              "已将估记定位到具体时段",
-              () => locateTimeEstimate(input),
-              { undoable: true },
-            ),
+        onLocate={(input) =>
+          submitInDialog("已将估记定位到具体时段", () =>
+            locateTimeEstimate(input),
           )
         }
       />
@@ -1527,18 +1534,13 @@ export function TimeTodayPage({
         date={selectedDate}
         timeZone={timeZone}
         policy={policy}
+        segments={daily.locatedSegments}
         busy={busy}
         onOpenChange={(open) => {
           if (!open) setEditingSegment(null);
         }}
-        onSave={async (input) =>
-          Boolean(
-            await runMutation(
-              "已更新活动记录",
-              () => updateTimeActivity(input),
-              { undoable: true },
-            ),
-          )
+        onSave={(input) =>
+          submitInDialog("已更新活动记录", () => updateTimeActivity(input))
         }
       />
     </div>

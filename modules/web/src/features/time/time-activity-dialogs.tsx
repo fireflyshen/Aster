@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { formatClockInZone } from "./time-format";
+import { formatClockInZone, snapMinuteStartToSegments } from "./time-format";
 
 export type LogDialogSeed = {
   mode: "log" | "estimate";
@@ -30,6 +30,8 @@ export type LogDialogSeed = {
   startTime: string;
   endTime: string;
   estimatedMinutes: string;
+  exactStartMs?: number;
+  exactEndMs?: number;
 };
 
 export function TimeLogOrEstimateDialog({
@@ -39,6 +41,7 @@ export function TimeLogOrEstimateDialog({
   timeZone,
   policy,
   tasks,
+  segments,
   busy,
   onSubmitLog,
   onSubmitEstimate,
@@ -49,6 +52,7 @@ export function TimeLogOrEstimateDialog({
   timeZone: string;
   policy: TimePolicy | null;
   tasks: Task[];
+  segments?: readonly LocatedSegment[];
   busy: boolean;
   onSubmitLog: (input: {
     title: string;
@@ -56,9 +60,11 @@ export function TimeLogOrEstimateDialog({
     endMs: number;
     explicitCategoryId?: string;
     taskUuid?: string;
+    projectSnapshot?: string;
+    tags?: string[];
     precision: "exact" | "estimated_bounds";
     note?: string;
-  }) => Promise<boolean>;
+  }) => Promise<string | null>;
   onSubmitEstimate: (input: {
     title: string;
     estimatedSeconds: number;
@@ -67,8 +73,10 @@ export function TimeLogOrEstimateDialog({
     windowEndMs?: number;
     explicitCategoryId?: string;
     taskUuid?: string;
+    projectSnapshot?: string;
+    tags?: string[];
     note?: string;
-  }) => Promise<boolean>;
+  }) => Promise<string | null>;
 }) {
   const [mode, setMode] = useState<"log" | "estimate">("log");
   const [title, setTitle] = useState("");
@@ -115,22 +123,47 @@ export function TimeLogOrEstimateDialog({
 
     if (mode === "log") {
       try {
-        const startMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
-        const endMs = zonedDateTimeToUtcMs(date, endTime, timeZone);
-        if (endMs <= startMs) {
+        const useSeededStart = Boolean(
+          seed &&
+            seed.exactStartMs !== undefined &&
+            date === seed.date &&
+            startTime === seed.startTime,
+        );
+        const useSeededEnd = Boolean(
+          seed &&
+            seed.exactEndMs !== undefined &&
+            date === seed.date &&
+            endTime === seed.endTime,
+        );
+        const rawStartMs = useSeededStart
+          ? seed!.exactStartMs!
+          : zonedDateTimeToUtcMs(date, startTime, timeZone);
+        const endMs = useSeededEnd
+          ? seed!.exactEndMs!
+          : zonedDateTimeToUtcMs(date, endTime, timeZone);
+        if (endMs <= rawStartMs) {
           setLocalError("结束时间必须晚于开始时间。");
           return;
         }
-        const ok = await onSubmitLog({
+        const startMs = useSeededStart
+          ? rawStartMs
+          : snapMinuteStartToSegments(rawStartMs, endMs, segments);
+        const err = await onSubmitLog({
           title: finalTitle,
           startMs,
           endMs,
           explicitCategoryId: categoryId !== "auto" ? categoryId : undefined,
           taskUuid: selectedTask?.uuid,
+          projectSnapshot: selectedTask?.project || undefined,
+          tags: selectedTask?.tags?.length ? selectedTask.tags : undefined,
           precision: approximate ? "estimated_bounds" : "exact",
           note: note.trim() || undefined,
         });
-        if (ok) onOpenChange(false);
+        if (err === null) {
+          onOpenChange(false);
+        } else {
+          setLocalError(err);
+        }
       } catch (err) {
         setLocalError(err instanceof Error ? err.message : "时间格式无效");
       }
@@ -157,7 +190,7 @@ export function TimeLogOrEstimateDialog({
         return;
       }
     }
-    const ok = await onSubmitEstimate({
+    const err = await onSubmitEstimate({
       title: finalTitle,
       estimatedSeconds: Math.round(mins * 60),
       targetDate: date,
@@ -165,9 +198,15 @@ export function TimeLogOrEstimateDialog({
       windowEndMs,
       explicitCategoryId: categoryId !== "auto" ? categoryId : undefined,
       taskUuid: selectedTask?.uuid,
+      projectSnapshot: selectedTask?.project || undefined,
+      tags: selectedTask?.tags?.length ? selectedTask.tags : undefined,
       note: note.trim() || undefined,
     });
-    if (ok) onOpenChange(false);
+    if (err === null) {
+      onOpenChange(false);
+    } else {
+      setLocalError(err);
+    }
   }
 
   return (
@@ -373,6 +412,7 @@ export function LocateEstimateDialog({
   activity,
   defaultDate,
   timeZone,
+  segments,
   busy,
   onOpenChange,
   onLocate,
@@ -380,6 +420,7 @@ export function LocateEstimateDialog({
   activity: Activity | null;
   defaultDate: string;
   timeZone: string;
+  segments?: readonly LocatedSegment[];
   busy: boolean;
   onOpenChange: (open: boolean) => void;
   onLocate: (input: {
@@ -387,7 +428,7 @@ export function LocateEstimateDialog({
     expectedVersion: number;
     startMs: number;
     endMs: number;
-  }) => Promise<boolean>;
+  }) => Promise<string | null>;
 }) {
   const [date, setDate] = useState(defaultDate);
   const [startTime, setStartTime] = useState("20:00");
@@ -413,19 +454,24 @@ export function LocateEstimateDialog({
     if (!activity) return;
     setLocalError("");
     try {
-      const startMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
+      const rawStartMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
       const endMs = zonedDateTimeToUtcMs(date, endTime, timeZone);
-      if (endMs <= startMs) {
+      if (endMs <= rawStartMs) {
         setLocalError("结束时间必须晚于开始时间。");
         return;
       }
-      const ok = await onLocate({
+      const startMs = snapMinuteStartToSegments(rawStartMs, endMs, segments);
+      const err = await onLocate({
         activityId: activity.id,
         expectedVersion: activity.version,
         startMs,
         endMs,
       });
-      if (ok) onOpenChange(false);
+      if (err === null) {
+        onOpenChange(false);
+      } else {
+        setLocalError(err);
+      }
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : "时间无效");
     }
@@ -498,6 +544,7 @@ export function EditSegmentDialog({
   date,
   timeZone,
   policy,
+  segments,
   busy,
   onOpenChange,
   onSave,
@@ -506,6 +553,7 @@ export function EditSegmentDialog({
   date: string;
   timeZone: string;
   policy: TimePolicy | null;
+  segments?: readonly LocatedSegment[];
   busy: boolean;
   onOpenChange: (open: boolean) => void;
   onSave: (input: {
@@ -520,7 +568,7 @@ export function EditSegmentDialog({
       clearTaskLink?: boolean;
       confirmReview?: boolean;
     };
-  }) => Promise<boolean>;
+  }) => Promise<string | null>;
 }) {
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState("uncategorized");
@@ -572,28 +620,45 @@ export function EditSegmentDialog({
       ...(clearTaskLink ? { clearTaskLink: true } : {}),
       ...(confirmReview ? { confirmReview: true } : {}),
     };
-    const timesChanged = startTime !== origStartTime || endTime !== origEndTime;
-    if (!segment.running && timesChanged) {
+    const startChanged = startTime !== origStartTime;
+    const endChanged = endTime !== origEndTime;
+    if (!segment.running && (startChanged || endChanged)) {
       try {
-        const startMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
-        const endMs = zonedDateTimeToUtcMs(date, endTime, timeZone);
-        if (endMs <= startMs) {
+        const endMs = endChanged
+          ? zonedDateTimeToUtcMs(date, endTime, timeZone)
+          : segment.endMs;
+        const rawStartMs = startChanged
+          ? zonedDateTimeToUtcMs(date, startTime, timeZone)
+          : segment.startMs;
+        if (endMs <= rawStartMs) {
           setLocalError("结束时间必须晚于开始时间。");
           return;
         }
-        patch.startMs = startMs;
-        patch.endMs = endMs;
+        const startMs = startChanged
+          ? snapMinuteStartToSegments(
+              rawStartMs,
+              endMs,
+              segments,
+              segment.activityId,
+            )
+          : rawStartMs;
+        if (startChanged) patch.startMs = startMs;
+        if (endChanged) patch.endMs = endMs;
       } catch (err) {
         setLocalError(err instanceof Error ? err.message : "时间无效");
         return;
       }
     }
-    const ok = await onSave({
+    const err = await onSave({
       activityId: segment.activityId,
       expectedVersion: segment.version,
       patch,
     });
-    if (ok) onOpenChange(false);
+    if (err === null) {
+      onOpenChange(false);
+    } else {
+      setLocalError(err);
+    }
   }
 
   return (

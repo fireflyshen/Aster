@@ -8,7 +8,6 @@ import type {
 } from "@core/time/model";
 import { localDateOf } from "@core/time/zone";
 import { useCallback, useEffect, useState } from "react";
-import { RequestError } from "@/lib/api";
 import type { TimePage } from "@/app/hooks/use-workspace-navigation";
 import {
   ackTimeEvents,
@@ -26,6 +25,7 @@ import {
   type TimeReconcileDigest,
   type TimeStatusResponse,
 } from "./time-api";
+import { formatTimeErrorMessage } from "./time-format";
 
 export type PendingOperationDetail = {
   operationId: string;
@@ -46,11 +46,6 @@ function todayInZone(timeZone: string): string {
   } catch {
     return new Date().toISOString().slice(0, 10);
   }
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof RequestError) return error.message;
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** Coordinates Time ledger queries, pending reconciliation details, and versioned mutations with undo receipts. */
@@ -142,7 +137,14 @@ export function useTimeLedger({
         setWeekly(nextWeekly);
       }
     } catch (err) {
-      setError(errorMessage(err));
+      setError(
+        formatTimeErrorMessage(
+          err,
+          policy?.timezone ||
+            Intl.DateTimeFormat().resolvedOptions().timeZone ||
+            "UTC",
+        ),
+      );
     } finally {
       setLoading(false);
     }
@@ -188,10 +190,10 @@ export function useTimeLedger({
     async <T extends TimeReceipt | Record<string, unknown>>(
       label: string,
       fn: () => Promise<T>,
-      options?: { undoable?: boolean },
+      options?: { undoable?: boolean; onError?: (message: string) => void },
     ): Promise<T | undefined> => {
       setBusy(true);
-      setError("");
+      if (!options?.onError) setError("");
       try {
         const result = await fn();
         const opId =
@@ -208,14 +210,23 @@ export function useTimeLedger({
         onTimeMutated();
         return result;
       } catch (err) {
-        const msg = errorMessage(err);
-        setError(msg);
+        const msg = formatTimeErrorMessage(
+          err,
+          policy?.timezone ||
+            Intl.DateTimeFormat().resolvedOptions().timeZone ||
+            "UTC",
+        );
+        if (options?.onError) {
+          options.onError(msg);
+        } else {
+          setError(msg);
+        }
         return undefined;
       } finally {
         setBusy(false);
       }
     },
-    [loadData, onTimeMutated],
+    [loadData, onTimeMutated, policy?.timezone],
   );
 
   const handleUndoLast = useCallback(async () => {
@@ -229,12 +240,17 @@ export function useTimeLedger({
       await loadData();
       onTimeMutated();
     } catch (err) {
-      const msg = errorMessage(err);
+      const msg = formatTimeErrorMessage(
+        err,
+        policy?.timezone ||
+          Intl.DateTimeFormat().resolvedOptions().timeZone ||
+          "UTC",
+      );
       setError(msg);
     } finally {
       setBusy(false);
     }
-  }, [lastUndoable, loadData, onTimeMutated]);
+  }, [lastUndoable, loadData, onTimeMutated, policy?.timezone]);
 
   const handleAckEvents = useCallback(async (eventIds: string[]) => {
     if (eventIds.length === 0) return;
@@ -242,9 +258,16 @@ export function useTimeLedger({
       await ackTimeEvents(eventIds);
       setEvents((prev) => prev.filter((e) => !eventIds.includes(e.id)));
     } catch (err) {
-      setError(errorMessage(err));
+      setError(
+        formatTimeErrorMessage(
+          err,
+          policy?.timezone ||
+            Intl.DateTimeFormat().resolvedOptions().timeZone ||
+            "UTC",
+        ),
+      );
     }
-  }, []);
+  }, [policy?.timezone]);
 
   return {
     status,

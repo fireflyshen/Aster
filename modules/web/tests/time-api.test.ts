@@ -32,6 +32,22 @@ const compiled = esbuild.buildSync({
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString("base64")}`;
 const timeApi = await import(moduleUrl);
 
+const compiledFormat = esbuild.buildSync({
+  entryPoints: [path.join(webRoot, "src/features/time/time-format.ts")],
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  write: false,
+  alias: {
+    "@": path.join(webRoot, "src"),
+    "@core": coreRoot,
+    "@shared": path.join(webRoot, "shared"),
+  },
+});
+
+const formatUrl = `data:text/javascript;base64,${Buffer.from(compiledFormat.outputFiles[0].text).toString("base64")}`;
+const timeFormat = await import(formatUrl);
+
 test("web time-api routes cleanly through real server handlers without double /api prefix or wrapped POST bodies", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "aster-web-time-"));
   const dbPath = path.join(dir, "time.sqlite");
@@ -267,6 +283,145 @@ test("web time-api routes cleanly through real server handlers without double /a
 
     assert.ok(fetchedUrls.length >= 16);
     assert.ok(fetchedUrls.every((u) => u.startsWith("/api/time/")));
+  } finally {
+    globalThis.fetch = origFetch;
+    store.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("time log snapping avoids sub-minute overlap and formats Chinese conflict details", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "aster-web-time-snap-"));
+  const dbPath = path.join(dir, "time.sqlite");
+  const barrierPath = path.join(dir, "time-barrier.json");
+  let fakeNow = Date.parse("2026-11-15T08:45:00.000Z"); // 16:45:00 Asia/Shanghai
+  const store = await createTimeStore(dbPath, {
+    barrierPath,
+    enabled: true,
+    cutoverAtMs: Date.parse("2026-11-15T00:00:00.000Z"),
+    now: () => fakeNow,
+  });
+  store.updatePolicy({
+    expectedPolicyVersion: store.getPolicy().policyVersion,
+    patch: { timezone: "Asia/Shanghai" },
+  });
+
+  const handlers = createTimeHandlers({
+    identity: "web-snap-test",
+    gate: {
+      exclusive: (fn) => fn(),
+      shared: (fn) => fn(),
+    } as never,
+    service: {
+      connection: { kind: "local" },
+      rawTask: async () => {
+        throw new Error("not used");
+      },
+      exportTasks: async () => [],
+    } as never,
+    store,
+    isEnabled: () => true,
+    paths: {
+      dataDir: dir,
+      organizationFile: path.join(dir, "organization.json"),
+      recoveryFile: path.join(dir, "recovery.json"),
+      timeFile: dbPath,
+    },
+  });
+
+  const routeMap = new Map(handlers.map((r) => [`${r.method}:${r.route}`, r]));
+  const origFetch = globalThis.fetch;
+
+  globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
+    const parsed = new URL(String(input), "http://127.0.0.1:4180");
+    const method = (init?.method || "GET").toUpperCase();
+    const route = parsed.pathname.replace(/^\//, "");
+    const spec = routeMap.get(`${method}:${route}`);
+    if (!spec) {
+      return new Response(JSON.stringify({}), { status: 404 });
+    }
+    const bodyText = typeof init?.body === "string" ? init.body : "";
+    try {
+      const res = await spec.handle({
+        searchParams: parsed.searchParams,
+        readBody: async () => (bodyText ? JSON.parse(bodyText) : {}),
+        transport: "http",
+      } as never);
+      return new Response(JSON.stringify(res.body), {
+        status: res.status,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (err) {
+      if (err instanceof TimeStoreError) {
+        return new Response(
+          JSON.stringify({
+            error: err.message,
+            code: err.code,
+            ...(err.details ? { details: err.details } : {}),
+          }),
+          {
+            status: err.status,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+      throw err;
+    }
+  }) as typeof fetch;
+
+  try {
+    // Previous timer starts at 16:45:00 and stops at 16:53:42.000
+    await timeApi.startTimeActivity({
+      title: "C++ if、switch 与循环",
+      explicitCategoryId: "study",
+    });
+    fakeNow = Date.parse("2026-11-15T08:53:42.000Z"); // 16:53:42
+    await timeApi.stopTimeActivity();
+    fakeNow = Date.parse("2026-11-15T09:30:00.000Z"); // 17:30:00
+
+    const daily = await timeApi.fetchDailySummary("2026-11-15");
+    assert.equal(daily.locatedSegments.length, 1);
+
+    // User types minute-precision start 16:53:00 -> 17:26:00
+    const rawStartMs = Date.parse("2026-11-15T08:53:00.000Z");
+    const endMs = Date.parse("2026-11-15T09:26:00.000Z");
+    const snappedStartMs = timeFormat.snapMinuteStartToSegments(
+      rawStartMs,
+      endMs,
+      daily.locatedSegments,
+    );
+    assert.equal(snappedStartMs, Date.parse("2026-11-15T08:53:42.000Z"));
+
+    const saved = await timeApi.logTimeActivity({
+      title: "C++学习",
+      startMs: snappedStartMs,
+      endMs,
+      explicitCategoryId: "study",
+      projectSnapshot: "Learn.Cpp",
+      tags: ["cpp"],
+      precision: "exact",
+    });
+    assert.equal(saved.activity?.projectSnapshot, "Learn.Cpp");
+    assert.equal(saved.activity?.startMs, snappedStartMs);
+
+    // Genuine overlap returns details.conflicts & Chinese conflict description with seconds
+    let capturedErr: unknown;
+    try {
+      await timeApi.logTimeActivity({
+        title: "真正重叠测试",
+        startMs: Date.parse("2026-11-15T08:50:00.000Z"), // 16:50:00
+        endMs: Date.parse("2026-11-15T08:55:00.000Z"), // 16:55:00
+      });
+    } catch (err) {
+      capturedErr = err;
+    }
+    assert.ok(capturedErr, "expected overlap error");
+    const localized = timeFormat.formatTimeErrorMessage(
+      capturedErr,
+      "Asia/Shanghai",
+    );
+    assert.match(localized, /C\+\+ if、switch 与循环/);
+    assert.match(localized, /16:45 – 16:53:42/);
   } finally {
     globalThis.fetch = origFetch;
     store.close();

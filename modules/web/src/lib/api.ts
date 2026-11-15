@@ -1,8 +1,10 @@
 export class RequestError extends Error {
+  override name = "RequestError";
   uncertain = false;
   status?: number;
   code?: string;
   operationId?: string;
+  details?: Record<string, unknown>;
 }
 export async function api<T = { ok: true }>(
   route: string,
@@ -51,6 +53,10 @@ export async function api<T = { ok: true }>(
         : typeof result.details?.operationId === "string"
           ? result.details.operationId
           : undefined;
+    error.details =
+      result.details && typeof result.details === "object"
+        ? (result.details as Record<string, unknown>)
+        : undefined;
     error.uncertain =
       result.outcome === "unknown" ||
       (data !== undefined && response.status >= 500);
