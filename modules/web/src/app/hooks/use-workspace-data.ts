@@ -21,7 +21,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { connectionStatusLabel, taskEditPayload } from "../lib/task-view";
 
 type MutateOriginHandler = {
-  onSuccess?: (origin?: "editor" | "quick" | "notes", response?: unknown) => void;
+  onSuccess?: (
+    origin?: "editor" | "quick" | "notes",
+    response?: unknown,
+  ) => void;
   onError?: (message: string, origin?: "editor" | "quick" | "notes") => void;
 };
 
@@ -500,7 +503,8 @@ export function useWorkspaceData({
     taskTrackedSeconds,
     taskCostSummary,
     hourlyRateCents: trackedSnapshot?.snapshot.hourlyRateCents ?? 10_000,
-    taskListHighlightCost: trackedSnapshot?.snapshot.taskListHighlightCost ?? true,
+    taskListHighlightCost:
+      trackedSnapshot?.snapshot.taskListHighlightCost ?? true,
     load,
     loadOrganization,
     reloadAll,

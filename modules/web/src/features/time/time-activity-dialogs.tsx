@@ -180,7 +180,8 @@ export function TimeLogOrEstimateDialog({
       return;
     }
     const explicitCategoryId = isSleep ? "sleep" : "work";
-    const resolvedProject = project.trim() || selectedTask?.project || undefined;
+    const resolvedProject =
+      project.trim() || selectedTask?.project || undefined;
     const resolvedTags =
       tags.length > 0
         ? tags
@@ -192,15 +193,15 @@ export function TimeLogOrEstimateDialog({
       try {
         const useSeededStart = Boolean(
           seed &&
-            seed.exactStartMs !== undefined &&
-            date === seed.date &&
-            startTime === seed.startTime,
+          seed.exactStartMs !== undefined &&
+          date === seed.date &&
+          startTime === seed.startTime,
         );
         const useSeededEnd = Boolean(
           seed &&
-            seed.exactEndMs !== undefined &&
-            date === seed.date &&
-            endTime === seed.endTime,
+          seed.exactEndMs !== undefined &&
+          date === seed.date &&
+          endTime === seed.endTime,
         );
         const rawStartMs = useSeededStart
           ? seed!.exactStartMs!

@@ -331,7 +331,9 @@ export function initializeTimeDatabase(
 
   let storedPolicyRate = defaultPolicy.hourlyRateCents ?? 10_000;
   try {
-    const parsedPolicy = JSON.parse(existing.policy_json) as Partial<TimePolicy>;
+    const parsedPolicy = JSON.parse(
+      existing.policy_json,
+    ) as Partial<TimePolicy>;
     storedPolicyRate = normalizeHourlyRateCents(
       parsedPolicy.hourlyRateCents,
       storedPolicyRate,
@@ -363,7 +365,10 @@ export function initializeTimeDatabase(
       updated_at_ms: number;
     }>;
     for (const plan of legacyPlans) {
-      const rate = normalizeHourlyRateCents(plan.hourly_rate_cents, storedPolicyRate);
+      const rate = normalizeHourlyRateCents(
+        plan.hourly_rate_cents,
+        storedPolicyRate,
+      );
       const initSec = plan.initial_allowance_seconds ?? plan.allowance_seconds;
       const initBudget =
         plan.initial_budget_cents ?? computeDurationCostCents(initSec, rate);

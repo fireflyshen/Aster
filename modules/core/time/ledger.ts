@@ -227,7 +227,8 @@ export function computeDailyLedger(
       rateCents,
     );
     const tags = normalizeActivityTags(activity.tags);
-    const projectKey = activity.projectSnapshot?.trim() || UNASSIGNED_PROJECT_KEY;
+    const projectKey =
+      activity.projectSnapshot?.trim() || UNASSIGNED_PROJECT_KEY;
 
     coveredSeconds += confirmedSeconds;
     provisionalSeconds += segmentProvisionalSeconds;

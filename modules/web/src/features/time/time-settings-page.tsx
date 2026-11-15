@@ -335,7 +335,8 @@ export function TimeSettingsPage({
 
           <div className="mt-5 flex items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              活动归类直接使用 Taskwarrior 的「项目 + 标签」统计，不再单独维护预制分类。
+              活动归类直接使用 Taskwarrior 的「项目 +
+              标签」统计，不再单独维护预制分类。
             </p>
             <Button type="submit" size="sm" disabled={busy}>
               保存设置

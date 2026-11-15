@@ -455,7 +455,9 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
             onSubmit={onSubmitTaskForm}
             isTimeMode={isTimeMode}
             hourlyRateCents={hourlyRateCents}
-            costSummary={editing && taskCostSummary ? taskCostSummary(editing) : undefined}
+            costSummary={
+              editing && taskCostSummary ? taskCostSummary(editing) : undefined
+            }
             onRefreshTimeSnapshot={onRefreshTimeSnapshot}
           />
         )}

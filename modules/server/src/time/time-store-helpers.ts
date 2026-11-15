@@ -246,11 +246,7 @@ export function validatePolicy(policy: TimePolicy): TimePolicy {
       !Number.isFinite(policy.hourlyRateCents) ||
       policy.hourlyRateCents < 0)
   ) {
-    throw new TimeStoreError(
-      400,
-      "INVALID_POLICY",
-      "Invalid hourly rate.",
-    );
+    throw new TimeStoreError(400, "INVALID_POLICY", "Invalid hourly rate.");
   }
   return {
     ...policy,
@@ -570,7 +566,9 @@ export function rowToTaskBudget(row: TaskBudgetRow): TaskBudget {
   };
 }
 
-export function loadAllTaskBudgets(conn: DatabaseSync): Map<string, TaskBudget> {
+export function loadAllTaskBudgets(
+  conn: DatabaseSync,
+): Map<string, TaskBudget> {
   const rows = conn
     .prepare("SELECT * FROM task_budgets")
     .all() as TaskBudgetRow[];
@@ -604,7 +602,9 @@ export function rowToBillLink(row: BillLinkRow): BillLink {
 export function loadAllBillLinks(conn: DatabaseSync): BillLink[] {
   return (
     conn
-      .prepare("SELECT * FROM bill_links ORDER BY pay_time DESC, created_at_ms DESC")
+      .prepare(
+        "SELECT * FROM bill_links ORDER BY pay_time DESC, created_at_ms DESC",
+      )
       .all() as BillLinkRow[]
   ).map(rowToBillLink);
 }
@@ -688,7 +688,10 @@ export function syncTaskBudgetFromEstimateTx(
     } else {
       const targetSec = Math.round(input.allowanceSeconds);
       if (nextInitialAllowance === null && nextInitialBudget === null) {
-        const initCost = computeDurationCostCents(targetSec, input.policyRateCents);
+        const initCost = computeDurationCostCents(
+          targetSec,
+          input.policyRateCents,
+        );
         nextInitialAllowance = targetSec;
         nextInitialBudget = initCost;
         nextCurrentAllowance = targetSec;
@@ -700,7 +703,8 @@ export function syncTaskBudgetFromEstimateTx(
         const prevBudget = nextCurrentBudget ?? 0;
         if (deltaSec >= 0) {
           nextCurrentBudget =
-            prevBudget + computeDurationCostCents(deltaSec, input.policyRateCents);
+            prevBudget +
+            computeDurationCostCents(deltaSec, input.policyRateCents);
         } else {
           nextCurrentBudget = Math.max(
             0,

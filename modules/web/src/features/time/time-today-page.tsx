@@ -1232,14 +1232,18 @@ export function TimeTodayPage({
                           </>
                         )}
                         {plan.currentBudgetCents !== undefined && (
-                          <> · 预算 {formatCurrencyCny(plan.currentBudgetCents)}</>
+                          <>
+                            {" "}
+                            · 预算 {formatCurrencyCny(plan.currentBudgetCents)}
+                          </>
                         )}
                         {plan.initialBudgetCents !== undefined &&
                           plan.currentBudgetCents !== undefined &&
                           plan.currentBudgetCents > plan.initialBudgetCents && (
                             <span className="text-amber-600 dark:text-amber-400">
                               {" "}
-                              (最初 {formatCurrencyCny(plan.initialBudgetCents)})
+                              (最初 {formatCurrencyCny(plan.initialBudgetCents)}
+                              )
                             </span>
                           )}
                         {plan.plannedStartAtMs !== undefined && (

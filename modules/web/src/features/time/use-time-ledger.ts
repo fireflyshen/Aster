@@ -252,22 +252,25 @@ export function useTimeLedger({
     }
   }, [lastUndoable, loadData, onTimeMutated, policy?.timezone]);
 
-  const handleAckEvents = useCallback(async (eventIds: string[]) => {
-    if (eventIds.length === 0) return;
-    try {
-      await ackTimeEvents(eventIds);
-      setEvents((prev) => prev.filter((e) => !eventIds.includes(e.id)));
-    } catch (err) {
-      setError(
-        formatTimeErrorMessage(
-          err,
-          policy?.timezone ||
-            Intl.DateTimeFormat().resolvedOptions().timeZone ||
-            "UTC",
-        ),
-      );
-    }
-  }, [policy?.timezone]);
+  const handleAckEvents = useCallback(
+    async (eventIds: string[]) => {
+      if (eventIds.length === 0) return;
+      try {
+        await ackTimeEvents(eventIds);
+        setEvents((prev) => prev.filter((e) => !eventIds.includes(e.id)));
+      } catch (err) {
+        setError(
+          formatTimeErrorMessage(
+            err,
+            policy?.timezone ||
+              Intl.DateTimeFormat().resolvedOptions().timeZone ||
+              "UTC",
+          ),
+        );
+      }
+    },
+    [policy?.timezone],
+  );
 
   return {
     status,

@@ -160,7 +160,8 @@ const TIME_ERROR_MESSAGES: Record<string, string> = {
   ACTIVITY_VERSION_CONFLICT: "该记录已在其他窗口更新，请刷新后再试。",
   SESSION_VERSION_CONFLICT: "当前计时状态已发生变化，请刷新后再试。",
   ACTIVE_TIMER_EXISTS: "当前已有正在计时的活动，请先结束或切换后再试。",
-  TIMING_PLAN_EXPIRED: "原计划的最晚停止时间已过，请修改最晚停止时刻后重新开始。",
+  TIMING_PLAN_EXPIRED:
+    "原计划的最晚停止时间已过，请修改最晚停止时刻后重新开始。",
   TIMING_PLAN_DEPLETED: "该计划的预计可用时长已用完，请加时后再继续。",
   ALREADY_LOCATED: "该记录已经定位到时间线上了。",
   TIME_DISABLED: "时间账本当前处于禁用状态。",

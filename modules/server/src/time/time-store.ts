@@ -1989,7 +1989,7 @@ export async function createTimeStore(
     receivedAtMs?: number;
     activityId: string;
     expectedVersion: number;
-      patch: {
+    patch: {
       title?: string;
       categoryId?: string;
       projectSnapshot?: string | null;
@@ -3654,10 +3654,12 @@ export async function createTimeStore(
                   existingTaskBudget.current_allowance_seconds +
                     allowanceDeltaForTask,
                 )
-              : nextAllowance ?? undefined;
+              : (nextAllowance ?? undefined);
           syncTaskBudgetFromEstimateTx(conn, {
             taskUuid: nextTaskUuid,
-            ...(nextTaskSec !== undefined ? { allowanceSeconds: nextTaskSec } : {}),
+            ...(nextTaskSec !== undefined
+              ? { allowanceSeconds: nextTaskSec }
+              : {}),
             plannedStartAtMs: nextPlannedStart,
             hardStopAtMs: nextHardStop,
             policyRateCents: policyRate,
@@ -4113,7 +4115,9 @@ export async function createTimeStore(
       const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
 
       if (input.mode === "clear") {
-        conn.prepare("DELETE FROM task_budgets WHERE task_uuid = ?").run(taskKey);
+        conn
+          .prepare("DELETE FROM task_budgets WHERE task_uuid = ?")
+          .run(taskKey);
       } else if (input.mode === "add") {
         if (
           input.addAllowanceSeconds === undefined ||
@@ -4138,7 +4142,8 @@ export async function createTimeStore(
         if (
           input.allowanceSeconds !== undefined &&
           input.allowanceSeconds !== null &&
-          (!Number.isFinite(input.allowanceSeconds) || input.allowanceSeconds <= 0)
+          (!Number.isFinite(input.allowanceSeconds) ||
+            input.allowanceSeconds <= 0)
         ) {
           throw new TimeStoreError(
             400,
@@ -4253,7 +4258,10 @@ export async function createTimeStore(
         0,
         Math.floor(confirmedEndMs / 1000) - Math.floor(act.startMs / 1000),
       );
-      const provisionalSeconds = Math.max(0, durationSeconds - confirmedSeconds);
+      const provisionalSeconds = Math.max(
+        0,
+        durationSeconds - confirmedSeconds,
+      );
       const rate = normalizeHourlyRateCents(act.hourlyRateCents, policyRate);
       segments.push({
         activityId: act.id,
@@ -4261,7 +4269,9 @@ export async function createTimeStore(
         title: act.title,
         categoryId: act.categoryId,
         ...(act.taskUuid ? { taskUuid: act.taskUuid } : {}),
-        ...(act.projectSnapshot ? { projectSnapshot: act.projectSnapshot } : {}),
+        ...(act.projectSnapshot
+          ? { projectSnapshot: act.projectSnapshot }
+          : {}),
         ...(act.tags && act.tags.length > 0 ? { tags: act.tags } : {}),
         hourlyRateCents: rate,
         startMs: act.startMs,
@@ -4270,7 +4280,10 @@ export async function createTimeStore(
         confirmedSeconds,
         provisionalSeconds,
         confirmedCostCents: computeDurationCostCents(confirmedSeconds, rate),
-        provisionalCostCents: computeDurationCostCents(provisionalSeconds, rate),
+        provisionalCostCents: computeDurationCostCents(
+          provisionalSeconds,
+          rate,
+        ),
         running:
           act.endMs === undefined &&
           act.suspendMs === undefined &&
@@ -4287,7 +4300,9 @@ export async function createTimeStore(
           : {}),
         ...(act.reviewReason ? { reviewReason: act.reviewReason } : {}),
         ...(act.timingPlanId ? { timingPlanId: act.timingPlanId } : {}),
-        ...(act.autoStopAtMs !== undefined ? { autoStopAtMs: act.autoStopAtMs } : {}),
+        ...(act.autoStopAtMs !== undefined
+          ? { autoStopAtMs: act.autoStopAtMs }
+          : {}),
         ...(act.timerStoppedAtMs !== undefined
           ? { timerStoppedAtMs: act.timerStoppedAtMs }
           : {}),

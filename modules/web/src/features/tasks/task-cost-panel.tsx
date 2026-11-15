@@ -6,7 +6,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { BillLinkDialog, LinkedBillsList } from "@/features/time/bill-link-dialog";
+import {
+  BillLinkDialog,
+  LinkedBillsList,
+} from "@/features/time/bill-link-dialog";
 import {
   confirmTimeActivity,
   createTimingPlan,
@@ -211,7 +214,8 @@ export function TaskCostDetailSection({
 
   const summary = detail?.summary ?? initialSummary;
   const activeRateCents =
-    summary?.currentHourlyRateCents ?? normalizeHourlyRateCents(hourlyRateCents);
+    summary?.currentHourlyRateCents ??
+    normalizeHourlyRateCents(hourlyRateCents);
 
   async function runAction(fn: () => Promise<unknown>) {
     setBusy(true);
@@ -430,7 +434,8 @@ export function TaskCostDetailSection({
       ) : null}
 
       {/* Provisional / Review Required Alert Box (strictly separate from confirmed cost!) */}
-      {(reviewSegments.length > 0 || (summary?.provisionalCostCents ?? 0) > 0) && (
+      {(reviewSegments.length > 0 ||
+        (summary?.provisionalCostCents ?? 0) > 0) && (
         <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-2.5 py-2 tabular-nums">
           <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
             待核对金额 {formatCurrencyCny(summary?.provisionalCostCents ?? 0)}（
@@ -716,9 +721,7 @@ export function TaskCostDetailSection({
             <LinkedBillsList
               links={detail.billLinks}
               busy={busy || disabled}
-              onUnlink={(linkId) =>
-                runAction(() => unlinkBillLink(linkId))
-              }
+              onUnlink={(linkId) => runAction(() => unlinkBillLink(linkId))}
               onOpenPicker={() => setBillOpen(true)}
             />
           </div>

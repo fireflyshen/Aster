@@ -1,7 +1,4 @@
-import {
-  computeDurationCostCents,
-  normalizeHourlyRateCents,
-} from "./cost.ts";
+import { computeDurationCostCents, normalizeHourlyRateCents } from "./cost.ts";
 import type { TaskCostSummary, TimerSnapshot } from "./model.ts";
 
 export type TrackedTimerSnapshot = {
@@ -258,7 +255,8 @@ export function displayedTaskCostFromSnapshot(
       active.hourlyRateCents ?? tracked.snapshot.hourlyRateCents,
       base.currentHourlyRateCents,
     );
-    const provisionalSeconds = base.provisionalSeconds + live.cappedExtraSeconds;
+    const provisionalSeconds =
+      base.provisionalSeconds + live.cappedExtraSeconds;
     const extraProvisionalCost = computeDurationCostCents(
       live.cappedExtraSeconds,
       rate,

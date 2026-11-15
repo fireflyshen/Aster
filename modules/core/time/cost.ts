@@ -191,7 +191,8 @@ export function deriveBudgetFromPlans(
   const key = taskUuid.toLowerCase();
   const matching = plans
     .filter(
-      (p) => p.taskUuid?.toLowerCase() === key && p.allowanceSeconds !== undefined,
+      (p) =>
+        p.taskUuid?.toLowerCase() === key && p.allowanceSeconds !== undefined,
     )
     .sort((a, b) => a.createdAtMs - b.createdAtMs);
   if (matching.length === 0) return undefined;
@@ -201,7 +202,8 @@ export function deriveBudgetFromPlans(
     first.hourlyRateCents,
     fallbackRateCents,
   );
-  const initialAllowance = first.initialAllowanceSeconds ?? first.allowanceSeconds;
+  const initialAllowance =
+    first.initialAllowanceSeconds ?? first.allowanceSeconds;
   const initialBudgetCents =
     first.initialBudgetCents ??
     (initialAllowance !== undefined
@@ -334,7 +336,8 @@ export function computeTaskCostSummary(options: {
       if (seenLinkIds.has(link.id)) continue;
       const matchesTask = link.taskUuid?.toLowerCase() === key;
       const matchesActivity =
-        link.activityId !== undefined && matchedActivityIds.has(link.activityId);
+        link.activityId !== undefined &&
+        matchedActivityIds.has(link.activityId);
       if (!matchesTask && !matchesActivity) continue;
       seenLinkIds.add(link.id);
       linkedCashCents += Math.max(0, link.cnyAmountCents);
@@ -348,9 +351,13 @@ export function computeTaskCostSummary(options: {
     provisionalSeconds,
     provisionalCostCents,
     hasBudget,
-    ...(initialAllowanceSeconds !== undefined ? { initialAllowanceSeconds } : {}),
+    ...(initialAllowanceSeconds !== undefined
+      ? { initialAllowanceSeconds }
+      : {}),
     ...(initialBudgetCents !== undefined ? { initialBudgetCents } : {}),
-    ...(currentAllowanceSeconds !== undefined ? { currentAllowanceSeconds } : {}),
+    ...(currentAllowanceSeconds !== undefined
+      ? { currentAllowanceSeconds }
+      : {}),
     ...(currentBudgetCents !== undefined ? { currentBudgetCents } : {}),
     addedBudgetCents,
     overInitialBudgetCents,
@@ -497,7 +504,10 @@ export function computeCostReport(options: {
       clippedStartMs,
       Math.min(confirmedEndMs, clippedEndMs),
     );
-    const confirmedSeconds = secondsDelta(clippedStartMs, clippedConfirmedEndMs);
+    const confirmedSeconds = secondsDelta(
+      clippedStartMs,
+      clippedConfirmedEndMs,
+    );
     const provisionalSeconds = Math.max(0, totalSec - confirmedSeconds);
     const rate = normalizeHourlyRateCents(activity.hourlyRateCents, policyRate);
     const confirmedCostCents = computeDurationCostCents(confirmedSeconds, rate);
@@ -534,7 +544,8 @@ export function computeCostReport(options: {
 
     const taskKey = activity.taskUuid?.toLowerCase();
     const taskMeta = taskKey ? options.taskMetaByUuid?.get(taskKey) : undefined;
-    const projectName = activity.projectSnapshot?.trim() || taskMeta?.project?.trim();
+    const projectName =
+      activity.projectSnapshot?.trim() || taskMeta?.project?.trim();
     const projectRow = ensureProject(projectName);
     projectRow.periodSeconds += confirmedSeconds;
     projectRow.periodCostCents += confirmedCostCents;
@@ -586,7 +597,10 @@ export function computeCostReport(options: {
       payDate >= periodStartDate && payDate <= periodEndDate;
     const inPeriodByActivity =
       link.activityId !== undefined && periodActivityMap.has(link.activityId);
-    if ((inPeriodByDate || inPeriodByActivity) && !seenPeriodBillIds.has(link.id)) {
+    if (
+      (inPeriodByDate || inPeriodByActivity) &&
+      !seenPeriodBillIds.has(link.id)
+    ) {
       seenPeriodBillIds.add(link.id);
       periodBillLinks.push(link);
       if (link.taskUuid) {
@@ -641,7 +655,9 @@ export function computeCostReport(options: {
     byTask.push({
       taskUuid: accum.taskUuid,
       title: accum.title,
-      ...(accum.projectSnapshot ? { projectSnapshot: accum.projectSnapshot } : {}),
+      ...(accum.projectSnapshot
+        ? { projectSnapshot: accum.projectSnapshot }
+        : {}),
       tags: [...accum.tags],
       periodSeconds: accum.periodSeconds,
       periodCostCents: accum.periodCostCents,
@@ -743,7 +759,8 @@ export function computeCostReport(options: {
     totalPeriodProvisionalSeconds,
     totalPeriodProvisionalCostCents,
     totalCashExpenseCents,
-    totalCombinedCostCents: totalPeriodConfirmedCostCents + totalCashExpenseCents,
+    totalCombinedCostCents:
+      totalPeriodConfirmedCostCents + totalCashExpenseCents,
     byProject,
     byTask,
     unassignedSegments,

@@ -38,7 +38,9 @@ function collectBeanFiles(dir: string, out: string[]): void {
   }
 }
 
-export function resolveBillsJournalDir(explicitBillsDir?: string): string | null {
+export function resolveBillsJournalDir(
+  explicitBillsDir?: string,
+): string | null {
   const candidates: string[] = [];
   if (explicitBillsDir) {
     candidates.push(explicitBillsDir);
@@ -152,7 +154,10 @@ function parseBeanFileExpenses(filePath: string): BillExpenseItem[] {
     const cnyCounterPostings: number[] = [];
 
     i += 1;
-    while (i < lines.length && (/^\s+/.test(lines[i]) || lines[i].trim() === "")) {
+    while (
+      i < lines.length &&
+      (/^\s+/.test(lines[i]) || lines[i].trim() === "")
+    ) {
       const sub = lines[i];
       if (sub.trim() === "") {
         i += 1;
@@ -285,8 +290,7 @@ export function listBillExpenses(options?: {
   }
 
   matched.sort(
-    (a, b) =>
-      b.payTime.localeCompare(a.payTime) || b.lineNumber - a.lineNumber,
+    (a, b) => b.payTime.localeCompare(a.payTime) || b.lineNumber - a.lineNumber,
   );
   return {
     available: true,

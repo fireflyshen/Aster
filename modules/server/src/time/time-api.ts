@@ -145,7 +145,8 @@ export function createTimeHandlers(deps: {
       for (const t of tasks) {
         map.set(t.uuid.toLowerCase(), {
           title: t.description,
-          project: typeof t.project === "string" && t.project ? t.project : undefined,
+          project:
+            typeof t.project === "string" && t.project ? t.project : undefined,
           tags: Array.isArray(t.tags)
             ? t.tags.filter((x): x is string => typeof x === "string")
             : undefined,
