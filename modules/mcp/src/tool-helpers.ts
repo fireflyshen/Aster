@@ -1,8 +1,24 @@
+import { randomUUID } from "node:crypto";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { WorkspaceError, type WorkspaceCall } from "./transport.ts";
 
 export const uuidSchema = z.string().uuid();
+
+export const idempotencyKeySchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .describe(
+    "Stable client-generated idempotency key; reuse only when retrying the exact same logical request.",
+  );
+
+export function resolveIdempotencyKey(
+  key: string | undefined,
+  prefix = "mcp",
+): string {
+  return key && key.trim() ? key.trim() : `${prefix}:${randomUUID()}`;
+}
 
 export const revisionSchema = z
   .number()
@@ -92,7 +108,12 @@ export function createToolRegistrar(
                 text: JSON.stringify({
                   error: e.message,
                   ...(e instanceof WorkspaceError
-                    ? { status: e.status, outcome: e.outcome }
+                    ? {
+                        status: e.status,
+                        outcome: e.outcome,
+                        ...(e.code ? { code: e.code } : {}),
+                        ...(e.details ? { details: e.details } : {}),
+                      }
                     : {}),
                 }),
               },

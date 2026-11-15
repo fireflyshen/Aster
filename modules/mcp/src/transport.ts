@@ -13,10 +13,20 @@ export type WorkspaceCall = (
 export class WorkspaceError extends Error {
   status?: number;
   outcome?: string;
-  constructor(message: string, status?: number, outcome?: string) {
+  code?: string;
+  details?: Record<string, unknown>;
+  constructor(
+    message: string,
+    status?: number,
+    outcome?: string,
+    code?: string,
+    details?: Record<string, unknown>,
+  ) {
     super(message);
     this.status = status;
     this.outcome = outcome;
+    this.code = code;
+    this.details = details;
   }
 }
 export function socketClient(socketPath: string): WorkspaceCall {
@@ -51,15 +61,34 @@ export function socketClient(socketPath: string): WorkspaceCall {
           res.on("end", () => {
             try {
               const value = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-              if ((res.statusCode || 500) >= 400)
+              if ((res.statusCode || 500) >= 400) {
+                const detailsObj =
+                  value.details &&
+                  typeof value.details === "object" &&
+                  !Array.isArray(value.details)
+                    ? (value.details as Record<string, unknown>)
+                    : undefined;
+                const mergedDetails =
+                  detailsObj ||
+                  (typeof value.operationId === "string" && value.operationId)
+                    ? {
+                        ...(detailsObj || {}),
+                        ...(typeof value.operationId === "string" &&
+                        value.operationId
+                          ? { operationId: value.operationId }
+                          : {}),
+                      }
+                    : undefined;
                 reject(
                   new WorkspaceError(
                     value.error || "Workspace request failed.",
                     res.statusCode,
                     value.outcome,
+                    typeof value.code === "string" ? value.code : undefined,
+                    mergedDetails,
                   ),
                 );
-              else resolve(value);
+              } else resolve(value);
             } catch {
               reject(
                 new WorkspaceError(
