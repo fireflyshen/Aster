@@ -74,6 +74,7 @@ export type Habit = {
   project?: string;
   tags: string[];
   status: HabitStatus;
+  trackTime?: boolean;
   abEnabled: boolean;
   subtaskPlans?: Record<string, "A" | "B">;
   schedule: HabitSchedule;
@@ -214,6 +215,7 @@ export type CreateHabitInput = {
   description?: string;
   project?: string;
   tags?: string[];
+  trackTime?: boolean;
   abEnabled?: boolean;
   subtaskPlans?: Record<string, "A" | "B">;
   schedule: HabitSchedule;
@@ -227,6 +229,7 @@ export type UpdateHabitInput = {
   project?: string | null;
   tags?: string[];
   completionMode?: HabitCompletionMode;
+  trackTime?: boolean;
   abEnabled?: boolean;
   subtaskPlans?: Record<string, "A" | "B">;
   schedule?: HabitSchedule;
@@ -239,6 +242,7 @@ export type BindTaskHabitInput = {
   kind: HabitKind;
   schedule: HabitSchedule;
   status?: HabitStatus;
+  trackTime?: boolean;
   abEnabled?: boolean;
   subtaskPlans?: Record<string, "A" | "B">;
   effectiveFromDate?: string;

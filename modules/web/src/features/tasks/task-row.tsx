@@ -197,6 +197,13 @@ export function TaskRow({
         Boolean(habit.todayEvaluation?.checklistProgress[s.uuid]?.done),
       ).length)
     : subtasks.filter((s) => s.status === "completed").length;
+  const timingAllowed =
+    (!habit || Boolean(habit.trackTime)) &&
+    (!parentHabit || Boolean(parentHabit.trackTime));
+  const effectiveIsTimeMode = isTimeMode && timingAllowed;
+  const effectiveOnToggleStart = timingAllowed ? onToggleStart : undefined;
+  const effectiveOnClearStartMark = timingAllowed ? onClearStartMark : undefined;
+
   const hasMoreMenu = Boolean(
     (!completed &&
       (onDueChange ||
@@ -207,7 +214,7 @@ export function TaskRow({
     onDelete,
   );
   const hasRightActions = Boolean(
-    (!completed && onToggleStart) ||
+    (!completed && effectiveOnToggleStart) ||
     (variant === "list" &&
       !completed &&
       (onSaveInline || onDueChange || onPriorityChange)) ||
@@ -224,10 +231,11 @@ export function TaskRow({
     task.priority ||
     task.wait ||
     (Number.isFinite(task.urgency) && task.urgency > 0) ||
-    started ||
-    timingActive ||
-    (trackedSeconds ?? 0) > 0 ||
-    (isTimeMode && trackedSeconds === undefined) ||
+    (timingAllowed &&
+      (started ||
+        timingActive ||
+        (trackedSeconds ?? 0) > 0 ||
+        (effectiveIsTimeMode && trackedSeconds === undefined))) ||
     totalSubtasks > 0
   );
 
@@ -323,7 +331,7 @@ export function TaskRow({
             ? () => setEditingInline(true)
             : undefined,
           onComplete,
-          onToggleStart,
+          onToggleStart: effectiveOnToggleStart,
           onDueChange,
           onPriorityChange,
           onDelete,
@@ -398,92 +406,133 @@ export function TaskRow({
               )}
             </div>
 
-            <div
-              data-task-drag-surface=""
-              tabIndex={0}
-              role="group"
-              aria-label={`任务: ${task.description}`}
-              onKeyDown={(e) => {
-                if (
-                  e.target === e.currentTarget &&
-                  (e.key === "Enter" || e.key === " ")
-                ) {
-                  e.preventDefault();
-                  onEdit();
-                }
-              }}
-              className="flex h-auto min-h-11 min-w-0 flex-1 flex-col items-start justify-start gap-0 self-start px-0 py-2 text-left font-normal outline-none focus-visible:ring-1 focus-visible:ring-ring/50 md:min-h-8 md:py-1.5"
-            >
+            <div className="task-row-primary relative flex min-w-0 flex-1 items-start">
               <div
-                role="button"
-                tabIndex={-1}
-                data-task-title
-                onClick={onEdit}
-                className={cn(
-                  "block w-full min-w-0 cursor-pointer text-[14px] leading-5 font-normal break-words transition-colors duration-150 outline-none hover:text-foreground",
-                  checked
-                    ? "text-muted-foreground/60 line-through decoration-muted-foreground/50"
-                    : "text-foreground",
-                )}
-              >
-                {task.description}
-              </div>
-
-              {descriptionPreview && (
-                <div
-                  data-task-description-preview
-                  title={description}
-                  onClick={(e) => {
-                    if (window.getSelection()?.toString().length) {
-                      e.stopPropagation();
-                      return;
-                    }
+                data-task-drag-surface=""
+                tabIndex={0}
+                role="group"
+                aria-label={`任务: ${task.description}`}
+                onKeyDown={(e) => {
+                  if (
+                    e.target === e.currentTarget &&
+                    (e.key === "Enter" || e.key === " ")
+                  ) {
+                    e.preventDefault();
                     onEdit();
-                  }}
+                  }
+                }}
+                className="flex h-auto min-h-11 min-w-0 flex-1 flex-col items-start justify-start gap-0 self-start px-0 py-2 text-left font-normal outline-none focus-visible:ring-1 focus-visible:ring-ring/50 md:min-h-8 md:py-1.5"
+              >
+                <div
+                  role="button"
+                  tabIndex={-1}
+                  data-task-title
+                  onClick={onEdit}
                   className={cn(
-                    "mt-0.5 block w-full min-w-0 max-w-full cursor-pointer truncate text-[12px] leading-[18px] transition-colors select-text",
+                    "block w-full min-w-0 cursor-pointer text-[14px] leading-5 font-normal break-words transition-colors duration-150 outline-none hover:text-foreground",
                     checked
-                      ? "text-muted-foreground/45 line-through decoration-muted-foreground/40"
-                      : "text-muted-foreground/75 hover:text-foreground/85",
+                      ? "text-muted-foreground/60 line-through decoration-muted-foreground/50"
+                      : "text-foreground",
                   )}
                 >
-                  {descriptionPreview}
+                  {task.description}
                 </div>
-              )}
 
-              {hasDetails && (
-                <TaskMetaChips
+                {descriptionPreview && (
+                  <div
+                    data-task-description-preview
+                    title={description}
+                    onClick={(e) => {
+                      if (window.getSelection()?.toString().length) {
+                        e.stopPropagation();
+                        return;
+                      }
+                      onEdit();
+                    }}
+                    className={cn(
+                      "mt-0.5 block w-full min-w-0 max-w-full cursor-pointer truncate text-[12px] leading-[18px] transition-colors select-text",
+                      checked
+                        ? "text-muted-foreground/45 line-through decoration-muted-foreground/40"
+                        : "text-muted-foreground/75 hover:text-foreground/85",
+                    )}
+                  >
+                    {descriptionPreview}
+                  </div>
+                )}
+
+                {hasDetails && (
+                  <TaskMetaChips
+                    task={task}
+                    variant={variant}
+                    checked={checked}
+                    overdue={overdue}
+                    disabled={disabled}
+                    showProject={showProject}
+                    showInbox={showInbox}
+                    sectionName={sectionName}
+                    started={timingAllowed ? started : false}
+                    timingActive={timingAllowed ? timingActive : false}
+                    isTimeMode={effectiveIsTimeMode}
+                    timingUnavailable={timingUnavailable}
+                    trackedSeconds={timingAllowed ? trackedSeconds : undefined}
+                    availableLabels={availableLabels}
+                    totalSubtasks={totalSubtasks}
+                    completedSubtasks={completedSubtasks}
+                    subtasksExpanded={effectiveSubtasksExpanded}
+                    priorityChipOpen={priorityChipOpen}
+                    onPriorityChipOpenChange={setPriorityChipOpen}
+                    onToggleSubtasks={
+                      canExpandSubtasks
+                        ? () => setSubtasksExpanded((v) => !v)
+                        : undefined
+                    }
+                    onEdit={onEdit}
+                    onDueChange={onDueChange}
+                    onPriorityChange={onPriorityChange}
+                    habit={habit}
+                    habitTodayDate={habitTodayDate}
+                    onHabitSwitchPlan={habitActions?.switchPlan}
+                    onOpenHabitDetail={habitActions?.openDetail}
+                  />
+                )}
+              </div>
+
+              {hasRightActions && (
+                <TaskRowActions
                   task={task}
                   variant={variant}
-                  checked={checked}
-                  overdue={overdue}
+                  completed={completed}
                   disabled={disabled}
-                  showProject={showProject}
-                  showInbox={showInbox}
-                  sectionName={sectionName}
-                  started={started}
-                  timingActive={timingActive}
-                  isTimeMode={isTimeMode}
+                  started={timingAllowed ? started : false}
+                  timingActive={timingAllowed ? timingActive : false}
                   timingUnavailable={timingUnavailable}
-                  trackedSeconds={trackedSeconds}
-                  availableLabels={availableLabels}
-                  totalSubtasks={totalSubtasks}
-                  completedSubtasks={completedSubtasks}
-                  subtasksExpanded={effectiveSubtasksExpanded}
-                  priorityChipOpen={priorityChipOpen}
-                  onPriorityChipOpenChange={setPriorityChipOpen}
-                  onToggleSubtasks={
-                    canExpandSubtasks
-                      ? () => setSubtasksExpanded((v) => !v)
-                      : undefined
-                  }
+                  dueDay={dueDay}
+                  isSubtask={isSubtask}
+                  actionsVisible={actionsVisible}
+                  moreOpen={moreOpen}
+                  onMoreOpenChange={setMoreOpen}
+                  priorityPopoverOpen={priorityPopoverOpen}
+                  onPriorityPopoverOpenChange={setPriorityPopoverOpen}
+                  hasMoreMenu={hasMoreMenu}
+                  extraActions={extraActions}
                   onEdit={onEdit}
+                  onInlineEdit={
+                    onSaveInline ? () => setEditingInline(true) : undefined
+                  }
+                  onToggleStart={effectiveOnToggleStart}
+                  onClearStartMark={effectiveOnClearStartMark}
                   onDueChange={onDueChange}
                   onPriorityChange={onPriorityChange}
-                  habit={habit}
-                  habitTodayDate={habitTodayDate}
-                  onHabitSwitchPlan={habitActions?.switchPlan}
-                  onOpenHabitDetail={habitActions?.openDetail}
+                  onStartAddSubtask={
+                    canExpandSubtasks && onAddSubtask
+                      ? () => {
+                          setSubtasksExpanded(true);
+                          setIsAddingSubtask(true);
+                        }
+                      : undefined
+                  }
+                  onUnlinkSubtask={onUnlinkSubtask}
+                  onDelete={onDelete}
                 />
               )}
             </div>
@@ -509,7 +558,7 @@ export function TaskRow({
               />
             )}
 
-            {isTimeMode &&
+            {effectiveIsTimeMode &&
               highlightCost &&
               costSummary &&
               (costSummary.confirmedCostCents > 0 ||
@@ -566,45 +615,6 @@ export function TaskRow({
                     )}
                 </div>
               )}
-
-            {hasRightActions && (
-              <TaskRowActions
-                task={task}
-                variant={variant}
-                completed={completed}
-                disabled={disabled}
-                started={started}
-                timingActive={timingActive}
-                timingUnavailable={timingUnavailable}
-                dueDay={dueDay}
-                isSubtask={isSubtask}
-                actionsVisible={actionsVisible}
-                moreOpen={moreOpen}
-                onMoreOpenChange={setMoreOpen}
-                priorityPopoverOpen={priorityPopoverOpen}
-                onPriorityPopoverOpenChange={setPriorityPopoverOpen}
-                hasMoreMenu={hasMoreMenu}
-                extraActions={extraActions}
-                onEdit={onEdit}
-                onInlineEdit={
-                  onSaveInline ? () => setEditingInline(true) : undefined
-                }
-                onToggleStart={onToggleStart}
-                onClearStartMark={onClearStartMark}
-                onDueChange={onDueChange}
-                onPriorityChange={onPriorityChange}
-                onStartAddSubtask={
-                  canExpandSubtasks && onAddSubtask
-                    ? () => {
-                        setSubtasksExpanded(true);
-                        setIsAddingSubtask(true);
-                      }
-                    : undefined
-                }
-                onUnlinkSubtask={onUnlinkSubtask}
-                onDelete={onDelete}
-              />
-            )}
           </div>
         </div>
         {subtreeNode}

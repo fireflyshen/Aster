@@ -9,18 +9,25 @@ import { formatScheduleLabel } from "@core/habits/logic";
 import type {
   HabitChecklistEntryProgress,
   HabitListItem,
+  HabitStatus,
 } from "@core/habits/model";
 import { cn } from "cn";
 import {
+  Check,
+  Clock3,
   Dumbbell,
   Flame,
+  LineChart,
   MessageSquarePlus,
+  Play,
   Plus,
   Repeat2,
   RotateCcw,
   ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -54,6 +61,15 @@ export type HabitTaskActions = {
     habitId: string,
     date: string,
     eventId?: string,
+  ) => void | Promise<unknown>;
+  setDailyNote?: (
+    habitId: string,
+    note: string,
+    date: string,
+  ) => void | Promise<unknown>;
+  setStatus?: (
+    habitId: string,
+    status: HabitStatus,
   ) => void | Promise<unknown>;
   assignSubtaskPlan?: (
     parentHabit: HabitListItem,
@@ -147,7 +163,7 @@ export function HabitNegativeRowControls({
     <div
       data-no-drag
       onClick={(event) => event.stopPropagation()}
-      className="flex shrink-0 items-center gap-1 self-start md:mt-0.5"
+      className="relative z-1 flex shrink-0 items-center gap-1 self-start md:mt-0.5"
     >
       <span
         className={cn(
@@ -312,7 +328,11 @@ export function HabitMetaChip({
       >
         <Repeat2 className="size-3 shrink-0" strokeWidth={1.6} />
         <span>
-          {habit.kind === "negative" ? "反向" : "习惯"} · {scheduleLabel}
+          {habit.kind === "negative"
+          ? "反向"
+          : habit.trackTime
+            ? "计时习惯"
+            : "打卡"} · {scheduleLabel}
         </span>
         {currentStreak > 0 && (
           <span className="inline-flex items-center gap-0.5 font-medium tabular-nums">
@@ -487,5 +507,344 @@ export function HabitSubtaskMetricsButton({
         </PopoverContent>
       </Popover>
     </div>
+  );
+}
+
+function formatEventTime(ms: number): string {
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** Interactive today execution and log card rendered inside TaskForm for Habit-backed Todos. */
+export function TaskHabitExecutionCard({
+  habit,
+  date,
+  disabled,
+  actions,
+}: {
+  habit: HabitListItem;
+  date: string;
+  disabled?: boolean;
+  actions: HabitTaskActions;
+}) {
+  const [lapseNote, setLapseNote] = useState("");
+  const [dailyNoteDraft, setDailyNoteDraft] = useState(
+    habit.todayEvaluation?.note || "",
+  );
+  const [editingNote, setEditingNote] = useState(false);
+
+  useEffect(() => {
+    setDailyNoteDraft(habit.todayEvaluation?.note || "");
+    setEditingNote(false);
+  }, [habit.id, habit.todayEvaluation?.note]);
+
+  const evalData = habit.todayEvaluation;
+  const events = evalData?.events ?? [];
+  const count = events.length;
+  const achieved = Boolean(evalData?.achieved);
+  const isNegative = habit.kind === "negative";
+  const isPausedOrArchived = habit.status !== "active";
+  const scheduleLabel = formatScheduleLabel(habit.schedule);
+
+  const typeBadge = isNegative
+    ? {
+        label: "反向记次",
+        icon: <ShieldCheck className="size-3 text-(--habit-accent)" />,
+      }
+    : habit.trackTime
+      ? {
+          label: "计时习惯",
+          icon: <Clock3 className="size-3 text-(--habit-accent)" />,
+        }
+      : {
+          label: "正向打卡",
+          icon: <Sparkles className="size-3 text-(--habit-accent)" />,
+        };
+
+  return (
+    <section
+      aria-label="今日习惯状态与记录"
+      className="mt-4 ml-[30px] space-y-3 rounded-xl border border-border/75 bg-muted/20 p-3.5 max-md:ml-0"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-background/70 px-2 py-0.5 font-medium text-foreground">
+            {typeBadge.icon}
+            {typeBadge.label}
+          </span>
+          <span className="text-muted-foreground">{scheduleLabel}</span>
+          {habit.streak.currentStreak > 0 && (
+            <span className="inline-flex items-center gap-1 font-medium text-(--habit-accent) tabular-nums">
+              <Flame className="size-3" />
+              连续 {habit.streak.currentStreak} {habit.streak.unit}
+            </span>
+          )}
+        </div>
+
+        {actions.openDetail && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            disabled={disabled}
+            onClick={() => actions.openDetail?.(habit.id)}
+            className="h-7 gap-1 px-2 text-xs text-(--habit-accent) hover:bg-(--habit-accent)/12 hover:text-(--habit-accent)"
+          >
+            <LineChart className="size-3.5" />
+            热力图与历史
+          </Button>
+        )}
+      </div>
+
+      {isPausedOrArchived ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-background/60 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">
+            当前状态：{habit.status === "paused" ? "已暂停（不计入今日）" : "已归档"}
+          </span>
+          {actions.setStatus && (
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => void actions.setStatus?.(habit.id, "active")}
+              className="h-7 gap-1 px-2.5 text-xs"
+            >
+              <Play className="size-3" />
+              恢复追踪
+            </Button>
+          )}
+        </div>
+      ) : isNegative ? (
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium",
+                count === 0
+                  ? "bg-(--habit-accent)/14 text-(--habit-accent)"
+                  : "bg-(--due-tomorrow)/15 text-(--due-tomorrow)",
+              )}
+            >
+              {count === 0 ? (
+                <>
+                  <ShieldCheck className="size-3.5" />
+                  今日未发生（当前默认达成）
+                </>
+              ) : (
+                <>
+                  <ShieldAlert className="size-3.5" />
+                  今日破例 {count} 次（今日未达成）
+                </>
+              )}
+            </span>
+
+            {count > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                disabled={disabled}
+                onClick={() => void actions.undoNegative(habit.id, date)}
+                className="h-7 gap-1 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <RotateCcw className="size-3" />
+                撤销最近一次
+              </Button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              value={lapseNote}
+              onChange={(e) => setLapseNote(e.target.value)}
+              disabled={disabled}
+              placeholder="如没做到，可附一句原因后点击「记一次」（可选）"
+              className="h-8 min-w-[200px] flex-1 bg-background/80 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void actions.recordNegative(
+                    habit.id,
+                    date,
+                    lapseNote.trim() || undefined,
+                  );
+                  setLapseNote("");
+                }
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              onClick={() => {
+                void actions.recordNegative(
+                  habit.id,
+                  date,
+                  lapseNote.trim() || undefined,
+                );
+                setLapseNote("");
+              }}
+              className="h-8 gap-1 border-(--due-tomorrow)/40 px-3 text-xs font-medium text-(--due-tomorrow) hover:bg-(--due-tomorrow)/12 hover:text-(--due-tomorrow)"
+            >
+              <Plus className="size-3.5" />
+              记一次
+            </Button>
+          </div>
+
+          {events.length > 0 && (
+            <div className="space-y-1 rounded-lg border border-border/60 bg-background/50 p-2">
+              <div className="px-1 text-[11px] font-medium text-muted-foreground">
+                今日破例记录
+              </div>
+              {events.map((ev, index) => (
+                <div
+                  key={ev.id}
+                  className="flex items-center justify-between gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/40"
+                >
+                  <div className="min-w-0 flex-1 truncate">
+                    <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+                      #{index + 1} · {formatEventTime(ev.occurredAtMs)}
+                    </span>
+                    {ev.note ? (
+                      <span className="ml-2 text-foreground">{ev.note}</span>
+                    ) : (
+                      <span className="ml-2 text-muted-foreground/70">无备注</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() =>
+                      void actions.undoNegative(habit.id, date, ev.id)
+                    }
+                    title="撤销此条记录"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="size-3" />
+                    撤销
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium",
+                achieved
+                  ? "bg-(--habit-accent)/15 text-(--habit-accent)"
+                  : "bg-muted text-muted-foreground",
+              )}
+            >
+              <Check className="size-3.5" />
+              {achieved
+                ? "今日已达成"
+                : evalData && evalData.requiredTotalCount > 0
+                  ? `今日进度 ${evalData.requiredDoneCount} / ${evalData.requiredTotalCount} 项`
+                  : "今日待打卡"}
+            </span>
+          </div>
+
+          <Button
+            type="button"
+            size="sm"
+            variant={achieved ? "outline" : "default"}
+            disabled={disabled}
+            onClick={() =>
+              void actions.togglePositive(habit.id, date, !achieved)
+            }
+            className={cn(
+              "h-8 gap-1.5 px-3 text-xs",
+              !achieved &&
+                "bg-(--habit-accent) text-background hover:bg-(--habit-accent)/90",
+            )}
+          >
+            <Check className="size-3.5" />
+            {achieved ? "已打卡（点击撤销）" : "完成今日打卡"}
+          </Button>
+        </div>
+      )}
+
+      {actions.setDailyNote && (
+        <div className="border-t border-border/55 pt-2">
+          {editingNote ? (
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={dailyNoteDraft}
+                onChange={(e) => setDailyNoteDraft(e.target.value)}
+                placeholder="写一句今日回顾或执行心得…"
+                className="h-7 flex-1 bg-background/80 text-xs"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    void actions.setDailyNote?.(
+                      habit.id,
+                      dailyNoteDraft.trim(),
+                      date,
+                    );
+                    setEditingNote(false);
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDailyNoteDraft(habit.todayEvaluation?.note || "");
+                    setEditingNote(false);
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                size="xs"
+                disabled={disabled}
+                onClick={() => {
+                  void actions.setDailyNote?.(
+                    habit.id,
+                    dailyNoteDraft.trim(),
+                    date,
+                  );
+                  setEditingNote(false);
+                }}
+                className="h-7 px-2.5 text-xs"
+              >
+                保存
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                onClick={() => {
+                  setDailyNoteDraft(habit.todayEvaluation?.note || "");
+                  setEditingNote(false);
+                }}
+                className="h-7 px-2 text-xs"
+              >
+                取消
+              </Button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => setEditingNote(true)}
+              className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-background/60 hover:text-foreground"
+            >
+              <span className="truncate">
+                {habit.todayEvaluation?.note
+                  ? `今日回顾：${habit.todayEvaluation.note}`
+                  : "+ 写一句今日习惯回顾（可选）"}
+              </span>
+            </button>
+          )}
+        </div>
+      )}
+    </section>
   );
 }

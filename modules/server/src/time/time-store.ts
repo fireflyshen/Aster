@@ -12,6 +12,7 @@ import {
   computeTaskCostSummary,
   normalizeActivityTags,
   normalizeHourlyRateCents,
+  resolveActivityHourlyRateCents,
   type CostReportTaskMeta,
 } from "../../../core/time/cost.ts";
 import {
@@ -2251,7 +2252,7 @@ export async function createTimeStore(
         .prepare(
           `UPDATE activities
            SET title = ?, category_id = ?, rule_version = ?, rule_source = ?,
-               task_uuid = ?, project_snapshot = ?, tags_json = ?,
+               hourly_rate_cents = ?, task_uuid = ?, project_snapshot = ?, tags_json = ?,
                start_ms = ?, end_ms = ?, suspend_ms = ?,
                confirmed_through_ms = ?, review_due_at_ms = ?, review_reason = ?,
                window_start_ms = ?, window_end_ms = ?, target_date = ?,
@@ -2264,6 +2265,12 @@ export async function createTimeStore(
           nextCategoryId,
           nextRuleVersion,
           nextRuleSource,
+          isSleepCategory(policy, nextCategoryId)
+            ? 0
+            : isSleepCategory(policy, row.category_id) &&
+                nextCategoryId !== row.category_id
+              ? normalizeHourlyRateCents(policy.hourlyRateCents)
+              : row.hourly_rate_cents,
           nextTaskUuid,
           nextProjectSnapshot,
           nextTagsJson,
@@ -3979,9 +3986,10 @@ export async function createTimeStore(
           a.startMs !== undefined &&
           a.reviewState !== "voided",
       )
-      .reduce<
-        number | undefined
-      >((min, a) => (min === undefined || a.startMs! < min ? a.startMs! : min), undefined);
+      .reduce<number | undefined>(
+        (min, a) => (min === undefined || a.startMs! < min ? a.startMs! : min),
+        undefined,
+      );
 
     const policy = parsePolicy(meta);
     const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
@@ -4085,10 +4093,7 @@ export async function createTimeStore(
                   ).toISOString(),
                 }
               : {}),
-            hourlyRateCents: normalizeHourlyRateCents(
-              active.hourlyRateCents,
-              policyRate,
-            ),
+            hourlyRateCents: resolveActivityHourlyRateCents(active, policy),
           }
         : null,
       taskTotalsSeconds: computeTaskTotalsSeconds(
@@ -4274,7 +4279,7 @@ export async function createTimeStore(
         0,
         durationSeconds - confirmedSeconds,
       );
-      const rate = normalizeHourlyRateCents(act.hourlyRateCents, policyRate);
+      const rate = resolveActivityHourlyRateCents(act, policy);
       segments.push({
         activityId: act.id,
         version: act.version,
@@ -4808,10 +4813,7 @@ export async function createTimeStore(
             state: op.state,
             timeEffect:
               (parsed.timeEffect as
-                | "started"
-                | "switched"
-                | "stopped"
-                | "none") ?? "none",
+                "started" | "switched" | "stopped" | "none") ?? "none",
             receipt: parsed,
           };
         }
@@ -5357,8 +5359,7 @@ export async function createTimeStore(
         applied: true,
         state: "applied" as OperationState,
         timeEffect: (closedActivity ? "switched" : "started") as
-          | "switched"
-          | "started",
+          "switched" | "started",
         receipt,
         activity: newActivity,
         closedActivity,

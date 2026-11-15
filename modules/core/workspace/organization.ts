@@ -34,10 +34,13 @@ export type SavedTag = {
   favorite: boolean;
   count?: number;
 };
+export type ProjectCategory = "normal" | "habit";
+
 export type SavedProject = {
   name: string;
   description: string;
   color?: Color;
+  category?: ProjectCategory;
   status?: ProjectStatus;
   outcome?: string;
   nextTask?: string;

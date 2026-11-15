@@ -300,3 +300,66 @@ test("project colors persist without task writes, survive legacy edits and statu
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("project category persists and switching an active project to habit moves it out of Focus", async () => {
+  const directory = await mkdtemp(tmpdir() + "/aster-project-category-");
+  try {
+    const file = directory + "/organization.json";
+    const initial: Organization = {
+      revision: 0,
+      projects: [
+        { name: "Body", description: "", status: "active", outcome: "Fit" },
+      ],
+      tags: [],
+      filters: [],
+    };
+    await writeFile(file, JSON.stringify(initial));
+    const store = createOrganizationStore(file);
+    const noWrite = async () => {
+      throw new Error("Category updates should not write native task data");
+    };
+    const context = {
+      tasks: [],
+      projects: ["Body"],
+      projectRecords: initial.projects!,
+      changeProject: noWrite,
+    };
+
+    const demoted = await store.change(
+      {
+        kind: "project",
+        action: "save",
+        revision: 0,
+        item: { name: "Body", description: "Daily care", category: "habit" },
+      },
+      [],
+      noWrite,
+      context,
+    );
+    const body = demoted.projects?.find((p) => p.name === "Body");
+    assert.equal(body?.category, "habit");
+    assert.equal(body?.status, "later");
+
+    const normalAgain = await store.change(
+      {
+        kind: "project",
+        action: "save",
+        revision: demoted.revision,
+        item: {
+          name: "Body",
+          description: "Daily care",
+          category: "normal",
+        },
+      },
+      [],
+      noWrite,
+      context,
+    );
+    assert.equal(
+      normalAgain.projects?.find((p) => p.name === "Body")?.category,
+      "normal",
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

@@ -337,9 +337,9 @@ export function TaskDetailSidebar({
             }}
           />
         )}
-
-        {habitSection}
       </div>
+
+      {habitSection}
 
       {editing && (
         <div className="pt-1">

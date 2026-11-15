@@ -2,6 +2,7 @@ import {
   computeDurationCostCents,
   normalizeActivityTags,
   normalizeHourlyRateCents,
+  resolveActivityHourlyRateCents,
   resolveEffectiveActivityEndMs,
   resolveEffectiveConfirmedEndMs,
   secondsDelta,
@@ -214,10 +215,7 @@ export function computeDailyLedger(
       0,
       durationSeconds - confirmedSeconds,
     );
-    const rateCents = normalizeHourlyRateCents(
-      activity.hourlyRateCents,
-      policyRate,
-    );
+    const rateCents = resolveActivityHourlyRateCents(activity, policy);
     const segConfirmedCostCents = computeDurationCostCents(
       confirmedSeconds,
       rateCents,

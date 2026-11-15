@@ -5,6 +5,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import {
   HabitNegativeStatusRing,
+  TaskHabitExecutionCard,
   type HabitTaskActions,
 } from "@/features/habits/habit-task-controls";
 import {
@@ -243,6 +244,9 @@ export function TaskForm({
 
   const locked = busy || needsCheck || savingDescription || savingHabitOnly;
   const error = descriptionError || formError;
+  const habitTimingAllowed = habitDraft.enabled
+    ? habitDraft.kind === "positive" && habitDraft.trackTime
+    : !habit || Boolean(habit.trackTime);
 
   async function saveHabitSetting(targetUuid: string) {
     if (!habitDraft.enabled) {
@@ -569,7 +573,17 @@ export function TaskForm({
             </div>
           </div>
 
+          {editing && habit && habitActions && (
+            <TaskHabitExecutionCard
+              habit={habit}
+              date={effectiveTodayDate}
+              disabled={locked}
+              actions={habitActions}
+            />
+          )}
+
           {isTimeMode &&
+            habitTimingAllowed &&
             (editing ? (
               <TaskCostDetailSection
                 task={editing}
@@ -640,10 +654,10 @@ export function TaskForm({
           availableLabels={availableLabels}
           editing={editing}
           disabled={locked}
-          timingActive={timingActive}
+          timingActive={habitTimingAllowed ? timingActive : false}
           timingUnavailable={timingUnavailable}
-          onToggleStart={onToggleStart}
-          onClearStartMark={onClearStartMark}
+          onToggleStart={habitTimingAllowed ? onToggleStart : undefined}
+          onClearStartMark={habitTimingAllowed ? onClearStartMark : undefined}
           onDraftChange={onDraftChange}
           onDueChange={onDueChange}
           onTagsChange={onTagsChange}
@@ -658,6 +672,11 @@ export function TaskForm({
                 disabled={locked}
                 hasSubtasks={subtasks.length > 0}
                 onChange={setHabitDraft}
+                onStatusChange={
+                  habit && habitActions?.setStatus
+                    ? (status) => void habitActions.setStatus?.(habit.id, status)
+                    : undefined
+                }
                 onOpenDetail={habitActions?.openDetail}
               />
             ) : undefined

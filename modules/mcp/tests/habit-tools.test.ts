@@ -94,6 +94,7 @@ test("habit MCP tools support end-to-end Habit-as-a-Todo creation with A/B subta
         arguments: {
           title: "力量训练",
           kind: "positive",
+          trackTime: true,
           schedule: { type: "daily" },
           project: "身体维护",
           tags: ["晚间"],
@@ -111,6 +112,7 @@ test("habit MCP tools support end-to-end Habit-as-a-Todo creation with A/B subta
       );
       assert.equal(workoutPayload.ok, true);
       assert.equal(workoutPayload.subtaskUuids.length, 2);
+      assert.equal(workoutPayload.habit.trackTime, true);
       assert.equal(workoutPayload.habit.completionMode, "checklist");
       assert.equal(workoutPayload.habit.plans.length, 2);
 
@@ -147,6 +149,7 @@ test("habit MCP tools support end-to-end Habit-as-a-Todo creation with A/B subta
       const noSugarPayload = JSON.parse(
         (createdNoSugar.content as Array<{ text: string }>)[0].text,
       );
+      assert.equal(noSugarPayload.habit.trackTime, false);
 
       const lapseRes = await client.callTool({
         name: "habit_negative_record",

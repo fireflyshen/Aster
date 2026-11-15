@@ -173,6 +173,10 @@ export function registerHabitTools({
         .max(20000)
         .optional()
         .describe("Optional principle or workout guide stored as Markdown description on the Todo."),
+      trackTime: z
+        .boolean()
+        .optional()
+        .describe("Set true only for timed positive habits (e.g. workouts/reading). Omit/false for pure check-in and negative habits so timing UI stays hidden."),
       abEnabled: z.boolean().optional(),
       effectiveFromDate: localDateSchema.optional(),
       subtasks: z.array(habitTodoSubtaskSchema).max(50).optional(),
@@ -220,6 +224,7 @@ export function registerHabitTools({
         taskUuid,
         kind: i.kind,
         schedule: i.schedule,
+        ...(i.trackTime !== undefined ? { trackTime: i.trackTime } : {}),
         ...(i.abEnabled !== undefined ? { abEnabled: i.abEnabled } : {}),
         ...(Object.keys(subtaskPlans).length ? { subtaskPlans } : {}),
         ...(i.effectiveFromDate
@@ -245,6 +250,10 @@ export function registerHabitTools({
       kind: habitKindSchema,
       schedule: habitScheduleSchema,
       status: z.enum(["active", "paused", "archived"]).optional(),
+      trackTime: z
+        .boolean()
+        .optional()
+        .describe("Set true only for timed positive habits; false/omitted disables task timing & cost panels."),
       abEnabled: z.boolean().optional(),
       subtaskPlans: habitSubtaskPlansSchema.optional(),
       effectiveFromDate: localDateSchema.optional(),

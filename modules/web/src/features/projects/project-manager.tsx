@@ -5,6 +5,7 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   focusProject,
   inProject,
+  isHabitProject,
   projectStatus,
   type ProjectStatus,
 } from "@core/workspace/focus";
@@ -18,6 +19,7 @@ const statusTabs = [
   { value: "all", label: "全部" },
   { value: "active", label: "焦点" },
   { value: "later", label: "稍后" },
+  { value: "habit", label: "习惯" },
   { value: "completed", label: "已完成" },
 ] as const;
 
@@ -62,7 +64,9 @@ export function ProjectManager({
                 Object.entries(data.projectCounts || {}).some(
                   ([child, count]) => inProject(child, name) && count > 0,
                 )))
-        : status === "all" || state === status;
+        : status === "habit"
+          ? isHabitProject(name, data.projects) && state !== "completed"
+          : status === "all" || state === status;
     })
     .filter((name) =>
       [name, data.projects?.find((p) => p.name === name)?.description]

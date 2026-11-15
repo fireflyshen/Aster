@@ -30,6 +30,7 @@ func renderTimelineLines(r row, width int, selected, continues bool) []string {
 		duration = meta[1]
 		meta = append(meta[:1], meta[2:]...)
 	}
+	width = min(width, 88)
 	textWidth := max(1, width-12)
 	titleStyle := lipgloss.NewStyle().Foreground(ink)
 	if selected {
@@ -81,32 +82,59 @@ func renderTimelineLines(r row, width int, selected, continues bool) []string {
 	return lines
 }
 
+// Data columns stay together regardless of terminal width.
 func (m model) renderStatisticLines(r row, width int, selected bool) []string {
+	width = min(width, 88)
 	primary, secondary := formatDurationShort(r.chartSeconds), formatCurrencyCny(r.chartCost)
 	if m.timeState.ChartMetric == "cost" {
 		primary, secondary = secondary, primary
 	}
-	valueWidth := max(10, lipgloss.Width(primary))
-	labelWidth := max(1, width-valueWidth-4)
+	if m.reportOverrunChart(r) {
+		primary, secondary = formatCurrencyCny(r.chartOver), formatCurrencyCny(r.chartCost)
+	}
 	labelText := r.title
 	if r.kind == "time.day" {
 		if date, err := time.Parse("2006-01-02", r.id); err == nil {
 			labelText = date.Format("01-02") + "  " + []string{"日", "一", "二", "三", "四", "五", "六"}[date.Weekday()]
 		}
+		// Daily values are a compact table beneath the chronological column chart.
+		values := "  " + padTimeValue(primary, 10) + "  " + padTimeValue(secondary, 12)
+		if width < 38 {
+			values = "  " + primary + " · " + secondary
+		}
+		spans := []styledSpan{timeRowMarker(selected), span(labelText, softText), span(values, dim)}
+		return []string{renderSpans(spans, width, width, selected)}
 	}
+	valueWidth := max(10, lipgloss.Width(primary), lipgloss.Width(secondary))
+	labelWidth := min(28, max(8, width/3))
 	label := clip(clean(labelText), labelWidth)
 	style := softText
 	if selected {
 		style = lipgloss.NewStyle().Foreground(selectedFG)
 	}
-	first := renderSpans([]styledSpan{timeRowMarker(selected), span(label, style), span(strings.Repeat(" ", max(1, width-2-lipgloss.Width(label)-lipgloss.Width(primary))), dim), span(primary, lipgloss.NewStyle().Foreground(ink))}, width, width, selected)
-	// A quiet bounded chart prevents a large terminal becoming a wall of ink.
-	barWidth := max(1, min(40, width-valueWidth-4))
-	bar := renderStatisticBar(r.chartValue, r.chartMax, barWidth)
-	second := renderSpans([]styledSpan{timeRowMarker(selected), span(bar, dim), span(strings.Repeat(" ", max(1, width-2-barWidth-lipgloss.Width(secondary))), dim), span(secondary, dim)}, width, width, selected)
-	lines := []string{first, second}
+	lines := []string{}
+	if width >= 56 {
+		barWidth := max(1, width-labelWidth-valueWidth*2-8)
+		value := r.chartValue
+		maximum := r.chartMax
+		if m.reportOverrunChart(r) {
+			value = float64(r.chartOver)
+			maximum = r.chartOverMax
+		}
+		spans := []styledSpan{timeRowMarker(selected), span(label+strings.Repeat(" ", max(1, labelWidth-lipgloss.Width(label)+2)), style), span(renderStatisticBar(value, maximum, barWidth), dim), span("  "+padTimeValue(primary, valueWidth), lipgloss.NewStyle().Foreground(ink)), span("  "+padTimeValue(secondary, valueWidth), dim)}
+		lines = append(lines, renderSpans(spans, width, width, selected))
+	} else {
+		label = clip(clean(labelText), max(1, width-lipgloss.Width(primary)-4))
+		lines = append(lines, renderSpans([]styledSpan{timeRowMarker(selected), span(label, style), span("  "+primary, dim)}, width, width, selected))
+		value, maximum := r.chartValue, r.chartMax
+		if m.reportOverrunChart(r) {
+			value = float64(r.chartOver)
+			maximum = r.chartOverMax
+		}
+		barWidth := max(1, width-lipgloss.Width(secondary)-4)
+		lines = append(lines, renderSpans([]styledSpan{timeRowMarker(selected), span(renderStatisticBar(value, maximum, barWidth), dim), span("  "+secondary, dim)}, width, width, selected))
+	}
 	if strings.HasPrefix(r.kind, "time.report_") {
-		// Budget and cash facts stay in the list as well as the inspector.
 		for _, fact := range strings.Split(r.subtitle, " · ") {
 			if strings.HasPrefix(fact, "超出") || strings.HasPrefix(fact, "现金 ") && fact != "现金 ¥0" {
 				lines = append(lines, renderSpans([]styledSpan{timeRowMarker(selected), span(fact, dim)}, width, width, selected))
@@ -116,7 +144,15 @@ func (m model) renderStatisticLines(r row, width int, selected bool) []string {
 	return lines
 }
 
+func padTimeValue(value string, width int) string {
+	return strings.Repeat(" ", max(0, width-lipgloss.Width(value))) + value
+}
+func (m model) reportOverrunChart(r row) bool {
+	return m.view == "time.report" && m.timeState.ReportSort == "highest_over_budget" && (r.kind == "time.report_task" || r.kind == "time.report_project")
+}
+
 func renderTimeSummaryLines(r row, width int, selected bool) []string {
+	width = min(width, 88)
 	title := r.title
 	title = strings.ReplaceAll(title, "本周项目与标签分布 · ", "")
 	title = strings.ReplaceAll(title, "今日时间线 · ", "")

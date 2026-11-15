@@ -1,74 +1,116 @@
-import type { CostReportSummary } from "@core/time/model";
+import type { CostReportSummary, CostReportProjectRow } from "@core/time/model";
 import { addLocalDays } from "@core/time/zone";
 
 export type StatisticRow = {
-  key: string;
-  label: string;
-  seconds: number;
-  cost: number;
-  date?: string;
+    key: string;
+    label: string;
+    seconds: number;
+    cost: number;
+    date?: string;
 };
-export type StatisticDimension = "day" | "project" | "tag" | "task";
+export type StatisticDimension = "day" | "project" | "tag";
 
 // Aggregate segment facts once; project rows also include time without linked tasks.
 export function costStatisticRows(
-  report: CostReportSummary,
-  dimension: StatisticDimension,
+    report: CostReportSummary,
+    dimension: StatisticDimension,
 ): StatisticRow[] {
-  if (dimension === "project")
-    return report.byProject.map((row) => ({
-      key: row.projectKey,
-      label: row.projectName,
-      seconds: row.periodSeconds,
-      cost: row.periodCostCents,
-    }));
-  if (dimension === "task")
-    return report.byTask.map((row) => ({
-      key: row.taskUuid,
-      label: row.title,
-      seconds: row.periodSeconds,
-      cost: row.periodCostCents,
-    }));
-  const rows = new Map<string, StatisticRow>();
-  if (dimension === "day") {
-    for (
-      let date = report.periodStartDate;
-      date <= report.periodEndDate;
-      date = addLocalDays(date, 1)
-    ) {
-      rows.set(date, {
-        key: date,
-        label: date.slice(5),
-        date,
-        seconds: 0,
-        cost: 0,
-      });
+    if (dimension === "project")
+        return report.byProject.map((row) => ({
+            key: row.projectKey,
+            label: row.projectName,
+            seconds: row.periodSeconds,
+            cost: row.periodCostCents,
+        }));
+    const rows = new Map<string, StatisticRow>();
+    if (dimension === "day") {
+        for (
+            let date = report.periodStartDate;
+            date <= report.periodEndDate;
+            date = addLocalDays(date, 1)
+        ) {
+            rows.set(date, {
+                key: date,
+                label: date.slice(5),
+                date,
+                seconds: 0,
+                cost: 0,
+            });
+        }
     }
-  }
-  const seen = new Set<string>();
-  for (const segment of [
-    ...report.byProject.flatMap((row) => row.segments),
-    ...report.byTask.flatMap((row) => row.segments),
-    ...report.unassignedSegments,
-  ]) {
-    const identity = `${segment.activityId}:${segment.startMs}:${segment.endMs}`;
-    if (seen.has(identity)) continue;
-    seen.add(identity);
-    const keys =
-      dimension === "day"
-        ? [segment.date]
-        : [...new Set(segment.tags?.length ? segment.tags : ["__untagged__"])];
-    for (const key of keys) {
-      const row = rows.get(key) ?? {
-        key,
-        label: key === "__untagged__" ? "未设标签" : `#${key}`,
-        seconds: 0,
-        cost: 0,
-      };
-      row.seconds += segment.confirmedSeconds;
-      row.cost += segment.confirmedCostCents;
-      rows.set(key, row);
+    const seen = new Set<string>();
+    for (const segment of [
+        ...report.byProject.flatMap((row) => row.segments),
+        ...report.byTask.flatMap((row) => row.segments),
+        ...report.unassignedSegments,
+    ]) {
+        const identity = `${segment.activityId}:${segment.startMs}:${segment.endMs}`;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        const keys =
+            dimension === "day"
+                ? [segment.date]
+                : [
+                      ...new Set(
+                          segment.tags?.length
+                              ? segment.tags
+                              : ["__untagged__"],
+                      ),
+                  ];
+        for (const key of keys) {
+            const row = rows.get(key) ?? {
+                key,
+                label: key === "__untagged__" ? "未设标签" : `#${key}`,
+                seconds: 0,
+                cost: 0,
+            };
+            row.seconds += segment.confirmedSeconds;
+            row.cost += segment.confirmedCostCents;
+            rows.set(key, row);
+        }
     }
-  }
-  return [...rows.values()];
+    return [...rows.values()];
+}
+
+export function costTagGroups(
+    report: CostReportSummary,
+): CostReportProjectRow[] {
+    const groups = new Map<string, CostReportProjectRow>();
+    const seen = new Set<string>();
+    for (const segment of [
+        ...report.byProject.flatMap((row) => row.segments),
+        ...report.byTask.flatMap((row) => row.segments),
+        ...report.unassignedSegments,
+    ]) {
+        const identity = `${segment.activityId}:${segment.startMs}:${segment.endMs}`;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        for (const tag of new Set(
+            segment.tags?.length ? segment.tags : ["__untagged__"],
+        )) {
+            const row = groups.get(tag) ?? {
+                projectKey: tag,
+                projectName: tag === "__untagged__" ? "未设标签" : `#${tag}`,
+                periodSeconds: 0,
+                periodCostCents: 0,
+                periodProvisionalCostCents: 0,
+                overInitialBudgetCents: 0,
+                cashExpenseCents: 0,
+                combinedPeriodCostCents: 0,
+                taskCount: 0,
+                segments: [],
+            };
+            row.periodSeconds += segment.confirmedSeconds;
+            row.periodCostCents += segment.confirmedCostCents;
+            row.periodProvisionalCostCents += segment.provisionalCostCents ?? 0;
+            row.combinedPeriodCostCents = row.periodCostCents;
+            row.segments.push(segment);
+            groups.set(tag, row);
+        }
+    }
+    return [...groups.values()].sort(
+        (a, b) =>
+            b.periodCostCents - a.periodCostCents ||
+            a.projectKey.localeCompare(b.projectKey),
+    );
 }

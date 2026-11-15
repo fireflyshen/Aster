@@ -284,6 +284,7 @@ test("task-bound habit syncs title, metadata, and real subtasks from catalog, un
         {
           taskUuid: "task-train-1",
           kind: "positive",
+          trackTime: true,
           schedule: { type: "daily" },
           abEnabled: true,
           subtaskPlans: { "sub-row": "B" },
@@ -293,6 +294,7 @@ test("task-bound habit syncs title, metadata, and real subtasks from catalog, un
       assert.equal(bound.taskUuid, "task-train-1");
       assert.equal(bound.title, "力量训练");
       assert.equal(bound.project, "身体维护");
+      assert.equal(bound.trackTime, true);
       assert.equal(bound.completionMode, "checklist");
       assert.equal(bound.plans.length, 2);
       assert.equal(bound.plans[0].items[0].id, "sub-pushup");
@@ -313,16 +315,19 @@ test("task-bound habit syncs title, metadata, and real subtasks from catalog, un
       // Calling deleteHabitIfExists again on missing id is a safe no-op
       store.deleteHabitIfExists("task-train-1");
 
-      // Re-bind then unbind
+      // Re-bind as negative: trackTime must always coerce to false
       store.bindTaskHabit(
         {
           taskUuid: "task-train-1",
           kind: "negative",
+          trackTime: true,
           schedule: { type: "daily" },
         },
         catalog,
       );
-      assert.equal(store.getHabitDetail("task-train-1").habit.kind, "negative");
+      const negHabit = store.getHabitDetail("task-train-1").habit;
+      assert.equal(negHabit.kind, "negative");
+      assert.equal(negHabit.trackTime, false);
       store.unbindTaskHabit("task-train-1");
       assert.throws(() => store.getHabitDetail("task-train-1"), HabitStoreError);
 

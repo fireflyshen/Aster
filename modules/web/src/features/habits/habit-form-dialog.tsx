@@ -118,6 +118,7 @@ export function HabitFormDialog({
 }) {
   const [title, setTitle] = useState("");
   const [kind, setKind] = useState<HabitKind>("positive");
+  const [trackTime, setTrackTime] = useState(false);
   const [completionMode, setCompletionMode] =
     useState<HabitCompletionMode>("simple");
   const [scheduleType, setScheduleType] =
@@ -150,6 +151,7 @@ export function HabitFormDialog({
     if (editing) {
       setTitle(editing.title);
       setKind(editing.kind);
+      setTrackTime(editing.kind === "positive" && Boolean(editing.trackTime));
       setCompletionMode(editing.completionMode);
       setScheduleType(editing.schedule.type);
       if (editing.schedule.type === "weekly") {
@@ -181,6 +183,7 @@ export function HabitFormDialog({
     } else {
       setTitle("");
       setKind("positive");
+      setTrackTime(false);
       setCompletionMode("simple");
       setScheduleType("daily");
       setWeekdays([1, 3, 5]);
@@ -301,6 +304,7 @@ export function HabitFormDialog({
         project: project.trim() || null,
         tags,
         completionMode: kind === "positive" ? completionMode : "simple",
+        trackTime: kind === "positive" ? trackTime : false,
         abEnabled: kind === "positive" && completionMode === "checklist" && abEnabled,
         schedule,
         plans,
@@ -313,6 +317,7 @@ export function HabitFormDialog({
         title: trimmedTitle,
         kind,
         completionMode: kind === "positive" ? completionMode : "simple",
+        trackTime: kind === "positive" ? trackTime : false,
         description: description.trim(),
         project: project.trim() || undefined,
         tags,
@@ -394,31 +399,46 @@ export function HabitFormDialog({
             </div>
 
             {kind === "positive" && (
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setCompletionMode("simple")}
-                  className={cn(
-                    "rounded-md border px-2.5 py-1 text-xs transition-colors",
-                    completionMode === "simple"
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  直接一键打卡
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCompletionMode("checklist")}
-                  className={cn(
-                    "rounded-md border px-2.5 py-1 text-xs transition-colors",
-                    completionMode === "checklist"
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  展开动作清单（训练）
-                </button>
+              <div className="space-y-2 pt-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCompletionMode("simple")}
+                    className={cn(
+                      "rounded-md border px-2.5 py-1 text-xs transition-colors",
+                      completionMode === "simple"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    直接一键打卡
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCompletionMode("checklist")}
+                    className={cn(
+                      "rounded-md border px-2.5 py-1 text-xs transition-colors",
+                      completionMode === "checklist"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    展开动作清单（训练）
+                  </button>
+                </div>
+
+                <label className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-border/75 bg-muted/20 px-3 py-2 text-xs">
+                  <div>
+                    <div className="font-medium text-foreground">开启任务计时</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      仅打卡类建议关闭；需要统计投入时长与成本（如训练、阅读）可开启
+                    </div>
+                  </div>
+                  <Switch
+                    checked={trackTime}
+                    onCheckedChange={setTrackTime}
+                  />
+                </label>
               </div>
             )}
           </div>

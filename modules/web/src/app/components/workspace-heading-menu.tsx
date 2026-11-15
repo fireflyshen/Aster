@@ -45,6 +45,7 @@ type WorkspaceHeadingMenuProps = {
   activeEntry?: { kind: "filter" | "tag"; id: string };
   activeItem?: SavedFilter | SavedTag;
   currentProjectFocus?: SavedProject;
+  currentProjectIsHabit?: boolean;
   projectOutcome?: string;
   projectDescription?: string;
   onSelectView: (view: View) => void;
@@ -73,6 +74,7 @@ export function WorkspaceHeadingMenu({
   activeEntry,
   activeItem,
   currentProjectFocus,
+  currentProjectIsHabit = false,
   projectOutcome,
   projectDescription,
   onSelectView,
@@ -102,30 +104,32 @@ export function WorkspaceHeadingMenu({
       <PopoverContent align="end" className="w-44 p-1">
         {currentProject && !activeItem && (
           <>
-            <Button
-              variant="navigation"
-              className="h-8 text-xs"
-              disabled={disabled}
-              onClick={() => {
-                onOpenChange(false);
-                onTransitionProject(
-                  currentProjectFocus?.name || currentProject,
-                  currentProjectFocus ? "later" : "active",
-                );
-              }}
-            >
-              {currentProjectFocus ? (
-                <>
-                  <Pause className="size-3.5" />
-                  移至稍后
-                </>
-              ) : (
-                <>
-                  <Play className="size-3.5" />
-                  加入焦点
-                </>
-              )}
-            </Button>
+            {!currentProjectIsHabit && (
+              <Button
+                variant="navigation"
+                className="h-8 text-xs"
+                disabled={disabled}
+                onClick={() => {
+                  onOpenChange(false);
+                  onTransitionProject(
+                    currentProjectFocus?.name || currentProject,
+                    currentProjectFocus ? "later" : "active",
+                  );
+                }}
+              >
+                {currentProjectFocus ? (
+                  <>
+                    <Pause className="size-3.5" />
+                    移至稍后
+                  </>
+                ) : (
+                  <>
+                    <Play className="size-3.5" />
+                    加入焦点
+                  </>
+                )}
+              </Button>
+            )}
             <Button
               variant="navigation"
               className="h-8 text-xs"

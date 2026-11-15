@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
   Popover,
@@ -23,16 +24,7 @@ import type {
 } from "@core/habits/model";
 import { addLocalDays, localDateOf } from "@core/time/zone";
 import { cn } from "cn";
-import {
-  CalendarCheck2,
-  Flame,
-  LineChart,
-  Pause,
-  Play,
-  ShieldCheck,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { Archive, CalendarCheck2, Clock3, Flame } from "lucide-react";
 
 const WEEKDAY_BUTTONS: Array<{ value: number; label: string }> = [
   { value: 1, label: "一" },
@@ -47,6 +39,7 @@ const WEEKDAY_BUTTONS: Array<{ value: number; label: string }> = [
 export type TaskHabitDraft = {
   enabled: boolean;
   kind: HabitKind;
+  trackTime: boolean;
   scheduleType: "daily" | "weekly" | "interval";
   weekdays: number[];
   intervalDays: string;
@@ -63,6 +56,7 @@ export function createHabitDraftFromItem(
     return {
       enabled: presetEnabled,
       kind: "positive",
+      trackTime: false,
       scheduleType: "daily",
       weekdays: [1, 3, 5],
       intervalDays: "2",
@@ -74,9 +68,12 @@ export function createHabitDraftFromItem(
   return {
     enabled: true,
     kind: habit.kind,
+    trackTime: habit.kind === "positive" && Boolean(habit.trackTime),
     scheduleType: habit.schedule.type,
     weekdays:
-      habit.schedule.type === "weekly" ? [...habit.schedule.weekdays] : [1, 3, 5],
+      habit.schedule.type === "weekly"
+        ? [...habit.schedule.weekdays]
+        : [1, 3, 5],
     intervalDays:
       habit.schedule.type === "interval"
         ? String(habit.schedule.intervalDays)
@@ -117,6 +114,10 @@ export function isHabitDraftDirty(
   if (!existing) return draft.enabled;
   if (!draft.enabled) return true;
   if (draft.kind !== existing.kind) return true;
+  const nextTrackTime = draft.kind === "positive" && draft.trackTime;
+  const existingTrackTime =
+    existing.kind === "positive" && Boolean(existing.trackTime);
+  if (nextTrackTime !== existingTrackTime) return true;
   if (draft.abEnabled !== existing.abEnabled) return true;
   if (
     JSON.stringify(draft.subtaskPlans) !==
@@ -155,6 +156,7 @@ export function buildBindInputFromDraft(
   return {
     taskUuid,
     kind: draft.kind,
+    trackTime: draft.kind === "positive" ? draft.trackTime : false,
     schedule,
     abEnabled: draft.kind === "positive" ? draft.abEnabled : false,
     subtaskPlans: draft.subtaskPlans,
@@ -168,7 +170,8 @@ export function buildBindInputFromDraft(
 }
 
 export function currentLocalTodayDate(): string {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
+  const tz =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai";
   return localDateOf(Date.now(), tz);
 }
 
@@ -199,254 +202,243 @@ export function TaskHabitSidebarField({
     onChange({ ...value, weekdays: next });
   }
 
+  const activeMode =
+    value.kind === "negative"
+      ? "negative"
+      : value.trackTime
+        ? "timed"
+        : "checkin";
+
+  const changed = existingHabit && isHabitDraftDirty(value, existingHabit);
   return (
-    <div className="task-detail-properties">
-      <div className="flex min-w-0 flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <Label className="text-xs leading-4 font-medium text-muted-foreground">
-            习惯
-          </Label>
-          {value.enabled ? (
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => onChange({ ...value, enabled: false })}
-              className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-(--navigation-hover) hover:text-foreground disabled:opacity-50"
-            >
-              <X className="size-3" />
-              取消习惯
-            </button>
-          ) : (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={disabled}
-              onClick={() => onChange({ ...value, enabled: true })}
-              className="h-6 gap-1 rounded px-2 text-xs text-muted-foreground hover:bg-(--navigation-hover) hover:text-foreground"
-            >
-              <CalendarCheck2 className="size-3.5" />
-              设为习惯
-            </Button>
-          )}
-        </div>
-
-        {!value.enabled ? (
-          <p className="text-xs text-muted-foreground/70">
-            普通待办（勾选即完成）。开启后可按周期每日打卡或反向记次。
-          </p>
-        ) : (
-          <div className="space-y-2.5 rounded-lg border border-border/80 bg-(--habit-surface)/50 p-2.5">
-            {existingHabit && (
-              <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-border/60 pb-2">
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground">
-                  <Flame className="size-3 text-(--habit-accent)" />
-                  {existingHabit.streak.currentStreak > 0
-                    ? `连续 ${existingHabit.streak.currentStreak} ${existingHabit.streak.unit}`
-                    : "暂无连续记录"}
-                </span>
-                {onOpenDetail && (
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onOpenDetail(existingHabit.id)}
-                    className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-medium text-(--habit-accent) hover:underline"
-                  >
-                    <LineChart className="size-3" />
-                    热力图/历史
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div className="grid grid-cols-2 gap-1">
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() => onChange({ ...value, kind: "positive" })}
-                className={cn(
-                  "flex cursor-pointer items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] transition-colors",
-                  value.kind === "positive"
-                    ? "border-(--habit-accent)/55 bg-background font-medium text-foreground"
-                    : "border-transparent bg-transparent text-muted-foreground hover:bg-background/60",
-                )}
-              >
-                <Sparkles className="size-3 text-(--habit-accent)" />
-                正向打卡
-              </button>
-              <button
-                type="button"
-                disabled={disabled}
-                onClick={() =>
-                  onChange({ ...value, kind: "negative", abEnabled: false })
-                }
-                className={cn(
-                  "flex cursor-pointer items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] transition-colors",
-                  value.kind === "negative"
-                    ? "border-(--habit-accent)/55 bg-background font-medium text-foreground"
-                    : "border-transparent bg-transparent text-muted-foreground hover:bg-background/60",
-                )}
-              >
-                <ShieldCheck className="size-3 text-muted-foreground" />
-                反向记次
-              </button>
+    <section className="task-habit-settings" aria-label="习惯设置">
+      <div className="habit-settings-heading">
+        <h3>习惯</h3>
+        <button
+          type="button"
+          disabled={disabled}
+          className="habit-settings-link"
+          onClick={() => onChange({ ...value, enabled: !value.enabled })}
+        >
+          {value.enabled ? "取消习惯" : "设为习惯"}
+        </button>
+      </div>
+      {!value.enabled ? (
+        <p className="habit-settings-hint">
+          设为习惯后，可按周期打卡或记录发生次数。
+        </p>
+      ) : (
+        <div className="habit-settings-body">
+          {existingHabit && (
+            <div className="habit-settings-summary">
+              <span className="habit-settings-streak">
+                <Flame aria-hidden="true" />
+                {existingHabit.streak.currentStreak > 0
+                  ? `连续 ${existingHabit.streak.currentStreak} ${existingHabit.streak.unit}`
+                  : "尚无连续记录"}
+              </span>
+              {onOpenDetail && (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  className="habit-settings-link"
+                  onClick={() => onOpenDetail(existingHabit.id)}
+                  aria-label="查看习惯热力图与历史"
+                >
+                  查看记录
+                </button>
+              )}
             </div>
-
-            <div className="space-y-1.5">
-              <Select
+          )}
+          <div className="habit-settings-field">
+            <span className="habit-settings-label">记录方式</span>
+            <div
+              className="habit-settings-segments"
+              data-columns="3"
+              role="group"
+              aria-label="习惯记录方式"
+            >
+              <button
+                type="button"
                 disabled={disabled}
-                value={value.scheduleType}
-                onValueChange={(next) =>
+                aria-pressed={activeMode === "checkin"}
+                onClick={() =>
+                  onChange({ ...value, kind: "positive", trackTime: false })
+                }
+              >
+                纯打卡
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-pressed={activeMode === "timed"}
+                onClick={() =>
+                  onChange({ ...value, kind: "positive", trackTime: true })
+                }
+              >
+                计时打卡
+              </button>
+              <button
+                type="button"
+                disabled={disabled}
+                aria-pressed={activeMode === "negative"}
+                onClick={() =>
                   onChange({
                     ...value,
-                    scheduleType: next as TaskHabitDraft["scheduleType"],
+                    kind: "negative",
+                    trackTime: false,
+                    abEnabled: false,
                   })
                 }
               >
-                <SelectTrigger className="h-8 bg-background text-xs shadow-none">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">每天执行</SelectItem>
-                  <SelectItem value="weekly">每周指定几天</SelectItem>
-                  <SelectItem value="interval">每隔 N 天</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {value.scheduleType === "weekly" && (
-                <div className="flex flex-wrap gap-1 pt-0.5">
-                  {WEEKDAY_BUTTONS.map((day) => {
-                    const selected = value.weekdays.includes(day.value);
-                    return (
-                      <button
-                        key={day.value}
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => toggleWeekday(day.value)}
-                        className={cn(
-                          "size-6 cursor-pointer rounded border text-[11px] transition-colors",
-                          selected
-                            ? "border-(--habit-accent) bg-(--habit-level-2) font-semibold text-foreground"
-                            : "border-border bg-background text-muted-foreground hover:border-foreground/30",
-                        )}
-                      >
-                        {day.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              {value.scheduleType === "interval" && (
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span>每</span>
-                  <Input
-                    type="number"
-                    min={2}
-                    max={365}
-                    disabled={disabled}
-                    value={value.intervalDays}
-                    onChange={(e) =>
-                      onChange({ ...value, intervalDays: e.target.value })
-                    }
-                    className="h-7 w-16 bg-background text-xs tabular-nums"
-                  />
-                  <span>天一次</span>
-                </div>
-              )}
+                反向记次
+              </button>
             </div>
-
-            {value.kind === "positive" && (
-              <label className="flex cursor-pointer items-center justify-between gap-2 pt-0.5 text-[11px] text-muted-foreground">
-                <span>
-                  A/B 双方案轮换
-                  {!hasSubtasks && "（添加子任务后可分组）"}
-                </span>
-                <input
-                  type="checkbox"
-                  disabled={disabled}
-                  checked={value.abEnabled}
-                  onChange={(e) =>
-                    onChange({ ...value, abEnabled: e.target.checked })
-                  }
-                  className="size-3.5 accent-(--habit-accent)"
-                />
-              </label>
-            )}
-
-            {existingHabit && isHabitDraftDirty(value, existingHabit) && (
-              <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2 text-[11px]">
-                <span className="text-muted-foreground">规则生效：</span>
-                <div className="flex gap-1">
+            <p className="habit-settings-hint">
+              {activeMode === "negative"
+                ? "发生时记次，未发生无需操作。"
+                : activeMode === "timed"
+                  ? "开始计时，完成后记录时长。"
+                  : "做到后打卡。"}
+            </p>
+          </div>
+          <div className="habit-settings-field">
+            <Label
+              className="habit-settings-label"
+              htmlFor="task-habit-frequency"
+            >
+              执行频率
+            </Label>
+            <Select
+              disabled={disabled}
+              value={value.scheduleType}
+              onValueChange={(next) =>
+                onChange({
+                  ...value,
+                  scheduleType: next as TaskHabitDraft["scheduleType"],
+                })
+              }
+            >
+              <SelectTrigger
+                id="task-habit-frequency"
+                className="habit-settings-select"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="daily">每天</SelectItem>
+                <SelectItem value="weekly">每周指定日期</SelectItem>
+                <SelectItem value="interval">间隔执行</SelectItem>
+              </SelectContent>
+            </Select>
+            {value.scheduleType === "weekly" && (
+              <div
+                className="habit-settings-weekdays"
+                role="group"
+                aria-label="每周执行日期"
+              >
+                {WEEKDAY_BUTTONS.map((day) => (
                   <button
+                    key={day.value}
                     type="button"
-                    onClick={() =>
-                      onChange({ ...value, effectiveMode: "tomorrow" })
-                    }
-                    className={cn(
-                      "cursor-pointer rounded px-1.5 py-0.5",
-                      value.effectiveMode === "tomorrow"
-                        ? "bg-background font-medium text-foreground shadow-xs"
-                        : "text-muted-foreground",
-                    )}
+                    disabled={disabled}
+                    aria-label={`星期${day.label}`}
+                    aria-pressed={value.weekdays.includes(day.value)}
+                    onClick={() => toggleWeekday(day.value)}
                   >
-                    明天起
+                    {day.label}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onChange({ ...value, effectiveMode: "today" })
-                    }
-                    className={cn(
-                      "cursor-pointer rounded px-1.5 py-0.5",
-                      value.effectiveMode === "today"
-                        ? "bg-background font-medium text-foreground shadow-xs"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    今天起
-                  </button>
-                </div>
+                ))}
               </div>
             )}
-
-            {existingHabit && onStatusChange && (
-              <div className="flex items-center justify-between gap-1.5 border-t border-border/60 pt-2">
-                <span className="text-[11px] text-muted-foreground">
-                  状态：
-                  {existingHabit.status === "active"
-                    ? "运行中"
-                    : existingHabit.status === "paused"
-                      ? "已暂停"
-                      : "已归档"}
-                </span>
-                {existingHabit.status === "active" ? (
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onStatusChange("paused")}
-                    className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-background hover:text-foreground"
-                  >
-                    <Pause className="size-3" />
-                    暂停
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onStatusChange("active")}
-                    className="inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-(--habit-accent) hover:bg-background"
-                  >
-                    <Play className="size-3" />
-                    恢复
-                  </button>
-                )}
+            {value.scheduleType === "interval" && (
+              <div className="habit-settings-interval">
+                <span>每</span>
+                <Input
+                  type="number"
+                  aria-label="执行间隔天数"
+                  min={2}
+                  max={365}
+                  disabled={disabled}
+                  value={value.intervalDays}
+                  onChange={(e) =>
+                    onChange({ ...value, intervalDays: e.target.value })
+                  }
+                />
+                <span>天执行一次</span>
               </div>
             )}
           </div>
-        )}
-      </div>
-    </div>
+          {value.kind === "positive" && (
+            <div className="habit-settings-rotation">
+              <div className="habit-settings-switch-row">
+                <Label htmlFor="task-habit-rotation">A/B 轮换</Label>
+                <Switch
+                  id="task-habit-rotation"
+                  disabled={disabled}
+                  checked={value.abEnabled}
+                  onCheckedChange={(checked) =>
+                    onChange({ ...value, abEnabled: checked })
+                  }
+                />
+              </div>
+              {value.abEnabled && (
+                <p className="habit-settings-hint">
+                  {hasSubtasks
+                    ? "完整完成后，下一次切换方案。"
+                    : "添加子任务后，可分配 A、B 方案。"}
+                </p>
+              )}
+            </div>
+          )}
+          {changed && (
+            <div className="habit-settings-effective">
+              <span className="habit-settings-label">规则生效</span>
+              <div
+                className="habit-settings-segments"
+                role="group"
+                aria-label="习惯规则生效日期"
+              >
+                {(["tomorrow", "today"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    disabled={disabled}
+                    aria-pressed={value.effectiveMode === mode}
+                    onClick={() => onChange({ ...value, effectiveMode: mode })}
+                  >
+                    {mode === "tomorrow" ? "明天起" : "今天起"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {existingHabit && onStatusChange && (
+            <div className="habit-settings-status">
+              <span>
+                {existingHabit.status === "active"
+                  ? "进行中"
+                  : existingHabit.status === "paused"
+                    ? "已暂停"
+                    : "已归档"}
+              </span>
+              <button
+                type="button"
+                disabled={disabled}
+                className="habit-settings-link"
+                onClick={() =>
+                  onStatusChange(
+                    existingHabit.status === "active" ? "paused" : "active",
+                  )
+                }
+              >
+                {existingHabit.status === "active" ? "暂停" : "恢复"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -483,7 +475,7 @@ export function QuickAddHabitButton({
           <CalendarCheck2 className="size-3.5 text-(--habit-accent)" />
           <span>
             {value.enabled
-              ? `${value.kind === "negative" ? "反向" : "习惯"} · ${scheduleLabel}`
+              ? `${value.kind === "negative" ? "反向" : value.trackTime ? "计时习惯" : "打卡"} · ${scheduleLabel}`
               : "设为习惯"}
           </span>
         </Button>
@@ -502,30 +494,48 @@ export function QuickAddHabitButton({
         </div>
         {value.enabled && (
           <>
-            <div className="grid grid-cols-2 gap-1">
+            <div className="grid grid-cols-3 gap-1">
               <button
                 type="button"
-                onClick={() => onChange({ ...value, kind: "positive" })}
+                onClick={() =>
+                  onChange({ ...value, kind: "positive", trackTime: false })
+                }
                 className={cn(
-                  "cursor-pointer rounded border px-2 py-1 text-xs",
-                  value.kind === "positive"
+                  "cursor-pointer rounded border px-1.5 py-1 text-[11px]",
+                  value.kind === "positive" && !value.trackTime
                     ? "border-(--habit-accent) bg-(--habit-level-1)/40 font-medium text-foreground"
                     : "border-border text-muted-foreground",
                 )}
               >
-                正向打卡
+                纯打卡
               </button>
               <button
                 type="button"
-                onClick={() => onChange({ ...value, kind: "negative" })}
+                onClick={() =>
+                  onChange({ ...value, kind: "positive", trackTime: true })
+                }
                 className={cn(
-                  "cursor-pointer rounded border px-2 py-1 text-xs",
+                  "cursor-pointer rounded border px-1.5 py-1 text-[11px]",
+                  value.kind === "positive" && value.trackTime
+                    ? "border-(--habit-accent) bg-(--habit-level-1)/40 font-medium text-foreground"
+                    : "border-border text-muted-foreground",
+                )}
+              >
+                计时
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  onChange({ ...value, kind: "negative", trackTime: false })
+                }
+                className={cn(
+                  "cursor-pointer rounded border px-1.5 py-1 text-[11px]",
                   value.kind === "negative"
                     ? "border-(--habit-accent) bg-(--habit-level-1)/40 font-medium text-foreground"
                     : "border-border text-muted-foreground",
                 )}
               >
-                反向记次
+                反打卡
               </button>
             </div>
             <div className="flex gap-1">

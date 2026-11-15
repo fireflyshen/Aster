@@ -1,6 +1,7 @@
 import {
   focusProject,
   inProject,
+  isHabitProject,
   projectStatus,
   type ProjectStatus,
 } from "@core/workspace/focus";
@@ -80,6 +81,10 @@ export function useProjectActions({
         return;
       }
       if (status === "active") {
+        if (isHabitProject(name, organization.projects)) {
+          setOrganizationError("习惯项目属于日常持续追踪，不能设为焦点项目。");
+          return;
+        }
         const record = organization.projects?.find(
           (item) => item.name === name,
         );

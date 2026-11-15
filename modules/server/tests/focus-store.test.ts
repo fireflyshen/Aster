@@ -331,3 +331,31 @@ test("discovered projects start Later and nested projects cannot consume overlap
       /parent or child/,
     );
   }));
+
+test("habit projects and their child branches cannot be activated in Focus", async () =>
+  fixture(async (store, context) => {
+    context.projectRecords.push(
+      { name: "HabitRoot", description: "", category: "habit" },
+      { name: "HabitRoot.Daily", description: "" },
+    );
+    context.projects.push("HabitRoot", "HabitRoot.Daily");
+    for (const name of ["HabitRoot", "HabitRoot.Daily"]) {
+      await assert.rejects(
+        store.change(
+          {
+            revision: 0,
+            kind: "project",
+            action: "status",
+            name,
+            status: "active",
+          },
+          [],
+          noTaskWrite,
+          context,
+        ),
+        /习惯项目/,
+      );
+    }
+    const read = await store.read();
+    assert.equal(read.revision, 0);
+  }));

@@ -51,6 +51,8 @@ type row struct {
 	chart                     bool
 	chartSeconds              float64
 	chartCost                 int64
+	chartOver                 int64
+	chartOverMax              float64
 }
 type choice struct{ value, label, hint string }
 type undoChange struct {

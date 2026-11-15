@@ -106,7 +106,7 @@ test("historical segments keep captured hourlyRateCents while provisional segmen
     startMs: at("00:00"),
     endMs: at("07:00"),
     confirmedThroughMs: at("07:00"),
-    hourlyRateCents: 0,
+    hourlyRateCents: 10_000, // legacy sleep rate must be ignored,
   });
 
   const budget: TaskBudget = {
@@ -428,4 +428,52 @@ test("computeCostReport separates period vs cumulative task costs, sorts by high
   assert.equal(snapSummary?.confirmedCostCents, 10_000);
   assert.equal(snapSummary?.provisionalSeconds, 1800);
   assert.equal(snapSummary?.provisionalCostCents, 10_000); // 30m at ¥200/h
+});
+
+test("legacy sleep rates are zero in cost reports and task summaries including custom sleep categories", () => {
+  const policy = makePolicy();
+  policy.categories.push({
+    id: "night-rest",
+    name: "休息",
+    color: "gray",
+    isSleep: true,
+  });
+  const activities = [
+    makeActivity({
+      id: "legacy-sleep",
+      categoryId: "sleep",
+      taskUuid: "sleep-task",
+      hourlyRateCents: 10000,
+      startMs: at("00:00"),
+      endMs: at("07:00"),
+    }),
+    makeActivity({
+      id: "custom-sleep",
+      categoryId: "night-rest",
+      hourlyRateCents: 10000,
+      startMs: at("07:00"),
+      endMs: at("08:00"),
+    }),
+  ];
+  const summary = computeTaskCostSummary({
+    taskUuid: "sleep-task",
+    activities,
+    policy,
+    asOfMs: at("12:00"),
+  });
+  assert.equal(summary.confirmedCostCents, 0);
+  assert.equal(summary.confirmedSeconds, 7 * 3600);
+  const report = computeCostReport({
+    granularity: "week",
+    anchorDate: "2026-11-15",
+    sortBy: "highest_cost",
+    activities,
+    budgetsByTaskUuid: new Map(),
+    plans: [],
+    billLinks: [],
+    policy,
+    nowMs: at("12:00"),
+  });
+  assert.equal(report.totalPeriodConfirmedCostCents, 0);
+  assert.equal(report.totalPeriodConfirmedSeconds, 8 * 3600);
 });

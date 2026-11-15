@@ -22,6 +22,7 @@ export function ProjectActions({
   onDelete,
   status,
   onStatus,
+  canFocus = true,
   onAddChild,
 }: {
   name: string;
@@ -31,6 +32,7 @@ export function ProjectActions({
     name: string,
     status: import("@core/workspace/focus").ProjectStatus,
   ) => void;
+  canFocus?: boolean;
   disabled: boolean;
   onEdit: (name: string) => void;
   onDelete: (name: string) => void;
@@ -59,21 +61,23 @@ export function ProjectActions({
       >
         {onStatus && (
           <>
-            <Button
-              variant="ghost"
-              className="h-9 w-full justify-start font-normal"
-              onClick={() => {
-                setOpen(false);
-                onStatus(name, status === "active" ? "later" : "active");
-              }}
-            >
-              {status === "active" ? (
-                <Pause className="size-4" />
-              ) : (
-                <Play className="size-4" />
-              )}
-              {status === "active" ? "Pause project" : "Activate project"}
-            </Button>
+            {canFocus && (
+              <Button
+                variant="ghost"
+                className="h-9 w-full justify-start font-normal"
+                onClick={() => {
+                  setOpen(false);
+                  onStatus(name, status === "active" ? "later" : "active");
+                }}
+              >
+                {status === "active" ? (
+                  <Pause className="size-4" />
+                ) : (
+                  <Play className="size-4" />
+                )}
+                {status === "active" ? "Pause project" : "Activate project"}
+              </Button>
+            )}
             {status !== "completed" && (
               <Button
                 variant="ghost"

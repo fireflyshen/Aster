@@ -96,7 +96,11 @@ export function HabitDetailDialog({
   onEdit: (habit: HabitListItem) => void;
   onSetStatus: (habitId: string, status: HabitStatus) => void;
   onDelete: (habitId: string) => Promise<unknown>;
-  onTogglePositive: (habitId: string, date: string, completed?: boolean) => void;
+  onTogglePositive: (
+    habitId: string,
+    date: string,
+    completed?: boolean,
+  ) => void;
   onSetChecklistItem: (input: {
     habitId: string;
     itemId: string;
@@ -146,12 +150,14 @@ export function HabitDetailDialog({
           onOpenChange(next);
         }}
       >
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[680px]">
+        <DialogContent className="habit-detail-dialog min-w-0 max-h-[90dvh] overflow-y-auto sm:max-w-[680px]">
           <DialogHeader>
             <div className="flex flex-wrap items-start justify-between gap-3 pr-6">
-              <div>
+              <div className="min-w-0 flex-1">
                 <DialogTitle className="flex flex-wrap items-center gap-2 text-lg">
-                  <span>{habit.title}</span>
+                  <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                    {habit.title}
+                  </span>
                   <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-normal text-secondary-foreground">
                     {habit.kind === "positive"
                       ? habit.completionMode === "checklist"
@@ -266,14 +272,14 @@ export function HabitDetailDialog({
           </DialogHeader>
 
           {habit.description && (
-            <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap">
+            <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
               {habit.description}
             </div>
           )}
 
           {/* Streak & 30-day metrics */}
-          <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
-            <div className="rounded-lg border border-border/70 bg-card/70 px-3 py-2">
+          <div className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-4">
+            <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
               <div className="text-[11px] text-muted-foreground">当前连续</div>
               <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
                 {streak.currentStreak}
@@ -282,7 +288,7 @@ export function HabitDetailDialog({
                 </span>
               </div>
             </div>
-            <div className="rounded-lg border border-border/70 bg-card/70 px-3 py-2">
+            <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
               <div className="text-[11px] text-muted-foreground">最长连续</div>
               <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
                 {streak.longestStreak}
@@ -291,8 +297,10 @@ export function HabitDetailDialog({
                 </span>
               </div>
             </div>
-            <div className="rounded-lg border border-border/70 bg-card/70 px-3 py-2">
-              <div className="text-[11px] text-muted-foreground">近 30 天达成</div>
+            <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
+              <div className="text-[11px] text-muted-foreground">
+                近 30 天达成
+              </div>
               <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
                 {streak.recent30Achieved}
                 <span className="text-xs font-normal text-muted-foreground">
@@ -301,7 +309,7 @@ export function HabitDetailDialog({
               </div>
             </div>
             {habit.kind === "negative" && (
-              <div className="rounded-lg border border-border/70 bg-card/70 px-3 py-2">
+              <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
                 <div className="text-[11px] text-muted-foreground">
                   近 30 天发生
                 </div>
@@ -316,7 +324,7 @@ export function HabitDetailDialog({
           </div>
 
           {/* Individual Heatmap */}
-          <div className="rounded-xl border border-border/70 bg-card/60 p-3.5">
+          <div className="min-w-0 rounded-xl border border-border/70 bg-card/60 p-3.5">
             <div className="mb-2 text-xs font-medium text-foreground">
               执行热力图
             </div>

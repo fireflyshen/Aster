@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -37,17 +36,12 @@ func TestStatisticsDeduplicateAndKeepSleep(t *testing.T) {
 		},
 		UnassignedSegments: []CostReportSegmentRef{sleep, work},
 	}
-	m.timeState.ReportGroupBy = "day"
+	m.timeState.ReportGroupBy = "tag"
 	rows := m.statisticRows()
-	if len(rows) != 2 || rows[0].chartValue != 0 ||
-		rows[1].chartValue != 32400 {
-		t.Fatalf("daily stats: %+v", rows)
+	if len(rows) != 3 || rows[0].id != "__untagged__" || rows[0].chartSeconds != 28800 {
+		t.Fatalf("sleep and dedup: %+v", rows)
 	}
 	m.timeState.ChartMetric = "cost"
-	rows = m.statisticRows()
-	if rows[1].chartValue != 10000 {
-		t.Fatalf("cost counted twice: %+v", rows)
-	}
 	m.timeState.ReportGroupBy = "tag"
 	rows = m.statisticRows()
 	if len(rows) != 3 {
@@ -100,40 +94,26 @@ func TestTimelineRemovesPlansAndSorts(t *testing.T) {
 	}
 }
 
-func TestWeeklyChartKeyboardAndDayDrilldown(t *testing.T) {
+func TestWeeklyChartProjectTagSwitching(t *testing.T) {
 	m := makeTimeTestModel(time.Now(), true)
 	m.view = "time.weekly"
 	m.navFocus = false
-	m.timeState.Weekly = &WeeklyDistributionSummary{
-		Daily: []DailyLedgerSummary{
-			{
-				Date:               "2026-11-15",
-				CoveredSeconds:     3600,
-				ConfirmedCostCents: 20000,
-			},
-		},
-		ByProjectSeconds:   map[string]float64{"Work": 3600},
-		ByProjectCostCents: map[string]int64{"Work": 20000},
-	}
+	m.timeState.Weekly = &WeeklyDistributionSummary{ByProjectSeconds: map[string]float64{"Work": 3600}, ByProjectCostCents: map[string]int64{"Work": 20000}, ByTagSeconds: map[string]float64{"dev": 3600}, ByTagCostCents: map[string]int64{"dev": 20000}}
 	m.syncTimeExtraRows()
-	if len(m.extra) != 2 || m.extra[1].kind != "time.day" {
-		t.Fatalf("daily rows: %+v", m.extra)
-	}
-	m.cursor = 1
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	next := updated.(model)
-	if next.view != "time.today" ||
-		next.timeState.SelectedDate != "2026-11-15" {
-		t.Fatal("day drilldown failed")
+	if len(m.extra) != 2 || m.extra[1].id != "Work" {
+		t.Fatalf("project should be default: %+v", m.extra)
 	}
 	m.action("time.weekly.group")
-	if m.timeState.WeeklyDimension != "project" ||
-		m.extra[1].chartValue != 3600 {
-		t.Fatal("dimension switch failed")
+	if m.timeState.WeeklyDimension != "tag" || m.extra[1].id != "dev" {
+		t.Fatal("tag switch failed")
 	}
 	m.action("time.chart.metric")
 	if m.extra[1].chartValue != 20000 {
-		t.Fatal("metric switch failed")
+		t.Fatal("cost switch failed")
+	}
+	m.action("time.weekly.group")
+	if m.extra[1].id != "Work" {
+		t.Fatal("must cycle back to project")
 	}
 }
 

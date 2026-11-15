@@ -59,6 +59,7 @@ export function ProjectInlineMeta({
         outcome: next,
         nextTask: currentProjectRecord?.nextTask || "",
         color: currentProjectRecord?.color,
+        category: currentProjectRecord?.category,
       },
     });
   };
@@ -78,6 +79,7 @@ export function ProjectInlineMeta({
         outcome: projectOutcome,
         nextTask: currentProjectRecord?.nextTask || "",
         color: currentProjectRecord?.color,
+        category: currentProjectRecord?.category,
       },
     });
   };

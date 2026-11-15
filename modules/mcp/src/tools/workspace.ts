@@ -11,6 +11,12 @@ const projectSchema = z
     name: z.string().min(1).max(200),
     description: z.string().max(2000),
     color: colorSchema.optional(),
+    category: z
+      .enum(["normal", "habit"])
+      .optional()
+      .describe(
+        "Project category: 'normal' (goal-based, can enter Focus) or 'habit' (ongoing habit tracking, cannot enter Focus).",
+      ),
     outcome: z.string().max(500).optional(),
     nextTask: z.union([uuidSchema, z.literal("")]).optional(),
   })
@@ -53,7 +59,7 @@ export function registerWorkspaceTools({
 
   register(
     "project_save",
-    "Create/edit project. Dot paths create hierarchy; originalName renames/moves entire branch. Set description/color/outcome/nextTask (empty clears next step). Status uses project_status. Read workspace first.",
+    "Create/edit project. Dot paths create hierarchy; originalName renames/moves entire branch. Set category ('normal' or 'habit'), description/color/outcome/nextTask (empty clears next step). Habit projects cannot enter Focus. Status uses project_status. Read workspace first.",
     {
       revision: revisionSchema,
       item: projectSchema,

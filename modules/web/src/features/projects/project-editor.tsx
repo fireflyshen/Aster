@@ -21,8 +21,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { ColorPicker } from "@/features/organization/color-picker";
 import { ProjectPicker } from "@/features/tasks/project-picker";
 import { api } from "@/lib/api";
-import { inProject } from "@core/workspace/focus";
-import type { Color, Organization } from "@core/workspace/organization";
+import { inProject, isHabitProject } from "@core/workspace/focus";
+import type {
+  Color,
+  Organization,
+  ProjectCategory,
+  SavedProject,
+} from "@core/workspace/organization";
+import { Repeat2, Target } from "lucide-react";
 import {
   projectLeaf,
   projectParent,
@@ -35,8 +41,10 @@ import { useEffect, useState, type FormEvent } from "react";
 type ProjectEditorProps = {
   project: string;
   projects: string[];
+  projectRecords?: SavedProject[];
   initialParent?: string;
   color?: Color;
+  category?: ProjectCategory;
   description: string;
   outcome: string;
   nextTask: string;
@@ -53,14 +61,17 @@ type ProjectEditorProps = {
     outcome: string,
     nextTask: string,
     color: Color,
+    category: ProjectCategory,
   ) => Promise<boolean>;
 };
 
 export function ProjectEditor({
   project,
   projects,
+  projectRecords = [],
   initialParent,
   color: initialColor = "gray",
+  category: initialCategory,
   description,
   outcome: initialOutcome,
   nextTask: initialNext,
@@ -73,6 +84,14 @@ export function ProjectEditor({
   onSave,
 }: ProjectEditorProps) {
   const [color, setColor] = useState<Color>(initialColor);
+  const [parent, setParent] = useState(initialParent ?? projectParent(project));
+  const [category, setCategory] = useState<ProjectCategory>(
+    () =>
+      initialCategory ??
+      (initialParent && isHabitProject(initialParent, projectRecords)
+        ? "habit"
+        : "normal"),
+  );
   const [outcome, setOutcome] = useState(initialOutcome);
   const [nextTask, setNextTask] = useState(initialNext);
   const [choices, setChoices] = useState<Task[]>([]);
@@ -100,10 +119,11 @@ export function ProjectEditor({
   }, [project]);
   const [draft, setDraft] = useState(description);
   const [name, setName] = useState(projectLeaf(project));
-  const [parent, setParent] = useState(initialParent ?? projectParent(project));
   const [localError, setLocalError] = useState("");
   const [draftRevision, setDraftRevision] = useState(revision);
   const [reloading, setReloading] = useState(false);
+  const parentIsHabit = Boolean(parent && isHabitProject(parent, projectRecords));
+  const effectiveCategory: ProjectCategory = parentIsHabit ? "habit" : category;
   // The editor mounts on open; refreshes keep this draft and its captured revision.
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,7 +144,17 @@ export function ProjectEditor({
       setLocalError((error as Error).message);
       return;
     }
-    if (await onSave(path, draft, draftRevision, outcome, nextTask, color))
+    if (
+      await onSave(
+        path,
+        draft,
+        draftRevision,
+        effectiveCategory === "habit" ? "" : outcome,
+        effectiveCategory === "habit" ? "" : nextTask,
+        color,
+        effectiveCategory,
+      )
+    )
       onClose();
   }
   return (
@@ -185,6 +215,52 @@ export function ProjectEditor({
               />
             </div>
             <div className="space-y-1.5">
+              <Label>项目类型</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={busy || blocked || reloading || parentIsHabit}
+                  onClick={() => setCategory("normal")}
+                  className={`flex cursor-pointer flex-col items-start rounded-lg border px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
+                    effectiveCategory === "normal"
+                      ? "border-primary/60 bg-primary/8 text-foreground"
+                      : "border-border bg-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                    <Target className="size-3.5 text-primary" />
+                    正常项目
+                  </span>
+                  <span className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                    有明确终点目标，可加入「焦点」
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || blocked || reloading}
+                  onClick={() => setCategory("habit")}
+                  className={`flex cursor-pointer flex-col items-start rounded-lg border px-3 py-2 text-left transition-colors ${
+                    effectiveCategory === "habit"
+                      ? "border-(--habit-accent)/70 bg-(--habit-accent)/10 text-foreground"
+                      : "border-border bg-transparent text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                    <Repeat2 className="size-3.5 text-(--habit-accent)" />
+                    习惯项目
+                  </span>
+                  <span className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+                    长期打卡与日常维护，不可加入「焦点」
+                  </span>
+                </button>
+              </div>
+              {parentIsHabit && (
+                <p className="text-[11px] text-muted-foreground">
+                  父项目为习惯项目，子项目默认归为习惯项目且不可设为焦点。
+                </p>
+              )}
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="project-color">Color</Label>
               <ColorPicker
                 id="project-color"
@@ -202,7 +278,12 @@ export function ProjectEditor({
                 projects={projects.filter(
                   (name) => !project || !inProject(name, project),
                 )}
-                onChange={setParent}
+                onChange={(nextParent) => {
+                  setParent(nextParent);
+                  if (nextParent && isHabitProject(nextParent, projectRecords)) {
+                    setCategory("habit");
+                  }
+                }}
                 allowCreate={false}
                 emptyLabel="No parent"
                 disabled={busy || blocked || reloading}
@@ -213,59 +294,63 @@ export function ProjectEditor({
                 </p>
               )}
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="project-outcome">Finish line</Label>
-              <Textarea
-                id="project-outcome"
-                value={outcome}
-                onChange={(event) => setOutcome(event.target.value)}
-                maxLength={500}
-                rows={2}
-                placeholder="What result would make this project complete?"
-                className="min-h-16 text-base md:text-sm"
-                disabled={busy || blocked || reloading}
-              />
-            </div>
-            {project && (
-              <div className="space-y-1.5">
-                <Label htmlFor="project-next">Next step</Label>
-                <Select
-                  value={nextTask || "none"}
-                  onValueChange={(value) =>
-                    setNextTask(value === "none" ? "" : value)
-                  }
-                  disabled={
-                    busy ||
-                    blocked ||
-                    reloading ||
-                    choicesLoading ||
-                    !!choicesError
-                  }
-                >
-                  <SelectTrigger id="project-next" className="w-full">
-                    <SelectValue placeholder="Choose a task" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Choose later</SelectItem>
-                    {nextTask &&
-                      !choices.some((task) => task.uuid === nextTask) && (
-                        <SelectItem value={nextTask}>
-                          Previous task (completed or unavailable)
-                        </SelectItem>
-                      )}
-                    {choices.map((task) => (
-                      <SelectItem key={task.uuid} value={task.uuid}>
-                        {task.description}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {choicesError && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {choicesError} Close and reopen to reload tasks.
-                  </p>
+            {effectiveCategory === "normal" && (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="project-outcome">Finish line</Label>
+                  <Textarea
+                    id="project-outcome"
+                    value={outcome}
+                    onChange={(event) => setOutcome(event.target.value)}
+                    maxLength={500}
+                    rows={2}
+                    placeholder="What result would make this project complete?"
+                    className="min-h-16 text-base md:text-sm"
+                    disabled={busy || blocked || reloading}
+                  />
+                </div>
+                {project && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="project-next">Next step</Label>
+                    <Select
+                      value={nextTask || "none"}
+                      onValueChange={(value) =>
+                        setNextTask(value === "none" ? "" : value)
+                      }
+                      disabled={
+                        busy ||
+                        blocked ||
+                        reloading ||
+                        choicesLoading ||
+                        !!choicesError
+                      }
+                    >
+                      <SelectTrigger id="project-next" className="w-full">
+                        <SelectValue placeholder="Choose a task" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Choose later</SelectItem>
+                        {nextTask &&
+                          !choices.some((task) => task.uuid === nextTask) && (
+                            <SelectItem value={nextTask}>
+                              Previous task (completed or unavailable)
+                            </SelectItem>
+                          )}
+                        {choices.map((task) => (
+                          <SelectItem key={task.uuid} value={task.uuid}>
+                            {task.description}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {choicesError && (
+                      <p role="alert" className="text-sm text-destructive">
+                        {choicesError} Close and reopen to reload tasks.
+                      </p>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
             )}
             <div className="space-y-1.5">
               <Label

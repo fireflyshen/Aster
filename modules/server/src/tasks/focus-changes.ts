@@ -1,6 +1,8 @@
 import {
   FOCUS_LIMIT,
   inProject,
+  isHabitProject,
+  projectCategory,
   projectStatus,
   type ProjectFocusChange,
 } from "../../../core/workspace/focus.ts";
@@ -15,6 +17,11 @@ export function validateGoal(project: SavedProject, tasks: GoalTask[]) {
       project.outcome.includes("\0"))
   )
     throw new Error("Finish line must be 500 characters or fewer.");
+  if (
+    projectStatus(project) === "active" &&
+    projectCategory(project) === "habit"
+  )
+    throw new Error("习惯项目属于日常持续追踪，不能设为焦点项目。");
   if (projectStatus(project) === "active" && !project.outcome?.trim())
     throw new Error("Define a finish line before activating this project.");
   if (project.nextTask !== undefined && typeof project.nextTask !== "string")
@@ -57,6 +64,9 @@ export function changeProjectFocus(
   const target = next.find((project) => project.name === selected.name)!;
   if (change.outcome !== undefined) target.outcome = change.outcome.trim();
   if (change.status === "active") {
+    if (isHabitProject(target.name, next)) {
+      throw new Error("习惯项目属于日常持续追踪，不能设为焦点项目。");
+    }
     if (change.replaceProject !== undefined) {
       const replaced = next.find(
         (project) => project.name === change.replaceProject,

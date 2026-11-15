@@ -10,7 +10,11 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { ProjectIcon } from "@/features/projects/project-icon";
-import { focusProject, type ProjectStatus } from "@core/workspace/focus";
+import {
+  focusProject,
+  isHabitProject,
+  type ProjectStatus,
+} from "@core/workspace/focus";
 import {
   itemColor,
   type Organization,
@@ -107,6 +111,9 @@ export function CommandPalette({
   const currentInFocus = currentProject
     ? focusProject(currentProject, organization.projects)
     : undefined;
+  const currentIsHabit = currentProject
+    ? isHabitProject(currentProject, organization.projects)
+    : false;
 
   return (
     <CommandDialog
@@ -167,28 +174,30 @@ export function CommandPalette({
           </CommandItem>
           {currentProject && (
             <>
-              <CommandItem
-                value={`${currentInFocus ? "Pause" : "Focus"} current project ${currentProject}`}
-                onSelect={() =>
-                  run(() =>
-                    onProjectStatus(
-                      currentInFocus?.name || currentProject,
-                      currentInFocus ? "later" : "active",
-                    ),
-                  )
-                }
-              >
-                {currentInFocus ? (
-                  <Pause className="size-4" />
-                ) : (
-                  <Play className="size-4" />
-                )}
-                <span>
-                  {currentInFocus
-                    ? `将“${currentProject}”移至稍后`
-                    : `将“${currentProject}”加入焦点`}
-                </span>
-              </CommandItem>
+              {!currentIsHabit && (
+                <CommandItem
+                  value={`${currentInFocus ? "Pause" : "Focus"} current project ${currentProject}`}
+                  onSelect={() =>
+                    run(() =>
+                      onProjectStatus(
+                        currentInFocus?.name || currentProject,
+                        currentInFocus ? "later" : "active",
+                      ),
+                    )
+                  }
+                >
+                  {currentInFocus ? (
+                    <Pause className="size-4" />
+                  ) : (
+                    <Play className="size-4" />
+                  )}
+                  <span>
+                    {currentInFocus
+                      ? `将“${currentProject}”移至稍后`
+                      : `将“${currentProject}”加入焦点`}
+                  </span>
+                </CommandItem>
+              )}
               <CommandItem
                 value={`Edit project 编辑项目 ${currentProject}`}
                 onSelect={() => run(() => onEditProject(currentProject))}

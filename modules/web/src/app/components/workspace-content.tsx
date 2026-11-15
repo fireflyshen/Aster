@@ -24,7 +24,7 @@ import {
   isUrgencyBuiltinFilterId,
 } from "@core/workspace/builtin-filters";
 import { defaultBoard, type BoardChange } from "@core/workspace/board";
-import type { ProjectStatus } from "@core/workspace/focus";
+import { isHabitProject, type ProjectStatus } from "@core/workspace/focus";
 import type {
   Organization,
   OrganizationChange,
@@ -360,6 +360,10 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           groupOptions={!isProjectOwned ? groupOptions : undefined}
           onGroupByChange={!isProjectOwned ? setGroupBy : undefined}
           currentProjectFocus={currentProjectFocus}
+          currentProjectIsHabit={Boolean(
+            currentProject &&
+              isHabitProject(currentProject, organization.projects),
+          )}
           projectOutcome={projectOutcome}
           projectDescription={projectDescription}
           viewCounts={viewCounts}

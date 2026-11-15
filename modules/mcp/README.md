@@ -148,8 +148,9 @@ Aster Time 直接使用 **Taskwarrior 的项目（`projectSnapshot`）与标签�
 
 Aster 中的**习惯**直接作为普通待办（Todo）的扩展字段存在（绑定 `taskUuid`，每日记录存储在独立 `habits.sqlite`），与普通待办共用 Taskwarrior 的**项目（`project`）、标签（`tags`）、说明与原生子任务（`subtasks`）**：
 
-- **正向习惯（`kind: "positive"`）**：每日（`daily`）、每周指定几天（`weekly`，ISO 星期 `1`..`7`）或每隔几天（`interval`）执行；无子任务时一键勾选，包含子任务时（如力量训练的动作清单，可选 A/B 方案与组/次/重成绩）逐项勾选当日进度。
-- **反向习惯（`kind: "negative"`）**：用来减少行为，仅在破例时记一次并可附备注；当天未发生即为达成（无须每日点“未发生”）。
+- **正向·纯打卡（`kind: "positive", trackTime: false`）**：每日（`daily`）、每周指定几天（`weekly`，ISO 星期 `1`..`7`）或每隔几天（`interval`）执行；仅记录打卡/动作进度，**不开启任务计时器与投入成本面板**（大多数日常好习惯/十三美德类正向习惯默认使用此模式）。
+- **正向·计时习惯（`kind: "positive", trackTime: true`）**：适合需要统计投入时长与成本的习惯（如力量训练、阅读 30 分钟、冥想等），既支持日常打卡/A-B 动作清单，也保留 Taskwarrior 计时与 Time 账本联动。
+- **反向习惯（`kind: "negative"`，`trackTime` 恒为 `false`）**：用来减少行为，仅在破例时记一次并可附备注；当天未发生即为达成（无须每日点“未发生”，且不展示计时）。
 
 **关键安全规则**：
 - **严禁误用 `task_complete` / `task_delete` 处理日常打卡**：无论是习惯本体还是其训练动作子任务，日常完成/打卡必须调用 `habit_toggle` 或 `habit_checklist_item`，**绝不可调用 `task_complete`（会把习惯或动作从待办视图永久完成隐藏）或 `task_delete`（会联动清除习惯配置）**。
@@ -192,6 +193,7 @@ Aster MCP 提供三组高内聚工具：
 - `task_complete` / `task_reopen`：标记任务完成或重新打开。
 - `subtask_link` / `subtask_unlink`：绑定或解绑父子任务关系。
 - `column_save` / `board_task_move`：管理看板列及在列间移动排序。
+- `project_save` / `project_status`：创建或编辑项目（可设 `category: "normal" | "habit"` 区分正常项目与习惯项目；习惯项目不能进入 Focus）与切换项目状态。
 - `recovery_list` / `recovery_restore`：查看误删任务快照与恢复。
 
 ### 习惯管理工具（Habits as a Todo Field）

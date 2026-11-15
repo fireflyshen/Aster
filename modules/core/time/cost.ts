@@ -34,6 +34,24 @@ export function normalizeHourlyRateCents(
   return Math.round(value);
 }
 
+/** Sleep has duration, but never incurs time cost, even with legacy rate data. */
+export function resolveActivityHourlyRateCents(
+  activity: Pick<Activity, "categoryId" | "hourlyRateCents">,
+  policy: TimePolicy,
+): number {
+  if (
+    activity.categoryId === "sleep" ||
+    policy.categories.some(
+      (category) => category.id === activity.categoryId && category.isSleep,
+    )
+  )
+    return 0;
+  return normalizeHourlyRateCents(
+    activity.hourlyRateCents,
+    normalizeHourlyRateCents(policy.hourlyRateCents),
+  );
+}
+
 export function yuanToHourlyRateCents(yuan: number): number {
   if (typeof yuan !== "number" || !Number.isFinite(yuan) || yuan < 0) {
     return 0;
@@ -278,7 +296,7 @@ export function computeTaskCostSummary(options: {
     const confirmedEndMs = resolveEffectiveConfirmedEndMs(activity, endMs);
     const confSec = secondsDelta(activity.startMs, confirmedEndMs);
     const provSec = Math.max(0, totalSec - confSec);
-    const rate = normalizeHourlyRateCents(activity.hourlyRateCents, policyRate);
+    const rate = resolveActivityHourlyRateCents(activity, options.policy);
 
     confirmedSeconds += confSec;
     confirmedCostCents += computeDurationCostCents(confSec, rate);
@@ -509,7 +527,7 @@ export function computeCostReport(options: {
       clippedConfirmedEndMs,
     );
     const provisionalSeconds = Math.max(0, totalSec - confirmedSeconds);
-    const rate = normalizeHourlyRateCents(activity.hourlyRateCents, policyRate);
+    const rate = resolveActivityHourlyRateCents(activity, options.policy);
     const confirmedCostCents = computeDurationCostCents(confirmedSeconds, rate);
     const provisionalCostCents = computeDurationCostCents(
       provisionalSeconds,

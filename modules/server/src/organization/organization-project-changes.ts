@@ -4,6 +4,7 @@ import type { EnergyTaskLike } from "../../../core/workspace/energy.ts";
 import {
   FOCUS_LIMIT,
   inProject,
+  isHabitProject,
   projectStatus,
 } from "../../../core/workspace/focus.ts";
 import {
@@ -84,6 +85,18 @@ export async function applyProjectSaveOrDeleteChange(
     name,
     description: item.description.trim(),
   };
+  if (item.category !== undefined) {
+    if (item.category !== "normal" && item.category !== "habit") {
+      throw new Error("Choose a valid project category.");
+    }
+    next.category = item.category;
+  }
+  const branchRootIsHabit =
+    next.category === "habit" ||
+    isHabitProject(name, [...records.values()].filter((p) => p.name !== original));
+  if (branchRootIsHabit && projectStatus(next) === "active") {
+    next.status = "later";
+  }
   if (item.color !== undefined) {
     if (!colors.some((color) => color.id === item.color)) {
       throw new Error("Choose a valid project color.");
@@ -163,6 +176,16 @@ export async function applyProjectSaveOrDeleteChange(
   });
   if (!removing) {
     projects = [...projects.filter((project) => project.name !== name), next];
+    projects = projects.map((project) =>
+      isHabitProject(project.name, projects) &&
+      projectStatus(project) === "active"
+        ? { ...project, status: "later" }
+        : project,
+    );
+    const updatedTarget = projects.find((project) => project.name === name);
+    if (updatedTarget) {
+      next.status = updatedTarget.status;
+    }
   }
 
   // Keep goal references valid when a selected task leaves its ancestor project.

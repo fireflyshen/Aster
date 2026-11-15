@@ -1,7 +1,9 @@
 import { isoWeekday } from "@core/habits/logic";
 import type { HeatmapCell, HeatmapResponse } from "@core/habits/model";
 import { cn } from "cn";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import { heatmapPanelLayout } from "./heatmap-layout";
 
 const WEEKDAY_LABELS = ["一", "", "三", "", "五", "", "日"] as const;
 const WEEKDAY_FULL = [
@@ -17,7 +19,8 @@ const WEEKDAY_FULL = [
 function cellDescription(cell: HeatmapCell): string {
   const wd = WEEKDAY_FULL[isoWeekday(cell.date) - 1];
   if (cell.status === "future") return `${cell.date} ${wd} · 未来日期`;
-  if (cell.status === "unscheduled") return `${cell.date} ${wd} · 当日无安排习惯`;
+  if (cell.status === "unscheduled")
+    return `${cell.date} ${wd} · 当日无安排习惯`;
   if (cell.status === "in_progress") {
     const parts: string[] = [];
     if ((cell.inProgressPositiveTotal ?? 0) > 0) {
@@ -61,23 +64,28 @@ function cellStyle(cell: HeatmapCell): {
       };
     case "zero":
       return {
-        className: "bg-(--habit-zero) hover:brightness-95 dark:hover:brightness-115",
+        className:
+          "bg-(--habit-zero) hover:brightness-95 dark:hover:brightness-115",
       };
     case "level1":
       return {
-        className: "bg-(--habit-level-1) hover:brightness-95 dark:hover:brightness-115",
+        className:
+          "bg-(--habit-level-1) hover:brightness-95 dark:hover:brightness-115",
       };
     case "level2":
       return {
-        className: "bg-(--habit-level-2) hover:brightness-95 dark:hover:brightness-115",
+        className:
+          "bg-(--habit-level-2) hover:brightness-95 dark:hover:brightness-115",
       };
     case "level3":
       return {
-        className: "bg-(--habit-level-3) hover:brightness-95 dark:hover:brightness-115",
+        className:
+          "bg-(--habit-level-3) hover:brightness-95 dark:hover:brightness-115",
       };
     case "level4":
       return {
-        className: "bg-(--habit-level-4) hover:brightness-95 dark:hover:brightness-115",
+        className:
+          "bg-(--habit-level-4) hover:brightness-95 dark:hover:brightness-115",
       };
   }
 }
@@ -94,6 +102,17 @@ export function HabitHeatmap({
   onSelectDate: (date: string | null) => void;
   compact?: boolean;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver((entries) =>
+      setContainerWidth(entries[0].contentRect.width),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
   const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
 
   const { weeks, monthLabels } = useMemo(() => {
@@ -134,8 +153,10 @@ export function HabitHeatmap({
     return { weeks: weekCols, monthLabels: labels };
   }, [heatmap.cells]);
 
-  const squareSize = compact ? "size-[11px]" : "size-[13px]";
-  const monthMap = new Map(monthLabels.map((m) => [m.colIndex, m.label]));
+  const layout = heatmapPanelLayout(weeks.length, containerWidth, compact);
+  const panels = Array.from({ length: layout.panels }, (_, index) =>
+    weeks.slice(index * layout.columns, (index + 1) * layout.columns),
+  );
 
   const activeInfo = hoveredCell
     ? cellDescription(hoveredCell)
@@ -147,92 +168,106 @@ export function HabitHeatmap({
       : "点击任意日期格子查看当日习惯明细或补记";
 
   return (
-    <div className="space-y-2.5">
-      <div className="overflow-x-auto pb-1">
-        <div className="inline-block min-w-max">
-          {/* Month headers */}
-          <div className="mb-1 flex items-center gap-[3px] pl-6 text-[10px] text-muted-foreground">
-            {weeks.map((_, colIdx) => (
-              <div
-                key={colIdx}
-                className={cn(squareSize, "relative shrink-0 overflow-visible")}
-              >
-                {monthMap.get(colIdx) && (
-                  <span className="absolute top-0 left-0 whitespace-nowrap leading-none">
-                    {monthMap.get(colIdx)}
-                  </span>
-                )}
+    <div ref={containerRef} className="habit-heatmap min-w-0 w-full space-y-3">
+      {panels.map((panel, panelIndex) => {
+        const offset = panelIndex * layout.columns;
+        const first = panel.flat().find((cell) => cell !== null);
+        const last = [...panel.flat()].reverse().find((cell) => cell !== null);
+        return (
+          <div key={panelIndex} className="min-w-0">
+            {panels.length > 1 && (
+              <div className="mb-1.5 text-[11px] text-muted-foreground tabular-nums">
+                {first?.date} – {last?.date}
               </div>
-            ))}
-          </div>
-
-          <div className="flex items-start gap-1.5">
-            {/* Weekday labels */}
-            <div className="flex w-4.5 shrink-0 flex-col gap-[3px] pt-[1px] text-[10px] text-muted-foreground/85">
-              {WEEKDAY_LABELS.map((label, idx) => (
-                <div
-                  key={idx}
-                  className={cn(
-                    squareSize,
-                    "flex items-center justify-end pr-0.5 leading-none",
-                  )}
+            )}
+            <div
+              className="habit-heatmap-grid"
+              style={{
+                gridTemplateColumns: `20px repeat(${layout.columns}, minmax(0, 1fr))`,
+              }}
+              aria-label="按周排列的习惯热力图"
+            >
+              {monthLabels
+                .filter(
+                  (month) =>
+                    month.colIndex >= offset &&
+                    month.colIndex < offset + panel.length,
+                )
+                .map((month) => {
+                  const column = month.colIndex - offset;
+                  const span = Math.min(3, layout.columns - column);
+                  return (
+                    <span
+                      key={month.colIndex}
+                      className="habit-heatmap-month"
+                      style={{
+                        gridColumn: `${column + 2} / span ${span}`,
+                        gridRow: 1,
+                      }}
+                    >
+                      {month.label}
+                    </span>
+                  );
+                })}
+              {WEEKDAY_LABELS.map((label, index) => (
+                <span
+                  key={index}
+                  className="habit-heatmap-weekday"
+                  style={{ gridColumn: 1, gridRow: index + 2 }}
                 >
                   {label}
-                </div>
+                </span>
               ))}
-            </div>
-
-            {/* Week columns */}
-            <div className="flex gap-[3px]">
-              {weeks.map((col, colIdx) => (
-                <div key={colIdx} className="flex flex-col gap-[3px]">
-                  {col.map((cell, rowIdx) => {
-                    if (!cell) {
-                      return (
-                        <div
-                          key={`empty-${colIdx}-${rowIdx}`}
-                          className={squareSize}
-                        />
-                      );
-                    }
-                    const { className } = cellStyle(cell);
-                    const isSelected = selectedDate === cell.date;
-                    const desc = cellDescription(cell);
-                    const clickable = cell.status !== "future";
+              {panel.map((week, column) =>
+                week.map((cell, row) => {
+                  const position = { gridColumn: column + 2, gridRow: row + 2 };
+                  if (!cell)
                     return (
-                      <button
-                        key={cell.date}
-                        type="button"
-                        disabled={!clickable}
-                        aria-label={desc}
-                        title={desc}
-                        onMouseEnter={() => setHoveredCell(cell)}
-                        onMouseLeave={() => setHoveredCell(null)}
-                        onClick={() => {
-                          if (!clickable) return;
-                          onSelectDate(isSelected ? null : cell.date);
-                        }}
-                        className={cn(
-                          squareSize,
-                          "rounded-[2.5px] transition-all outline-none",
-                          className,
-                          isSelected &&
-                            "ring-2 ring-foreground ring-offset-1 ring-offset-background",
-                        )}
+                      <span
+                        key={`empty-${column}-${row}`}
+                        className="habit-heatmap-cell"
+                        style={position}
+                        aria-hidden="true"
                       />
                     );
-                  })}
-                </div>
-              ))}
+                  const { className } = cellStyle(cell);
+                  const isSelected = selectedDate === cell.date;
+                  const description = cellDescription(cell);
+                  return (
+                    <button
+                      key={cell.date}
+                      type="button"
+                      disabled={cell.status === "future"}
+                      aria-label={description}
+                      aria-pressed={isSelected}
+                      title={description}
+                      style={position}
+                      onMouseEnter={() => setHoveredCell(cell)}
+                      onMouseLeave={() => setHoveredCell(null)}
+                      onFocus={() => setHoveredCell(cell)}
+                      onBlur={() => setHoveredCell(null)}
+                      onClick={() =>
+                        onSelectDate(isSelected ? null : cell.date)
+                      }
+                      className={cn(
+                        "habit-heatmap-cell rounded-[2.5px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-1 focus-visible:ring-offset-background",
+                        className,
+                        isSelected &&
+                          "ring-2 ring-foreground ring-offset-1 ring-offset-background",
+                      )}
+                    />
+                  );
+                }),
+              )}
             </div>
           </div>
-        </div>
-      </div>
+        );
+      })}
 
       {/* Info & Legend Footer */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
-        <span className="truncate">{activeInfo}</span>
-        <div className="flex shrink-0 items-center gap-2">
+        <span className="min-w-0 max-w-full break-words">{activeInfo}</span>
+        <div className="flex max-w-full flex-wrap items-center gap-x-3 gap-y-1.5">
           <span className="inline-flex items-center gap-1">
             <span className="inline-block size-2.5 rounded-[2px] border border-(--habit-unscheduled-border)" />
             未安排

@@ -58,8 +58,8 @@ type timeStatistic struct {
 
 func (m model) statisticRows() []row {
 	dim := m.timeState.WeeklyDimension
-	if dim == "" {
-		dim = "day"
+	if dim != "tag" {
+		dim = "project"
 	}
 	if m.view == "time.report" {
 		_, _, dim = m.timeReportDefaults()

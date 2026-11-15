@@ -114,10 +114,13 @@ export function App() {
       switchPlan: habits.switchPlan,
       recordNegative: habits.recordNegative,
       undoNegative: habits.undoNegative,
+      setDailyNote: habits.setDailyNote,
+      setStatus: habits.setHabitStatus,
       assignSubtaskPlan: (parentHabit, subtaskUuid, planKey) =>
         habits.bindTaskHabit({
           taskUuid: parentHabit.taskUuid || parentHabit.id,
           kind: parentHabit.kind,
+          trackTime: parentHabit.trackTime,
           schedule: parentHabit.schedule,
           abEnabled: parentHabit.abEnabled,
           subtaskPlans: {

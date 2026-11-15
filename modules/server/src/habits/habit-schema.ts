@@ -28,6 +28,7 @@ export function initializeHabitDatabase(
       project TEXT NULL,
       tags_json TEXT NOT NULL DEFAULT '[]',
       status TEXT NOT NULL CHECK (status IN ('active', 'paused', 'archived')),
+      track_time INTEGER NOT NULL DEFAULT 0,
       ab_enabled INTEGER NOT NULL DEFAULT 0,
       subtask_plans_json TEXT NOT NULL DEFAULT '{}',
       schedule_json TEXT NOT NULL,
@@ -97,6 +98,11 @@ export function initializeHabitDatabase(
   if (!colNames.has("subtask_plans_json")) {
     db.exec(
       "ALTER TABLE habits ADD COLUMN subtask_plans_json TEXT NOT NULL DEFAULT '{}'",
+    );
+  }
+  if (!colNames.has("track_time")) {
+    db.exec(
+      "ALTER TABLE habits ADD COLUMN track_time INTEGER NOT NULL DEFAULT 0",
     );
   }
   db.exec(

@@ -120,8 +120,10 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
         <ProjectEditor
           project={editingProject}
           projects={projectNames(filterProjects)}
+          projectRecords={organization.projects}
           initialParent={newProjectParent || undefined}
           color={activeProjectMeta?.color}
+          category={activeProjectMeta?.category}
           description={activeProjectMeta?.description || ""}
           outcome={activeProjectMeta?.outcome || ""}
           nextTask={activeProjectMeta?.nextTask || ""}
@@ -138,6 +140,7 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
             outcome,
             nextTask,
             color,
+            category,
           ) => {
             const isNew = !editingProject;
             const saved = await onChangeOrganization({
@@ -151,6 +154,7 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
                 outcome,
                 nextTask,
                 color,
+                category,
               },
             });
             if (saved && isNew && !organizationPage) {
@@ -186,6 +190,7 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
                   description: "",
                   outcome,
                   nextTask: "",
+                  category: "normal",
                 },
               });
               const activated = await api<Organization>("organization", {

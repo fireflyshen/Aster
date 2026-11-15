@@ -78,7 +78,7 @@ func TestTimePreviewArtifacts(t *testing.T) {
 	for _, view := range []string{"time.today", "time.weekly"} {
 		m.view = view
 		m.syncTimeExtraRows()
-		for _, width := range []int{80, 140} {
+		for _, width := range []int{65, 140, 260} {
 			m.width = width
 			base := filepath.Join(dir, fmt.Sprintf("%s-%d", view, width))
 			if err := os.WriteFile(base+".ansi", []byte(m.View()), 0600); err != nil {

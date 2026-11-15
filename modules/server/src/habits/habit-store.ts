@@ -85,6 +85,7 @@ type HabitRow = {
   project: string | null;
   tags_json: string;
   status: HabitStatus;
+  track_time: number;
   ab_enabled: number;
   subtask_plans_json: string;
   schedule_json: string;
@@ -181,6 +182,7 @@ function rowToHabit(row: HabitRow): Habit {
     ...(row.project ? { project: row.project } : {}),
     tags: parseJson<string[]>(row.tags_json, []),
     status: row.status,
+    trackTime: row.kind === "positive" && Boolean(row.track_time),
     abEnabled: Boolean(row.ab_enabled),
     ...(Object.keys(subtaskPlans).length > 0 ? { subtaskPlans } : {}),
     schedule: parseJson<HabitSchedule>(row.schedule_json, { type: "daily" }),
@@ -568,6 +570,7 @@ export function createHabitStore(
       input.kind === "positive" &&
       completionMode === "checklist" &&
       Boolean(input.abEnabled);
+    const trackTime = input.kind === "positive" && Boolean(input.trackTime);
 
     let schedule: HabitSchedule;
     try {
@@ -619,8 +622,8 @@ export function createHabitStore(
 
       db.prepare(
         `INSERT INTO habits
-         (id, task_uuid, title, kind, completion_mode, description, project, tags_json, status, ab_enabled, subtask_plans_json, schedule_json, plans_json, sort_order, created_date, created_at_ms, updated_at_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, task_uuid, title, kind, completion_mode, description, project, tags_json, status, track_time, ab_enabled, subtask_plans_json, schedule_json, plans_json, sort_order, created_date, created_at_ms, updated_at_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         id,
         taskUuid ?? null,
@@ -630,6 +633,7 @@ export function createHabitStore(
         description,
         project ?? null,
         JSON.stringify(tags),
+        trackTime ? 1 : 0,
         abEnabled ? 1 : 0,
         JSON.stringify(subtaskPlans),
         JSON.stringify(schedule),
@@ -695,6 +699,13 @@ export function createHabitStore(
       );
     }
 
+    const nextTrackTime =
+      input.kind === "positive"
+        ? Boolean(
+            input.trackTime ??
+              (existingRow ? Boolean(existingRow.track_time) : false),
+          )
+        : false;
     const nextAbEnabled =
       input.kind === "positive"
         ? Boolean(
@@ -761,8 +772,8 @@ export function createHabitStore(
         const sortOrder = (maxOrderRow?.max_order ?? -1) + 1;
         db.prepare(
           `INSERT INTO habits
-           (id, task_uuid, title, kind, completion_mode, description, project, tags_json, status, ab_enabled, subtask_plans_json, schedule_json, plans_json, sort_order, created_date, created_at_ms, updated_at_ms)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, task_uuid, title, kind, completion_mode, description, project, tags_json, status, track_time, ab_enabled, subtask_plans_json, schedule_json, plans_json, sort_order, created_date, created_at_ms, updated_at_ms)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).run(
           taskUuid,
           taskUuid,
@@ -773,6 +784,7 @@ export function createHabitStore(
           resolvedProject ?? null,
           JSON.stringify(resolvedTags),
           nextStatus,
+          nextTrackTime ? 1 : 0,
           nextAbEnabled ? 1 : 0,
           JSON.stringify(nextSubtaskPlans),
           JSON.stringify(resolvedSchedule),
@@ -829,7 +841,7 @@ export function createHabitStore(
       db.prepare(
         `UPDATE habits
          SET task_uuid = ?, title = ?, kind = ?, completion_mode = ?, description = ?, project = ?, tags_json = ?,
-             status = ?, ab_enabled = ?, subtask_plans_json = ?, schedule_json = ?, plans_json = ?, updated_at_ms = ?
+             status = ?, track_time = ?, ab_enabled = ?, subtask_plans_json = ?, schedule_json = ?, plans_json = ?, updated_at_ms = ?
          WHERE id = ?`,
       ).run(
         taskUuid,
@@ -840,6 +852,7 @@ export function createHabitStore(
         resolvedProject ?? null,
         JSON.stringify(resolvedTags),
         nextStatus,
+        nextTrackTime ? 1 : 0,
         nextAbEnabled ? 1 : 0,
         JSON.stringify(nextSubtaskPlans),
         JSON.stringify(resolvedSchedule),
@@ -1042,6 +1055,12 @@ export function createHabitStore(
             ? patch.completionMode
             : current.completionMode;
 
+      const nextTrackTime =
+        current.kind === "positive"
+          ? patch.trackTime !== undefined
+            ? Boolean(patch.trackTime)
+            : Boolean(current.trackTime)
+          : false;
       const nextAbEnabled =
         current.kind === "positive"
           ? patch.abEnabled !== undefined
@@ -1094,7 +1113,7 @@ export function createHabitStore(
       db.prepare(
         `UPDATE habits
          SET title = ?, description = ?, project = ?, tags_json = ?,
-             completion_mode = ?, ab_enabled = ?, subtask_plans_json = ?, schedule_json = ?, plans_json = ?,
+             completion_mode = ?, track_time = ?, ab_enabled = ?, subtask_plans_json = ?, schedule_json = ?, plans_json = ?,
              updated_at_ms = ?
          WHERE id = ?`,
       ).run(
@@ -1103,6 +1122,7 @@ export function createHabitStore(
         nextProject ?? null,
         JSON.stringify(nextTags),
         nextCompletionMode,
+        nextTrackTime ? 1 : 0,
         nextAbEnabled ? 1 : 0,
         JSON.stringify(nextSubtaskPlans),
         JSON.stringify(nextSchedule),
@@ -1749,8 +1769,8 @@ export function createHabitStore(
 
       const insertHabit = db.prepare(
         `INSERT INTO habits
-         (id, task_uuid, title, kind, completion_mode, description, project, tags_json, status, ab_enabled, subtask_plans_json, schedule_json, plans_json, sort_order, created_date, created_at_ms, updated_at_ms)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, task_uuid, title, kind, completion_mode, description, project, tags_json, status, track_time, ab_enabled, subtask_plans_json, schedule_json, plans_json, sort_order, created_date, created_at_ms, updated_at_ms)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       for (const h of payload.habits) {
         insertHabit.run(
@@ -1763,6 +1783,7 @@ export function createHabitStore(
           h.project ?? null,
           JSON.stringify(h.tags ?? []),
           h.status,
+          h.kind === "positive" && h.trackTime ? 1 : 0,
           h.abEnabled ? 1 : 0,
           JSON.stringify(h.subtaskPlans ?? {}),
           JSON.stringify(h.schedule),

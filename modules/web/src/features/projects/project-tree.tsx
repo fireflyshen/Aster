@@ -3,6 +3,7 @@ import { formatDescriptionPreview } from "@core/tasks/description";
 import {
   focusProject,
   inProject,
+  isHabitProject,
   projectStatus,
   type ProjectStatus,
 } from "@core/workspace/focus";
@@ -56,6 +57,7 @@ export function ProjectTree({
   return rows.map((row) => {
     const record = records.get(row.name);
     const inherited = focusProject(row.name, data.projects);
+    const isHabit = isHabitProject(row.name, data.projects);
     const root = roots?.find((name) => inProject(row.name, name));
     const depth = row.depth - (root ? root.split(".").length - 1 : 0);
     const count = projectTaskCount(row.name, data.projectCounts);
@@ -156,7 +158,11 @@ export function ProjectTree({
         </Button>
         {!compact && (
           <div className="flex shrink-0 items-center gap-2">
-            {inherited && inherited.name !== row.name ? (
+            {isHabit && projectStatus(record) !== "completed" ? (
+              <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-block">
+                习惯项目
+              </span>
+            ) : inherited && inherited.name !== row.name ? (
               <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-block">
                 焦点中
               </span>
@@ -199,6 +205,7 @@ export function ProjectTree({
         <ProjectActions
           name={row.name}
           status={projectStatus(record)}
+          canFocus={!isHabit}
           onStatus={
             inherited && inherited.name !== row.name ? undefined : onStatus
           }

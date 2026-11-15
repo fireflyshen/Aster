@@ -536,6 +536,12 @@ func (m model) list(w, h int, f renderFrame) string {
 			ls = renderTimelineLines(r, rowW, selected, i+1 < len(rs) && rs[i+1].kind == "time.segment")
 		case "time.summary":
 			ls = renderTimeSummaryLines(r, rowW, selected)
+			if chart := m.renderDailyColumns(rs, rowW); len(chart) > 0 {
+				ls = append(ls, chart...)
+			}
+			if legend := m.statisticLegend(rs); legend != "" {
+				ls = append(ls, renderSpans([]styledSpan{span("  "+legend, dim)}, min(rowW, 88), min(rowW, 88), false))
+			}
 		case "task":
 			ls = m.renderTaskLines(f, r, rowW, selected)
 		default:

@@ -149,6 +149,7 @@ type WorkspaceHeadingProps = {
   groupOptions?: readonly { value: TaskGroupBy; label: string }[];
   onGroupByChange?: (next: TaskGroupBy) => void;
   currentProjectFocus?: SavedProject;
+  currentProjectIsHabit?: boolean;
   projectOutcome?: string;
   projectDescription?: string;
   viewCounts: Partial<Record<View, number>>;
@@ -194,6 +195,7 @@ export function WorkspaceHeading({
   groupOptions = TASK_GROUP_OPTIONS,
   onGroupByChange,
   currentProjectFocus,
+  currentProjectIsHabit = false,
   projectOutcome,
   projectDescription,
   viewCounts,
@@ -334,7 +336,12 @@ export function WorkspaceHeading({
               !timePage &&
               !habitsPage &&
               !organizationPage &&
-              !activeItem && (
+              !activeItem &&
+              (currentProjectIsHabit ? (
+                <span className="h-6 shrink-0 inline-flex items-center rounded-full border border-border/80 bg-muted/60 px-2.5 text-[11px] font-medium text-muted-foreground">
+                  习惯项目
+                </span>
+              ) : (
                 <Button
                   type="button"
                   variant="ghost"
@@ -362,7 +369,7 @@ export function WorkspaceHeading({
                     "稍后"
                   )}
                 </Button>
-              )}
+              ))}
           </div>
           {showTodayMeta && (
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -449,6 +456,7 @@ export function WorkspaceHeading({
               activeEntry={activeEntry}
               activeItem={activeItem}
               currentProjectFocus={currentProjectFocus}
+              currentProjectIsHabit={currentProjectIsHabit}
               projectOutcome={projectOutcome}
               projectDescription={projectDescription}
               onSelectView={onSelectView}

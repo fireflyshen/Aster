@@ -531,3 +531,44 @@ test("coordinated dependency checks and task restore hooks enforce epoch monoton
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("editing an existing paid activity into sleep clears its captured rate", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "aster-sleep-rate-"));
+  const now = zonedDateTimeToUtcMs("2026-11-15", "12:00", "Asia/Shanghai");
+  const store = await createTimeStore(join(dir, "time.sqlite"), {
+    now: () => now,
+  });
+  try {
+    const logged = store.logLocatedActivity({
+      idempotencyKey: "paid",
+      title: "Rest",
+      explicitCategoryId: "work",
+      startMs: now - 3600000,
+      endMs: now - 1800000,
+    });
+    assert.equal(logged.activity.hourlyRateCents, 10000);
+    const edited = store.updateActivity({
+      idempotencyKey: "sleep",
+      activityId: logged.activity.id,
+      expectedVersion: logged.activity.version,
+      patch: { categoryId: "sleep", title: "睡眠" },
+    });
+    assert.equal(edited.activity.hourlyRateCents, 0);
+    assert.equal(edited.activity.startMs, logged.activity.startMs);
+    assert.equal(edited.activity.endMs, logged.activity.endMs);
+    assert.equal(
+      store.getDailySummary("2026-11-15", now).confirmedCostCents,
+      0,
+    );
+    const back = store.updateActivity({
+      idempotencyKey: "back-to-work",
+      activityId: edited.activity.id,
+      expectedVersion: edited.activity.version,
+      patch: { categoryId: "work" },
+    });
+    assert.equal(back.activity.hourlyRateCents, 10000);
+  } finally {
+    store.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});

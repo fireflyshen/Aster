@@ -256,6 +256,7 @@ export function createHabitHandlers(deps: {
           kind: requiredString(body, "kind") as HabitKind,
           schedule: parseSchedule(body.schedule),
           status: optionalString(body, "status") as HabitStatus | undefined,
+          trackTime: optionalBoolean(body, "trackTime"),
           abEnabled: optionalBoolean(body, "abEnabled"),
           subtaskPlans: parseSubtaskPlans(body.subtaskPlans),
           effectiveFromDate: optionalString(body, "effectiveFromDate"),
@@ -298,6 +299,7 @@ export function createHabitHandlers(deps: {
           description: optionalString(body, "description"),
           project: optionalString(body, "project"),
           tags: optionalStringArray(body, "tags"),
+          trackTime: optionalBoolean(body, "trackTime"),
           abEnabled: optionalBoolean(body, "abEnabled"),
           subtaskPlans: parseSubtaskPlans(body.subtaskPlans),
           schedule: parseSchedule(body.schedule),
@@ -326,6 +328,7 @@ export function createHabitHandlers(deps: {
             body,
             "completionMode",
           ) as HabitCompletionMode | undefined,
+          trackTime: optionalBoolean(body, "trackTime"),
           abEnabled: optionalBoolean(body, "abEnabled"),
           subtaskPlans: parseSubtaskPlans(body.subtaskPlans),
           ...(body.schedule !== undefined

@@ -690,8 +690,8 @@ func (m model) timeReportDefaults() (granularity, sortBy, groupBy string) {
 		sortBy = "highest_cost"
 	}
 	groupBy = m.timeState.ReportGroupBy
-	if groupBy != "project" && groupBy != "day" && groupBy != "tag" {
-		groupBy = "task"
+	if groupBy != "tag" {
+		groupBy = "project"
 	}
 	return granularity, sortBy, groupBy
 }
@@ -1077,7 +1077,7 @@ func (m *model) syncTimeExtraRows() {
 			out,
 			row{kind: "time.summary", id: d, title: title, subtitle: sub},
 		)
-		out[0].subtitle += " · v 每日/项目/标签 · m 时长/成本"
+		out[0].subtitle += " · v 项目/标签 · m 时长/成本"
 		out = append(out, m.statisticRows()...)
 
 	case "time.report":
@@ -1090,7 +1090,7 @@ func (m *model) syncTimeExtraRows() {
 		if sortBy == "highest_over_budget" {
 			sortLabel = "超出最初预估最多"
 		}
-		groupLabel := "按任务"
+		groupLabel := "按项目"
 		if groupBy == "project" {
 			groupLabel = "按项目"
 		} else if groupBy == "day" {
@@ -1100,7 +1100,7 @@ func (m *model) syncTimeExtraRows() {
 		}
 		rep := m.timeState.Report
 		title := granLabel + "成本报告（" + groupLabel + " · " + sortLabel + "）"
-		sub := "w 周/月 · o 排序 · v 任务/项目/每日/标签 · m 时长/成本 · [ / ] 翻期"
+		sub := "w 周/月 · o 排序 · v 项目/标签 · m 时长/成本 · [ / ] 翻期"
 		if rep != nil {
 			title = fmt.Sprintf(
 				"%s成本报告 %s ~ %s（%s）",
@@ -1123,7 +1123,7 @@ func (m *model) syncTimeExtraRows() {
 			row{kind: "time.summary", id: d, title: title, subtitle: sub},
 		)
 		if rep != nil {
-			if groupBy == "day" || groupBy == "tag" {
+			if groupBy == "tag" {
 				out = append(out, m.statisticRows()...)
 			} else if groupBy == "project" {
 				for _, pr := range rep.ByProject {
@@ -1148,56 +1148,6 @@ func (m *model) syncTimeExtraRows() {
 						),
 					})
 				}
-			} else {
-				for _, tr := range rep.ByTask {
-					budgetText := "未设预算"
-					if tr.OverInitialBudgetCents > 0 {
-						budgetText = "超出初预估 " + formatCurrencyCny(
-							tr.OverInitialBudgetCents,
-						)
-					} else if tr.HasBudget && tr.InitialBudgetCents != nil {
-						budgetText = "初预算 " + formatCurrencyCny(
-							*tr.InitialBudgetCents,
-						)
-					}
-					scope := formatProjectAndTags(tr.ProjectSnapshot, tr.Tags)
-					if scope != "" {
-						scope = " · " + scope
-					}
-					out = append(out, row{
-						kind:  "time.report_task",
-						id:    tr.TaskUUID,
-						title: tr.Title,
-						subtitle: fmt.Sprintf(
-							"本期 %s · 累计 %s · 现金 %s · 综合 %s · %s%s",
-							formatCurrencyCny(tr.PeriodCostCents),
-							formatCurrencyCny(tr.CumulativeCostCents),
-							formatCurrencyCny(tr.CashExpenseCents),
-							formatCurrencyCny(tr.CombinedCumulativeCostCents),
-							budgetText,
-							scope,
-						),
-					})
-				}
-				for _, seg := range rep.UnassignedSegments {
-					scope := formatProjectAndTags(seg.ProjectSnapshot, seg.Tags)
-					if scope != "" {
-						scope = " · " + scope
-					}
-					out = append(out, row{
-						kind:  "time.report_unassigned_seg",
-						id:    seg.ActivityID,
-						title: "[未关联任务] " + seg.Title,
-						subtitle: fmt.Sprintf(
-							"%s %s · 已确认 %s · 暂计 %s%s",
-							seg.Date,
-							formatClockRangeMs(seg.StartMs, seg.EndMs),
-							formatCurrencyCny(seg.ConfirmedCostCents),
-							formatCurrencyCny(seg.ProvisionalCostCents),
-							scope,
-						),
-					})
-				}
 			}
 		}
 	}
@@ -1217,6 +1167,28 @@ func (m *model) syncTimeExtraRows() {
 				out[i].chartCost = stat.chartCost
 			}
 		}
+		if rep := m.timeState.Report; rep != nil {
+			over := map[string]int64{}
+			maximum := 1.0
+			_, _, reportGroup := m.timeReportDefaults()
+			if reportGroup == "project" {
+				for _, pr := range rep.ByProject {
+					over[pr.ProjectKey] = pr.OverInitialBudgetCents
+					maximum = max(maximum, float64(pr.OverInitialBudgetCents))
+				}
+			} else {
+				for _, tr := range rep.ByTask {
+					over[tr.TaskUUID] = tr.OverInitialBudgetCents
+					maximum = max(maximum, float64(tr.OverInitialBudgetCents))
+				}
+			}
+			for i := range out {
+				if out[i].kind == "time.report_task" || out[i].kind == "time.report_project" {
+					out[i].chartOver = over[out[i].id]
+					out[i].chartOverMax = maximum
+				}
+			}
+		}
 		out[0].subtitle += " · v 维度 · m 时长/成本"
 	}
 	if m.view == "time.weekly" || m.view == "time.report" {
@@ -1226,7 +1198,7 @@ func (m *model) syncTimeExtraRows() {
 		}
 		dim := m.timeState.WeeklyDimension
 		if dim == "" {
-			dim = "day"
+			dim = "project"
 		}
 		if m.view == "time.report" {
 			_, _, dim = m.timeReportDefaults()
@@ -1638,7 +1610,7 @@ func (m model) inspectTimeRow(
 		add("[ 上一期 · ] 下一期 · . 回到今天")
 		add("P 新建有界计划 · , 时间单价与习惯设置")
 		if m.view == "time.report" {
-			add("w 切换周/月 · o 切换排序 · v 按任务/按项目")
+			add("w 切换周/月 · o 切换排序 · v 项目/标签")
 		}
 		add(": 打开全部操作菜单（补记/停止/确认）")
 		return true
@@ -2034,7 +2006,7 @@ func (m *model) openTimeActions(add func(v, l, h string)) {
 				add("time.chart.metric", "切换图表指标 (m)", "时长 / 已确认时间成本")
 			}
 			if m.view == "time.weekly" {
-				add("time.weekly.group", "切换统计维度 (v)", "每日 / 项目 / 标签")
+				add("time.weekly.group", "切换统计维度 (v)", "项目 / 标签")
 			}
 			if m.view == "time.report" {
 				add(
@@ -2043,7 +2015,7 @@ func (m *model) openTimeActions(add func(v, l, h string)) {
 					"在 week 与 month 之间切换",
 				)
 				add("time.report.sort", "切换报告排序 (o)", "时间成本最高 <-> 超出最初预估最多")
-				add("time.report.group", "切换统计维度 (v)", "任务 / 项目 / 每日 / 标签")
+				add("time.report.group", "切换统计维度 (v)", "项目 / 标签")
 			}
 		}
 	}
@@ -2499,6 +2471,10 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 		m.busy = true
 		return m.loadTimeViewCmd("time.report"), true
 	case "time.report.sort":
+		if m.timeState.ReportGroupBy == "tag" {
+			m.message = "标签按时间成本比较，预算仅按项目汇总"
+			return nil, true
+		}
 		if m.timeState.ReportSort == "highest_over_budget" {
 			m.timeState.ReportSort = "highest_cost"
 		} else {
@@ -2518,31 +2494,25 @@ func (m *model) timeAction(a string) (tea.Cmd, bool) {
 		m.syncTimeExtraRows()
 		return nil, true
 	case "time.weekly.group":
-		switch m.timeState.WeeklyDimension {
-		case "project":
-			m.timeState.WeeklyDimension = "tag"
-		case "tag":
-			m.timeState.WeeklyDimension = "day"
-		default:
+		if m.timeState.WeeklyDimension == "tag" {
 			m.timeState.WeeklyDimension = "project"
+		} else {
+			m.timeState.WeeklyDimension = "tag"
 		}
 		m.cursor = 0
 		m.syncTimeExtraRows()
 		return nil, true
 	case "time.report.group":
-		switch m.timeState.ReportGroupBy {
-		case "project":
-			m.timeState.ReportGroupBy = "day"
-		case "day":
-			m.timeState.ReportGroupBy = "tag"
-		case "tag":
-			m.timeState.ReportGroupBy = "task"
-		default:
+		if m.timeState.ReportGroupBy == "tag" {
 			m.timeState.ReportGroupBy = "project"
+		} else {
+			m.timeState.ReportGroupBy = "tag"
+			m.timeState.ReportSort = "highest_cost"
 		}
 		m.cursor = 0
 		m.syncTimeExtraRows()
 		return nil, true
+
 	case "time.settings":
 		m.busy = true
 		return m.fetchPolicyForSettingsCmd(), true

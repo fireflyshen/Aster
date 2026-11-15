@@ -18,7 +18,12 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { FOCUS_LIMIT, inProject, projectStatus } from "@core/workspace/focus";
+import {
+  FOCUS_LIMIT,
+  inProject,
+  isHabitProject,
+  projectStatus,
+} from "@core/workspace/focus";
 import type { Organization } from "@core/workspace/organization";
 import { validateProjectName } from "@core/workspace/projects";
 import { ArrowRight, Plus, Search, Target } from "lucide-react";
@@ -49,7 +54,10 @@ export function FocusPicker({
     (p) => projectStatus(p) === "active",
   );
   const available = (data.projects || []).filter(
-    (p) => projectStatus(p) !== "active" && projectStatus(p) !== "completed",
+    (p) =>
+      projectStatus(p) !== "active" &&
+      projectStatus(p) !== "completed" &&
+      !isHabitProject(p.name, data.projects),
   );
   const [creating, setCreating] = useState(
     () => available.length === 0 && Boolean(onCreateAndFocus),

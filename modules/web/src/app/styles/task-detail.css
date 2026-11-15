@@ -16,7 +16,7 @@
 }
 .task-detail-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 256px;
+  grid-template-columns: minmax(0, 1fr) 280px;
   align-items: stretch;
 }
 .task-detail-main {
@@ -51,10 +51,15 @@
 }
 .task-detail-aside {
   min-width: 0;
-  width: 256px;
+  width: 280px;
   padding: 16px 20px;
   background: var(--sidebar);
   border-left: 1px solid var(--border);
+}
+.task-detail-habit-section {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
 }
 .task-detail-properties > div {
   gap: 7px;
@@ -154,8 +159,9 @@
   }
   [data-variant="list"] [data-row-actions] {
     position: absolute;
-    right: -5px;
+    right: 0;
     top: 4px;
+    z-index: 10;
     margin: 0;
     padding-left: 10px;
     background: var(--row-hover);
@@ -220,8 +226,8 @@
     opacity: 0;
     pointer-events: none;
   }
-  [data-variant="list"]:hover > div > [data-row-actions],
-  [data-variant="list"]:focus-within > div > [data-row-actions],
+  [data-variant="list"]:hover [data-row-actions],
+  [data-variant="list"]:focus-within [data-row-actions],
   [data-variant="list"] [data-row-actions][data-actions-open="true"] {
     opacity: 1;
     pointer-events: auto;
@@ -262,4 +268,225 @@
   margin-left: 2px;
   justify-content: center;
   flex-shrink: 0;
+}
+
+/* Habit settings have their own layout; property-row button rules must not leak in. */
+.task-habit-settings {
+  min-width: 0;
+  color: var(--foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.task-habit-settings button {
+  cursor: pointer;
+}
+.task-habit-settings button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.habit-settings-heading,
+.habit-settings-summary,
+.habit-settings-switch-row,
+.habit-settings-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.habit-settings-heading h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.habit-settings-link {
+  flex-shrink: 0;
+  padding: 4px 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.habit-settings-link:enabled:hover {
+  color: var(--foreground);
+}
+.habit-settings-body {
+  display: grid;
+  gap: 16px;
+  margin-top: 12px;
+}
+.habit-settings-summary {
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.habit-settings-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.habit-settings-streak svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--habit-accent);
+}
+.habit-settings-field {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+.habit-settings-label {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted-foreground);
+}
+.habit-settings-segments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--muted);
+}
+.habit-settings-segments button {
+  min-width: 0;
+  min-height: 28px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.habit-settings-segments button[aria-pressed="true"] {
+  background: var(--background);
+  color: var(--foreground);
+  font-weight: 500;
+}
+.habit-settings-segments button:enabled:hover {
+  color: var(--foreground);
+}
+.habit-settings-hint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.habit-settings-heading + .habit-settings-hint {
+  margin-top: 8px;
+}
+.task-habit-settings .habit-settings-select {
+  width: 100%;
+  height: 32px;
+  padding: 6px 9px;
+  border-color: var(--border);
+  background: transparent;
+  font-size: 12px;
+}
+.habit-settings-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+.habit-settings-weekdays button {
+  min-width: 0;
+  height: 30px;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.habit-settings-weekdays button[aria-pressed="true"] {
+  background: var(--habit-level-1, var(--accent));
+  color: var(--foreground);
+  font-weight: 500;
+}
+.habit-settings-weekdays button:enabled:hover {
+  background: var(--navigation-hover);
+  color: var(--foreground);
+}
+.habit-settings-interval {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+}
+.habit-settings-interval input {
+  width: 56px;
+  height: 30px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.habit-settings-rotation {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.habit-settings-switch-row label {
+  color: var(--foreground);
+  font-size: 12px;
+  font-weight: 400;
+}
+.habit-settings-effective {
+  display: grid;
+  gap: 8px;
+}
+.habit-settings-status {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+@media (pointer: coarse) {
+  .habit-settings-weekdays button,
+  .habit-settings-segments button,
+  .habit-settings-link {
+    min-height: 36px;
+  }
+}
+.habit-settings-segments[data-columns="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.task-habit-settings button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.habit-detail-dialog {
+  grid-template-columns: minmax(0, 1fr);
+}
+.habit-detail-dialog > * {
+  min-width: 0;
+}
+.habit-heatmap-grid {
+  display: grid;
+  grid-template-rows: 16px repeat(7, auto);
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
+}
+.habit-heatmap .habit-heatmap-cell {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  aspect-ratio: 1;
+}
+.habit-heatmap-month {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+  font-size: 10px;
+  line-height: 16px;
+}
+.habit-heatmap-weekday {
+  display: flex;
+  align-items: center;
+  color: var(--muted-foreground);
+  font-size: 10px;
 }

@@ -564,14 +564,14 @@ func TestInspectorAndTimeViewsRenderCleanly(t *testing.T) {
 		}},
 	}
 	m.syncTimeExtraRows()
-	if len(m.extra) != 2 || m.extra[1].kind != "time.report_task" {
-		t.Fatalf("expected summary + report_task row, got %+v", m.extra)
+	if len(m.extra) != 2 || m.extra[1].kind != "time.report_project" {
+		t.Fatalf("expected summary + project row, got %+v", m.extra)
 	}
 	nextM, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
 	mAfter := nextM.(model)
-	if len(mAfter.extra) != 2 || mAfter.extra[1].kind != "time.report_project" {
+	if mAfter.timeState.ReportGroupBy != "tag" {
 		t.Fatalf(
-			"expected v key to toggle group by project, got %+v",
+			"expected v key to toggle group by tag, got %+v",
 			mAfter.extra,
 		)
 	}
