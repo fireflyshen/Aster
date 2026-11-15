@@ -1,12 +1,5 @@
+import { WorkspaceDisplayOptions } from "./workspace-display-options";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProjectIcon } from "@/features/projects/project-icon";
 import {
   TASK_GROUP_OPTIONS,
@@ -27,14 +20,7 @@ import type { View } from "@shared/tasks";
 import { cn } from "cn";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import {
-  Columns3,
-  List,
-  PanelLeft,
-  RotateCw,
-  Search,
-  Target,
-} from "lucide-react";
+import { PanelLeft, RotateCw, Search, Target } from "lucide-react";
 import { ThemeSwitcher } from "../theme-switcher";
 import type {
   CompleteBehavior,
@@ -148,6 +134,7 @@ type WorkspaceHeadingProps = {
   groupBy?: TaskGroupBy;
   groupOptions?: readonly { value: TaskGroupBy; label: string }[];
   onGroupByChange?: (next: TaskGroupBy) => void;
+  onResetDisplay?: () => void;
   currentProjectFocus?: SavedProject;
   currentProjectIsHabit?: boolean;
   projectOutcome?: string;
@@ -194,6 +181,7 @@ export function WorkspaceHeading({
   groupBy = "none",
   groupOptions = TASK_GROUP_OPTIONS,
   onGroupByChange,
+  onResetDisplay,
   currentProjectFocus,
   currentProjectIsHabit = false,
   projectOutcome,
@@ -392,64 +380,20 @@ export function WorkspaceHeading({
 
         {!organizationPage && !specialPage && (
           <div className="workspace-view-controls flex shrink-0 items-center gap-1.5">
-            {onGroupByChange && (
-              <Select
-                value={groupBy}
-                disabled={disabled}
-                onValueChange={(value) => onGroupByChange(value as TaskGroupBy)}
-              >
-                <SelectTrigger
-                  aria-label="分组方式"
-                  className="h-8 gap-1.5 border-border/70 bg-transparent px-2.5 text-xs font-normal shadow-none hover:bg-accent"
-                >
-                  <span className="text-muted-foreground">分组:</span>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {groupOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            <TabsList
-              aria-label="布局模式"
-              className="h-8 group-data-[orientation=horizontal]/tabs:h-8"
-            >
-              <TabsTrigger
-                value="list"
-                aria-label="列表视图"
-                aria-keyshortcuts="B"
-                disabled={disabled}
-                className="gap-1.5 px-2 text-xs"
-              >
-                <List className="size-3.5" />
-                <span className="hidden sm:inline">列表</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="board"
-                aria-label="看板视图"
-                aria-keyshortcuts="B"
-                disabled={disabled}
-                className="gap-1.5 px-2 text-xs"
-              >
-                <Columns3 className="size-3.5" />
-                <span className="hidden sm:inline">看板</span>
-              </TabsTrigger>
-            </TabsList>
+            <WorkspaceDisplayOptions
+              disabled={disabled}
+              groupBy={groupBy}
+              groupOptions={groupOptions}
+              onGroupByChange={onGroupByChange}
+              completeBehavior={completeBehavior}
+              onCompleteBehaviorChange={onCompleteBehaviorChange}
+              onReset={onResetDisplay}
+            />
 
             <WorkspaceHeadingMenu
               open={viewMenuOpen}
               onOpenChange={setViewMenuOpen}
               view={view}
-              completeBehavior={completeBehavior}
-              onCompleteBehaviorChange={onCompleteBehaviorChange}
-              groupBy={groupBy}
-              groupOptions={groupOptions}
-              onGroupByChange={onGroupByChange}
               currentProject={currentProject}
               organizationReady={organizationReady}
               disabled={disabled}

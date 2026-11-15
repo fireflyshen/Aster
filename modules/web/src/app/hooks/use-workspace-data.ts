@@ -1,5 +1,5 @@
 import { api, RequestError } from "@/lib/api";
-import { taskDate } from "@core/tasks/quick-task";
+import { isTaskOverdue, rescheduledTaskDue } from "@/features/tasks/task-date";
 import type { TaskCostSummary, TimerSnapshot } from "@core/time/model";
 import {
   displayedActiveActivitySeconds,
@@ -415,32 +415,53 @@ export function useWorkspaceData({
     [needsCheck, load, loadOrganization],
   );
 
-  const rescheduleOverdueToToday = useCallback(
-    async (overdueTasks: Task[]) => {
-      if (writeLock.current || needsCheck || !overdueTasks.length) return;
+  const rescheduleOverdue = useCallback(
+    async (overdueTasks: Task[], day: string) => {
+      if (writeLock.current || needsCheck) return;
+      const unique = [
+        ...new Map(
+          overdueTasks
+            .filter(
+              (task) =>
+                ["pending", "waiting"].includes(task.status) &&
+                isTaskOverdue(task),
+            )
+            .map((task) => [task.uuid, task]),
+        ).values(),
+      ];
+      if (!unique.length) return;
+      const edits = unique.map((item) => ({
+        item,
+        due: rescheduledTaskDue(item.due, day),
+      }));
       writeLock.current = true;
       setBusy(true);
       setNotice("");
-      const todayDue = taskDate(new Date());
+      let saved = 0;
+      let failure = "";
+      let uncertain = false;
       try {
-        for (const item of overdueTasks) {
+        for (const { item, due } of edits) {
           await api("action", {
             uuid: item.uuid,
             action: "edit",
-            task: taskEditPayload(item, { due: todayDue }),
+            task: taskEditPayload(item, { due }),
           });
-        }
-        void loadOrganization();
-        if (!(await load())) {
-          setNotice("已保存，请刷新检查任务状态。");
-          setNeedsCheck(true);
+          saved++;
         }
       } catch (error) {
-        if (error instanceof RequestError && error.uncertain) {
-          setNeedsCheck(true);
-        }
-        setNotice((error as Error).message);
+        uncertain = error instanceof RequestError && error.uncertain;
+        failure = `${saved ? `已调整 ${saved}/${edits.length} 项；` : ""}${(error as Error).message}`;
       } finally {
+        if (saved) {
+          void loadOrganization();
+          if (!(await load())) {
+            failure = `${failure ? `${failure} ` : "已保存。"}请刷新检查任务状态。`;
+            uncertain = true;
+          }
+        }
+        if (failure) setNotice(failure);
+        if (uncertain) setNeedsCheck(true);
         writeLock.current = false;
         setBusy(false);
       }
@@ -510,7 +531,7 @@ export function useWorkspaceData({
     reloadAll,
     mutate,
     changeOrganization,
-    rescheduleOverdueToToday,
+    rescheduleOverdue,
     restoreEnergy,
   };
 }

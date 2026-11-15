@@ -13,7 +13,14 @@ import {
   projectTaskCount,
   projectTree,
 } from "@core/workspace/projects";
-import { ChevronDown, ChevronRight, Target } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Clock3,
+  Repeat2,
+  Target,
+} from "lucide-react";
 import { useState } from "react";
 import { ProjectActions } from "./project-actions";
 import { ProjectIcon } from "./project-icon";
@@ -158,45 +165,29 @@ export function ProjectTree({
         </Button>
         {!compact && (
           <div className="flex shrink-0 items-center gap-2">
-            {isHabit && projectStatus(record) !== "completed" ? (
-              <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-block">
-                习惯项目
-              </span>
-            ) : inherited && inherited.name !== row.name ? (
-              <span className="hidden rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground sm:inline-block">
-                焦点中
-              </span>
-            ) : projectStatus(record) === "active" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                disabled={disabled}
-                title="移至稍后"
-                onClick={() => onStatus(row.name, "later")}
-                className="h-6 gap-1 rounded-full border border-primary/25 bg-primary/8 px-2.5 text-[11px] font-medium text-foreground hover:bg-primary/15"
-              >
-                <Target className="size-3" strokeWidth={1.8} />
-                焦点
-              </Button>
-            ) : projectStatus(record) === "later" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                disabled={disabled}
-                title="设为焦点项目"
-                onClick={() => onStatus(row.name, "active")}
-                className="h-6 gap-1 rounded-full border border-border/80 px-2.5 text-[11px] font-normal text-muted-foreground transition-opacity hover:border-border hover:bg-background hover:text-foreground md:opacity-0 md:group-hover/project:opacity-100 md:group-focus-within/project:opacity-100"
-              >
-                <Target className="size-3" strokeWidth={1.6} />
-                设为焦点
-              </Button>
-            ) : (
-              <span className="hidden text-xs capitalize text-muted-foreground sm:inline">
-                {projectStatus(record)}
-              </span>
-            )}
+            <span className="project-row-status">
+              {projectStatus(record) === "completed" ? (
+                <>
+                  <Check />
+                  已完成
+                </>
+              ) : isHabit ? (
+                <>
+                  <Repeat2 />
+                  习惯
+                </>
+              ) : inherited || projectStatus(record) === "active" ? (
+                <>
+                  <Target />
+                  {inherited && inherited.name !== row.name ? "焦点中" : "焦点"}
+                </>
+              ) : (
+                <>
+                  <Clock3 />
+                  稍后
+                </>
+              )}
+            </span>
             <span className="min-w-6 text-right text-xs tabular-nums text-muted-foreground">
               {count || ""}
             </span>

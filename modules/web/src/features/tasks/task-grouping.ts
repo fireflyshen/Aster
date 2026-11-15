@@ -1,17 +1,11 @@
 import type { BoardColumn } from "@core/workspace/board";
-import type { Task } from "@shared/tasks";
+import type { Task, TaskInput } from "@shared/tasks";
 import { addDays, format, parseISO } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { toDueDay } from "./task-date";
 
 export type TaskGroupBy =
-  | "none"
-  | "today"
-  | "completed"
-  | "due"
-  | "project"
-  | "priority"
-  | "label";
+  "none" | "today" | "completed" | "due" | "project" | "priority" | "label";
 
 export type TaskGroupContext = "today" | "completed" | "default";
 
@@ -55,6 +49,37 @@ export type TaskGroup = {
   column: BoardColumn;
   items: Task[];
 };
+
+/** New tasks inherit the group they are added to; explicit composer input can override it. */
+export function taskDefaultsForGroup(
+  column: BoardColumn,
+  defaults: { project?: string; due?: string } = {},
+): TaskInput {
+  const result: TaskInput = {
+    description: "",
+    tags: [],
+    project: defaults.project || "",
+    due: toDueDay(defaults.due),
+  };
+  if (column.id.startsWith("group:project:"))
+    result.project =
+      column.id === "group:project:inbox" && column.name === "收件箱"
+        ? ""
+        : column.name;
+  if (column.id.startsWith("group:due:"))
+    result.due =
+      column.id === "group:due:none"
+        ? ""
+        : column.id.slice("group:due:".length);
+  if (column.id.startsWith("group:label:") && column.name !== "无标签")
+    result.tags = [column.id.slice("group:label:".length)];
+  if (column.id.startsWith("group:priority:")) {
+    const value = column.id.slice("group:priority:".length);
+    if (["H", "M", "L"].includes(value)) result.priority = value;
+    else if (value === "none") result.priority = "";
+  }
+  return result;
+}
 
 function formatDueGroupLabel(dueDay: string, now: Date): string {
   const todayStr = format(now, "yyyy-MM-dd");

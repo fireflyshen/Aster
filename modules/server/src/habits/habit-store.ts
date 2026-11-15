@@ -1626,7 +1626,7 @@ export function createHabitStore(
     const days =
       typeof options.days === "number" && options.days > 0 && options.days <= 370
         ? Math.floor(options.days)
-        : 180;
+        : 365;
     const startDate = options.startDate
       ? requireValidDate(options.startDate)
       : addLocalDays(endDate, -(days - 1));
@@ -1688,7 +1688,7 @@ export function createHabitStore(
     };
   }
 
-  function getHabitDetail(habitId: string, rangeDays = 180): HabitDetailResponse {
+  function getHabitDetail(habitId: string, rangeDays = 365): HabitDetailResponse {
     const todayDate = currentTodayDate();
     const bundle = loadHabitBundle(habitId);
     const streak = computeHabitStreak({ ...bundle, todayDate });

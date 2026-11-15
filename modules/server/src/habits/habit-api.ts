@@ -200,12 +200,12 @@ export function createHabitHandlers(deps: {
           throw new HabitStoreError(400, "INVALID_INPUT", "缺少习惯 ID。");
         }
         const daysRaw = searchParams.get("days");
-        const days = daysRaw ? Number(daysRaw) : 180;
+        const days = daysRaw ? Number(daysRaw) : 365;
         return {
           status: 200,
           body: store.getHabitDetail(
             id,
-            Number.isFinite(days) ? days : 180,
+            Number.isFinite(days) ? days : 365,
           ),
         };
       },

@@ -1,3 +1,4 @@
+import { RescheduleOverdue } from "./reschedule-overdue";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -25,7 +26,11 @@ import { columnDisplayName } from "./board-helpers";
 import type { DropPosition } from "./drag-model";
 import { InlineColumnCreator } from "./inline-column-creator";
 import { TaskDragLayer } from "./task-drag-layer";
-import { buildTaskGroups, type TaskGroupBy } from "./task-grouping";
+import {
+  buildTaskGroups,
+  taskDefaultsForGroup,
+  type TaskGroupBy,
+} from "./task-grouping";
 import type { TodayHabitsActions } from "@/features/habits/today-habits-section";
 import type { TodayHabitsResponse } from "@core/habits/model";
 import { TodaySplitView } from "./today-split-view";
@@ -67,7 +72,7 @@ type TaskBoardProps = {
   preserveTaskOrder?: boolean;
   virtualGroupBy?: TaskGroupBy;
   virtualGroupTitle?: string;
-  onRescheduleOverdue?: (overdueTasks: Task[]) => Promise<void>;
+  onRescheduleOverdue?: (overdueTasks: Task[], day: string) => Promise<void>;
   canAddTask?: boolean;
   canAddSection?: boolean;
   hasSearch?: boolean;
@@ -137,7 +142,6 @@ export function TaskBoard({
     column: Column;
     revision: number;
   }>();
-  const [rescheduling, setRescheduling] = useState(false);
   const scrollArea = useRef<HTMLDivElement>(null);
   const currentProj = project ?? defaultProject ?? "";
   const isVirtualGrouped = virtualGroupBy !== undefined;
@@ -154,10 +158,12 @@ export function TaskBoard({
       : board.columns.filter((item) => (item.project || "") === currentProj);
   const columns = useMemo(
     () =>
-      virtualGroups
-        ? virtualGroups.map((group) => group.column)
-        : [unsectionedColumn, ...projectColumns],
-    [virtualGroups, projectColumns],
+      todaySplit && layout === "list"
+        ? [unsectionedColumn, ...board.columns]
+        : virtualGroups
+          ? virtualGroups.map((group) => group.column)
+          : [unsectionedColumn, ...projectColumns],
+    [todaySplit, layout, board.columns, virtualGroups, projectColumns],
   );
   const visibleColumnIds = useMemo(
     () => new Set(columns.map((item) => item.id)),
@@ -307,6 +313,7 @@ export function TaskBoard({
                 onCreateTask={onCreateTask}
                 onAdd={onAdd}
                 todayHabits={todayHabits}
+                hasSearch={hasSearch}
               />
             ) : (
               columns.map((column, index) => {
@@ -328,23 +335,11 @@ export function TaskBoard({
                   column.id === "group:today:overdue" &&
                   onRescheduleOverdue &&
                   items.length > 0 ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={disabled || rescheduling}
-                      onClick={async () => {
-                        setRescheduling(true);
-                        try {
-                          await onRescheduleOverdue(items);
-                        } finally {
-                          setRescheduling(false);
-                        }
-                      }}
-                      className="h-6 px-2 text-xs font-medium text-primary hover:bg-primary/10 hover:text-primary"
-                    >
-                      {rescheduling ? "调整中…" : "重新安排"}
-                    </Button>
+                    <RescheduleOverdue
+                      tasks={items}
+                      disabled={disabled}
+                      onReschedule={onRescheduleOverdue}
+                    />
                   ) : undefined;
                 return (
                   <BoardColumn
@@ -446,19 +441,10 @@ export function TaskBoard({
                             ? `在“${columnDisplayName(column)}”中添加任务…`
                             : "添加任务（支持 #项目, @标签, 明天, p1）"
                         }
-                        defaultProject={
-                          column.id.startsWith("group:project:")
-                            ? column.id === "group:project:inbox"
-                              ? ""
-                              : column.name
-                            : defaultProject
-                        }
-                        defaultDue={
-                          column.id.startsWith("group:due:") &&
-                          column.id !== "group:due:none"
-                            ? column.id.slice("group:due:".length)
-                            : defaultDue
-                        }
+                        initialValue={taskDefaultsForGroup(column, {
+                          project: defaultProject,
+                          due: defaultDue,
+                        })}
                         projects={projects}
                         availableLabels={availableLabels}
                         onSubmitTask={

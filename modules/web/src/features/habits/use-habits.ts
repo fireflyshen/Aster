@@ -50,7 +50,7 @@ export function useHabitsWorkspace(options: {
   const [projectFilter, setProjectFilter] = useState<string>("");
   const [tagFilter, setTagFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<HabitStatus | "all">("active");
-  const [rangeDays, setRangeDays] = useState<number>(180);
+  const [rangeDays, setRangeDays] = useState<number>(365);
 
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);

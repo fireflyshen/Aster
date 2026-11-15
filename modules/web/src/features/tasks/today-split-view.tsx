@@ -1,5 +1,4 @@
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { RescheduleOverdue } from "./reschedule-overdue";
 import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
 import { taskDate } from "@core/tasks/quick-task";
 import {
@@ -19,7 +18,7 @@ import {
   type TodayHabitsActions,
 } from "@/features/habits/today-habits-section";
 import type { TodayHabitsResponse } from "@core/habits/model";
-import { CalendarClock, CheckCircle2, ChevronRight } from "lucide-react";
+import { CheckCircle2, ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { BoardCard } from "./board-card";
 import { isTaskOverdue } from "./task-date";
@@ -31,6 +30,7 @@ type TodaySplitViewProps = {
   moving?: { uuid: string; columnId: string; beforeUuid: string | null };
   disabled: boolean;
   canAddTask: boolean;
+  hasSearch?: boolean;
   defaultProject: string;
   defaultDue: string;
   projects: string[];
@@ -45,7 +45,7 @@ type TodaySplitViewProps = {
       defaultRender: (child: Task) => ReactNode,
     ) => ReactNode,
   ) => ReactNode;
-  onRescheduleOverdue?: (overdueTasks: Task[]) => Promise<void>;
+  onRescheduleOverdue?: (overdueTasks: Task[], day: string) => Promise<void>;
   onCreateTask?: (task: TaskInput, columnId?: string) => Promise<boolean>;
   onAdd: (draft?: TaskInput) => void;
   todayHabits?: {
@@ -64,6 +64,7 @@ export function TodaySplitView({
   moving,
   disabled,
   canAddTask,
+  hasSearch = false,
   defaultProject,
   defaultDue,
   projects,
@@ -75,7 +76,6 @@ export function TodaySplitView({
   todayHabits,
 }: TodaySplitViewProps) {
   const [overdueCollapsed, setOverdueCollapsed] = useState(false);
-  const [reschedulingOverdue, setReschedulingOverdue] = useState(false);
 
   const visibleColumnIds = new Set(columns.map((col) => col.id));
   const excludedUuids = todayHabits?.excludedTaskUuids;
@@ -89,12 +89,8 @@ export function TodaySplitView({
       ),
     )
     .filter(({ task }) => !excludedUuids?.has(task.uuid));
-  const overdueEntries = ordered.filter(({ task }) =>
-    isTaskOverdue({ due: task.due, status: "pending" }),
-  );
-  const todayEntries = ordered.filter(
-    ({ task }) => !isTaskOverdue({ due: task.due, status: "pending" }),
-  );
+  const overdueEntries = ordered.filter(({ task }) => isTaskOverdue(task));
+  const todayEntries = ordered.filter(({ task }) => !isTaskOverdue(task));
 
   const renderEntry = ({ task, column }: { task: Task; column: Column }) => (
     <BoardCard
@@ -163,31 +159,11 @@ export function TodaySplitView({
               </span>
             </button>
             {onRescheduleOverdue && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                aria-label="重新安排逾期任务到今天"
-                disabled={disabled || reschedulingOverdue}
-                onClick={async () => {
-                  setReschedulingOverdue(true);
-                  try {
-                    await onRescheduleOverdue(
-                      overdueEntries.map((item) => item.task),
-                    );
-                  } finally {
-                    setReschedulingOverdue(false);
-                  }
-                }}
-                className="h-7 gap-1.5 rounded-md px-2 text-xs font-medium text-primary hover:bg-primary/10 hover:text-primary"
-              >
-                {reschedulingOverdue ? (
-                  <Spinner className="size-3" />
-                ) : (
-                  <CalendarClock className="size-3.5" />
-                )}
-                重新安排
-              </Button>
+              <RescheduleOverdue
+                tasks={overdueEntries.map((item) => item.task)}
+                disabled={disabled}
+                onReschedule={onRescheduleOverdue}
+              />
             )}
           </div>
           <div hidden={overdueCollapsed}>{overdueEntries.map(renderEntry)}</div>
@@ -211,21 +187,28 @@ export function TodaySplitView({
           </div>
         )}
         <div>
-          {todayEntries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <div className="relative mb-3 flex size-14 items-center justify-center rounded-2xl bg-(--due-today)/12 text-(--due-today)">
-                <CheckCircle2 className="size-7" strokeWidth={1.75} />
-              </div>
-              <h3 className="text-sm font-semibold text-foreground">
-                今天的所有任务已完成
-              </h3>
-              <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                尽情享受井井有条的一天。
-              </p>
-            </div>
-          ) : (
-            todayEntries.map(renderEntry)
-          )}
+          {todayEntries.length === 0
+            ? !hasSearch && (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <CheckCircle2
+                    className="mb-3 size-7 text-muted-foreground/55"
+                    strokeWidth={1.4}
+                  />
+                  <h3 className="text-sm font-medium text-foreground">
+                    {overdueEntries.length
+                      ? "今天暂无安排"
+                      : "今天没有待办任务"}
+                  </h3>
+                  <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                    {overdueEntries.length
+                      ? `上方还有 ${overdueEntries.length} 项逾期任务，可以重新安排。`
+                      : hasTodayHabits
+                        ? "习惯仍可在上方继续记录。"
+                        : "留点时间给自己，或添加新的安排。"}
+                  </p>
+                </div>
+              )
+            : todayEntries.map(renderEntry)}
           {canAddTask && (
             <TodoistTaskComposer
               mode="add"

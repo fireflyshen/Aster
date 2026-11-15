@@ -165,7 +165,9 @@ export function useComposerDraft({
       const existingIso = initialValue?.due ? isoDue(initialValue.due) : "";
       const existingDay = existingIso ? toDueDay(existingIso) : "";
       resolvedDue =
-        existingDay === activeDueDay && existingIso
+        existingDay === activeDueDay &&
+        existingIso &&
+        !/^\d{4}-\d{2}-\d{2}$/.test(existingIso)
           ? taskDate(new Date(existingIso))
           : taskDate(new Date(`${activeDueDay}T00:00:00`));
     }

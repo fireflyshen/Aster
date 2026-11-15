@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { taskDateTone } from "./task-date";
 
 export function DatePicker({
   value,
@@ -31,6 +32,8 @@ export function DatePicker({
   emptyLabel,
   trigger,
   align = "start",
+  allowClear = true,
+  hint,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -44,6 +47,8 @@ export function DatePicker({
   emptyLabel?: string;
   trigger?: ReactNode;
   align?: "start" | "center" | "end";
+  allowClear?: boolean;
+  hint?: string;
 }) {
   const [open, setOpen] = useState(false);
   const date = value ? new Date(`${value}T00:00:00`) : undefined;
@@ -56,8 +61,10 @@ export function DatePicker({
   const tomorrowStr = format(tomorrow, "yyyy-MM-dd");
   const weekendStr = format(weekend, "yyyy-MM-dd");
   const nextWeekStr = format(nextWeek, "yyyy-MM-dd");
+  const tone = taskDateTone(value, today);
 
   const select = (next?: Date) => {
+    if (!next && !allowClear) return;
     onChange(next ? format(next, "yyyy-MM-dd") : "");
     setOpen(false);
   };
@@ -78,11 +85,15 @@ export function DatePicker({
                 "h-9 w-auto max-w-48 min-w-0 shrink gap-1.5 rounded-[5px] border-input px-2 py-0 text-[13px] text-muted-foreground shadow-none has-[>svg]:px-2 md:h-7 [&_svg]:size-4",
               compact &&
                 value &&
-                (value === todayStr
-                  ? "border-(--due-today)/35 bg-(--due-today)/10 text-(--due-today)"
-                  : value === tomorrowStr
-                    ? "border-(--due-tomorrow)/35 bg-(--due-tomorrow)/10 text-(--due-tomorrow)"
-                    : "border-(--due-upcoming)/35 bg-(--due-upcoming)/10 text-(--due-upcoming)"),
+                (tone === "overdue"
+                  ? "border-(--priority-1)/35 bg-(--priority-1)/10 text-(--priority-1)"
+                  : value === todayStr
+                    ? "border-(--due-today)/35 bg-(--due-today)/10 text-(--due-today)"
+                    : value === tomorrowStr
+                      ? "border-(--due-tomorrow)/35 bg-(--due-tomorrow)/10 text-(--due-tomorrow)"
+                      : tone === "upcoming"
+                        ? "border-(--due-upcoming)/35 bg-(--due-upcoming)/10 text-(--due-upcoming)"
+                        : "border-input text-muted-foreground"),
               !value && "text-muted-foreground",
               className,
             )}
@@ -115,6 +126,11 @@ export function DatePicker({
             : undefined
         }
       >
+        {hint && (
+          <p className="max-w-72 border-b px-3 py-2 text-[11px] leading-relaxed text-muted-foreground">
+            {hint}
+          </p>
+        )}
         <div className="grid grid-cols-1 gap-0.5 border-b p-1.5">
           <Button
             type="button"
@@ -188,7 +204,7 @@ export function DatePicker({
               {format(nextWeek, "M月d日")}
             </span>
           </Button>
-          {value && (
+          {allowClear && value && (
             <Button
               type="button"
               variant="ghost"

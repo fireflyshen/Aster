@@ -393,7 +393,6 @@ export function App() {
           setEditingHeaderDesc={projectActions.setEditingHeaderDesc}
           headerDescDraft={projectActions.headerDescDraft}
           setHeaderDescDraft={projectActions.setHeaderDescDraft}
-          onOpenFocusPicker={() => projectActions.setFocusPickerOpen(true)}
           onSelectProject={nav.selectProject}
           onSelectView={nav.selectView}
           onOpenEntry={nav.openEntry}
@@ -412,7 +411,7 @@ export function App() {
           onReloadBoard={taskActions.reloadBoard}
           onReloadAll={data.reloadAll}
           onRestoreEnergy={data.restoreEnergy}
-          onRescheduleOverdue={data.rescheduleOverdueToToday}
+          onRescheduleOverdue={data.rescheduleOverdue}
           onOpenEditor={taskActions.openEditor}
           onMoveTask={(task, columnId, beforeUuid, parentUuid) =>
             taskActions.moveTask(task, columnId, beforeUuid, true, parentUuid)

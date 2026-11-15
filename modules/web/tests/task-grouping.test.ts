@@ -22,7 +22,8 @@ const compiled = esbuild.buildSync({
 });
 
 const moduleUrl = `data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString("base64")}`;
-const { buildTaskGroups, groupOptionsForContext } = await import(moduleUrl);
+const { buildTaskGroups, groupOptionsForContext, taskDefaultsForGroup } =
+  await import(moduleUrl);
 
 const makeTask = (uuid: string, extra: Record<string, unknown> = {}) => ({
   id: 1,
@@ -181,5 +182,72 @@ test("groupOptionsForContext tailors options per view context", () => {
   assert.deepEqual(
     groupOptionsForContext("default").map((o: { value: string }) => o.value),
     ["none", "due", "project", "priority", "label"],
+  );
+});
+
+test("quick add inherits the virtual group's project, day, priority or literal tag", () => {
+  const fallback = { project: "学习", due: "2026-11-16" };
+  assert.equal(
+    taskDefaultsForGroup({ id: "group:project:工作", name: "工作" }, fallback)
+      .project,
+    "工作",
+  );
+  assert.equal(
+    taskDefaultsForGroup(
+      { id: "group:project:inbox", name: "收件箱" },
+      fallback,
+    ).project,
+    "",
+  );
+  assert.equal(
+    taskDefaultsForGroup({ id: "group:due:2026-11-20", name: "周五" }, fallback)
+      .due,
+    "2026-11-20",
+  );
+  assert.equal(
+    taskDefaultsForGroup({ id: "group:due:none", name: "无截止日期" }, fallback)
+      .due,
+    "",
+  );
+  assert.equal(
+    taskDefaultsForGroup({ id: "group:priority:H", name: "优先级1" }, fallback)
+      .priority,
+    "H",
+  );
+  assert.equal(
+    taskDefaultsForGroup(
+      { id: "group:priority:none", name: "无优先级" },
+      fallback,
+    ).priority,
+    "",
+  );
+  assert.deepEqual(
+    taskDefaultsForGroup({ id: "group:label:阅读", name: "@阅读" }, fallback)
+      .tags,
+    ["阅读"],
+  );
+  assert.deepEqual(
+    taskDefaultsForGroup({ id: "group:label:none", name: "@none" }, fallback)
+      .tags,
+    ["none"],
+  );
+  assert.deepEqual(
+    taskDefaultsForGroup({ id: "group:label:none", name: "无标签" }, fallback)
+      .tags,
+    [],
+  );
+});
+
+test("group quick add keeps real projects named 收件箱 and normalizes inherited dates to a day", () => {
+  assert.equal(
+    taskDefaultsForGroup({ id: "group:project:收件箱", name: "收件箱" })
+      .project,
+    "收件箱",
+  );
+  const inherited = new Date(2026, 10, 16, 15, 30).toISOString();
+  assert.equal(
+    taskDefaultsForGroup({ id: "group:none", name: "今天" }, { due: inherited })
+      .due,
+    "2026-11-16",
   );
 });

@@ -37,7 +37,7 @@ export function fetchTodayHabits(): Promise<TodayHabitsResponse> {
 
 export function fetchHabitDetail(
   id: string,
-  days = 180,
+  days = 365,
 ): Promise<HabitDetailResponse> {
   const qs = new URLSearchParams({ id, days: String(days) });
   return api<HabitDetailResponse>(`habits/detail?${qs.toString()}`);

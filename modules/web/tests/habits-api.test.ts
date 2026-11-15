@@ -223,6 +223,11 @@ test("web habits-api routes cleanly through real server handlers end-to-end", as
     });
     assert.equal(noted.evaluation.note, "读完两章");
 
+    const defaultHeatmap = await habitsApi.fetchHabitHeatmap();
+    assert.equal(defaultHeatmap.cells.length, 365);
+    const defaultDetail = await habitsApi.fetchHabitDetail(reading.id);
+    assert.equal(defaultDetail.heatmap.cells.length, 365);
+
     const heatmap = await habitsApi.fetchHabitHeatmap({ days: 30 });
     assert.equal(heatmap.cells.length, 30);
     assert.equal(heatmap.cells.at(-1)?.date, "2026-11-15");

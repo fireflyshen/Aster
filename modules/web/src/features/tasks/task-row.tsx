@@ -5,7 +5,7 @@ import {
   type HabitTaskActions,
 } from "@/features/habits/habit-task-controls";
 import { TaskCheckbox } from "@/features/tasks/task-checkbox";
-import { DescriptionSummary } from "@/features/tasks/description-summary";
+import { priorityOption } from "@/features/tasks/task-constants";
 import { toDueDay } from "@/features/tasks/task-date";
 import { TaskMetaChips } from "@/features/tasks/task-meta-chips";
 import { TaskRowActions } from "@/features/tasks/task-row-actions";
@@ -126,7 +126,6 @@ export function TaskRow({
   const [editingInline, setEditingInline] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
-  const [priorityChipOpen, setPriorityChipOpen] = useState(false);
   const [drawerPinned, setDrawerPinned] = useState(false);
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
@@ -229,20 +228,15 @@ export function TaskRow({
   );
   const hasDetails = !!(
     showCost ||
+    description.trim() ||
     habit ||
     (showProject && (task.project || showInbox)) ||
     task.due ||
     task.recur ||
     task.annotations.length ||
     task.tags.length ||
-    task.priority ||
-    task.wait ||
-    (Number.isFinite(task.urgency) && task.urgency > 0) ||
-    (timingAllowed &&
-      (started ||
-        timingActive ||
-        (trackedSeconds ?? 0) > 0 ||
-        (effectiveIsTimeMode && trackedSeconds === undefined))) ||
+    (!checked && task.wait && new Date(task.wait) > now) ||
+    (timingAllowed && (started || timingActive || (trackedSeconds ?? 0) > 0)) ||
     totalSubtasks > 0
   );
 
@@ -317,8 +311,7 @@ export function TaskRow({
     );
   }
 
-  const actionsVisible =
-    drawerPinned || moreOpen || priorityPopoverOpen || priorityChipOpen;
+  const actionsVisible = drawerPinned || moreOpen || priorityPopoverOpen;
 
   return (
     <article
@@ -434,6 +427,15 @@ export function TaskRow({
                   role="button"
                   tabIndex={-1}
                   data-task-title
+                  title={[
+                    task.description,
+                    task.priority ? priorityOption(task.priority).label : "",
+                    Number.isFinite(task.urgency) && task.urgency > 0
+                      ? `紧迫度 ${task.urgency.toFixed(1)}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                   onClick={onEdit}
                   className={cn(
                     "block w-full min-w-0 cursor-pointer text-[14px] leading-5 font-normal break-words transition-colors duration-150 outline-none hover:text-foreground",
@@ -445,33 +447,11 @@ export function TaskRow({
                   {task.description}
                 </div>
 
-                {description.trim() && (
-                  <div
-                    data-task-description-preview
-                    title="查看完整描述"
-                    onClick={(e) => {
-                      if (window.getSelection()?.toString().length) {
-                        e.stopPropagation();
-                        return;
-                      }
-                      onEdit();
-                    }}
-                    className={cn(
-                      "mt-0.5 block w-full min-w-0 max-w-full cursor-pointer text-[12px] leading-[18px] transition-colors select-text",
-                      checked
-                        ? "text-muted-foreground/45 line-through decoration-muted-foreground/40"
-                        : "text-muted-foreground/75 hover:text-foreground/85",
-                    )}
-                  >
-                    <DescriptionSummary text={description} />
-                  </div>
-                )}
-
                 {hasDetails && (
                   <TaskMetaChips
+                    description={description}
                     task={task}
                     costSummary={showCost ? costSummary : undefined}
-                    variant={variant}
                     checked={checked}
                     overdue={overdue}
                     disabled={disabled}
@@ -487,8 +467,6 @@ export function TaskRow({
                     totalSubtasks={totalSubtasks}
                     completedSubtasks={completedSubtasks}
                     subtasksExpanded={effectiveSubtasksExpanded}
-                    priorityChipOpen={priorityChipOpen}
-                    onPriorityChipOpenChange={setPriorityChipOpen}
                     onToggleSubtasks={
                       canExpandSubtasks
                         ? () => setSubtasksExpanded((v) => !v)
@@ -496,7 +474,6 @@ export function TaskRow({
                     }
                     onEdit={onEdit}
                     onDueChange={onDueChange}
-                    onPriorityChange={onPriorityChange}
                     habit={habit}
                     habitTodayDate={habitTodayDate}
                     onHabitSwitchPlan={habitActions?.switchPlan}

@@ -23,22 +23,12 @@ import {
   Target,
   Trash2,
 } from "lucide-react";
-import type { CompleteBehavior } from "../hooks/use-workspace-navigation";
-import {
-  TASK_GROUP_OPTIONS,
-  type TaskGroupBy,
-} from "@/features/tasks/task-grouping";
 import { views } from "../workspace-sidebar";
 
 type WorkspaceHeadingMenuProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   view: View;
-  completeBehavior?: CompleteBehavior;
-  onCompleteBehaviorChange?: (next: CompleteBehavior) => void;
-  groupBy?: TaskGroupBy;
-  groupOptions?: readonly { value: TaskGroupBy; label: string }[];
-  onGroupByChange?: (next: TaskGroupBy) => void;
   currentProject: string;
   organizationReady: boolean;
   disabled: boolean;
@@ -63,11 +53,6 @@ export function WorkspaceHeadingMenu({
   open,
   onOpenChange,
   view,
-  completeBehavior = "hide",
-  onCompleteBehaviorChange,
-  groupBy = "none",
-  groupOptions = TASK_GROUP_OPTIONS,
-  onGroupByChange,
   currentProject,
   organizationReady,
   disabled,
@@ -222,34 +207,6 @@ export function WorkspaceHeadingMenu({
           </Button>
         )}
 
-        {onGroupByChange && (
-          <>
-            <div className="my-1 border-t border-border/60" />
-            <p className="px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
-              分组
-            </p>
-            {groupOptions.map((option) => (
-              <Button
-                key={option.value}
-                variant="navigation"
-                className="h-8 text-xs"
-                onClick={() => {
-                  onGroupByChange(option.value);
-                  onOpenChange(false);
-                }}
-              >
-                <Check
-                  className={cn(
-                    "size-3.5",
-                    groupBy !== option.value && "invisible",
-                  )}
-                />
-                {option.label}
-              </Button>
-            ))}
-          </>
-        )}
-
         {!currentProject &&
           !activeItem &&
           (Object.entries(views) as [View, string][]).map(([key, label]) => (
@@ -274,31 +231,6 @@ export function WorkspaceHeadingMenu({
               {label}
             </Button>
           ))}
-        {onCompleteBehaviorChange && (
-          <>
-            <div className="my-1 border-t border-border/60" />
-            <Button
-              variant="navigation"
-              className="h-8 text-xs"
-              onClick={() => {
-                onCompleteBehaviorChange(
-                  completeBehavior === "strikethrough"
-                    ? "hide"
-                    : "strikethrough",
-                );
-                onOpenChange(false);
-              }}
-            >
-              <Check
-                className={cn(
-                  "size-3.5",
-                  completeBehavior !== "strikethrough" && "invisible",
-                )}
-              />
-              完成后保留删除线
-            </Button>
-          </>
-        )}
       </PopoverContent>
     </Popover>
   );

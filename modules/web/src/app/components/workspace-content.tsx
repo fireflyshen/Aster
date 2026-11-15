@@ -9,7 +9,6 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { OrganizationManager } from "@/features/organization/organization-manager";
-import { FocusOverview } from "@/features/projects/focus-overview";
 import { ProjectManager } from "@/features/projects/project-manager";
 import {
   groupOptionsForContext,
@@ -106,7 +105,6 @@ type WorkspaceContentProps = {
   setEditingHeaderDesc: (open: boolean) => void;
   headerDescDraft: string;
   setHeaderDescDraft: (value: string) => void;
-  onOpenFocusPicker: () => void;
   onSelectProject: (name: string) => void;
   onSelectView: (view: View) => void;
   onOpenEntry: (entry: ActiveEntry) => void;
@@ -126,7 +124,7 @@ type WorkspaceContentProps = {
   onReloadBoard: () => Promise<Organization | undefined>;
   onReloadAll: () => Promise<Organization | undefined>;
   onRestoreEnergy: () => Promise<unknown>;
-  onRescheduleOverdue: (overdueTasks: Task[]) => Promise<void>;
+  onRescheduleOverdue: (overdueTasks: Task[], day: string) => Promise<void>;
   onOpenEditor: (
     task?: Task,
     initial?: TaskInput & { habitPreset?: boolean },
@@ -204,7 +202,6 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     setEditingHeaderDesc,
     headerDescDraft,
     setHeaderDescDraft,
-    onOpenFocusPicker,
     onSelectProject,
     onSelectView,
     onOpenEntry,
@@ -359,10 +356,15 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           groupBy={!isProjectOwned ? groupBy : undefined}
           groupOptions={!isProjectOwned ? groupOptions : undefined}
           onGroupByChange={!isProjectOwned ? setGroupBy : undefined}
+          onResetDisplay={() => {
+            onLayoutChange("list");
+            setGroupBy(defaultGroupBy);
+            onCompleteBehaviorChange?.("hide");
+          }}
           currentProjectFocus={currentProjectFocus}
           currentProjectIsHabit={Boolean(
             currentProject &&
-              isHabitProject(currentProject, organization.projects),
+            isHabitProject(currentProject, organization.projects),
           )}
           projectOutcome={projectOutcome}
           projectDescription={projectDescription}
@@ -474,59 +476,20 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           />
         ) : organizationPage ? (
           projectsPage ? (
-            <div className="space-y-8">
-              <FocusOverview
-                data={organization}
-                tasks={tasks}
-                loading={loading}
-                disabled={boardDisabled}
-                error={organizationError}
-                onChooseProject={onOpenFocusPicker}
-                onPause={(name) => onTransitionProject(name, "later")}
-                onComplete={(name) => onTransitionProject(name, "completed")}
-                onOpen={onSelectProject}
-                onEdit={onEditProject}
-                onAddTask={(name, nextDraft) =>
-                  onOpenEditor(undefined, {
-                    description: "",
-                    tags: [],
-                    ...(nextDraft || {}),
-                    project: name,
-                  })
-                }
-                onCreateTask={(input, name) =>
-                  onCreateTaskInView({
-                    ...input,
-                    project: name,
-                  })
-                }
-                onSelectNext={(name, nextUuid) =>
-                  void onSaveProjectField(name, {
-                    nextTask: nextUuid,
-                  })
-                }
-                onUpdateOutcome={(name, outcome) =>
-                  onSaveProjectField(name, { outcome })
-                }
-                renderTask={(task, extraActions) =>
-                  renderTask(task, extraActions, "list", 0)
-                }
-              />
-              <ProjectManager
-                data={organization}
-                projects={filterProjects}
-                error={organizationError}
-                loading={loading}
-                disabled={boardDisabled}
-                onOpen={onSelectProject}
-                onAdd={() => onEditProject("")}
-                onAddChild={onAddSubproject}
-                onEdit={onEditProject}
-                onDelete={onDeleteProject}
-                onStatus={onTransitionProject}
-                onReload={() => void onLoadOrganization()}
-              />
-            </div>
+            <ProjectManager
+              data={organization}
+              projects={filterProjects}
+              error={organizationError}
+              loading={loading}
+              disabled={boardDisabled}
+              onOpen={onSelectProject}
+              onAdd={() => onEditProject("")}
+              onAddChild={onAddSubproject}
+              onEdit={onEditProject}
+              onDelete={onDeleteProject}
+              onStatus={onTransitionProject}
+              onReload={() => void onLoadOrganization()}
+            />
           ) : (
             <OrganizationManager
               data={organization}

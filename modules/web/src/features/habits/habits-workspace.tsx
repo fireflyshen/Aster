@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { ProjectIcon } from "@/features/projects/project-icon";
-import { DescriptionSummary } from "@/features/tasks/description-summary";
+import { DescriptionPopover } from "@/features/tasks/description-popover";
 import { formatScheduleLabel } from "@core/habits/logic";
 import type { HabitListItem, HabitStatus } from "@core/habits/model";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
@@ -370,12 +370,12 @@ export function HabitsWorkspace({
                 key={habit.id}
                 className="habit-review-row group relative min-w-0 py-2.5 transition-colors"
               >
-                <button
-                  type="button"
-                  onClick={() => controller.setDetailId(habit.id)}
-                  className="habit-review-main block w-full min-w-0 text-left"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
+                <div className="habit-review-main min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => controller.setDetailId(habit.id)}
+                    className="flex w-full min-w-0 flex-wrap items-center gap-2 text-left cursor-pointer"
+                  >
                     <span className="text-sm font-medium text-foreground">
                       {habit.title}
                     </span>
@@ -409,14 +409,8 @@ export function HabitsWorkspace({
                         已归档
                       </span>
                     )}
-                  </div>
+                  </button>
 
-                  {habit.description && (
-                    <DescriptionSummary
-                      text={habit.description}
-                      className="mt-0.5 text-[12px] leading-[18px] text-muted-foreground/75"
-                    />
-                  )}
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     {habit.project && (
                       <span className="inline-flex items-center gap-1">
@@ -439,6 +433,11 @@ export function HabitsWorkspace({
                         @{tag}
                       </span>
                     ))}
+                    <DescriptionPopover
+                      text={habit.description}
+                      title={habit.title}
+                      onOpenDetails={() => controller.setDetailId(habit.id)}
+                    />
                     <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums">
                       <Sparkles className="size-3 text-(--habit-accent)" />
                       连续 {habit.streak.currentStreak} {habit.streak.unit}
@@ -450,7 +449,7 @@ export function HabitsWorkspace({
                         ` · 发生 ${habit.streak.recent30Events}次`}
                     </span>
                   </div>
-                </button>
+                </div>
 
                 <div className="habit-review-actions flex items-center gap-0.5">
                   <Button

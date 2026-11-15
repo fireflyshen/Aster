@@ -1045,27 +1045,35 @@ export function TimeTodayPage({
 
                 <form
                     onSubmit={(e) => void handleQuickStart(e, "start")}
-                    className="space-y-3 border-b border-border/60 pb-2.5 transition-colors focus-within:border-foreground/35"
+                    className="time-quick-entry space-y-2 border-b border-border/60 pb-3 transition-colors focus-within:border-foreground/35"
                 >
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="time-quick-main">
                         <input
                             type="text"
-                            className="min-w-[180px] flex-1 bg-transparent py-1 text-sm text-foreground placeholder:text-muted-foreground/55 outline-none"
+                            className="time-quick-title"
+                            aria-label="活动名称"
+                            title="输入活动名称，按回车开始计时"
                             placeholder={
                                 active
-                                    ? "切换到新活动（回车结束上一条）…"
-                                    : "现在开始做什么…（回车直接计时）"
+                                    ? "切换到新活动…"
+                                    : "现在开始做什么…"
                             }
                             value={quickTitle}
                             onChange={(e) => setQuickTitle(e.target.value)}
                         />
-                        <div className="flex items-center gap-1">
+                        <Button type="submit" size="sm" variant={canStart ? "default" : "ghost"}
+                            className="time-quick-start" disabled={busy || !canStart}
+                            title={draftPlanEvaluation.predictedStopAtNow ? `预计 ${formatClockInZone(draftPlanEvaluation.predictedStopAtNow, timeZone)} 自动停止` : undefined}>
+                            <Play className="size-3.5" />{active ? "切换" : "开始"}
+                        </Button>
+                    </div>
+                    <div className="time-quick-controls">
                             <Select
                                 value={quickTaskUuid}
                                 onValueChange={handleQuickTaskChange}
                             >
                                 <SelectTrigger
-                                    className="h-7 max-w-[160px] gap-1 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:text-foreground focus-visible:ring-0"
+                                    className="h-8 min-w-0 max-w-[180px] gap-1 border-0 bg-transparent dark:bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:text-foreground focus-visible:ring-0"
                                     aria-label="关联任务"
                                 >
                                     <SelectValue placeholder="关联任务" />
@@ -1125,29 +1133,8 @@ export function TimeTodayPage({
                                     存为安排
                                 </Button>
                             )}
-                            <Button
-                                type="submit"
-                                size="xs"
-                                variant={canStart ? "default" : "ghost"}
-                                className={
-                                    canStart
-                                        ? "ml-1"
-                                        : "ml-1 text-muted-foreground/50"
-                                }
-                                disabled={busy || !canStart}
-                            >
-                                <Play className="size-3" />
-                                {showPlanLimit &&
-                                draftPlanEvaluation.hasLimit &&
-                                draftPlanEvaluation.predictedStopAtNow
-                                    ? `开始 · 预计 ${formatClockInZone(draftPlanEvaluation.predictedStopAtNow, timeZone)} 自动停止`
-                                    : active
-                                      ? "切换"
-                                      : "开始"}
-                            </Button>
-                        </div>
-                    </div>
 
+                        </div>
                     <ProjectTagFields
                         compact
                         idPrefix="today-quick"
