@@ -66,7 +66,11 @@ func TestSidebarFiveSectionsAndHeaderSkipping(t *testing.T) {
 
 	for _, wantHeader := range []string{"核心视图", "时间账本", "收藏", "我的项目", "工具"} {
 		if !slices.Contains(headers, wantHeader) {
-			t.Fatalf("expected section header %q in nav, got %v", wantHeader, headers)
+			t.Fatalf(
+				"expected section header %q in nav, got %v",
+				wantHeader,
+				headers,
+			)
 		}
 	}
 
@@ -112,7 +116,11 @@ func TestSidebarFiveSectionsAndHeaderSkipping(t *testing.T) {
 	}
 	for step := 0; step < len(es); step++ {
 		if es[m.navCursor].header {
-			t.Fatalf("navCursor landed on header at step %d: %+v", step, es[m.navCursor])
+			t.Fatalf(
+				"navCursor landed on header at step %d: %+v",
+				step,
+				es[m.navCursor],
+			)
 		}
 		m.moveNavCursor(1)
 	}
@@ -128,7 +136,9 @@ func TestSidebarFiveSectionsAndHeaderSkipping(t *testing.T) {
 		t.Fatalf("expected Someday project when expanded: %v", expandedIDs)
 	}
 
-	sidebarOut := stripANSI(m.sidebar(30, 32, renderFrame{now: time.Now(), idx: m.viewIdx()}))
+	sidebarOut := stripANSI(
+		m.sidebar(30, 32, renderFrame{now: time.Now(), idx: m.viewIdx()}),
+	)
 	for _, label := range []string{"核心视图", "时间账本", "收藏", "我的项目", "工具", "1/3"} {
 		if !strings.Contains(sidebarOut, label) {
 			t.Fatalf("expected %q in rendered sidebar:\n%s", label, sidebarOut)
@@ -193,7 +203,9 @@ func TestMergedOrgViewAndBuiltinFilterActions(t *testing.T) {
 	cmd()
 	p := readPayload(t, log)
 	data := p["data"].(map[string]any)
-	if data["kind"] != "builtinFilter" || data["action"] != "favorite" || data["id"] != "builtin:ready" || data["value"] != false {
+	if data["kind"] != "builtinFilter" || data["action"] != "favorite" ||
+		data["id"] != "builtin:ready" ||
+		data["value"] != false {
 		t.Fatalf("unexpected favorite payload: %+v", p)
 	}
 
@@ -206,7 +218,9 @@ func TestMergedOrgViewAndBuiltinFilterActions(t *testing.T) {
 	cmd()
 	p = readPayload(t, log)
 	data = p["data"].(map[string]any)
-	if data["kind"] != "builtinFilter" || data["action"] != "hide" || data["id"] != "builtin:blocked" || data["value"] != false {
+	if data["kind"] != "builtinFilter" || data["action"] != "hide" ||
+		data["id"] != "builtin:blocked" ||
+		data["value"] != false {
 		t.Fatalf("unexpected hide payload: %+v", p)
 	}
 
@@ -222,16 +236,27 @@ func TestMergedOrgViewAndBuiltinFilterActions(t *testing.T) {
 }
 
 func TestMergedDataViewAndBuiltinFilterPrefsJSON(t *testing.T) {
-	raw := []byte(`{"revision":3,"builtinFilterPrefs":{"favorites":["builtin:ready"],"hidden":["builtin:blocked"],"sectionHidden":true}}`)
+	raw := []byte(
+		`{"revision":3,"builtinFilterPrefs":{"favorites":["builtin:ready"],"hidden":["builtin:blocked"],"sectionHidden":true}}`,
+	)
 	var org Organization
 	if err := json.Unmarshal(raw, &org); err != nil {
 		t.Fatalf("unmarshal Organization failed: %v", err)
 	}
 	if org.BuiltinFilterPrefs == nil ||
-		!slices.Equal(org.BuiltinFilterPrefs.Favorites, []string{"builtin:ready"}) ||
-		!slices.Equal(org.BuiltinFilterPrefs.Hidden, []string{"builtin:blocked"}) ||
+		!slices.Equal(
+			org.BuiltinFilterPrefs.Favorites,
+			[]string{"builtin:ready"},
+		) ||
+		!slices.Equal(
+			org.BuiltinFilterPrefs.Hidden,
+			[]string{"builtin:blocked"},
+		) ||
 		!org.BuiltinFilterPrefs.SectionHidden {
-		t.Fatalf("unexpected BuiltinFilterPrefs decoded: %+v", org.BuiltinFilterPrefs)
+		t.Fatalf(
+			"unexpected BuiltinFilterPrefs decoded: %+v",
+			org.BuiltinFilterPrefs,
+		)
 	}
 
 	m := sampleModel()
@@ -251,7 +276,10 @@ func TestMergedDataViewAndBuiltinFilterPrefsJSON(t *testing.T) {
 		}
 	}
 	if !sawDeleted || !sawBackup {
-		t.Fatalf("expected merged data rows for recovery + backup, got %+v", rows)
+		t.Fatalf(
+			"expected merged data rows for recovery + backup, got %+v",
+			rows,
+		)
 	}
 
 	for _, nonTask := range []string{"projects", "org", "data", "time.today"} {

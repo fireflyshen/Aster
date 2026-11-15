@@ -436,7 +436,10 @@ func (m model) nav() []entry {
 	}
 	for _, t := range m.org.Tags {
 		if t.Favorite {
-			favs = append(favs, entry{id: "tag:" + t.Name, title: "#  " + t.Name})
+			favs = append(
+				favs,
+				entry{id: "tag:" + t.Name, title: "#  " + t.Name},
+			)
 		}
 	}
 	if len(favs) > 0 {
@@ -542,7 +545,10 @@ func (m model) title() string {
 		return strings.TrimPrefix(m.view, "project:")
 	}
 	if strings.HasPrefix(m.view, "filter:") {
-		if f, ok := findFilterByID(m.org, strings.TrimPrefix(m.view, "filter:")); ok {
+		if f, ok := findFilterByID(
+			m.org,
+			strings.TrimPrefix(m.view, "filter:"),
+		); ok {
 			return f.Name
 		}
 	}
@@ -683,7 +689,10 @@ func (m *model) navigate(view string) tea.Cmd {
 		return m.loadTimeViewCmd(view)
 	}
 	if strings.HasPrefix(view, "filter:") {
-		if f, ok := findFilterByID(m.org, strings.TrimPrefix(view, "filter:")); ok {
+		if f, ok := findFilterByID(
+			m.org,
+			strings.TrimPrefix(view, "filter:"),
+		); ok {
 			m.expression = f.Expression
 			m.busy = true
 			return m.read(
@@ -763,7 +772,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if (strings.HasPrefix(m.view, "filter:") || m.view == "expression") &&
 			m.mode == "" {
 			if strings.HasPrefix(m.view, "filter:") {
-				if f, ok := findFilterByID(m.org, strings.TrimPrefix(m.view, "filter:")); ok {
+				if f, ok := findFilterByID(
+					m.org,
+					strings.TrimPrefix(m.view, "filter:"),
+				); ok {
 					m.expression = f.Expression
 				}
 			}
@@ -899,7 +911,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if k == "enter" || k == " " {
 				es := m.nav()
-				if m.navCursor >= 0 && m.navCursor < len(es) && !es[m.navCursor].header {
+				if m.navCursor >= 0 && m.navCursor < len(es) &&
+					!es[m.navCursor].header {
 					if k == "enter" || es[m.navCursor].id == "toggle:later" {
 						return m, m.navigate(es[m.navCursor].id)
 					}

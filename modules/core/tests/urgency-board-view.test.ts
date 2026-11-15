@@ -7,73 +7,73 @@ import type { TaskService } from "../tasks/service.ts";
 import type { WorkspaceClient } from "../workspace/client.ts";
 
 function makeTask(
-    uuid: string,
-    description: string,
-    overrides: Partial<TaskwarriorTask> = {},
+  uuid: string,
+  description: string,
+  overrides: Partial<TaskwarriorTask> = {},
 ): TaskwarriorTask {
-    return {
-        uuid,
-        description,
-        status: "pending",
-        tags: [],
-        urgency: 1,
-        depends: [],
-        annotations: [],
-        ...overrides,
-    };
+  return {
+    uuid,
+    description,
+    status: "pending",
+    tags: [],
+    urgency: 1,
+    depends: [],
+    annotations: [],
+    ...overrides,
+  };
 }
 
 test("compareTasksByUrgency and loadTaskViewWithCatalog support builtin:urgency filter sorted descending", async () => {
-    const low = makeTask("t1", "Low score", { urgency: 1.9 });
-    const high = makeTask("t2", "Top urgent", { urgency: 14.5, priority: "H" });
-    const mid = makeTask("t3", "Medium score", { urgency: 6.2 });
+  const low = makeTask("t1", "Low score", { urgency: 1.9 });
+  const high = makeTask("t2", "Top urgent", { urgency: 14.5, priority: "H" });
+  const mid = makeTask("t3", "Medium score", { urgency: 6.2 });
 
-    const ranked = [low, high, mid].sort(compareTasksByUrgency);
-    assert.deepEqual(
-        ranked.map((t) => t.uuid),
-        ["t2", "t3", "t1"],
-    );
+  const ranked = [low, high, mid].sort(compareTasksByUrgency);
+  assert.deepEqual(
+    ranked.map((t) => t.uuid),
+    ["t2", "t3", "t1"],
+  );
 
-    let requestedFilter = "";
-    const fakeClient = {
-        tasks: async (query: { filter?: string }) => {
-            requestedFilter = query.filter || "";
-            return {
-                tasks: [low, high, mid],
-                projects: [],
-            };
-        },
-    } as unknown as WorkspaceClient;
-    const loaded = await loadTaskViewWithCatalog(
-        {} as TaskService,
-        "filter:builtin:urgency",
-        {
-            revision: 1,
-            projects: [],
-            filters: [],
-            tags: [],
-            board: defaultBoard(),
-        },
-        "",
-        fakeClient,
-    );
-    assert.equal(requestedFilter, "status:pending -WAITING");
-    assert.deepEqual(
-        loaded.tasks.map((t) => t.uuid),
-        ["t2", "t3", "t1"],
-    );
+  let requestedFilter = "";
+  const fakeClient = {
+    tasks: async (query: { filter?: string }) => {
+      requestedFilter = query.filter || "";
+      return {
+        tasks: [low, high, mid],
+        projects: [],
+      };
+    },
+  } as unknown as WorkspaceClient;
+  const loaded = await loadTaskViewWithCatalog(
+    {} as TaskService,
+    "filter:builtin:urgency",
+    {
+      revision: 1,
+      projects: [],
+      filters: [],
+      tags: [],
+      board: defaultBoard(),
+    },
+    "",
+    fakeClient,
+  );
+  assert.equal(requestedFilter, "status:pending -WAITING");
+  assert.deepEqual(
+    loaded.tasks.map((t) => t.uuid),
+    ["t2", "t3", "t1"],
+  );
 });
 
 test("columnTasks falls back out-of-scope project columns to UNSECTIONED when visibleColumnIds is passed", () => {
-    const board = {
-        ...defaultBoard(),
-        columns: [{ id: "proj-col", name: "Phase 1", project: "Learn" }],
-        placements: [{ uuid: "a", columnId: "proj-col" }],
-    };
-    const a = makeTask("a", "Scoped task");
-    assert.equal(columnTasks([a], board, UNSECTIONED).length, 0);
-    assert.equal(
-        columnTasks([a], board, UNSECTIONED, new Set([UNSECTIONED])).length,
-        1,
-    );
+  const board = {
+    ...defaultBoard(),
+    columns: [{ id: "proj-col", name: "Phase 1", project: "Learn" }],
+    placements: [{ uuid: "a", columnId: "proj-col" }],
+  };
+  const a = makeTask("a", "Scoped task");
+  assert.equal(columnTasks([a], board, UNSECTIONED).length, 0);
+  assert.equal(
+    columnTasks([a], board, UNSECTIONED, new Set([UNSECTIONED])).length,
+    1,
+  );
 });

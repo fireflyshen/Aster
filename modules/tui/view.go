@@ -42,7 +42,10 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 				lines,
 				renderSpans(
 					[]styledSpan{
-						span(e.title, lipgloss.NewStyle().Foreground(muted).Bold(true)),
+						span(
+							e.title,
+							lipgloss.NewStyle().Foreground(muted).Bold(true),
+						),
 					},
 					rowW,
 					rowW,
@@ -87,10 +90,15 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 		} else if strings.HasPrefix(e.id, "filter:") {
 			filterID := strings.TrimPrefix(e.id, "filter:")
 			prefix = "★ "
-			if item, ok := findFilterByID(m.org, filterID); ok && item.Color != "" {
+			if item, ok := findFilterByID(
+				m.org,
+				filterID,
+			); ok &&
+				item.Color != "" {
 				dotColor = swatchColor(item.Color)
 				hasDot = true
-			} else if activeView && !cursorHere {
+			} else if activeView &&
+				!cursorHere {
 				dotColor = brand
 				hasDot = true
 			}
@@ -566,7 +574,10 @@ func (m model) list(w, h int, f renderFrame) string {
 				ls = append(ls, renderSpans(subSpans, rowW, rowW, selected))
 			}
 			if r.chart && rowW >= 12 {
-				ls = append(ls, "    "+renderStatisticBar(r.chartValue, r.chartMax, rowW-4))
+				ls = append(
+					ls,
+					"    "+renderStatisticBar(r.chartValue, r.chartMax, rowW-4),
+				)
 			}
 		}
 		blocks = append(blocks, block{i, ls})

@@ -16,8 +16,25 @@ func renderStatisticBar(value, maximum float64, width int) string {
 	if width < 1 {
 		return ""
 	}
-	chart := barchart.New(width, 1, barchart.WithHorizontalBars(), barchart.WithNoAxis(), barchart.WithNoAutoMaxValue(), barchart.WithMaxValue(math.Max(1, maximum)), barchart.WithBarGap(0))
-	chart.Push(barchart.BarData{Values: []barchart.BarValue{{Value: math.Max(0, value), Style: lipgloss.NewStyle().Foreground(muted)}}})
+	chart := barchart.New(
+		width,
+		1,
+		barchart.WithHorizontalBars(),
+		barchart.WithNoAxis(),
+		barchart.WithNoAutoMaxValue(),
+		barchart.WithMaxValue(math.Max(1, maximum)),
+		barchart.WithBarGap(0),
+	)
+	chart.Push(
+		barchart.BarData{
+			Values: []barchart.BarValue{
+				{
+					Value: math.Max(0, value),
+					Style: lipgloss.NewStyle().Foreground(muted),
+				},
+			},
+		},
+	)
 	chart.Draw()
 	return chart.View()
 }
@@ -55,7 +72,12 @@ func (m model) statisticRows() []row {
 		switch dim {
 		case "day":
 			for _, day := range w.Daily {
-				add(day.Date, day.Date, day.CoveredSeconds, day.ConfirmedCostCents)
+				add(
+					day.Date,
+					day.Date,
+					day.CoveredSeconds,
+					day.ConfirmedCostCents,
+				)
 			}
 		case "project", "tag":
 			seconds, costs := w.ByProjectSeconds, w.ByProjectCostCents
@@ -79,11 +101,21 @@ func (m model) statisticRows() []row {
 		switch dim {
 		case "task":
 			for _, task := range rep.ByTask {
-				add(task.TaskUUID, task.Title, task.PeriodSeconds, task.PeriodCostCents)
+				add(
+					task.TaskUUID,
+					task.Title,
+					task.PeriodSeconds,
+					task.PeriodCostCents,
+				)
 			}
 		case "project":
 			for _, project := range rep.ByProject {
-				add(project.ProjectKey, project.ProjectName, project.PeriodSeconds, project.PeriodCostCents)
+				add(
+					project.ProjectKey,
+					project.ProjectName,
+					project.PeriodSeconds,
+					project.PeriodCostCents,
+				)
 			}
 		default:
 			if dim == "day" {
@@ -96,7 +128,9 @@ func (m model) statisticRows() []row {
 				}
 			}
 			seen := map[string]bool{}
-			segments := append([]CostReportSegmentRef{}, rep.UnassignedSegments...)
+			segments := append(
+				[]CostReportSegmentRef{},
+				rep.UnassignedSegments...)
 			for _, project := range rep.ByProject {
 				segments = append(segments, project.Segments...)
 			}
@@ -104,13 +138,23 @@ func (m model) statisticRows() []row {
 				segments = append(segments, task.Segments...)
 			}
 			for _, segment := range segments {
-				id := fmt.Sprintf("%s:%d:%d", segment.ActivityID, segment.StartMs, segment.EndMs)
+				id := fmt.Sprintf(
+					"%s:%d:%d",
+					segment.ActivityID,
+					segment.StartMs,
+					segment.EndMs,
+				)
 				if seen[id] {
 					continue
 				}
 				seen[id] = true
 				if dim == "day" {
-					add(segment.Date, segment.Date, segment.ConfirmedSeconds, segment.ConfirmedCostCents)
+					add(
+						segment.Date,
+						segment.Date,
+						segment.ConfirmedSeconds,
+						segment.ConfirmedCostCents,
+					)
 					continue
 				}
 				tags := segment.Tags
@@ -127,7 +171,12 @@ func (m model) statisticRows() []row {
 					if tag == "__untagged__" {
 						label = "未设标签"
 					}
-					add(tag, label, segment.ConfirmedSeconds, segment.ConfirmedCostCents)
+					add(
+						tag,
+						label,
+						segment.ConfirmedSeconds,
+						segment.ConfirmedCostCents,
+					)
 				}
 			}
 		}
@@ -168,7 +217,24 @@ func (m model) statisticRows() []row {
 		if m.timeState.ChartMetric == "cost" {
 			metricLabel = "时间成本"
 		}
-		rows = append(rows, row{kind: kind, id: item.key, title: item.label, subtitle: fmt.Sprintf("%s · %s · 图表：%s%s", formatDurationShort(item.seconds), formatCurrencyCny(item.cost), metricLabel, hint), chart: true, chartValue: metric(item), chartMax: maximum})
+		rows = append(
+			rows,
+			row{
+				kind:  kind,
+				id:    item.key,
+				title: item.label,
+				subtitle: fmt.Sprintf(
+					"%s · %s · 图表：%s%s",
+					formatDurationShort(item.seconds),
+					formatCurrencyCny(item.cost),
+					metricLabel,
+					hint,
+				),
+				chart:      true,
+				chartValue: metric(item),
+				chartMax:   maximum,
+			},
+		)
 	}
 	return rows
 }
@@ -184,7 +250,10 @@ func projectTreeLabel(name string, entries []entry, index int) string {
 		hasNext := false
 		for _, next := range entries[index+1:] {
 			nextName := strings.TrimPrefix(next.id, "project:")
-			if strings.HasPrefix(next.id, "project:") && strings.HasPrefix(nextName, prefix) && strings.Count(nextName, ".") == depth && nextName != strings.Join(parts[:depth+1], ".") {
+			if strings.HasPrefix(next.id, "project:") &&
+				strings.HasPrefix(nextName, prefix) &&
+				strings.Count(nextName, ".") == depth &&
+				nextName != strings.Join(parts[:depth+1], ".") {
 				hasNext = true
 				break
 			}

@@ -1,566 +1,565 @@
 import type {
-    Activity,
-    ActivityPrecision,
-    BillExpenseItem,
-    BillLink,
-    CostReportGranularity,
-    CostReportSortBy,
-    CostReportSummary,
-    DailyLedgerSummary,
-    LocatedSegment,
-    TaskCostSummary,
-    TimeEvent,
-    TimePolicy,
-    TimerSnapshot,
-    TimingPlan,
-    WeeklyDistributionSummary,
+  Activity,
+  ActivityPrecision,
+  BillExpenseItem,
+  BillLink,
+  CostReportGranularity,
+  CostReportSortBy,
+  CostReportSummary,
+  DailyLedgerSummary,
+  LocatedSegment,
+  TaskCostSummary,
+  TimeEvent,
+  TimePolicy,
+  TimerSnapshot,
+  TimingPlan,
+  WeeklyDistributionSummary,
 } from "@core/time/model";
 import { api } from "@/lib/api";
 
 export type TimeStatusResponse = {
-    initialized?: boolean;
-    enabled: boolean;
-    available?: boolean;
-    restoring?: boolean;
-    state?: TimerSnapshot["state"];
-    schemaVersion?: number;
-    timeEpoch?: number;
-    taskDataEpoch?: number;
-    restoreBarrierAt?: number;
-    sessionVersion?: number;
-    pendingOperationsCount?: number;
-    cutoverAtMs?: number;
-    activeActivity?: Activity | null;
+  initialized?: boolean;
+  enabled: boolean;
+  available?: boolean;
+  restoring?: boolean;
+  state?: TimerSnapshot["state"];
+  schemaVersion?: number;
+  timeEpoch?: number;
+  taskDataEpoch?: number;
+  restoreBarrierAt?: number;
+  sessionVersion?: number;
+  pendingOperationsCount?: number;
+  cutoverAtMs?: number;
+  activeActivity?: Activity | null;
 };
 
 export type TimeReceipt = {
-    operationId: string;
-    idempotencyKey?: string;
-    ok?: boolean;
-    changed?: boolean;
-    activity?: Activity;
-    closedActivity?: Activity;
-    plan?: TimingPlan;
-    warnings?: string[];
-    undoneOperationId?: string;
+  operationId: string;
+  idempotencyKey?: string;
+  ok?: boolean;
+  changed?: boolean;
+  activity?: Activity;
+  closedActivity?: Activity;
+  plan?: TimingPlan;
+  warnings?: string[];
+  undoneOperationId?: string;
 };
 
 export type UnresolvedOperationItem = {
-    operationId: string;
-    idempotencyKey: string;
-    kind: string;
-    state: string;
-    targetTaskUuid?: string;
-    targetActivityId?: string;
-    externalDisposition?: string;
-    receivedAtMs: number;
-    effectiveAtMs?: number;
+  operationId: string;
+  idempotencyKey: string;
+  kind: string;
+  state: string;
+  targetTaskUuid?: string;
+  targetActivityId?: string;
+  externalDisposition?: string;
+  receivedAtMs: number;
+  effectiveAtMs?: number;
 };
 
 export type InspectOperationResponse = {
-    found: boolean;
-    operation: UnresolvedOperationItem | null;
-    suggestionHint?: string;
+  found: boolean;
+  operation: UnresolvedOperationItem | null;
+  suggestionHint?: string;
 };
 
 export type TimeReconcileDigest = {
-    date: string;
-    timezone: string;
-    asOfMs: number;
-    policyVersion: number;
-    sessionVersion: number;
-    timeEpoch: number;
-    coveredSeconds: number;
-    provisionalSeconds?: number;
-    reviewRequiredSeconds?: number;
-    unrecordedSeconds: number;
-    sleepCandidates: DailyLedgerSummary["sleepCandidates"];
-    gaps: DailyLedgerSummary["gaps"];
-    unlocatedEstimates: Activity[];
-    reviewItems: DailyLedgerSummary["locatedSegments"];
-    pendingOperations: UnresolvedOperationItem[];
+  date: string;
+  timezone: string;
+  asOfMs: number;
+  policyVersion: number;
+  sessionVersion: number;
+  timeEpoch: number;
+  coveredSeconds: number;
+  provisionalSeconds?: number;
+  reviewRequiredSeconds?: number;
+  unrecordedSeconds: number;
+  sleepCandidates: DailyLedgerSummary["sleepCandidates"];
+  gaps: DailyLedgerSummary["gaps"];
+  unlocatedEstimates: Activity[];
+  reviewItems: DailyLedgerSummary["locatedSegments"];
+  pendingOperations: UnresolvedOperationItem[];
 };
 
 export type TimewarriorImportPreview = {
-    snapshotHash: string;
-    cutoverAtMs: number;
-    alreadyImportedBatchId?: string;
-    totalIntervals: number;
-    importableCount: number;
-    skippedAfterCutoverCount: number;
-    conflictCount: number;
-    openAtCutoverCount: number;
-    rangeStartMs?: number;
-    rangeEndMs?: number;
-    openIntervalsAtCutover: Array<{
-        batchIndex: number;
-        startMs: number;
-        taskUuid?: string;
-        tags: string[];
-        title: string;
-    }>;
-    conflicts: Array<{
-        batchIndex: number;
-        title: string;
-        startMs: number;
-        endMs: number;
-        reason: string;
-    }>;
+  snapshotHash: string;
+  cutoverAtMs: number;
+  alreadyImportedBatchId?: string;
+  totalIntervals: number;
+  importableCount: number;
+  skippedAfterCutoverCount: number;
+  conflictCount: number;
+  openAtCutoverCount: number;
+  rangeStartMs?: number;
+  rangeEndMs?: number;
+  openIntervalsAtCutover: Array<{
+    batchIndex: number;
+    startMs: number;
+    taskUuid?: string;
+    tags: string[];
+    title: string;
+  }>;
+  conflicts: Array<{
+    batchIndex: number;
+    title: string;
+    startMs: number;
+    endMs: number;
+    reason: string;
+  }>;
 };
 
 export type TimeBackupPreview = {
-    token: string;
-    candidateSchemaVersion: number;
-    candidateCounts: {
-        activities: number;
-        operations: number;
-        importBatches: number;
-        hasOpenActivity: boolean;
-    };
-    currentCounts: {
-        activities: number;
-        timeEpoch: number;
-        taskDataEpoch: number;
-        sessionVersion: number;
-        hasOpenActivity: boolean;
-    };
-    warnings: string[];
+  token: string;
+  candidateSchemaVersion: number;
+  candidateCounts: {
+    activities: number;
+    operations: number;
+    importBatches: number;
+    hasOpenActivity: boolean;
+  };
+  currentCounts: {
+    activities: number;
+    timeEpoch: number;
+    taskDataEpoch: number;
+    sessionVersion: number;
+    hasOpenActivity: boolean;
+  };
+  warnings: string[];
 };
 
 export function makeTimeIdempotencyKey(prefix: string): string {
-    const uid =
-        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-            ? crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    return `${prefix}:${uid}`;
+  const uid =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}:${uid}`;
 }
 
 export function fetchTimeStatus(): Promise<TimeStatusResponse> {
-    return api<TimeStatusResponse>("time/status");
+  return api<TimeStatusResponse>("time/status");
 }
 
 export function fetchDailySummary(date?: string): Promise<DailyLedgerSummary> {
-    const qs = date ? `?date=${encodeURIComponent(date)}` : "";
-    return api<DailyLedgerSummary>(`time/daily${qs}`);
+  const qs = date ? `?date=${encodeURIComponent(date)}` : "";
+  return api<DailyLedgerSummary>(`time/daily${qs}`);
 }
 
 export function fetchWeeklySummary(
-    dateOrWeekStart?: string,
+  dateOrWeekStart?: string,
 ): Promise<WeeklyDistributionSummary> {
-    const qs = dateOrWeekStart
-        ? `?date=${encodeURIComponent(dateOrWeekStart)}`
-        : "";
-    return api<WeeklyDistributionSummary>(`time/weekly${qs}`);
+  const qs = dateOrWeekStart
+    ? `?date=${encodeURIComponent(dateOrWeekStart)}`
+    : "";
+  return api<WeeklyDistributionSummary>(`time/weekly${qs}`);
 }
 
 export function fetchReconcileDigest(
-    date?: string,
+  date?: string,
 ): Promise<TimeReconcileDigest> {
-    const qs = date ? `?date=${encodeURIComponent(date)}` : "";
-    return api<TimeReconcileDigest>(`time/reconcile-digest${qs}`);
+  const qs = date ? `?date=${encodeURIComponent(date)}` : "";
+  return api<TimeReconcileDigest>(`time/reconcile-digest${qs}`);
 }
 
 export function fetchTimePolicy(): Promise<TimePolicy> {
-    return api<TimePolicy>("time/policy");
+  return api<TimePolicy>("time/policy");
 }
 
 export function updateTimePolicy(input: {
-    expectedPolicyVersion: number;
-    patch: Partial<Omit<TimePolicy, "policyVersion">>;
+  expectedPolicyVersion: number;
+  patch: Partial<Omit<TimePolicy, "policyVersion">>;
 }): Promise<TimePolicy> {
-    return api<TimePolicy>("time/policy", {
-        idempotencyKey: makeTimeIdempotencyKey("web-policy"),
-        ...input,
-    });
+  return api<TimePolicy>("time/policy", {
+    idempotencyKey: makeTimeIdempotencyKey("web-policy"),
+    ...input,
+  });
 }
 
 export function inspectTimeOperation(
-    id: string,
+  id: string,
 ): Promise<InspectOperationResponse> {
-    return api<InspectOperationResponse>(
-        `time/operation?id=${encodeURIComponent(id)}`,
-    );
+  return api<InspectOperationResponse>(
+    `time/operation?id=${encodeURIComponent(id)}`,
+  );
 }
 
 export function resolveTimeOperation(input: {
-    operationId: string;
-    action: "dismiss" | "accept_started" | "stop_active";
-    effectiveAtMs?: number;
+  operationId: string;
+  action: "dismiss" | "accept_started" | "stop_active";
+  effectiveAtMs?: number;
 }): Promise<{
-    applied: boolean;
-    state: string;
-    receipt?: TimeReceipt;
+  applied: boolean;
+  state: string;
+  receipt?: TimeReceipt;
 }> {
-    return api("time/operation/resolve", input);
+  return api("time/operation/resolve", input);
 }
 
 export function startTimeActivity(input: {
-    title?: string;
-    timingPlanId?: string;
-    explicitCategoryId?: string;
-    taskUuid?: string;
-    projectSnapshot?: string;
-    tags?: string[];
-    note?: string;
-    expectedSessionVersion?: number;
+  title?: string;
+  timingPlanId?: string;
+  explicitCategoryId?: string;
+  taskUuid?: string;
+  projectSnapshot?: string;
+  tags?: string[];
+  note?: string;
+  expectedSessionVersion?: number;
 }): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/start", {
-        idempotencyKey: makeTimeIdempotencyKey("web-start"),
-        source: "manual",
-        ...input,
-    });
+  return api<TimeReceipt>("time/start", {
+    idempotencyKey: makeTimeIdempotencyKey("web-start"),
+    source: "manual",
+    ...input,
+  });
 }
 
 export function stopTimeActivity(input?: {
-    expectedActivityId?: string;
-    expectedVersion?: number;
-    expectedSessionVersion?: number;
-    pause?: boolean;
+  expectedActivityId?: string;
+  expectedVersion?: number;
+  expectedSessionVersion?: number;
+  pause?: boolean;
 }): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/stop", {
-        idempotencyKey: makeTimeIdempotencyKey("web-stop"),
-        ...(input || {}),
-    });
+  return api<TimeReceipt>("time/stop", {
+    idempotencyKey: makeTimeIdempotencyKey("web-stop"),
+    ...(input || {}),
+  });
 }
 
 export function confirmTimeActivity(input: {
-    activityId: string;
-    expectedVersion: number;
-    throughMs?: number;
-    nextCheckpointSeconds?: number;
+  activityId: string;
+  expectedVersion: number;
+  throughMs?: number;
+  nextCheckpointSeconds?: number;
 }): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/confirm", {
-        idempotencyKey: makeTimeIdempotencyKey("web-confirm"),
-        ...input,
-    });
+  return api<TimeReceipt>("time/confirm", {
+    idempotencyKey: makeTimeIdempotencyKey("web-confirm"),
+    ...input,
+  });
 }
 
 export function logTimeActivity(input: {
-    title: string;
-    startMs: number;
-    endMs: number;
-    explicitCategoryId?: string;
-    taskUuid?: string;
-    projectSnapshot?: string;
-    tags?: string[];
-    precision?: ActivityPrecision | "approximate";
-    note?: string;
+  title: string;
+  startMs: number;
+  endMs: number;
+  explicitCategoryId?: string;
+  taskUuid?: string;
+  projectSnapshot?: string;
+  tags?: string[];
+  precision?: ActivityPrecision | "approximate";
+  note?: string;
 }): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/log", {
-        idempotencyKey: makeTimeIdempotencyKey("web-log"),
-        source: "manual",
-        ...input,
-    });
+  return api<TimeReceipt>("time/log", {
+    idempotencyKey: makeTimeIdempotencyKey("web-log"),
+    source: "manual",
+    ...input,
+  });
 }
 
 export function estimateTimeActivity(input: {
-    title: string;
-    estimatedSeconds: number;
-    targetDate?: string;
-    windowStartMs?: number;
-    windowEndMs?: number;
-    explicitCategoryId?: string;
-    taskUuid?: string;
-    projectSnapshot?: string;
-    tags?: string[];
-    note?: string;
+  title: string;
+  estimatedSeconds: number;
+  targetDate?: string;
+  windowStartMs?: number;
+  windowEndMs?: number;
+  explicitCategoryId?: string;
+  taskUuid?: string;
+  projectSnapshot?: string;
+  tags?: string[];
+  note?: string;
 }): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/estimate", {
-        idempotencyKey: makeTimeIdempotencyKey("web-est"),
-        source: "manual",
-        ...input,
-    });
+  return api<TimeReceipt>("time/estimate", {
+    idempotencyKey: makeTimeIdempotencyKey("web-est"),
+    source: "manual",
+    ...input,
+  });
 }
 
 export function locateTimeEstimate(input: {
-    activityId: string;
-    expectedVersion: number;
-    startMs: number;
-    endMs: number;
+  activityId: string;
+  expectedVersion: number;
+  startMs: number;
+  endMs: number;
 }): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/locate", {
-        idempotencyKey: makeTimeIdempotencyKey("web-loc"),
-        ...input,
-    });
+  return api<TimeReceipt>("time/locate", {
+    idempotencyKey: makeTimeIdempotencyKey("web-loc"),
+    ...input,
+  });
 }
 
 export function updateTimeActivity(input: {
-    activityId: string;
-    expectedVersion: number;
-    patch: {
-        title?: string;
-        categoryId?: string;
-        projectSnapshot?: string | null;
-        tags?: string[] | null;
-        note?: string | null;
-        clearTaskLink?: boolean;
-        precision?: ActivityPrecision;
-        startMs?: number;
-        endMs?: number;
-        confirmReview?: boolean;
-        estimatedSeconds?: number;
-        targetDate?: string;
-        windowStartMs?: number | null;
-        windowEndMs?: number | null;
-    };
-}): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/update", {
-        idempotencyKey: makeTimeIdempotencyKey("web-upd"),
-        ...input,
-    });
-}
-
-export type TaskCostDetailResponse = {
-    summary: TaskCostSummary;
-    segments: LocatedSegment[];
-    plans: TimingPlan[];
-    billLinks: BillLink[];
-};
-
-export function fetchTaskCostDetail(
-    taskUuid: string,
-): Promise<TaskCostDetailResponse> {
-    return api<TaskCostDetailResponse>(
-        `time/task-detail?taskUuid=${encodeURIComponent(taskUuid)}`,
-    );
-}
-
-export function setTaskBudget(input: {
-    taskUuid: string;
-    mode?: "set" | "add" | "clear";
-    allowanceSeconds?: number | null;
-    addAllowanceSeconds?: number;
-    plannedStartAtMs?: number | null;
-    plannedStartDate?: string;
-    plannedStartTime?: string | null;
-    hardStopAtMs?: number | null;
-    hardStopDate?: string;
-    hardStopTime?: string | null;
-}): Promise<{ summary: TaskCostSummary }> {
-    return api<{ summary: TaskCostSummary }>("time/task-budget", input);
-}
-
-export function fetchCostReport(options: {
-    granularity: CostReportGranularity;
-    date?: string;
-    sortBy: CostReportSortBy;
-}): Promise<CostReportSummary> {
-    const params = new URLSearchParams();
-    params.set("granularity", options.granularity);
-    if (options.date) params.set("date", options.date);
-    params.set("sortBy", options.sortBy);
-    return api<CostReportSummary>(`time/cost-report?${params.toString()}`);
-}
-
-export function fetchBillExpenses(options?: {
-    q?: string;
-    fromDate?: string;
-    toDate?: string;
-    limit?: number;
-}): Promise<{ available: boolean; expenses: BillExpenseItem[] }> {
-    const params = new URLSearchParams();
-    if (options?.q) params.set("q", options.q);
-    if (options?.fromDate) params.set("fromDate", options.fromDate);
-    if (options?.toDate) params.set("toDate", options.toDate);
-    if (options?.limit !== undefined)
-        params.set("limit", String(options.limit));
-    const qs = params.toString();
-    return api<{ available: boolean; expenses: BillExpenseItem[] }>(
-        `time/bills/expenses${qs ? `?${qs}` : ""}`,
-    );
-}
-
-export function linkBillExpense(input: {
-    txKey: string;
-    taskUuid?: string;
-    activityId?: string;
-    source: string;
-    txId: string;
-    payTime: string;
-    payee: string;
-    narration: string;
-    account: string;
-    currency: string;
-    amount: number;
-    cnyAmountCents: number;
-    note?: string;
-}): Promise<{ link: BillLink }> {
-    return api<{ link: BillLink }>("time/bills/link", input);
-}
-
-export function unlinkBillLink(linkId: string): Promise<{ deleted: boolean }> {
-    return api<{ deleted: boolean }>("time/bills/unlink", { linkId });
-}
-
-export function undoTimeOperation(
-    targetOperationId: string,
-): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/undo", {
-        idempotencyKey: makeTimeIdempotencyKey("web-undo"),
-        targetOperationId,
-    });
-}
-
-export function confirmSleepCandidate(date: string): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/sleep/confirm", {
-        idempotencyKey: makeTimeIdempotencyKey("web-sleep-ok"),
-        date,
-    });
-}
-
-export function dismissSleepCandidate(date: string): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/sleep/dismiss", {
-        idempotencyKey: makeTimeIdempotencyKey("web-sleep-skip"),
-        date,
-    });
-}
-
-export function previewTimewarriorImport(input?: {
-    cutoverAtMs?: number;
-    clipOpenToCutover?: boolean;
-}): Promise<TimewarriorImportPreview> {
-    return api<TimewarriorImportPreview>("time/import/preview", input || {});
-}
-
-export function applyTimewarriorImport(input?: {
-    cutoverAtMs?: number;
-    clipOpenToCutover?: boolean;
-}): Promise<{
-    batchId: string;
-    snapshotHash: string;
-    reusedExistingBatch: boolean;
-    importedCount: number;
-    conflictCount: number;
-    skippedCount: number;
-    createdActivityIds: string[];
-}> {
-    return api("time/import/apply", input || {});
-}
-
-export function exportTimeBackup(): Promise<{
-    format: string;
-    version: number;
-    manifest: Record<string, unknown>;
-    barrier: Record<string, unknown>;
-    sqliteBase64: string;
-}> {
-    return api("time/backup/export");
-}
-
-export function previewTimeBackupRestore(
-    sqliteBase64: string,
-): Promise<TimeBackupPreview> {
-    return api<TimeBackupPreview>("time/backup/preview", { sqliteBase64 });
-}
-
-export function applyTimeBackupRestore(token: string): Promise<{
-    restoreId: string;
-    preRestoreDir: string;
-    timeEpoch: number;
-    taskDataEpoch: number;
-    restoreBarrierAt: number;
-    frozenActiveActivityId: string | null;
-    pendingOperationsCount: number;
-}> {
-    return api("time/backup/restore", { token });
-}
-
-export function fetchTimingPlans(input?: {
-    includeArchived?: boolean;
-    taskUuid?: string;
-}): Promise<TimingPlan[]> {
-    const params = new URLSearchParams();
-    if (input?.includeArchived) params.set("includeArchived", "1");
-    if (input?.taskUuid) params.set("taskUuid", input.taskUuid);
-    const qs = params.toString() ? `?${params.toString()}` : "";
-    return api<{ plans: TimingPlan[] }>(`time/plans${qs}`).then(
-        (res) => res.plans,
-    );
-}
-
-export function createTimingPlan(input: {
-    title: string;
-    categoryId?: string;
-    taskUuid?: string;
-    projectSnapshot?: string;
-    tags?: string[];
-    note?: string;
-    allowanceSeconds?: number;
-    allowanceMinutes?: number;
-    plannedStartAtMs?: number;
-    plannedStartDate?: string;
-    plannedStartTime?: string;
-    hardStopAtMs?: number;
-    hardStopDate?: string;
-    hardStopTime?: string;
-}): Promise<{ operationId: string; plan: TimingPlan }> {
-    return api("time/plans/create", {
-        idempotencyKey: makeTimeIdempotencyKey("web-plan"),
-        ...input,
-    });
-}
-
-export function updateTimingPlan(input: {
-    planId: string;
-    expectedVersion: number;
-    expectedSessionVersion?: number;
-    expectedActivityId?: string;
-    expectedActivityVersion?: number;
+  activityId: string;
+  expectedVersion: number;
+  patch: {
     title?: string;
-    categoryId?: string | null;
-    taskUuid?: string | null;
+    categoryId?: string;
     projectSnapshot?: string | null;
     tags?: string[] | null;
     note?: string | null;
-    allowanceSeconds?: number | null;
-    allowanceMinutes?: number | null;
-    addAllowanceSeconds?: number;
-    addAllowanceMinutes?: number;
-    plannedStartAtMs?: number | null;
-    plannedStartDate?: string;
-    plannedStartTime?: string | null;
-    hardStopAtMs?: number | null;
-    hardStopDate?: string;
-    hardStopTime?: string | null;
-    archived?: boolean;
+    clearTaskLink?: boolean;
+    precision?: ActivityPrecision;
+    startMs?: number;
+    endMs?: number;
+    confirmReview?: boolean;
+    estimatedSeconds?: number;
+    targetDate?: string;
+    windowStartMs?: number | null;
+    windowEndMs?: number | null;
+  };
+}): Promise<TimeReceipt> {
+  return api<TimeReceipt>("time/update", {
+    idempotencyKey: makeTimeIdempotencyKey("web-upd"),
+    ...input,
+  });
+}
+
+export type TaskCostDetailResponse = {
+  summary: TaskCostSummary;
+  segments: LocatedSegment[];
+  plans: TimingPlan[];
+  billLinks: BillLink[];
+};
+
+export function fetchTaskCostDetail(
+  taskUuid: string,
+): Promise<TaskCostDetailResponse> {
+  return api<TaskCostDetailResponse>(
+    `time/task-detail?taskUuid=${encodeURIComponent(taskUuid)}`,
+  );
+}
+
+export function setTaskBudget(input: {
+  taskUuid: string;
+  mode?: "set" | "add" | "clear";
+  allowanceSeconds?: number | null;
+  addAllowanceSeconds?: number;
+  plannedStartAtMs?: number | null;
+  plannedStartDate?: string;
+  plannedStartTime?: string | null;
+  hardStopAtMs?: number | null;
+  hardStopDate?: string;
+  hardStopTime?: string | null;
+}): Promise<{ summary: TaskCostSummary }> {
+  return api<{ summary: TaskCostSummary }>("time/task-budget", input);
+}
+
+export function fetchCostReport(options: {
+  granularity: CostReportGranularity;
+  date?: string;
+  sortBy: CostReportSortBy;
+}): Promise<CostReportSummary> {
+  const params = new URLSearchParams();
+  params.set("granularity", options.granularity);
+  if (options.date) params.set("date", options.date);
+  params.set("sortBy", options.sortBy);
+  return api<CostReportSummary>(`time/cost-report?${params.toString()}`);
+}
+
+export function fetchBillExpenses(options?: {
+  q?: string;
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
+}): Promise<{ available: boolean; expenses: BillExpenseItem[] }> {
+  const params = new URLSearchParams();
+  if (options?.q) params.set("q", options.q);
+  if (options?.fromDate) params.set("fromDate", options.fromDate);
+  if (options?.toDate) params.set("toDate", options.toDate);
+  if (options?.limit !== undefined) params.set("limit", String(options.limit));
+  const qs = params.toString();
+  return api<{ available: boolean; expenses: BillExpenseItem[] }>(
+    `time/bills/expenses${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export function linkBillExpense(input: {
+  txKey: string;
+  taskUuid?: string;
+  activityId?: string;
+  source: string;
+  txId: string;
+  payTime: string;
+  payee: string;
+  narration: string;
+  account: string;
+  currency: string;
+  amount: number;
+  cnyAmountCents: number;
+  note?: string;
+}): Promise<{ link: BillLink }> {
+  return api<{ link: BillLink }>("time/bills/link", input);
+}
+
+export function unlinkBillLink(linkId: string): Promise<{ deleted: boolean }> {
+  return api<{ deleted: boolean }>("time/bills/unlink", { linkId });
+}
+
+export function undoTimeOperation(
+  targetOperationId: string,
+): Promise<TimeReceipt> {
+  return api<TimeReceipt>("time/undo", {
+    idempotencyKey: makeTimeIdempotencyKey("web-undo"),
+    targetOperationId,
+  });
+}
+
+export function confirmSleepCandidate(date: string): Promise<TimeReceipt> {
+  return api<TimeReceipt>("time/sleep/confirm", {
+    idempotencyKey: makeTimeIdempotencyKey("web-sleep-ok"),
+    date,
+  });
+}
+
+export function dismissSleepCandidate(date: string): Promise<TimeReceipt> {
+  return api<TimeReceipt>("time/sleep/dismiss", {
+    idempotencyKey: makeTimeIdempotencyKey("web-sleep-skip"),
+    date,
+  });
+}
+
+export function previewTimewarriorImport(input?: {
+  cutoverAtMs?: number;
+  clipOpenToCutover?: boolean;
+}): Promise<TimewarriorImportPreview> {
+  return api<TimewarriorImportPreview>("time/import/preview", input || {});
+}
+
+export function applyTimewarriorImport(input?: {
+  cutoverAtMs?: number;
+  clipOpenToCutover?: boolean;
 }): Promise<{
-    operationId: string;
-    plan: TimingPlan;
-    updatedActivity?: Activity;
-    sessionVersion: number;
+  batchId: string;
+  snapshotHash: string;
+  reusedExistingBatch: boolean;
+  importedCount: number;
+  conflictCount: number;
+  skippedCount: number;
+  createdActivityIds: string[];
 }> {
-    return api("time/plans/update", {
-        idempotencyKey: makeTimeIdempotencyKey("web-plan-upd"),
-        ...input,
-    });
+  return api("time/import/apply", input || {});
+}
+
+export function exportTimeBackup(): Promise<{
+  format: string;
+  version: number;
+  manifest: Record<string, unknown>;
+  barrier: Record<string, unknown>;
+  sqliteBase64: string;
+}> {
+  return api("time/backup/export");
+}
+
+export function previewTimeBackupRestore(
+  sqliteBase64: string,
+): Promise<TimeBackupPreview> {
+  return api<TimeBackupPreview>("time/backup/preview", { sqliteBase64 });
+}
+
+export function applyTimeBackupRestore(token: string): Promise<{
+  restoreId: string;
+  preRestoreDir: string;
+  timeEpoch: number;
+  taskDataEpoch: number;
+  restoreBarrierAt: number;
+  frozenActiveActivityId: string | null;
+  pendingOperationsCount: number;
+}> {
+  return api("time/backup/restore", { token });
+}
+
+export function fetchTimingPlans(input?: {
+  includeArchived?: boolean;
+  taskUuid?: string;
+}): Promise<TimingPlan[]> {
+  const params = new URLSearchParams();
+  if (input?.includeArchived) params.set("includeArchived", "1");
+  if (input?.taskUuid) params.set("taskUuid", input.taskUuid);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return api<{ plans: TimingPlan[] }>(`time/plans${qs}`).then(
+    (res) => res.plans,
+  );
+}
+
+export function createTimingPlan(input: {
+  title: string;
+  categoryId?: string;
+  taskUuid?: string;
+  projectSnapshot?: string;
+  tags?: string[];
+  note?: string;
+  allowanceSeconds?: number;
+  allowanceMinutes?: number;
+  plannedStartAtMs?: number;
+  plannedStartDate?: string;
+  plannedStartTime?: string;
+  hardStopAtMs?: number;
+  hardStopDate?: string;
+  hardStopTime?: string;
+}): Promise<{ operationId: string; plan: TimingPlan }> {
+  return api("time/plans/create", {
+    idempotencyKey: makeTimeIdempotencyKey("web-plan"),
+    ...input,
+  });
+}
+
+export function updateTimingPlan(input: {
+  planId: string;
+  expectedVersion: number;
+  expectedSessionVersion?: number;
+  expectedActivityId?: string;
+  expectedActivityVersion?: number;
+  title?: string;
+  categoryId?: string | null;
+  taskUuid?: string | null;
+  projectSnapshot?: string | null;
+  tags?: string[] | null;
+  note?: string | null;
+  allowanceSeconds?: number | null;
+  allowanceMinutes?: number | null;
+  addAllowanceSeconds?: number;
+  addAllowanceMinutes?: number;
+  plannedStartAtMs?: number | null;
+  plannedStartDate?: string;
+  plannedStartTime?: string | null;
+  hardStopAtMs?: number | null;
+  hardStopDate?: string;
+  hardStopTime?: string | null;
+  archived?: boolean;
+}): Promise<{
+  operationId: string;
+  plan: TimingPlan;
+  updatedActivity?: Activity;
+  sessionVersion: number;
+}> {
+  return api("time/plans/update", {
+    idempotencyKey: makeTimeIdempotencyKey("web-plan-upd"),
+    ...input,
+  });
 }
 
 export function startTimingPlan(input: {
-    planId: string;
-    expectedSessionVersion?: number;
-    sameTaskNoop?: boolean;
+  planId: string;
+  expectedSessionVersion?: number;
+  sameTaskNoop?: boolean;
 }): Promise<TimeReceipt> {
-    return api<TimeReceipt>("time/plans/start", {
-        idempotencyKey: makeTimeIdempotencyKey("web-plan-start"),
-        ...input,
-    });
+  return api<TimeReceipt>("time/plans/start", {
+    idempotencyKey: makeTimeIdempotencyKey("web-plan-start"),
+    ...input,
+  });
 }
 
 export function fetchTimeEvents(input?: {
-    includeAcknowledged?: boolean;
-    limit?: number;
+  includeAcknowledged?: boolean;
+  limit?: number;
 }): Promise<TimeEvent[]> {
-    const params = new URLSearchParams();
-    if (input?.includeAcknowledged) params.set("includeAcknowledged", "1");
-    if (input?.limit !== undefined) params.set("limit", String(input.limit));
-    const qs = params.toString() ? `?${params.toString()}` : "";
-    return api<{ events: TimeEvent[] }>(`time/events${qs}`).then(
-        (res) => res.events,
-    );
+  const params = new URLSearchParams();
+  if (input?.includeAcknowledged) params.set("includeAcknowledged", "1");
+  if (input?.limit !== undefined) params.set("limit", String(input.limit));
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return api<{ events: TimeEvent[] }>(`time/events${qs}`).then(
+    (res) => res.events,
+  );
 }
 
 export function ackTimeEvents(
-    eventIds: string[],
+  eventIds: string[],
 ): Promise<{ acknowledgedCount: number }> {
-    return api("time/events/ack", { eventIds });
+  return api("time/events/ack", { eventIds });
 }

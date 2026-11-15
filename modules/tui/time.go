@@ -996,8 +996,13 @@ func (m *model) syncTimeExtraRows() {
 		}
 
 		if m.timeState.Daily != nil {
-			segments := append([]LocatedSegment{}, m.timeState.Daily.LocatedSegments...)
-			sort.SliceStable(segments, func(i, j int) bool { return segments[i].StartMs < segments[j].StartMs })
+			segments := append(
+				[]LocatedSegment{},
+				m.timeState.Daily.LocatedSegments...)
+			sort.SliceStable(
+				segments,
+				func(i, j int) bool { return segments[i].StartMs < segments[j].StartMs },
+			)
 			for _, seg := range segments {
 				costText := formatCurrencyCny(seg.ConfirmedCostCents)
 				if seg.ProvisionalCostCents > 0 {
@@ -1203,7 +1208,8 @@ func (m *model) syncTimeExtraRows() {
 			byID[stat.id] = stat
 		}
 		for i := range out {
-			if stat, ok := byID[out[i].id]; ok && (out[i].kind == "time.report_task" || out[i].kind == "time.report_project") {
+			if stat, ok := byID[out[i].id]; ok &&
+				(out[i].kind == "time.report_task" || out[i].kind == "time.report_project") {
 				out[i].chart = true
 				out[i].chartValue = stat.chartValue
 				out[i].chartMax = stat.chartMax

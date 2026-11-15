@@ -152,8 +152,14 @@ func isUrgencyFilterView(view string) bool {
 
 func isCompletedFilterView(org Organization, view, expr string) bool {
 	if strings.HasPrefix(view, "filter:") {
-		if f, ok := findFilterByID(org, strings.TrimPrefix(view, "filter:")); ok {
-			return strings.Contains(strings.ToLower(f.Expression), "status:completed")
+		if f, ok := findFilterByID(
+			org,
+			strings.TrimPrefix(view, "filter:"),
+		); ok {
+			return strings.Contains(
+				strings.ToLower(f.Expression),
+				"status:completed",
+			)
 		}
 	}
 	return strings.Contains(strings.ToLower(expr), "status:completed")

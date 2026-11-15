@@ -449,7 +449,8 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 	case "org":
 		q := strings.ToLower(m.query)
 		matchOrg := func(title, desc, expr string) bool {
-			return q == "" || strings.Contains(strings.ToLower(title+" "+desc+" "+expr), q)
+			return q == "" ||
+				strings.Contains(strings.ToLower(title+" "+desc+" "+expr), q)
 		}
 		var customRows []row
 		for _, f := range m.org.Filters {
@@ -483,7 +484,11 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 			if rf.Hidden && !m.showHiddenBuiltin {
 				continue
 			}
-			if !matchOrg(rf.Item.Name, rf.Item.Description, rf.Item.Expression) {
+			if !matchOrg(
+				rf.Item.Name,
+				rf.Item.Description,
+				rf.Item.Expression,
+			) {
 				continue
 			}
 			title := rf.Item.Name
