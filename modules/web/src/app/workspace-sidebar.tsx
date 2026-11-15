@@ -35,6 +35,7 @@ import {
   Inbox,
   PanelLeft,
   Plus,
+  ReceiptText,
   Search,
   SlidersHorizontal,
   Target,
@@ -399,6 +400,18 @@ export function WorkspaceSidebar({
             >
               <BarChart3 className="size-[18px] text-muted-foreground" />
               本周分布
+            </Button>
+            <Button
+              variant="navigation"
+              aria-current={timePage === "reports" ? "page" : undefined}
+              disabled={disabled}
+              onClick={() => {
+                onOpenTimePage("reports");
+                closeOnMobile();
+              }}
+            >
+              <ReceiptText className="size-[18px] text-muted-foreground" />
+              成本报告
             </Button>
             <Button
               variant="navigation"

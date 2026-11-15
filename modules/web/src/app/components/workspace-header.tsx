@@ -169,6 +169,7 @@ type WorkspaceHeadingProps = {
 const TIME_PAGE_TITLES: Record<TimePage, string> = {
   today: "今日时间线",
   weekly: "本周分布",
+  reports: "成本报告",
   settings: "时间设置",
 };
 

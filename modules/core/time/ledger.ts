@@ -1,3 +1,13 @@
+import {
+  computeDurationCostCents,
+  normalizeActivityTags,
+  normalizeHourlyRateCents,
+  resolveEffectiveActivityEndMs,
+  resolveEffectiveConfirmedEndMs,
+  secondsDelta,
+  UNASSIGNED_PROJECT_KEY,
+  UNTAGGED_KEY,
+} from "./cost.ts";
 import type {
   Activity,
   DailyLedgerSummary,
@@ -34,36 +44,14 @@ export function effectiveActivityEndMs(
   activity: Activity,
   referenceNowMs: number,
 ): number | undefined {
-  if (activity.kind !== "located" || activity.startMs === undefined) {
-    return undefined;
-  }
-  if (activity.endMs !== undefined) {
-    return activity.endMs;
-  }
-  let upper = referenceNowMs;
-  if (activity.suspendMs !== undefined) {
-    upper = Math.min(upper, activity.suspendMs);
-  }
-  if (activity.autoStopAtMs !== undefined) {
-    upper = Math.min(upper, activity.autoStopAtMs);
-  }
-  return upper;
+  return resolveEffectiveActivityEndMs(activity, referenceNowMs);
 }
 
 export function effectiveConfirmedEndMs(
   activity: Activity,
   effectiveEndMs: number,
 ): number {
-  if (activity.startMs === undefined || effectiveEndMs <= activity.startMs) {
-    return activity.startMs ?? 0;
-  }
-  if (activity.confirmedThroughMs !== undefined) {
-    return Math.max(
-      activity.startMs,
-      Math.min(effectiveEndMs, activity.confirmedThroughMs),
-    );
-  }
-  return activity.reviewState === "ok" ? effectiveEndMs : activity.startMs;
+  return resolveEffectiveConfirmedEndMs(activity, effectiveEndMs);
 }
 
 export function sleepCandidateKey(
@@ -139,12 +127,6 @@ export function buildSleepCandidateForDate(
   };
 }
 
-function secondsDelta(startMs: number, endMs: number): number {
-  const s = Math.floor(startMs / 1000);
-  const e = Math.floor(endMs / 1000);
-  return Math.max(0, e - s);
-}
-
 function unlocatedAppliesToRange(
   activity: Activity,
   rangeStartMs: number,
@@ -187,10 +169,17 @@ export function computeDailyLedger(
   const pastEndMs = Math.max(dayStartMs, asOfMs);
   const pastCapacitySeconds = secondsDelta(dayStartMs, pastEndMs);
 
+  const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
   const byCategorySeconds: Record<string, number> = Object.create(null);
+  const byProjectSeconds: Record<string, number> = Object.create(null);
+  const byProjectCostCents: Record<string, number> = Object.create(null);
+  const byTagSeconds: Record<string, number> = Object.create(null);
+  const byTagCostCents: Record<string, number> = Object.create(null);
   const locatedSegments: LocatedSegment[] = [];
   let coveredSeconds = 0;
   let provisionalSeconds = 0;
+  let confirmedCostCents = 0;
+  let provisionalCostCents = 0;
   let estimatedBoundsSeconds = 0;
   let reviewRequiredSeconds = 0;
 
@@ -225,12 +214,44 @@ export function computeDailyLedger(
       0,
       durationSeconds - confirmedSeconds,
     );
+    const rateCents = normalizeHourlyRateCents(
+      activity.hourlyRateCents,
+      policyRate,
+    );
+    const segConfirmedCostCents = computeDurationCostCents(
+      confirmedSeconds,
+      rateCents,
+    );
+    const segProvisionalCostCents = computeDurationCostCents(
+      segmentProvisionalSeconds,
+      rateCents,
+    );
+    const tags = normalizeActivityTags(activity.tags);
+    const projectKey = activity.projectSnapshot?.trim() || UNASSIGNED_PROJECT_KEY;
 
     coveredSeconds += confirmedSeconds;
     provisionalSeconds += segmentProvisionalSeconds;
+    confirmedCostCents += segConfirmedCostCents;
+    provisionalCostCents += segProvisionalCostCents;
     if (confirmedSeconds > 0) {
       byCategorySeconds[activity.categoryId] =
         (byCategorySeconds[activity.categoryId] || 0) + confirmedSeconds;
+      byProjectSeconds[projectKey] =
+        (byProjectSeconds[projectKey] || 0) + confirmedSeconds;
+      byProjectCostCents[projectKey] =
+        (byProjectCostCents[projectKey] || 0) + segConfirmedCostCents;
+      if (tags.length > 0) {
+        for (const tag of tags) {
+          byTagSeconds[tag] = (byTagSeconds[tag] || 0) + confirmedSeconds;
+          byTagCostCents[tag] =
+            (byTagCostCents[tag] || 0) + segConfirmedCostCents;
+        }
+      } else {
+        byTagSeconds[UNTAGGED_KEY] =
+          (byTagSeconds[UNTAGGED_KEY] || 0) + confirmedSeconds;
+        byTagCostCents[UNTAGGED_KEY] =
+          (byTagCostCents[UNTAGGED_KEY] || 0) + segConfirmedCostCents;
+      }
     }
 
     if (activity.precision === "estimated_bounds") {
@@ -266,11 +287,15 @@ export function computeDailyLedger(
       ...(activity.projectSnapshot
         ? { projectSnapshot: activity.projectSnapshot }
         : {}),
+      ...(tags.length > 0 ? { tags } : {}),
+      hourlyRateCents: rateCents,
       startMs: clippedStartMs,
       endMs: clippedEndMs,
       durationSeconds,
       confirmedSeconds,
       provisionalSeconds: segmentProvisionalSeconds,
+      confirmedCostCents: segConfirmedCostCents,
+      provisionalCostCents: segProvisionalCostCents,
       running:
         activity.endMs === undefined &&
         activity.suspendMs === undefined &&
@@ -358,10 +383,16 @@ export function computeDailyLedger(
     pastCapacitySeconds,
     coveredSeconds,
     provisionalSeconds,
+    confirmedCostCents,
+    provisionalCostCents,
     unrecordedSeconds,
     estimatedBoundsSeconds,
     reviewRequiredSeconds,
     byCategorySeconds,
+    byProjectSeconds,
+    byProjectCostCents,
+    byTagSeconds,
+    byTagCostCents,
     locatedSegments,
     unlocatedEstimates,
     sleepCandidates: candidate ? [candidate] : [],
@@ -393,9 +424,15 @@ export function computeWeeklyDistribution(
   );
 
   const byCategorySeconds: Record<string, number> = Object.create(null);
+  const byProjectSeconds: Record<string, number> = Object.create(null);
+  const byProjectCostCents: Record<string, number> = Object.create(null);
+  const byTagSeconds: Record<string, number> = Object.create(null);
+  const byTagCostCents: Record<string, number> = Object.create(null);
   let pastCapacitySeconds = 0;
   let coveredSeconds = 0;
   let provisionalSeconds = 0;
+  let confirmedCostCents = 0;
+  let provisionalCostCents = 0;
   let unrecordedSeconds = 0;
   let estimatedBoundsSeconds = 0;
   let reviewRequiredSeconds = 0;
@@ -404,11 +441,25 @@ export function computeWeeklyDistribution(
     pastCapacitySeconds += day.pastCapacitySeconds;
     coveredSeconds += day.coveredSeconds;
     provisionalSeconds += day.provisionalSeconds;
+    confirmedCostCents += day.confirmedCostCents;
+    provisionalCostCents += day.provisionalCostCents;
     unrecordedSeconds += day.unrecordedSeconds;
     estimatedBoundsSeconds += day.estimatedBoundsSeconds;
     reviewRequiredSeconds += day.reviewRequiredSeconds;
     for (const [cat, secs] of Object.entries(day.byCategorySeconds)) {
       byCategorySeconds[cat] = (byCategorySeconds[cat] || 0) + secs;
+    }
+    for (const [proj, secs] of Object.entries(day.byProjectSeconds)) {
+      byProjectSeconds[proj] = (byProjectSeconds[proj] || 0) + secs;
+    }
+    for (const [proj, cost] of Object.entries(day.byProjectCostCents)) {
+      byProjectCostCents[proj] = (byProjectCostCents[proj] || 0) + cost;
+    }
+    for (const [tag, secs] of Object.entries(day.byTagSeconds)) {
+      byTagSeconds[tag] = (byTagSeconds[tag] || 0) + secs;
+    }
+    for (const [tag, cost] of Object.entries(day.byTagCostCents)) {
+      byTagCostCents[tag] = (byTagCostCents[tag] || 0) + cost;
     }
   }
 
@@ -433,10 +484,16 @@ export function computeWeeklyDistribution(
     pastCapacitySeconds,
     coveredSeconds,
     provisionalSeconds,
+    confirmedCostCents,
+    provisionalCostCents,
     unrecordedSeconds,
     estimatedBoundsSeconds,
     reviewRequiredSeconds,
     byCategorySeconds,
+    byProjectSeconds,
+    byProjectCostCents,
+    byTagSeconds,
+    byTagCostCents,
     unlocatedEstimates,
     daily,
   };

@@ -1,8 +1,11 @@
 import type { TaskService } from "../../../core/tasks/service.ts";
 import { exportTimewarrior } from "../../../core/tasks/timewarrior.ts";
+import type { CostReportTaskMeta } from "../../../core/time/cost.ts";
 import type {
   ActivityKind,
   ActivitySource,
+  CostReportGranularity,
+  CostReportSortBy,
   TimePolicy,
 } from "../../../core/time/model.ts";
 import { localDateOf } from "../../../core/time/zone.ts";
@@ -133,6 +136,27 @@ export function createTimeHandlers(deps: {
     }
   }
 
+  async function loadCostReportTaskMeta(): Promise<
+    Map<string, CostReportTaskMeta> | undefined
+  > {
+    try {
+      const tasks = await service.exportTasks();
+      const map = new Map<string, CostReportTaskMeta>();
+      for (const t of tasks) {
+        map.set(t.uuid.toLowerCase(), {
+          title: t.description,
+          project: typeof t.project === "string" && t.project ? t.project : undefined,
+          tags: Array.isArray(t.tags)
+            ? t.tags.filter((x): x is string => typeof x === "string")
+            : undefined,
+        });
+      }
+      return map;
+    } catch {
+      return undefined;
+    }
+  }
+
   let restoringTime = false;
 
   const routes: WorkspaceRouteSpec[] = [
@@ -195,6 +219,7 @@ export function createTimeHandlers(deps: {
               liveUntil: ts,
               activeActivity: null,
               taskTotalsSeconds: {},
+              taskCosts: {},
               totalsComplete: false,
               historyComplete: false,
             },
@@ -238,6 +263,157 @@ export function createTimeHandlers(deps: {
           status: 200,
           body: s.getWeeklySummary(dateOrWeekStart),
         };
+      },
+    },
+    {
+      method: "GET",
+      route: "api/time/task-detail",
+      handle: async ({ searchParams }) => {
+        const s = requireStore();
+        const taskUuid = searchParams.get("taskUuid") || "";
+        if (!taskUuid.trim()) {
+          throw new TimeStoreError(
+            400,
+            "MISSING_FIELD",
+            "Missing required query param: taskUuid.",
+          );
+        }
+        return {
+          status: 200,
+          body: s.getTaskCostDetail({ taskUuid }),
+        };
+      },
+    },
+    {
+      method: "POST",
+      route: "api/time/task-budget",
+      handle: async ({ readBody }) => {
+        const s = requireEnabledStore();
+        const body = await readBody();
+        const status = s.getStatus();
+        const tz = status.policy.timezone;
+        const today = defaultDate(s);
+        const taskUuid = requiredString(body.taskUuid, "taskUuid", 64);
+        const mode = optionalString(body.mode, 16) as
+          | "set"
+          | "add"
+          | "clear"
+          | undefined;
+        const plannedStartAtMs = parseTimestampInput(body, {
+          msKey: "plannedStartAtMs",
+          isoKey: "plannedStartAtIso",
+          dateKey: "plannedStartDate",
+          timeKey: "plannedStartTime",
+          timeZone: tz,
+          defaultDate: today,
+        });
+        const hardStopAtMs = parseTimestampInput(body, {
+          msKey: "hardStopAtMs",
+          isoKey: "hardStopAtIso",
+          dateKey: "hardStopDate",
+          timeKey: "hardStopTime",
+          timeZone: tz,
+          defaultDate: today,
+        });
+        const allowanceSeconds = optionalNullableNumber(
+          body.allowanceSeconds,
+          "allowanceSeconds",
+        );
+        const addAllowanceSeconds = optionalNumber(body.addAllowanceSeconds);
+        return {
+          status: 200,
+          body: {
+            summary: s.setTaskBudget({
+              taskUuid,
+              mode,
+              allowanceSeconds,
+              addAllowanceSeconds,
+              plannedStartAtMs,
+              hardStopAtMs,
+            }),
+          },
+        };
+      },
+    },
+    {
+      method: "GET",
+      route: "api/time/cost-report",
+      handle: async ({ searchParams }) => {
+        const s = requireStore();
+        const rawGran = searchParams.get("granularity");
+        const granularity: CostReportGranularity =
+          rawGran === "month" ? "month" : "week";
+        const date = searchParams.get("date") || defaultDate(s);
+        const rawSort = searchParams.get("sortBy");
+        const sortBy: CostReportSortBy =
+          rawSort === "highest_over_budget"
+            ? "highest_over_budget"
+            : "highest_cost";
+        const taskMetaByUuid = await loadCostReportTaskMeta();
+        return {
+          status: 200,
+          body: s.getCostReport({
+            granularity,
+            date,
+            sortBy,
+            taskMetaByUuid,
+          }),
+        };
+      },
+    },
+    {
+      method: "GET",
+      route: "api/time/bills/expenses",
+      handle: async ({ searchParams }) => {
+        const s = requireStore();
+        const q = searchParams.get("q") || undefined;
+        const fromDate = searchParams.get("fromDate") || undefined;
+        const toDate = searchParams.get("toDate") || undefined;
+        const rawLimit = searchParams.get("limit");
+        const limit = rawLimit ? Number(rawLimit) : undefined;
+        return {
+          status: 200,
+          body: s.listBills({
+            q,
+            fromDate,
+            toDate,
+            ...(limit && Number.isFinite(limit) ? { limit } : {}),
+          }),
+        };
+      },
+    },
+    {
+      method: "POST",
+      route: "api/time/bills/link",
+      handle: async ({ readBody }) => {
+        const s = requireEnabledStore();
+        const body = await readBody();
+        const link = s.linkBillExpense({
+          txKey: requiredString(body.txKey, "txKey", 200),
+          taskUuid: optionalString(body.taskUuid, 64),
+          activityId: optionalString(body.activityId, 64),
+          source: requiredString(body.source, "source", 100),
+          txId: requiredString(body.txId, "txId", 200),
+          payTime: requiredString(body.payTime, "payTime", 64),
+          payee: optionalString(body.payee, 300) ?? "",
+          narration: optionalString(body.narration, 500) ?? "",
+          account: requiredString(body.account, "account", 200),
+          currency: optionalString(body.currency, 16) ?? "CNY",
+          amount: requiredNumber(body.amount, "amount"),
+          cnyAmountCents: requiredNumber(body.cnyAmountCents, "cnyAmountCents"),
+          note: optionalString(body.note, 500),
+        });
+        return { status: 200, body: { link } };
+      },
+    },
+    {
+      method: "POST",
+      route: "api/time/bills/unlink",
+      handle: async ({ readBody }) => {
+        const s = requireEnabledStore();
+        const body = await readBody();
+        const linkId = requiredString(body.linkId, "linkId", 64);
+        return { status: 200, body: s.unlinkBillLink(linkId) };
       },
     },
     {

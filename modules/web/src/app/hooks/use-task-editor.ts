@@ -21,7 +21,7 @@ export type TaskMutateFn = (
   origin?: MutateOrigin,
   beforeApply?: (tasks: Task[]) => Promise<void>,
   callbacks?: {
-    onSuccess?: (origin?: MutateOrigin) => void;
+    onSuccess?: (origin?: MutateOrigin, response?: unknown) => void;
     onError?: (message: string, origin?: MutateOrigin) => void;
   },
 ) => Promise<boolean>;
@@ -73,7 +73,12 @@ export function useTaskEditor({
   );
 
   const submitTaskForm = useCallback(
-    (event: FormEvent, keepOpen = false, taskDescription?: string) => {
+    (
+      event: FormEvent,
+      keepOpen = false,
+      taskDescription?: string,
+      onCreatedOrUpdated?: (taskUuid?: string) => Promise<void> | void,
+    ) => {
       event.preventDefault();
       if (writeLock.current || needsCheck) return;
       if (!draft.description.trim()) {
@@ -104,7 +109,16 @@ export function useTaskEditor({
         "editor",
         undefined,
         {
-          onSuccess: () => {
+          onSuccess: (_origin, response) => {
+            const createdUuid =
+              response &&
+              typeof response === "object" &&
+              typeof (response as { uuid?: unknown }).uuid === "string"
+                ? (response as { uuid: string }).uuid
+                : editing?.uuid;
+            if (onCreatedOrUpdated) {
+              void onCreatedOrUpdated(createdUuid);
+            }
             if (keepOpen && editing) {
               setEditing({
                 ...editing,

@@ -1,4 +1,8 @@
-import type { TimerSnapshot } from "./model.ts";
+import {
+  computeDurationCostCents,
+  normalizeHourlyRateCents,
+} from "./cost.ts";
+import type { TaskCostSummary, TimerSnapshot } from "./model.ts";
 
 export type TrackedTimerSnapshot = {
   snapshot: TimerSnapshot;
@@ -217,4 +221,53 @@ export function displayedActiveActivitySeconds(
   return maxAutoStopSeconds !== undefined
     ? Math.min(total, maxAutoStopSeconds)
     : total;
+}
+
+export function displayedActiveActivityCostCents(
+  tracked: TrackedTimerSnapshot | null | undefined,
+  currentMonoMs: number,
+): number | undefined {
+  const active = tracked?.snapshot.activeActivity;
+  const elapsed = displayedActiveActivitySeconds(tracked, currentMonoMs);
+  if (!tracked || !active || elapsed === undefined) return undefined;
+  const rate = normalizeHourlyRateCents(
+    active.hourlyRateCents ?? tracked.snapshot.hourlyRateCents,
+  );
+  return computeDurationCostCents(elapsed, rate);
+}
+
+export function displayedTaskCostFromSnapshot(
+  tracked: TrackedTimerSnapshot | null | undefined,
+  taskUuid: string,
+  currentMonoMs: number,
+): TaskCostSummary | undefined {
+  if (!tracked) return undefined;
+  const key = taskUuid.toLowerCase();
+  const base = tracked.snapshot.taskCosts?.[key];
+  if (!base) return undefined;
+  const live = snapshotLiveStatus(tracked, currentMonoMs);
+  const active = tracked.snapshot.activeActivity;
+  if (
+    active &&
+    active.state === "running" &&
+    active.taskUuid?.toLowerCase() === key &&
+    tracked.snapshot.state === "ready" &&
+    live.cappedExtraSeconds > 0
+  ) {
+    const rate = normalizeHourlyRateCents(
+      active.hourlyRateCents ?? tracked.snapshot.hourlyRateCents,
+      base.currentHourlyRateCents,
+    );
+    const provisionalSeconds = base.provisionalSeconds + live.cappedExtraSeconds;
+    const extraProvisionalCost = computeDurationCostCents(
+      live.cappedExtraSeconds,
+      rate,
+    );
+    return {
+      ...base,
+      provisionalSeconds,
+      provisionalCostCents: base.provisionalCostCents + extraProvisionalCost,
+    };
+  }
+  return base;
 }

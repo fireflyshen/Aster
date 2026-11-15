@@ -1,5 +1,8 @@
 export const DEFAULT_TIMEZONE = "Asia/Shanghai";
 export const UNCATEGORIZED_CATEGORY_ID = "uncategorized";
+export const UNASSIGNED_PROJECT_KEY = "__unassigned__";
+export const UNTAGGED_KEY = "__untagged__";
+export const DEFAULT_HOURLY_RATE_CENTS = 10_000;
 export const DEFAULT_LONG_ACTIVITY_THRESHOLD_SECONDS = 6 * 3600;
 export const DEFAULT_CHECKPOINT_INTERVAL_SECONDS = 60 * 60;
 export const DEFAULT_TIMER_LIVE_WINDOW_MS = 30_000;
@@ -60,6 +63,10 @@ export type TimePolicy = {
   sleepTemplate: SleepTemplate;
   longActivityThresholdSeconds: number;
   reconcileReminder: ReconcileReminderPolicy;
+  /** Hourly time value in integer CNY cents (e.g. 10000 = ¥100 / hour). */
+  hourlyRateCents?: number;
+  /** Whether task rows emphasize invested cost over duration by default. */
+  taskListHighlightCost?: boolean;
 };
 
 export function createDefaultTimePolicy(): TimePolicy {
@@ -82,6 +89,8 @@ export function createDefaultTimePolicy(): TimePolicy {
       hour: 21,
       minute: 30,
     },
+    hourlyRateCents: DEFAULT_HOURLY_RATE_CENTS,
+    taskListHighlightCost: true,
   };
 }
 
@@ -147,6 +156,9 @@ export type Activity = {
   ruleSource: RuleSource;
   taskUuid?: string;
   projectSnapshot?: string;
+  tags?: string[];
+  /** Hourly time value snapshot captured when this activity was created (cents). */
+  hourlyRateCents?: number;
   startMs?: number;
   endMs?: number;
   suspendMs?: number;
@@ -187,7 +199,11 @@ export type TimingPlan = {
   tags?: string[];
   note?: string;
   timezone: string;
+  hourlyRateCents?: number;
+  initialAllowanceSeconds?: number;
+  initialBudgetCents?: number;
   allowanceSeconds?: number;
+  currentBudgetCents?: number;
   plannedStartAtMs?: number;
   hardStopAtMs?: number;
   consumedSeconds: number;
@@ -241,6 +257,7 @@ export type ActiveActivitySnapshot = {
   limitVersion?: number;
   reviewDueAt?: string;
   confirmedThrough?: string;
+  hourlyRateCents?: number;
 };
 
 export type TimerSnapshotState =
@@ -248,6 +265,40 @@ export type TimerSnapshotState =
   | "pending_reconcile"
   | "restoring"
   | "unavailable";
+
+export type TaskBudget = {
+  taskUuid: string;
+  hourlyRateCents: number;
+  initialAllowanceSeconds?: number;
+  initialBudgetCents?: number;
+  currentAllowanceSeconds?: number;
+  currentBudgetCents?: number;
+  plannedStartAtMs?: number;
+  hardStopAtMs?: number;
+  createdAtMs: number;
+  updatedAtMs: number;
+};
+
+export type TaskCostSummary = {
+  taskUuid: string;
+  confirmedSeconds: number;
+  confirmedCostCents: number;
+  provisionalSeconds: number;
+  provisionalCostCents: number;
+  hasBudget: boolean;
+  initialAllowanceSeconds?: number;
+  initialBudgetCents?: number;
+  currentAllowanceSeconds?: number;
+  currentBudgetCents?: number;
+  addedBudgetCents: number;
+  overInitialBudgetCents: number;
+  overCurrentBudgetCents: number;
+  plannedStartAtMs?: number;
+  hardStopAtMs?: number;
+  linkedCashCents: number;
+  combinedCostCents: number;
+  currentHourlyRateCents: number;
+};
 
 export type TimerSnapshot = {
   backend: "time";
@@ -260,6 +311,9 @@ export type TimerSnapshot = {
   liveUntil: string;
   activeActivity: ActiveActivitySnapshot | null;
   taskTotalsSeconds: Record<string, number>;
+  hourlyRateCents?: number;
+  taskListHighlightCost?: boolean;
+  taskCosts?: Record<string, TaskCostSummary>;
   totalsComplete: boolean;
   coverageFrom?: string;
   historyComplete: boolean;
@@ -299,11 +353,15 @@ export type LocatedSegment = {
   categoryId: string;
   taskUuid?: string;
   projectSnapshot?: string;
+  tags?: string[];
+  hourlyRateCents?: number;
   startMs: number;
   endMs: number;
   durationSeconds: number;
   confirmedSeconds: number;
   provisionalSeconds: number;
+  confirmedCostCents: number;
+  provisionalCostCents: number;
   running: boolean;
   precision: ActivityPrecision;
   source: ActivitySource;
@@ -328,10 +386,16 @@ export type DailyLedgerSummary = {
   pastCapacitySeconds: number;
   coveredSeconds: number;
   provisionalSeconds: number;
+  confirmedCostCents: number;
+  provisionalCostCents: number;
   unrecordedSeconds: number;
   estimatedBoundsSeconds: number;
   reviewRequiredSeconds: number;
   byCategorySeconds: Record<string, number>;
+  byProjectSeconds: Record<string, number>;
+  byProjectCostCents: Record<string, number>;
+  byTagSeconds: Record<string, number>;
+  byTagCostCents: Record<string, number>;
   locatedSegments: LocatedSegment[];
   unlocatedEstimates: Activity[];
   sleepCandidates: SleepCandidate[];
@@ -347,10 +411,125 @@ export type WeeklyDistributionSummary = {
   pastCapacitySeconds: number;
   coveredSeconds: number;
   provisionalSeconds: number;
+  confirmedCostCents: number;
+  provisionalCostCents: number;
   unrecordedSeconds: number;
   estimatedBoundsSeconds: number;
   reviewRequiredSeconds: number;
   byCategorySeconds: Record<string, number>;
+  byProjectSeconds: Record<string, number>;
+  byProjectCostCents: Record<string, number>;
+  byTagSeconds: Record<string, number>;
+  byTagCostCents: Record<string, number>;
   unlocatedEstimates: Activity[];
   daily: DailyLedgerSummary[];
+};
+
+export type BillExpenseItem = {
+  txKey: string;
+  source: string;
+  txId: string;
+  payTime: string;
+  date: string;
+  payee: string;
+  narration: string;
+  account: string;
+  amount: number;
+  currency: string;
+  cnyAmountCents: number;
+  tags: string[];
+  note?: string;
+  journalFile: string;
+  lineNumber: number;
+};
+
+export type BillLink = {
+  id: string;
+  txKey: string;
+  taskUuid?: string;
+  activityId?: string;
+  source: string;
+  txId: string;
+  payTime: string;
+  payee: string;
+  narration: string;
+  account: string;
+  currency: string;
+  amount: number;
+  cnyAmountCents: number;
+  note?: string;
+  createdAtMs: number;
+};
+
+export type CostReportGranularity = "week" | "month";
+export type CostReportSortBy = "highest_cost" | "highest_over_budget";
+
+export type CostReportSegmentRef = {
+  activityId: string;
+  title: string;
+  date: string;
+  startMs: number;
+  endMs: number;
+  confirmedSeconds: number;
+  confirmedCostCents: number;
+  provisionalSeconds: number;
+  provisionalCostCents: number;
+  hourlyRateCents: number;
+  projectSnapshot?: string;
+  tags?: string[];
+  taskUuid?: string;
+  reviewState: ActivityReviewState;
+};
+
+export type CostReportTaskRow = {
+  taskUuid: string;
+  title: string;
+  projectSnapshot?: string;
+  tags: string[];
+  periodSeconds: number;
+  periodCostCents: number;
+  periodProvisionalCostCents: number;
+  cumulativeSeconds: number;
+  cumulativeCostCents: number;
+  cumulativeProvisionalCostCents: number;
+  hasBudget: boolean;
+  initialBudgetCents?: number;
+  currentBudgetCents?: number;
+  overInitialBudgetCents: number;
+  cashExpenseCents: number;
+  combinedCumulativeCostCents: number;
+  segments: CostReportSegmentRef[];
+  billLinks: BillLink[];
+};
+
+export type CostReportProjectRow = {
+  projectKey: string;
+  projectName: string;
+  periodSeconds: number;
+  periodCostCents: number;
+  periodProvisionalCostCents: number;
+  overInitialBudgetCents: number;
+  cashExpenseCents: number;
+  combinedPeriodCostCents: number;
+  taskCount: number;
+  segments: CostReportSegmentRef[];
+};
+
+export type CostReportSummary = {
+  granularity: CostReportGranularity;
+  periodStartDate: string;
+  periodEndDate: string;
+  timezone: string;
+  sortBy: CostReportSortBy;
+  hourlyRateCents: number;
+  totalPeriodConfirmedSeconds: number;
+  totalPeriodConfirmedCostCents: number;
+  totalPeriodProvisionalSeconds: number;
+  totalPeriodProvisionalCostCents: number;
+  totalCashExpenseCents: number;
+  totalCombinedCostCents: number;
+  byProject: CostReportProjectRow[];
+  byTask: CostReportTaskRow[];
+  unassignedSegments: CostReportSegmentRef[];
+  unassignedBillLinks: BillLink[];
 };

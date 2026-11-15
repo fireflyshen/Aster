@@ -1,9 +1,17 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import {
+  computeDurationCostCents,
+  normalizeActivityTags,
+  normalizeHourlyRateCents,
+} from "../../../core/time/cost.ts";
 import { effectiveActivityEndMs } from "../../../core/time/ledger.ts";
 import {
   createDefaultTimePolicy,
+  DEFAULT_HOURLY_RATE_CENTS,
   type Activity,
+  type BillLink,
+  type TaskBudget,
   type TimeEvent,
   type TimeEventKind,
   type TimePolicy,
@@ -16,8 +24,10 @@ import {
   TimeStoreError,
   type ActivityRow,
   type ActivitySnapshotFields,
+  type BillLinkRow,
   type MetaRow,
   type OperationRow,
+  type TaskBudgetRow,
   type TimeEventRow,
   type TimeOperationRecord,
   type TimingPlanRow,
@@ -43,7 +53,18 @@ export function hashNormalizedInput(kind: string, input: unknown): string {
     .digest("hex");
 }
 
+export function parseTagsJson(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? normalizeActivityTags(parsed) : [];
+  } catch {
+    return [];
+  }
+}
+
 export function rowToActivity(row: ActivityRow): Activity {
+  const tags = parseTagsJson(row.tags_json);
   return {
     id: row.id,
     version: row.version,
@@ -54,6 +75,10 @@ export function rowToActivity(row: ActivityRow): Activity {
     ruleSource: row.rule_source,
     ...(row.task_uuid ? { taskUuid: row.task_uuid } : {}),
     ...(row.project_snapshot ? { projectSnapshot: row.project_snapshot } : {}),
+    ...(tags.length > 0 ? { tags } : {}),
+    ...(row.hourly_rate_cents !== null
+      ? { hourlyRateCents: row.hourly_rate_cents }
+      : {}),
     ...(row.start_ms !== null ? { startMs: row.start_ms } : {}),
     ...(row.end_ms !== null ? { endMs: row.end_ms } : {}),
     ...(row.suspend_ms !== null ? { suspendMs: row.suspend_ms } : {}),
@@ -110,6 +135,8 @@ export function captureSnapshotFields(
     ruleSource: row.rule_source,
     taskUuid: row.task_uuid,
     projectSnapshot: row.project_snapshot,
+    tags: parseTagsJson(row.tags_json),
+    hourlyRateCents: row.hourly_rate_cents,
     startMs: row.start_ms,
     endMs: row.end_ms,
     suspendMs: row.suspend_ms,
@@ -213,7 +240,26 @@ export function validatePolicy(policy: TimePolicy): TimePolicy {
       "Invalid long activity threshold.",
     );
   }
-  return policy;
+  if (
+    policy.hourlyRateCents !== undefined &&
+    (typeof policy.hourlyRateCents !== "number" ||
+      !Number.isFinite(policy.hourlyRateCents) ||
+      policy.hourlyRateCents < 0)
+  ) {
+    throw new TimeStoreError(
+      400,
+      "INVALID_POLICY",
+      "Invalid hourly rate.",
+    );
+  }
+  return {
+    ...policy,
+    hourlyRateCents: normalizeHourlyRateCents(
+      policy.hourlyRateCents,
+      DEFAULT_HOURLY_RATE_CENTS,
+    ),
+    taskListHighlightCost: policy.taskListHighlightCost ?? true,
+  };
 }
 
 export function readMeta(conn: DatabaseSync): MetaRow {
@@ -231,10 +277,20 @@ export function readMeta(conn: DatabaseSync): MetaRow {
 }
 
 export function parsePolicy(meta: MetaRow): TimePolicy {
+  const defaults = createDefaultTimePolicy();
   try {
-    return JSON.parse(meta.policy_json) as TimePolicy;
+    const parsed = JSON.parse(meta.policy_json) as Partial<TimePolicy>;
+    return {
+      ...defaults,
+      ...parsed,
+      hourlyRateCents: normalizeHourlyRateCents(
+        parsed.hourlyRateCents,
+        defaults.hourlyRateCents,
+      ),
+      taskListHighlightCost: parsed.taskListHighlightCost ?? true,
+    };
   } catch {
-    return createDefaultTimePolicy();
+    return defaults;
   }
 }
 
@@ -413,7 +469,19 @@ export function buildTimingPlanTx(
     ...(tags && tags.length > 0 ? { tags } : {}),
     ...(planRow.note ? { note: planRow.note } : {}),
     timezone: planRow.timezone,
+    ...(planRow.hourly_rate_cents !== null
+      ? { hourlyRateCents: planRow.hourly_rate_cents }
+      : {}),
+    ...(planRow.initial_allowance_seconds !== null
+      ? { initialAllowanceSeconds: planRow.initial_allowance_seconds }
+      : {}),
+    ...(planRow.initial_budget_cents !== null
+      ? { initialBudgetCents: planRow.initial_budget_cents }
+      : {}),
     ...(allowanceSeconds !== undefined ? { allowanceSeconds } : {}),
+    ...(planRow.current_budget_cents !== null
+      ? { currentBudgetCents: planRow.current_budget_cents }
+      : {}),
     ...(planRow.planned_start_at_ms !== null
       ? { plannedStartAtMs: planRow.planned_start_at_ms }
       : {}),
@@ -473,4 +541,207 @@ export function loadSleepDecisions(
     });
   }
   return map;
+}
+
+export function rowToTaskBudget(row: TaskBudgetRow): TaskBudget {
+  return {
+    taskUuid: row.task_uuid,
+    hourlyRateCents: row.hourly_rate_cents,
+    ...(row.initial_allowance_seconds !== null
+      ? { initialAllowanceSeconds: row.initial_allowance_seconds }
+      : {}),
+    ...(row.initial_budget_cents !== null
+      ? { initialBudgetCents: row.initial_budget_cents }
+      : {}),
+    ...(row.current_allowance_seconds !== null
+      ? { currentAllowanceSeconds: row.current_allowance_seconds }
+      : {}),
+    ...(row.current_budget_cents !== null
+      ? { currentBudgetCents: row.current_budget_cents }
+      : {}),
+    ...(row.planned_start_at_ms !== null
+      ? { plannedStartAtMs: row.planned_start_at_ms }
+      : {}),
+    ...(row.hard_stop_at_ms !== null
+      ? { hardStopAtMs: row.hard_stop_at_ms }
+      : {}),
+    createdAtMs: row.created_at_ms,
+    updatedAtMs: row.updated_at_ms,
+  };
+}
+
+export function loadAllTaskBudgets(conn: DatabaseSync): Map<string, TaskBudget> {
+  const rows = conn
+    .prepare("SELECT * FROM task_budgets")
+    .all() as TaskBudgetRow[];
+  const map = new Map<string, TaskBudget>();
+  for (const row of rows) {
+    map.set(row.task_uuid.toLowerCase(), rowToTaskBudget(row));
+  }
+  return map;
+}
+
+export function rowToBillLink(row: BillLinkRow): BillLink {
+  return {
+    id: row.id,
+    txKey: row.tx_key,
+    ...(row.task_uuid ? { taskUuid: row.task_uuid } : {}),
+    ...(row.activity_id ? { activityId: row.activity_id } : {}),
+    source: row.source,
+    txId: row.tx_id,
+    payTime: row.pay_time,
+    payee: row.payee,
+    narration: row.narration,
+    account: row.account,
+    currency: row.currency,
+    amount: row.amount,
+    cnyAmountCents: row.cny_amount_cents,
+    ...(row.note ? { note: row.note } : {}),
+    createdAtMs: row.created_at_ms,
+  };
+}
+
+export function loadAllBillLinks(conn: DatabaseSync): BillLink[] {
+  return (
+    conn
+      .prepare("SELECT * FROM bill_links ORDER BY pay_time DESC, created_at_ms DESC")
+      .all() as BillLinkRow[]
+  ).map(rowToBillLink);
+}
+
+/**
+ * Updates or creates a task's cost budget while preserving its locked initial
+ * estimate (`initial_allowance_seconds` / `initial_budget_cents`).
+ */
+export function syncTaskBudgetFromEstimateTx(
+  conn: DatabaseSync,
+  input: {
+    taskUuid: string;
+    allowanceSeconds?: number | null;
+    addAllowanceSeconds?: number;
+    plannedStartAtMs?: number | null;
+    hardStopAtMs?: number | null;
+    policyRateCents: number;
+    nowMs: number;
+  },
+): TaskBudget {
+  const key = input.taskUuid.toLowerCase();
+  const existing = conn
+    .prepare("SELECT * FROM task_budgets WHERE task_uuid = ?")
+    .get(key) as TaskBudgetRow | undefined;
+
+  if (!existing) {
+    const initialAllowance =
+      input.allowanceSeconds !== undefined && input.allowanceSeconds !== null
+        ? Math.round(input.allowanceSeconds)
+        : input.addAllowanceSeconds !== undefined
+          ? Math.round(input.addAllowanceSeconds)
+          : null;
+    const initialBudgetCents =
+      initialAllowance !== null
+        ? computeDurationCostCents(initialAllowance, input.policyRateCents)
+        : null;
+    conn
+      .prepare(
+        `INSERT INTO task_budgets (
+          task_uuid, hourly_rate_cents, initial_allowance_seconds, initial_budget_cents,
+          current_allowance_seconds, current_budget_cents, planned_start_at_ms, hard_stop_at_ms,
+          created_at_ms, updated_at_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        key,
+        input.policyRateCents,
+        initialAllowance,
+        initialBudgetCents,
+        initialAllowance,
+        initialBudgetCents,
+        input.plannedStartAtMs ?? null,
+        input.hardStopAtMs ?? null,
+        input.nowMs,
+        input.nowMs,
+      );
+    const created = conn
+      .prepare("SELECT * FROM task_budgets WHERE task_uuid = ?")
+      .get(key) as TaskBudgetRow;
+    return rowToTaskBudget(created);
+  }
+
+  let nextCurrentAllowance = existing.current_allowance_seconds;
+  let nextCurrentBudget = existing.current_budget_cents;
+  let nextInitialAllowance = existing.initial_allowance_seconds;
+  let nextInitialBudget = existing.initial_budget_cents;
+
+  if (input.addAllowanceSeconds !== undefined) {
+    const addSec = Math.round(input.addAllowanceSeconds);
+    const addCost = computeDurationCostCents(addSec, input.policyRateCents);
+    nextCurrentAllowance = (nextCurrentAllowance ?? 0) + addSec;
+    nextCurrentBudget = (nextCurrentBudget ?? 0) + addCost;
+    if (nextInitialAllowance === null && nextInitialBudget === null) {
+      nextInitialAllowance = nextCurrentAllowance;
+      nextInitialBudget = nextCurrentBudget;
+    }
+  } else if (input.allowanceSeconds !== undefined) {
+    if (input.allowanceSeconds === null) {
+      nextCurrentAllowance = null;
+      nextCurrentBudget = null;
+    } else {
+      const targetSec = Math.round(input.allowanceSeconds);
+      if (nextInitialAllowance === null && nextInitialBudget === null) {
+        const initCost = computeDurationCostCents(targetSec, input.policyRateCents);
+        nextInitialAllowance = targetSec;
+        nextInitialBudget = initCost;
+        nextCurrentAllowance = targetSec;
+        nextCurrentBudget = initCost;
+      } else {
+        // Adjust current allowance while strictly preserving locked initial estimate.
+        const prevSec = nextCurrentAllowance ?? 0;
+        const deltaSec = targetSec - prevSec;
+        const prevBudget = nextCurrentBudget ?? 0;
+        if (deltaSec >= 0) {
+          nextCurrentBudget =
+            prevBudget + computeDurationCostCents(deltaSec, input.policyRateCents);
+        } else {
+          nextCurrentBudget = Math.max(
+            0,
+            computeDurationCostCents(targetSec, existing.hourly_rate_cents),
+          );
+        }
+        nextCurrentAllowance = targetSec;
+      }
+    }
+  }
+
+  const nextPlannedStart =
+    input.plannedStartAtMs !== undefined
+      ? input.plannedStartAtMs
+      : existing.planned_start_at_ms;
+  const nextHardStop =
+    input.hardStopAtMs !== undefined
+      ? input.hardStopAtMs
+      : existing.hard_stop_at_ms;
+
+  conn
+    .prepare(
+      `UPDATE task_budgets
+       SET initial_allowance_seconds = ?, initial_budget_cents = ?,
+           current_allowance_seconds = ?, current_budget_cents = ?,
+           planned_start_at_ms = ?, hard_stop_at_ms = ?, updated_at_ms = ?
+       WHERE task_uuid = ?`,
+    )
+    .run(
+      nextInitialAllowance,
+      nextInitialBudget,
+      nextCurrentAllowance,
+      nextCurrentBudget,
+      nextPlannedStart,
+      nextHardStop,
+      input.nowMs,
+      key,
+    );
+
+  const updated = conn
+    .prepare("SELECT * FROM task_budgets WHERE task_uuid = ?")
+    .get(key) as TaskBudgetRow;
+  return rowToTaskBudget(updated);
 }

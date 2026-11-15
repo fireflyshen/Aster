@@ -10,6 +10,7 @@ import {
   analyzeTimewarriorSnapshot,
   applyTimewarriorSnapshotImport,
 } from "../src/time/time-import.ts";
+import { CURRENT_TIME_SCHEMA_VERSION } from "../src/time/time-schema.ts";
 import { createTimeStore, TimeStoreError } from "../src/time/time-store.ts";
 
 test("time store preflight, single-active timer switching, long-activity warning, and optimistic concurrency", async () => {
@@ -308,7 +309,7 @@ test("independent Time backup and restore bump monotonic epoch/barrier, freeze o
     const manifest = await backupSvc.exportStaging(stagingDir, {
       backupId: "b1",
     });
-    assert.equal(manifest.schemaVersion, 1);
+    assert.equal(manifest.schemaVersion, CURRENT_TIME_SCHEMA_VERSION);
     assert.equal(manifest.activeActivityId, act1.activity.id);
     assert.ok(manifest.files.sqlite.sha256.length === 64);
 

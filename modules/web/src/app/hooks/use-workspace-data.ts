@@ -1,8 +1,9 @@
 import { api, RequestError } from "@/lib/api";
 import { taskDate } from "@core/tasks/quick-task";
-import type { TimerSnapshot } from "@core/time/model";
+import type { TaskCostSummary, TimerSnapshot } from "@core/time/model";
 import {
   displayedActiveActivitySeconds,
+  displayedTaskCostFromSnapshot,
   displayedTaskSecondsFromSnapshot,
   mergeTimerSnapshot,
   snapshotLiveStatus,
@@ -20,7 +21,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { connectionStatusLabel, taskEditPayload } from "../lib/task-view";
 
 type MutateOriginHandler = {
-  onSuccess?: (origin?: "editor" | "quick" | "notes") => void;
+  onSuccess?: (origin?: "editor" | "quick" | "notes", response?: unknown) => void;
   onError?: (message: string, origin?: "editor" | "quick" | "notes") => void;
 };
 
@@ -307,6 +308,16 @@ export function useWorkspaceData({
     ? displayedActiveActivitySeconds(trackedSnapshot, monoNow)
     : undefined;
 
+  const taskCostSummary = useCallback(
+    (task: Task): TaskCostSummary | undefined => {
+      if (!isTimeMode || organization.timing?.available === false) {
+        return undefined;
+      }
+      return displayedTaskCostFromSnapshot(trackedSnapshot, task.uuid, monoNow);
+    },
+    [isTimeMode, organization.timing?.available, trackedSnapshot, monoNow],
+  );
+
   const changeOrganization = useCallback(
     async (change: OrganizationChange) => {
       if (writeLock.current || organizationBlocked || needsCheck) return false;
@@ -373,8 +384,8 @@ export function useWorkspaceData({
       setBusy(true);
       setNotice("");
       try {
-        await api(route, data);
-        callbacks?.onSuccess?.(origin);
+        const result = await api(route, data);
+        callbacks?.onSuccess?.(origin, result);
         void loadOrganization();
         if (!(await load(beforeApply))) {
           setNotice("已保存，请刷新检查任务状态。");
@@ -487,6 +498,9 @@ export function useWorkspaceData({
     writeLock,
     connectionLabel,
     taskTrackedSeconds,
+    taskCostSummary,
+    hourlyRateCents: trackedSnapshot?.snapshot.hourlyRateCents ?? 10_000,
+    taskListHighlightCost: trackedSnapshot?.snapshot.taskListHighlightCost ?? true,
     load,
     loadOrganization,
     reloadAll,

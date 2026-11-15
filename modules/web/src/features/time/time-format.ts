@@ -1,6 +1,35 @@
+import {
+  computeContinuationCostPreview,
+  computeDurationCostCents,
+  formatCurrencyCny,
+  formatRateConversionHint,
+  normalizeHourlyRateCents,
+  UNASSIGNED_PROJECT_KEY,
+  UNTAGGED_KEY,
+  yuanToHourlyRateCents,
+} from "@core/time/cost";
 import type { Activity, LocatedSegment, TimePolicy } from "@core/time/model";
 import { localDateOf } from "@core/time/zone";
 import { RequestError } from "@/lib/api";
+
+export {
+  computeContinuationCostPreview,
+  computeDurationCostCents,
+  formatCurrencyCny,
+  formatRateConversionHint,
+  normalizeHourlyRateCents,
+  UNASSIGNED_PROJECT_KEY,
+  UNTAGGED_KEY,
+  yuanToHourlyRateCents,
+};
+
+export function projectDisplayName(key: string): string {
+  return key === UNASSIGNED_PROJECT_KEY || !key.trim() ? "未指定项目" : key;
+}
+
+export function tagDisplayName(key: string): string {
+  return key === UNTAGGED_KEY || !key.trim() ? "未设标签" : key;
+}
 
 /** Formats seconds cleanly in Chinese without over-precision beyond seconds when <1m. */
 export function formatDurationChinese(seconds: number): string {

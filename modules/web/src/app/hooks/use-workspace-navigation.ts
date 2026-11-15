@@ -10,7 +10,7 @@ export type ActiveEntry = {
 
 export type CompleteBehavior = "hide" | "strikethrough";
 
-export type TimePage = "today" | "weekly" | "settings";
+export type TimePage = "today" | "weekly" | "reports" | "settings";
 
 const COMPLETE_BEHAVIOR_KEY = "aster:completeBehavior";
 

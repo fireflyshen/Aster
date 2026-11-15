@@ -79,6 +79,8 @@ export type ActivitySnapshotFields = {
   ruleSource: RuleSource;
   taskUuid: string | null;
   projectSnapshot: string | null;
+  tags: string[] | null;
+  hourlyRateCents: number | null;
   startMs: number | null;
   endMs: number | null;
   suspendMs: number | null;
@@ -142,6 +144,8 @@ export type ActivityRow = {
   rule_source: RuleSource;
   task_uuid: string | null;
   project_snapshot: string | null;
+  tags_json: string | null;
+  hourly_rate_cents: number | null;
   start_ms: number | null;
   end_ms: number | null;
   suspend_ms: number | null;
@@ -183,6 +187,10 @@ export type TimingPlanRow = {
   note: string | null;
   timezone: string;
   allowance_seconds: number | null;
+  hourly_rate_cents: number | null;
+  initial_allowance_seconds: number | null;
+  initial_budget_cents: number | null;
+  current_budget_cents: number | null;
   planned_start_at_ms: number | null;
   hard_stop_at_ms: number | null;
   archived_at_ms: number | null;
@@ -225,8 +233,40 @@ export type OperationRow = {
   updated_at_ms: number;
 };
 
+export type TaskBudgetRow = {
+  task_uuid: string;
+  hourly_rate_cents: number;
+  initial_allowance_seconds: number | null;
+  initial_budget_cents: number | null;
+  current_allowance_seconds: number | null;
+  current_budget_cents: number | null;
+  planned_start_at_ms: number | null;
+  hard_stop_at_ms: number | null;
+  created_at_ms: number;
+  updated_at_ms: number;
+};
+
+export type BillLinkRow = {
+  id: string;
+  tx_key: string;
+  task_uuid: string | null;
+  activity_id: string | null;
+  source: string;
+  tx_id: string;
+  pay_time: string;
+  payee: string;
+  narration: string;
+  account: string;
+  currency: string;
+  amount: number;
+  cny_amount_cents: number;
+  note: string | null;
+  created_at_ms: number;
+};
+
 export type CreateTimeStoreOptions = {
   barrierPath?: string;
+  billsDir?: string;
   enabled?: boolean;
   cutoverAtMs?: number;
   now?: () => number;

@@ -7,6 +7,14 @@ import {
   type ClassificationInput,
 } from "../../../core/time/classification.ts";
 import {
+  computeCostReport,
+  computeDurationCostCents,
+  computeTaskCostSummary,
+  normalizeActivityTags,
+  normalizeHourlyRateCents,
+  type CostReportTaskMeta,
+} from "../../../core/time/cost.ts";
+import {
   computeDailyLedger,
   computeSleepCandidateRange,
   computeTaskTotalsSeconds,
@@ -24,10 +32,16 @@ import {
   type ActivityReviewState,
   type ActivitySource,
   type ActivityStopReason,
+  type BillLink,
+  type CostReportGranularity,
+  type CostReportSortBy,
+  type CostReportSummary,
   type DailyLedgerSummary,
+  type LocatedSegment,
   type OperationState,
   type RuleSource,
   type SleepCandidate,
+  type TaskCostSummary,
   type TimeEvent,
   type TimePolicy,
   type TimerSnapshot,
@@ -41,6 +55,7 @@ import {
   mondayOfWeek,
   parseLocalDate,
 } from "../../../core/time/zone.ts";
+import { listBillExpenses } from "./bills-reader.ts";
 import {
   defaultBarrierPath,
   readBarrierState,
@@ -59,12 +74,16 @@ import {
   emitTimeEventTx,
   hashNormalizedInput,
   loadAllActivities,
+  loadAllBillLinks,
+  loadAllTaskBudgets,
   loadSleepDecisions,
   parsePolicy,
   readMeta,
   rowToActivity,
+  rowToBillLink,
   rowToOperation,
   rowToTimeEvent,
+  syncTaskBudgetFromEstimateTx,
   validatePolicy,
 } from "./time-store-helpers.ts";
 import {
@@ -72,10 +91,12 @@ import {
   type ActivityMutationReceipt,
   type ActivityRow,
   type ActivitySnapshotFields,
+  type BillLinkRow,
   type CreateTimeStoreOptions,
   type MetaRow,
   type OperationDependencies,
   type OperationRow,
+  type TaskBudgetRow,
   type TimeEventRow,
   type TimeOperationRecord,
   type TimingPlanRow,
@@ -344,12 +365,19 @@ export async function createTimeStore(
     return { reviewState: closedRow.review_state };
   }
 
+  function isSleepCategory(policy: TimePolicy, categoryId: string): boolean {
+    const matched = policy.categories.find((c) => c.id === categoryId);
+    return Boolean(matched?.isSleep || categoryId === "sleep");
+  }
+
   function insertActivityRow(conn: DatabaseSync, activity: Activity): void {
+    const normalizedTags = normalizeActivityTags(activity.tags);
     conn
       .prepare(
         `INSERT INTO activities (
           id, version, kind, title, category_id, rule_version, rule_source,
-          task_uuid, project_snapshot, start_ms, end_ms, suspend_ms,
+          task_uuid, project_snapshot, tags_json, hourly_rate_cents,
+          start_ms, end_ms, suspend_ms,
           confirmed_through_ms, review_due_at_ms, review_reason,
           timing_plan_id, auto_stop_at_ms, auto_stop_basis, limit_version,
           timer_stopped_at_ms, stop_reason, processed_at_ms,
@@ -357,7 +385,7 @@ export async function createTimeStore(
           precision, source, review_state, raw_input, note, timezone,
           import_batch_id, source_record_id, candidate_key,
           created_at_ms, updated_at_ms
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         activity.id,
@@ -369,6 +397,8 @@ export async function createTimeStore(
         activity.ruleSource,
         activity.taskUuid ?? null,
         activity.projectSnapshot ?? null,
+        normalizedTags.length > 0 ? JSON.stringify(normalizedTags) : null,
+        activity.hourlyRateCents ?? null,
         activity.startMs ?? null,
         activity.endMs ?? null,
         activity.suspendMs ?? null,
@@ -981,6 +1011,10 @@ export async function createTimeStore(
       input.autoStopAtMs === undefined
         ? input.effectiveAtMs + DEFAULT_CHECKPOINT_INTERVAL_SECONDS * 1000
         : undefined;
+    const tags = normalizeActivityTags(input.tags);
+    const hourlyRateCents = isSleepCategory(policy, classified.categoryId)
+      ? 0
+      : normalizeHourlyRateCents(policy.hourlyRateCents);
     const newActivity: Activity = {
       id: randomUUID(),
       version: 1,
@@ -993,6 +1027,8 @@ export async function createTimeStore(
       ...(input.projectSnapshot
         ? { projectSnapshot: input.projectSnapshot }
         : {}),
+      ...(tags.length > 0 ? { tags } : {}),
+      hourlyRateCents,
       startMs: input.effectiveAtMs,
       confirmedThroughMs: input.effectiveAtMs,
       ...(reviewDueAtMs !== undefined ? { reviewDueAtMs } : {}),
@@ -1553,6 +1589,10 @@ export async function createTimeStore(
         project: input.projectSnapshot,
         tags: input.tags,
       });
+      const tags = normalizeActivityTags(input.tags);
+      const hourlyRateCents = isSleepCategory(policy, classified.categoryId)
+        ? 0
+        : normalizeHourlyRateCents(policy.hourlyRateCents);
 
       const activity: Activity = {
         id: randomUUID(),
@@ -1566,6 +1606,8 @@ export async function createTimeStore(
         ...(input.projectSnapshot
           ? { projectSnapshot: input.projectSnapshot }
           : {}),
+        ...(tags.length > 0 ? { tags } : {}),
+        hourlyRateCents,
         startMs: input.startMs,
         endMs: input.endMs,
         confirmedThroughMs: input.endMs,
@@ -1711,6 +1753,10 @@ export async function createTimeStore(
         project: input.projectSnapshot,
         tags: input.tags,
       });
+      const tags = normalizeActivityTags(input.tags);
+      const hourlyRateCents = isSleepCategory(policy, classified.categoryId)
+        ? 0
+        : normalizeHourlyRateCents(policy.hourlyRateCents);
 
       const activity: Activity = {
         id: randomUUID(),
@@ -1724,6 +1770,8 @@ export async function createTimeStore(
         ...(input.projectSnapshot
           ? { projectSnapshot: input.projectSnapshot }
           : {}),
+        ...(tags.length > 0 ? { tags } : {}),
+        hourlyRateCents,
         ...(input.windowStartMs !== undefined
           ? { windowStartMs: input.windowStartMs }
           : {}),
@@ -1941,9 +1989,11 @@ export async function createTimeStore(
     receivedAtMs?: number;
     activityId: string;
     expectedVersion: number;
-    patch: {
+      patch: {
       title?: string;
       categoryId?: string;
+      projectSnapshot?: string | null;
+      tags?: string[] | null;
       startMs?: number;
       endMs?: number;
       targetDate?: string;
@@ -2031,6 +2081,16 @@ export async function createTimeStore(
 
       const nextNote = patch.note === undefined ? row.note : patch.note || null;
       const nextTaskUuid = patch.clearTaskLink ? null : row.task_uuid;
+      const nextProjectSnapshot =
+        patch.projectSnapshot === undefined
+          ? row.project_snapshot
+          : patch.projectSnapshot;
+      const nextTagsJson =
+        patch.tags === undefined
+          ? row.tags_json
+          : patch.tags && patch.tags.length > 0
+            ? JSON.stringify(normalizeActivityTags(patch.tags))
+            : null;
       const nextPrecision = patch.precision ?? row.precision;
 
       let nextStartMs = row.start_ms;
@@ -2185,7 +2245,8 @@ export async function createTimeStore(
         .prepare(
           `UPDATE activities
            SET title = ?, category_id = ?, rule_version = ?, rule_source = ?,
-               task_uuid = ?, start_ms = ?, end_ms = ?, suspend_ms = ?,
+               task_uuid = ?, project_snapshot = ?, tags_json = ?,
+               start_ms = ?, end_ms = ?, suspend_ms = ?,
                confirmed_through_ms = ?, review_due_at_ms = ?, review_reason = ?,
                window_start_ms = ?, window_end_ms = ?, target_date = ?,
                estimated_seconds = ?, precision = ?, review_state = ?,
@@ -2198,6 +2259,8 @@ export async function createTimeStore(
           nextRuleVersion,
           nextRuleSource,
           nextTaskUuid,
+          nextProjectSnapshot,
+          nextTagsJson,
           nextStartMs,
           nextEndMs,
           nextSuspendMs,
@@ -2401,7 +2464,8 @@ export async function createTimeStore(
           .prepare(
             `UPDATE activities
              SET kind = ?, title = ?, category_id = ?, rule_version = ?, rule_source = ?,
-                 task_uuid = ?, project_snapshot = ?, start_ms = ?, end_ms = ?, suspend_ms = ?,
+                 task_uuid = ?, project_snapshot = ?, tags_json = ?, hourly_rate_cents = ?,
+                 start_ms = ?, end_ms = ?, suspend_ms = ?,
                  confirmed_through_ms = ?, review_due_at_ms = ?, review_reason = ?,
                  timing_plan_id = ?, auto_stop_at_ms = ?, auto_stop_basis = ?, limit_version = ?,
                  timer_stopped_at_ms = ?, stop_reason = ?, processed_at_ms = ?,
@@ -2418,6 +2482,8 @@ export async function createTimeStore(
             r.ruleSource,
             r.taskUuid,
             r.projectSnapshot,
+            r.tags && r.tags.length > 0 ? JSON.stringify(r.tags) : null,
+            r.hourlyRateCents ?? null,
             r.startMs,
             r.endMs,
             r.suspendMs,
@@ -2596,6 +2662,7 @@ export async function createTimeStore(
         categoryId: sleepCategory,
         ruleVersion: policy.policyVersion,
         ruleSource: "explicit",
+        hourlyRateCents: 0,
         startMs,
         endMs,
         confirmedThroughMs: endMs,
@@ -3008,14 +3075,21 @@ export async function createTimeStore(
       }
 
       const id = randomUUID();
+      const rateCents = normalizeHourlyRateCents(policy.hourlyRateCents);
+      const initialAllowance = allowanceSeconds ?? null;
+      const initialBudgetCents =
+        initialAllowance !== null
+          ? computeDurationCostCents(initialAllowance, rateCents)
+          : null;
       conn
         .prepare(
           `INSERT INTO timing_plans (
             id, version, title, category_id, task_uuid, project_snapshot,
             tags_json, note, timezone, allowance_seconds,
-            planned_start_at_ms, hard_stop_at_ms, archived_at_ms,
+            hourly_rate_cents, initial_allowance_seconds, initial_budget_cents,
+            current_budget_cents, planned_start_at_ms, hard_stop_at_ms, archived_at_ms,
             created_at_ms, updated_at_ms
-          ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+          ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
         )
         .run(
           id,
@@ -3028,12 +3102,73 @@ export async function createTimeStore(
             : null,
           input.note ?? null,
           policy.timezone,
-          allowanceSeconds ?? null,
+          initialAllowance,
+          rateCents,
+          initialAllowance,
+          initialBudgetCents,
+          initialBudgetCents,
           input.plannedStartAtMs ?? null,
           input.hardStopAtMs ?? null,
           ts,
           ts,
         );
+
+      if (input.taskUuid) {
+        const taskKey = input.taskUuid.toLowerCase();
+        const existingBudget = conn
+          .prepare("SELECT * FROM task_budgets WHERE task_uuid = ?")
+          .get(taskKey) as TaskBudgetRow | undefined;
+        if (!existingBudget) {
+          syncTaskBudgetFromEstimateTx(conn, {
+            taskUuid: taskKey,
+            allowanceSeconds: initialAllowance,
+            plannedStartAtMs: input.plannedStartAtMs,
+            hardStopAtMs: input.hardStopAtMs,
+            policyRateCents: rateCents,
+            nowMs: ts,
+          });
+        } else if (initialAllowance !== null) {
+          // If cumulative task time + this new plan allowance exceeds current budget, grow current budget without altering initial estimate.
+          const allTaskActs = loadAllActivities(conn).filter(
+            (a) =>
+              a.taskUuid?.toLowerCase() === taskKey &&
+              a.kind === "located" &&
+              a.reviewState !== "voided" &&
+              a.reviewState !== "conflict",
+          );
+          let loggedSeconds = 0;
+          for (const a of allTaskActs) {
+            if (a.startMs === undefined) continue;
+            const end = effectiveActivityEndMs(a, ts);
+            if (end && end > a.startMs) {
+              loggedSeconds += Math.floor((end - a.startMs) / 1000);
+            }
+          }
+          const neededTotal = loggedSeconds + initialAllowance;
+          const prevBudgetSec = existingBudget.current_allowance_seconds ?? 0;
+          if (neededTotal > prevBudgetSec) {
+            syncTaskBudgetFromEstimateTx(conn, {
+              taskUuid: taskKey,
+              addAllowanceSeconds: neededTotal - prevBudgetSec,
+              plannedStartAtMs: input.plannedStartAtMs,
+              hardStopAtMs: input.hardStopAtMs,
+              policyRateCents: rateCents,
+              nowMs: ts,
+            });
+          } else if (
+            input.plannedStartAtMs !== undefined ||
+            input.hardStopAtMs !== undefined
+          ) {
+            syncTaskBudgetFromEstimateTx(conn, {
+              taskUuid: taskKey,
+              plannedStartAtMs: input.plannedStartAtMs,
+              hardStopAtMs: input.hardStopAtMs,
+              policyRateCents: rateCents,
+              nowMs: ts,
+            });
+          }
+        }
+      }
 
       const planRow = conn
         .prepare("SELECT * FROM timing_plans WHERE id = ?")
@@ -3400,11 +3535,74 @@ export async function createTimeStore(
         );
       }
 
+      const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
+      const prevPlanRate = normalizeHourlyRateCents(
+        planRow.hourly_rate_cents,
+        policyRate,
+      );
+      const prevInitAllowance =
+        planRow.initial_allowance_seconds ?? planRow.allowance_seconds;
+      const prevInitBudget =
+        planRow.initial_budget_cents ??
+        (prevInitAllowance !== null
+          ? computeDurationCostCents(prevInitAllowance, prevPlanRate)
+          : null);
+      const prevCurrBudget =
+        planRow.current_budget_cents ??
+        (planRow.allowance_seconds !== null
+          ? computeDurationCostCents(planRow.allowance_seconds, prevPlanRate)
+          : null);
+
+      let nextCurrentBudget: number | null = prevCurrBudget;
+      let allowanceDeltaForTask = 0;
+      if (patch.addAllowanceSeconds !== undefined && nextAllowance !== null) {
+        const addedSec = Math.round(patch.addAllowanceSeconds);
+        allowanceDeltaForTask = addedSec;
+        nextCurrentBudget =
+          (prevCurrBudget ?? 0) +
+          computeDurationCostCents(addedSec, policyRate);
+      } else if (patch.allowanceSeconds !== undefined) {
+        if (nextAllowance === null) {
+          nextCurrentBudget = null;
+        } else {
+          const prevSec = planRow.allowance_seconds ?? 0;
+          const delta = nextAllowance - prevSec;
+          allowanceDeltaForTask = delta;
+          if (prevInitAllowance === null) {
+            nextCurrentBudget = computeDurationCostCents(
+              nextAllowance,
+              policyRate,
+            );
+          } else if (delta >= 0) {
+            nextCurrentBudget =
+              (prevCurrBudget ?? 0) +
+              computeDurationCostCents(delta, policyRate);
+          } else {
+            nextCurrentBudget = computeDurationCostCents(
+              nextAllowance,
+              prevPlanRate,
+            );
+          }
+        }
+      }
+
+      const nextInitAllowance =
+        prevInitAllowance !== null ? prevInitAllowance : nextAllowance;
+      const nextInitBudget =
+        prevInitBudget !== null
+          ? prevInitBudget
+          : nextInitAllowance !== null
+            ? computeDurationCostCents(nextInitAllowance, policyRate)
+            : null;
+
       conn
         .prepare(
           `UPDATE timing_plans
            SET title = ?, category_id = ?, task_uuid = ?, project_snapshot = ?,
                tags_json = ?, note = ?, allowance_seconds = ?,
+               hourly_rate_cents = COALESCE(hourly_rate_cents, ?),
+               initial_allowance_seconds = ?, initial_budget_cents = ?,
+               current_budget_cents = ?,
                planned_start_at_ms = ?, hard_stop_at_ms = ?, archived_at_ms = ?,
                version = ?, updated_at_ms = ?
            WHERE id = ? AND version = ?`,
@@ -3417,6 +3615,10 @@ export async function createTimeStore(
           nextTagsJson,
           nextNote,
           nextAllowance,
+          prevPlanRate,
+          nextInitAllowance,
+          nextInitBudget,
+          nextCurrentBudget,
           nextPlannedStart,
           nextHardStop,
           nextArchivedAt,
@@ -3425,6 +3627,44 @@ export async function createTimeStore(
           planRow.id,
           planRow.version,
         );
+
+      if (nextTaskUuid) {
+        if (allowanceDeltaForTask > 0) {
+          syncTaskBudgetFromEstimateTx(conn, {
+            taskUuid: nextTaskUuid,
+            addAllowanceSeconds: allowanceDeltaForTask,
+            plannedStartAtMs: nextPlannedStart,
+            hardStopAtMs: nextHardStop,
+            policyRateCents: policyRate,
+            nowMs: ts,
+          });
+        } else if (
+          allowanceDeltaForTask < 0 ||
+          patch.plannedStartAtMs !== undefined ||
+          patch.hardStopAtMs !== undefined
+        ) {
+          const existingTaskBudget = conn
+            .prepare("SELECT * FROM task_budgets WHERE task_uuid = ?")
+            .get(nextTaskUuid.toLowerCase()) as TaskBudgetRow | undefined;
+          const nextTaskSec =
+            existingTaskBudget?.current_allowance_seconds !== null &&
+            existingTaskBudget?.current_allowance_seconds !== undefined
+              ? Math.max(
+                  0,
+                  existingTaskBudget.current_allowance_seconds +
+                    allowanceDeltaForTask,
+                )
+              : nextAllowance ?? undefined;
+          syncTaskBudgetFromEstimateTx(conn, {
+            taskUuid: nextTaskUuid,
+            ...(nextTaskSec !== undefined ? { allowanceSeconds: nextTaskSec } : {}),
+            plannedStartAtMs: nextPlannedStart,
+            hardStopAtMs: nextHardStop,
+            policyRateCents: policyRate,
+            nowMs: ts,
+          });
+        }
+      }
 
       const updatedPlanRow = conn
         .prepare("SELECT * FROM timing_plans WHERE id = ?")
@@ -3735,6 +3975,56 @@ export async function createTimeStore(
         number | undefined
       >((min, a) => (min === undefined || a.startMs! < min ? a.startMs! : min), undefined);
 
+    const policy = parsePolicy(meta);
+    const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
+    const budgets = loadAllTaskBudgets(conn);
+    const billLinks = loadAllBillLinks(conn);
+    const taskPlans = (
+      conn
+        .prepare("SELECT * FROM timing_plans WHERE task_uuid IS NOT NULL")
+        .all() as TimingPlanRow[]
+    ).map((r) => buildTimingPlanTx(conn, r, ts));
+
+    const actsByTask = new Map<string, Activity[]>();
+    for (const a of activities) {
+      if (!a.taskUuid) continue;
+      const key = a.taskUuid.toLowerCase();
+      const arr = actsByTask.get(key) ?? [];
+      arr.push(a);
+      actsByTask.set(key, arr);
+    }
+    const plansByTask = new Map<string, TimingPlan[]>();
+    for (const p of taskPlans) {
+      if (!p.taskUuid) continue;
+      const key = p.taskUuid.toLowerCase();
+      const arr = plansByTask.get(key) ?? [];
+      arr.push(p);
+      plansByTask.set(key, arr);
+    }
+    const targetTaskKeys = new Set<string>(
+      (input?.taskUuids ?? []).map((u) => u.toLowerCase()),
+    );
+    if (targetTaskKeys.size === 0) {
+      for (const k of actsByTask.keys()) targetTaskKeys.add(k);
+      for (const k of budgets.keys()) targetTaskKeys.add(k);
+      for (const k of plansByTask.keys()) targetTaskKeys.add(k);
+      for (const link of billLinks) {
+        if (link.taskUuid) targetTaskKeys.add(link.taskUuid.toLowerCase());
+      }
+    }
+    const taskCosts: Record<string, TaskCostSummary> = Object.create(null);
+    for (const key of targetTaskKeys) {
+      taskCosts[key] = computeTaskCostSummary({
+        taskUuid: key,
+        activities: actsByTask.get(key) ?? [],
+        budget: budgets.get(key),
+        plans: plansByTask.get(key) ?? [],
+        billLinks,
+        policy,
+        asOfMs: ts,
+      });
+    }
+
     return {
       backend: "time",
       contractVersion: 1,
@@ -3744,6 +4034,8 @@ export async function createTimeStore(
       sessionVersion: meta.session_version,
       snapshotAt: new Date(ts).toISOString(),
       liveUntil: new Date(liveUntilMs).toISOString(),
+      hourlyRateCents: policyRate,
+      taskListHighlightCost: policy.taskListHighlightCost ?? true,
       activeActivity: active
         ? {
             id: active.id,
@@ -3779,6 +4071,10 @@ export async function createTimeStore(
                   ).toISOString(),
                 }
               : {}),
+            hourlyRateCents: normalizeHourlyRateCents(
+              active.hourlyRateCents,
+              policyRate,
+            ),
           }
         : null,
       taskTotalsSeconds: computeTaskTotalsSeconds(
@@ -3786,6 +4082,7 @@ export async function createTimeStore(
         input?.taskUuids ?? [],
         ts,
       ),
+      taskCosts,
       totalsComplete: true,
       ...(earliest !== undefined
         ? { coverageFrom: new Date(earliest).toISOString() }
@@ -3794,6 +4091,334 @@ export async function createTimeStore(
           : {}),
       historyComplete: meta.cutover_at_ms === null || earliest !== undefined,
     };
+  }
+
+  function setTaskBudget(input: {
+    taskUuid: string;
+    mode?: "set" | "add" | "clear";
+    allowanceSeconds?: number | null;
+    addAllowanceSeconds?: number;
+    plannedStartAtMs?: number | null;
+    hardStopAtMs?: number | null;
+  }): TaskCostSummary {
+    const taskKey = input.taskUuid.trim().toLowerCase();
+    if (!taskKey) {
+      throw new TimeStoreError(400, "INVALID_FIELD", "Missing taskUuid.");
+    }
+    return inImmediateTx((conn) => {
+      const ts = nowFn();
+      settleDueTimersTx(conn, ts);
+      const meta = readMeta(conn);
+      const policy = parsePolicy(meta);
+      const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
+
+      if (input.mode === "clear") {
+        conn.prepare("DELETE FROM task_budgets WHERE task_uuid = ?").run(taskKey);
+      } else if (input.mode === "add") {
+        if (
+          input.addAllowanceSeconds === undefined ||
+          !Number.isFinite(input.addAllowanceSeconds) ||
+          input.addAllowanceSeconds <= 0
+        ) {
+          throw new TimeStoreError(
+            400,
+            "INVALID_BUDGET",
+            "Added estimate seconds must be positive.",
+          );
+        }
+        syncTaskBudgetFromEstimateTx(conn, {
+          taskUuid: taskKey,
+          addAllowanceSeconds: input.addAllowanceSeconds,
+          plannedStartAtMs: input.plannedStartAtMs,
+          hardStopAtMs: input.hardStopAtMs,
+          policyRateCents: policyRate,
+          nowMs: ts,
+        });
+      } else {
+        if (
+          input.allowanceSeconds !== undefined &&
+          input.allowanceSeconds !== null &&
+          (!Number.isFinite(input.allowanceSeconds) || input.allowanceSeconds <= 0)
+        ) {
+          throw new TimeStoreError(
+            400,
+            "INVALID_BUDGET",
+            "Estimate duration must be positive.",
+          );
+        }
+        if (
+          input.plannedStartAtMs !== undefined &&
+          input.plannedStartAtMs !== null &&
+          input.hardStopAtMs !== undefined &&
+          input.hardStopAtMs !== null &&
+          input.plannedStartAtMs >= input.hardStopAtMs
+        ) {
+          throw new TimeStoreError(
+            400,
+            "INVALID_TIMING_PLAN",
+            "最晚停止时间必须晚于计划开始时间。",
+          );
+        }
+        syncTaskBudgetFromEstimateTx(conn, {
+          taskUuid: taskKey,
+          allowanceSeconds: input.allowanceSeconds,
+          plannedStartAtMs: input.plannedStartAtMs,
+          hardStopAtMs: input.hardStopAtMs,
+          policyRateCents: policyRate,
+          nowMs: ts,
+        });
+      }
+
+      const budgets = loadAllTaskBudgets(conn);
+      const billLinks = loadAllBillLinks(conn);
+      const activities = loadAllActivities(conn);
+      const plans = (
+        conn
+          .prepare("SELECT * FROM timing_plans WHERE LOWER(task_uuid) = ?")
+          .all(taskKey) as TimingPlanRow[]
+      ).map((r) => buildTimingPlanTx(conn, r, ts));
+      return computeTaskCostSummary({
+        taskUuid: taskKey,
+        activities,
+        budget: budgets.get(taskKey),
+        plans,
+        billLinks,
+        policy,
+        asOfMs: ts,
+      });
+    });
+  }
+
+  function getTaskCostDetail(input: { taskUuid: string }): {
+    summary: TaskCostSummary;
+    segments: LocatedSegment[];
+    plans: TimingPlan[];
+    billLinks: BillLink[];
+  } {
+    settleDueTimers();
+    const conn = assertOpen();
+    const ts = nowFn();
+    const meta = readMeta(conn);
+    const policy = parsePolicy(meta);
+    const taskKey = input.taskUuid.trim().toLowerCase();
+    const activities = loadAllActivities(conn);
+    const budgets = loadAllTaskBudgets(conn);
+    const billLinks = loadAllBillLinks(conn).filter(
+      (link) => link.taskUuid?.toLowerCase() === taskKey,
+    );
+    const plans = (
+      conn
+        .prepare(
+          "SELECT * FROM timing_plans WHERE LOWER(task_uuid) = ? ORDER BY updated_at_ms DESC",
+        )
+        .all(taskKey) as TimingPlanRow[]
+    ).map((r) => buildTimingPlanTx(conn, r, ts));
+
+    const summary = computeTaskCostSummary({
+      taskUuid: taskKey,
+      activities,
+      budget: budgets.get(taskKey),
+      plans,
+      billLinks,
+      policy,
+      asOfMs: ts,
+    });
+
+    const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
+    const segments: LocatedSegment[] = [];
+    for (const act of activities) {
+      if (
+        act.kind !== "located" ||
+        act.reviewState === "voided" ||
+        act.reviewState === "conflict" ||
+        act.taskUuid?.toLowerCase() !== taskKey ||
+        act.startMs === undefined
+      ) {
+        continue;
+      }
+      const rawEnd = effectiveActivityEndMs(act, ts);
+      if (rawEnd === undefined || rawEnd <= act.startMs) continue;
+      const endMs = Math.min(rawEnd, ts);
+      const durationSeconds = Math.max(
+        0,
+        Math.floor(endMs / 1000) - Math.floor(act.startMs / 1000),
+      );
+      const confirmedEndMs =
+        act.confirmedThroughMs !== undefined
+          ? Math.max(act.startMs, Math.min(endMs, act.confirmedThroughMs))
+          : act.reviewState === "ok"
+            ? endMs
+            : act.startMs;
+      const confirmedSeconds = Math.max(
+        0,
+        Math.floor(confirmedEndMs / 1000) - Math.floor(act.startMs / 1000),
+      );
+      const provisionalSeconds = Math.max(0, durationSeconds - confirmedSeconds);
+      const rate = normalizeHourlyRateCents(act.hourlyRateCents, policyRate);
+      segments.push({
+        activityId: act.id,
+        version: act.version,
+        title: act.title,
+        categoryId: act.categoryId,
+        ...(act.taskUuid ? { taskUuid: act.taskUuid } : {}),
+        ...(act.projectSnapshot ? { projectSnapshot: act.projectSnapshot } : {}),
+        ...(act.tags && act.tags.length > 0 ? { tags: act.tags } : {}),
+        hourlyRateCents: rate,
+        startMs: act.startMs,
+        endMs,
+        durationSeconds,
+        confirmedSeconds,
+        provisionalSeconds,
+        confirmedCostCents: computeDurationCostCents(confirmedSeconds, rate),
+        provisionalCostCents: computeDurationCostCents(provisionalSeconds, rate),
+        running:
+          act.endMs === undefined &&
+          act.suspendMs === undefined &&
+          (act.autoStopAtMs === undefined || ts < act.autoStopAtMs),
+        precision: act.precision,
+        source: act.source,
+        reviewState: act.reviewState,
+        ...(act.suspendMs !== undefined ? { suspendMs: act.suspendMs } : {}),
+        ...(act.confirmedThroughMs !== undefined
+          ? { confirmedThroughMs: act.confirmedThroughMs }
+          : {}),
+        ...(act.reviewDueAtMs !== undefined
+          ? { reviewDueAtMs: act.reviewDueAtMs }
+          : {}),
+        ...(act.reviewReason ? { reviewReason: act.reviewReason } : {}),
+        ...(act.timingPlanId ? { timingPlanId: act.timingPlanId } : {}),
+        ...(act.autoStopAtMs !== undefined ? { autoStopAtMs: act.autoStopAtMs } : {}),
+        ...(act.timerStoppedAtMs !== undefined
+          ? { timerStoppedAtMs: act.timerStoppedAtMs }
+          : {}),
+        ...(act.stopReason ? { stopReason: act.stopReason } : {}),
+      });
+    }
+    segments.sort((a, b) => b.startMs - a.startMs);
+
+    return { summary, segments, plans, billLinks };
+  }
+
+  function getCostReport(input?: {
+    granularity?: CostReportGranularity;
+    date?: string;
+    sortBy?: CostReportSortBy;
+    taskMetaByUuid?: ReadonlyMap<string, CostReportTaskMeta>;
+  }): CostReportSummary {
+    settleDueTimers();
+    const conn = assertOpen();
+    const ts = nowFn();
+    const meta = readMeta(conn);
+    const policy = parsePolicy(meta);
+    const granularity = input?.granularity ?? "week";
+    const anchorDate = input?.date ?? localDateOf(ts, policy.timezone);
+    parseLocalDate(anchorDate);
+    const sortBy = input?.sortBy ?? "highest_cost";
+    const activities = loadAllActivities(conn);
+    const budgets = loadAllTaskBudgets(conn);
+    const plans = (
+      conn.prepare("SELECT * FROM timing_plans").all() as TimingPlanRow[]
+    ).map((r) => buildTimingPlanTx(conn, r, ts));
+    const billLinks = loadAllBillLinks(conn);
+    return computeCostReport({
+      granularity,
+      anchorDate,
+      sortBy,
+      activities,
+      budgetsByTaskUuid: budgets,
+      plans,
+      taskMetaByUuid: input?.taskMetaByUuid,
+      billLinks,
+      policy,
+      nowMs: ts,
+    });
+  }
+
+  function listBills(input?: {
+    q?: string;
+    fromDate?: string;
+    toDate?: string;
+    limit?: number;
+  }) {
+    return listBillExpenses({
+      billsDir: options.billsDir,
+      ...input,
+    });
+  }
+
+  function linkBillExpense(input: {
+    txKey: string;
+    taskUuid?: string;
+    activityId?: string;
+    source: string;
+    txId: string;
+    payTime: string;
+    payee: string;
+    narration: string;
+    account: string;
+    currency: string;
+    amount: number;
+    cnyAmountCents: number;
+    note?: string;
+  }): BillLink {
+    const conn = assertOpen();
+    const taskUuid = input.taskUuid?.trim().toLowerCase() || null;
+    const activityId = input.activityId?.trim() || null;
+    if (!taskUuid && !activityId) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_FIELD",
+        "Must provide taskUuid or activityId to link a Bill expense.",
+      );
+    }
+    const existing = conn
+      .prepare(
+        `SELECT * FROM bill_links
+         WHERE tx_key = ?
+           AND COALESCE(task_uuid, '') = COALESCE(?, '')
+           AND COALESCE(activity_id, '') = COALESCE(?, '')`,
+      )
+      .get(input.txKey, taskUuid, activityId) as BillLinkRow | undefined;
+    if (existing) {
+      return rowToBillLink(existing);
+    }
+    const id = randomUUID();
+    const ts = nowFn();
+    conn
+      .prepare(
+        `INSERT INTO bill_links (
+          id, tx_key, task_uuid, activity_id, source, tx_id, pay_time,
+          payee, narration, account, currency, amount, cny_amount_cents,
+          note, created_at_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        id,
+        input.txKey,
+        taskUuid,
+        activityId,
+        input.source,
+        input.txId,
+        input.payTime,
+        input.payee,
+        input.narration,
+        input.account,
+        input.currency,
+        input.amount,
+        Math.round(input.cnyAmountCents),
+        input.note ?? null,
+        ts,
+      );
+    const created = conn
+      .prepare("SELECT * FROM bill_links WHERE id = ?")
+      .get(id) as BillLinkRow;
+    return rowToBillLink(created);
+  }
+
+  function unlinkBillLink(linkId: string): { deleted: boolean } {
+    const conn = assertOpen();
+    const res = conn.prepare("DELETE FROM bill_links WHERE id = ?").run(linkId);
+    return { deleted: res.changes > 0 };
   }
 
   function getOperation(idOrKey: string): TimeOperationRecord | null {
@@ -5029,6 +5654,12 @@ export async function createTimeStore(
     getWeeklySummary,
     getReconcileDigest,
     getTimerSnapshot,
+    setTaskBudget,
+    getTaskCostDetail,
+    getCostReport,
+    listBills,
+    linkBillExpense,
+    unlinkBillLink,
     getOperation,
     getActivity,
     listUnresolvedOperations,

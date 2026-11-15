@@ -1,7 +1,14 @@
 import type {
   Activity,
   ActivityPrecision,
+  BillExpenseItem,
+  BillLink,
+  CostReportGranularity,
+  CostReportSortBy,
+  CostReportSummary,
   DailyLedgerSummary,
+  LocatedSegment,
+  TaskCostSummary,
   TimeEvent,
   TimePolicy,
   TimerSnapshot,
@@ -283,7 +290,9 @@ export function updateTimeActivity(input: {
   patch: {
     title?: string;
     categoryId?: string;
-    note?: string;
+    projectSnapshot?: string | null;
+    tags?: string[] | null;
+    note?: string | null;
     clearTaskLink?: boolean;
     precision?: ActivityPrecision;
     startMs?: number;
@@ -299,6 +308,87 @@ export function updateTimeActivity(input: {
     idempotencyKey: makeTimeIdempotencyKey("web-upd"),
     ...input,
   });
+}
+
+export type TaskCostDetailResponse = {
+  summary: TaskCostSummary;
+  segments: LocatedSegment[];
+  plans: TimingPlan[];
+  billLinks: BillLink[];
+};
+
+export function fetchTaskCostDetail(
+  taskUuid: string,
+): Promise<TaskCostDetailResponse> {
+  return api<TaskCostDetailResponse>(
+    `time/task-detail?taskUuid=${encodeURIComponent(taskUuid)}`,
+  );
+}
+
+export function setTaskBudget(input: {
+  taskUuid: string;
+  mode?: "set" | "add" | "clear";
+  allowanceSeconds?: number | null;
+  addAllowanceSeconds?: number;
+  plannedStartAtMs?: number | null;
+  plannedStartDate?: string;
+  plannedStartTime?: string | null;
+  hardStopAtMs?: number | null;
+  hardStopDate?: string;
+  hardStopTime?: string | null;
+}): Promise<{ summary: TaskCostSummary }> {
+  return api<{ summary: TaskCostSummary }>("time/task-budget", input);
+}
+
+export function fetchCostReport(options: {
+  granularity: CostReportGranularity;
+  date?: string;
+  sortBy: CostReportSortBy;
+}): Promise<CostReportSummary> {
+  const params = new URLSearchParams();
+  params.set("granularity", options.granularity);
+  if (options.date) params.set("date", options.date);
+  params.set("sortBy", options.sortBy);
+  return api<CostReportSummary>(`time/cost-report?${params.toString()}`);
+}
+
+export function fetchBillExpenses(options?: {
+  q?: string;
+  fromDate?: string;
+  toDate?: string;
+  limit?: number;
+}): Promise<{ available: boolean; expenses: BillExpenseItem[] }> {
+  const params = new URLSearchParams();
+  if (options?.q) params.set("q", options.q);
+  if (options?.fromDate) params.set("fromDate", options.fromDate);
+  if (options?.toDate) params.set("toDate", options.toDate);
+  if (options?.limit !== undefined) params.set("limit", String(options.limit));
+  const qs = params.toString();
+  return api<{ available: boolean; expenses: BillExpenseItem[] }>(
+    `time/bills/expenses${qs ? `?${qs}` : ""}`,
+  );
+}
+
+export function linkBillExpense(input: {
+  txKey: string;
+  taskUuid?: string;
+  activityId?: string;
+  source: string;
+  txId: string;
+  payTime: string;
+  payee: string;
+  narration: string;
+  account: string;
+  currency: string;
+  amount: number;
+  cnyAmountCents: number;
+  note?: string;
+}): Promise<{ link: BillLink }> {
+  return api<{ link: BillLink }>("time/bills/link", input);
+}
+
+export function unlinkBillLink(linkId: string): Promise<{ deleted: boolean }> {
+  return api<{ deleted: boolean }>("time/bills/unlink", { linkId });
 }
 
 export function undoTimeOperation(

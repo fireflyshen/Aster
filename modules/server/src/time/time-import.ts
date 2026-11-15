@@ -2,6 +2,10 @@ import { randomUUID } from "node:crypto";
 import { parseTaskwarriorDate } from "../../../core/tasks/model.ts";
 import { resolveActivityCategory } from "../../../core/time/classification.ts";
 import {
+  normalizeActivityTags,
+  normalizeHourlyRateCents,
+} from "../../../core/time/cost.ts";
+import {
   effectiveActivityEndMs,
   intervalsOverlap,
 } from "../../../core/time/ledger.ts";
@@ -424,16 +428,19 @@ export function applyTimewarriorSnapshotImport(
           project: item.projectSnapshot,
           tags: item.tags,
         });
+        const cleanTags = normalizeActivityTags(item.tags);
+        const rateCents = normalizeHourlyRateCents(policy.hourlyRateCents);
         conn
           .prepare(
             `INSERT INTO activities (
               id, version, kind, title, category_id, rule_version, rule_source,
-              task_uuid, project_snapshot, start_ms, end_ms, suspend_ms,
+              task_uuid, project_snapshot, tags_json, hourly_rate_cents,
+              start_ms, end_ms, suspend_ms,
               window_start_ms, window_end_ms, target_date, estimated_seconds,
               precision, source, review_state, raw_input, note, timezone,
               import_batch_id, source_record_id, candidate_key,
               created_at_ms, updated_at_ms
-            ) VALUES (?, 1, 'located', ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, 'exact', 'timewarrior_import', 'ok', NULL, ?, ?, ?, ?, NULL, ?, ?)`,
+            ) VALUES (?, 1, 'located', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, 'exact', 'timewarrior_import', 'ok', NULL, ?, ?, ?, ?, NULL, ?, ?)`,
           )
           .run(
             activityId,
@@ -443,6 +450,8 @@ export function applyTimewarriorSnapshotImport(
             classified.ruleSource,
             item.taskUuid ?? null,
             item.projectSnapshot ?? null,
+            cleanTags.length > 0 ? JSON.stringify(cleanTags) : null,
+            rateCents,
             item.startMs,
             item.endMs,
             item.raw.annotation ?? null,

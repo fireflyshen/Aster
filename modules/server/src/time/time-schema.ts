@@ -1,11 +1,15 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
+  computeDurationCostCents,
+  normalizeHourlyRateCents,
+} from "../../../core/time/cost.ts";
+import {
   createDefaultTimePolicy,
   type TimePolicy,
 } from "../../../core/time/model.ts";
 import type { TimeBarrierState } from "./time-barrier.ts";
 
-export const CURRENT_TIME_SCHEMA_VERSION = 1;
+export const CURRENT_TIME_SCHEMA_VERSION = 2;
 
 export function initializeTimeDatabase(
   db: DatabaseSync,
@@ -193,6 +197,41 @@ export function initializeTimeDatabase(
 
     CREATE INDEX IF NOT EXISTS idx_time_events_ack
       ON time_events (acknowledged_at_ms, occurred_at_ms DESC);
+
+    CREATE TABLE IF NOT EXISTS task_budgets (
+      task_uuid TEXT PRIMARY KEY,
+      hourly_rate_cents INTEGER NOT NULL,
+      initial_allowance_seconds INTEGER NULL,
+      initial_budget_cents INTEGER NULL,
+      current_allowance_seconds INTEGER NULL,
+      current_budget_cents INTEGER NULL,
+      planned_start_at_ms INTEGER NULL,
+      hard_stop_at_ms INTEGER NULL,
+      created_at_ms INTEGER NOT NULL,
+      updated_at_ms INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS bill_links (
+      id TEXT PRIMARY KEY,
+      tx_key TEXT NOT NULL,
+      task_uuid TEXT NULL,
+      activity_id TEXT NULL,
+      source TEXT NOT NULL,
+      tx_id TEXT NOT NULL,
+      pay_time TEXT NOT NULL,
+      payee TEXT NOT NULL,
+      narration TEXT NOT NULL,
+      account TEXT NOT NULL,
+      currency TEXT NOT NULL,
+      amount REAL NOT NULL,
+      cny_amount_cents INTEGER NOT NULL,
+      note TEXT NULL,
+      created_at_ms INTEGER NOT NULL,
+      UNIQUE(tx_key, task_uuid, activity_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_bill_links_task ON bill_links (task_uuid);
+    CREATE INDEX IF NOT EXISTS idx_bill_links_activity ON bill_links (activity_id);
   `);
 
   const activityCols = new Set(
@@ -203,6 +242,8 @@ export function initializeTimeDatabase(
     ).map((c) => c.name),
   );
   const additiveActivityCols: ReadonlyArray<[string, string]> = [
+    ["tags_json", "TEXT NULL"],
+    ["hourly_rate_cents", "INTEGER NULL"],
     ["confirmed_through_ms", "INTEGER NULL"],
     ["review_due_at_ms", "INTEGER NULL"],
     ["review_reason", "TEXT NULL"],
@@ -219,6 +260,26 @@ export function initializeTimeDatabase(
       db.exec(`ALTER TABLE activities ADD COLUMN ${col} ${def};`);
     }
   }
+
+  const timingPlanCols = new Set(
+    (
+      db.prepare("PRAGMA table_info(timing_plans)").all() as Array<{
+        name: string;
+      }>
+    ).map((c) => c.name),
+  );
+  const additivePlanCols: ReadonlyArray<[string, string]> = [
+    ["hourly_rate_cents", "INTEGER NULL"],
+    ["initial_allowance_seconds", "INTEGER NULL"],
+    ["initial_budget_cents", "INTEGER NULL"],
+    ["current_budget_cents", "INTEGER NULL"],
+  ];
+  for (const [col, def] of additivePlanCols) {
+    if (!timingPlanCols.has(col)) {
+      db.exec(`ALTER TABLE timing_plans ADD COLUMN ${col} ${def};`);
+    }
+  }
+
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_activities_timing_plan
       ON activities (timing_plan_id);
@@ -228,7 +289,7 @@ export function initializeTimeDatabase(
   const defaultPolicy: TimePolicy = createDefaultTimePolicy();
   const existing = db
     .prepare(
-      "SELECT schema_version, time_epoch, task_data_epoch, restore_barrier_at FROM time_meta WHERE id = 1",
+      "SELECT schema_version, time_epoch, task_data_epoch, restore_barrier_at, policy_json FROM time_meta WHERE id = 1",
     )
     .get() as
     | {
@@ -236,6 +297,7 @@ export function initializeTimeDatabase(
         time_epoch: number;
         task_data_epoch: number;
         restore_barrier_at: number;
+        policy_json: string;
       }
     | undefined;
 
@@ -265,6 +327,83 @@ export function initializeTimeDatabase(
     throw new Error(
       `Unsupported time.sqlite schema version ${existing.schema_version} (max supported ${CURRENT_TIME_SCHEMA_VERSION}).`,
     );
+  }
+
+  let storedPolicyRate = defaultPolicy.hourlyRateCents ?? 10_000;
+  try {
+    const parsedPolicy = JSON.parse(existing.policy_json) as Partial<TimePolicy>;
+    storedPolicyRate = normalizeHourlyRateCents(
+      parsedPolicy.hourlyRateCents,
+      storedPolicyRate,
+    );
+  } catch {
+    // Keep default fallback rate on corrupt policy JSON
+  }
+
+  if (existing.schema_version < CURRENT_TIME_SCHEMA_VERSION) {
+    db.prepare(
+      "UPDATE activities SET hourly_rate_cents = ? WHERE hourly_rate_cents IS NULL",
+    ).run(storedPolicyRate);
+
+    const legacyPlans = db
+      .prepare(
+        "SELECT id, task_uuid, allowance_seconds, planned_start_at_ms, hard_stop_at_ms, hourly_rate_cents, initial_allowance_seconds, initial_budget_cents, current_budget_cents, created_at_ms, updated_at_ms FROM timing_plans WHERE allowance_seconds IS NOT NULL",
+      )
+      .all() as Array<{
+      id: string;
+      task_uuid: string | null;
+      allowance_seconds: number;
+      planned_start_at_ms: number | null;
+      hard_stop_at_ms: number | null;
+      hourly_rate_cents: number | null;
+      initial_allowance_seconds: number | null;
+      initial_budget_cents: number | null;
+      current_budget_cents: number | null;
+      created_at_ms: number;
+      updated_at_ms: number;
+    }>;
+    for (const plan of legacyPlans) {
+      const rate = normalizeHourlyRateCents(plan.hourly_rate_cents, storedPolicyRate);
+      const initSec = plan.initial_allowance_seconds ?? plan.allowance_seconds;
+      const initBudget =
+        plan.initial_budget_cents ?? computeDurationCostCents(initSec, rate);
+      const currBudget =
+        plan.current_budget_cents ??
+        computeDurationCostCents(plan.allowance_seconds, rate);
+      db.prepare(
+        `UPDATE timing_plans
+         SET hourly_rate_cents = ?,
+             initial_allowance_seconds = ?,
+             initial_budget_cents = ?,
+             current_budget_cents = ?
+         WHERE id = ?`,
+      ).run(rate, initSec, initBudget, currBudget, plan.id);
+      if (plan.task_uuid) {
+        const key = plan.task_uuid.toLowerCase();
+        db.prepare(
+          `INSERT OR IGNORE INTO task_budgets (
+             task_uuid, hourly_rate_cents, initial_allowance_seconds, initial_budget_cents,
+             current_allowance_seconds, current_budget_cents, planned_start_at_ms, hard_stop_at_ms,
+             created_at_ms, updated_at_ms
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
+          key,
+          rate,
+          initSec,
+          initBudget,
+          plan.allowance_seconds,
+          currBudget,
+          plan.planned_start_at_ms,
+          plan.hard_stop_at_ms,
+          plan.created_at_ms,
+          plan.updated_at_ms,
+        );
+      }
+    }
+
+    db.prepare(
+      "UPDATE time_meta SET schema_version = ?, updated_at_ms = ? WHERE id = 1",
+    ).run(CURRENT_TIME_SCHEMA_VERSION, nowMs);
   }
 
   // Enforce monotonic epoch & restore barrier from external sidecar on every open.
