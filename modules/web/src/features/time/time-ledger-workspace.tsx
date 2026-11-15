@@ -1,7 +1,7 @@
 import type { TimerSnapshot } from "@core/time/model";
 import { snapshotLiveStatus } from "@core/time/snapshot";
 import type { Task } from "@shared/tasks";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -39,41 +39,41 @@ export function TimeLedgerWorkspace({
 
   if (!isTimeMode) {
     return (
-      <Alert>
-        <AlertDescription className="text-xs">
-          当前服务端以兼容模式运行（`TIME_ENABLED=0`），Time
-          账本写入与视图未激活。请移除 `TIME_ENABLED=0`
-          环境变量并重启服务端以启用完整时间账本功能。
-        </AlertDescription>
-      </Alert>
+      <p className="py-6 text-xs leading-relaxed text-muted-foreground">
+        当前服务端以兼容模式运行（`TIME_ENABLED=0`），Time
+        账本暂未启用。移除该环境变量并重启服务端即可使用完整时间账本。
+      </p>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8">
       {ledger.lastUndoable && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs">
-          <span>
-            最近操作：<strong>{ledger.lastUndoable.label}</strong>
+        <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-2 text-xs text-muted-foreground">
+          <span className="truncate">
+            已记录：<span className="text-foreground">{ledger.lastUndoable.label}</span>
           </span>
-          <div className="flex items-center gap-1.5">
-            <Button
-              type="button"
-              size="xs"
-              variant="outline"
-              disabled={ledger.busy}
-              onClick={() => void ledger.handleUndoLast()}
-            >
-              <RotateCcw className="size-3" />
-              撤销这笔修改
-            </Button>
+          <div className="flex shrink-0 items-center gap-1">
             <Button
               type="button"
               size="xs"
               variant="ghost"
+              className="h-6 gap-1 px-2 text-xs text-foreground"
+              disabled={ledger.busy}
+              onClick={() => void ledger.handleUndoLast()}
+            >
+              <RotateCcw className="size-3" />
+              撤销
+            </Button>
+            <Button
+              type="button"
+              size="icon-xs"
+              variant="ghost"
+              aria-label="收起提示"
+              className="size-6 text-muted-foreground"
               onClick={ledger.clearUndoable}
             >
-              收起
+              <X className="size-3" />
             </Button>
           </div>
         </div>
@@ -96,7 +96,7 @@ export function TimeLedgerWorkspace({
       )}
 
       {ledger.loading && !ledger.policy ? (
-        <div className="flex items-center gap-2 py-8 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 py-12 text-xs text-muted-foreground">
           <Spinner className="size-4" />
           加载时间账本…
         </div>
@@ -134,7 +134,7 @@ export function TimeLedgerWorkspace({
             runMutation={ledger.runMutation}
           />
         ) : (
-          <div className="flex items-center gap-2 py-8 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 py-12 text-xs text-muted-foreground">
             <Spinner className="size-4" />
             正在刷新数据…
           </div>

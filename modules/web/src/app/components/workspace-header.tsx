@@ -172,12 +172,6 @@ const TIME_PAGE_TITLES: Record<TimePage, string> = {
   settings: "时间设置",
 };
 
-const TIME_PAGE_SUBTITLES: Record<TimePage, string> = {
-  today: "记录当前活动、核对空白时段并管理待定位估记",
-  weekly: "观察本周分类时间投入与未记录缺口，暂不替代真实发生时间",
-  settings: "配置时区、作息候选模板、自动分类映射与历史快照导入",
-};
-
 /** View heading bar with breadcrumbs, Todoist count/subtitle, Focus toggle, and layout/options controls. */
 export function WorkspaceHeading({
   view,
@@ -359,11 +353,6 @@ export function WorkspaceHeading({
                 </Button>
               )}
           </div>
-          {timePage && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {TIME_PAGE_SUBTITLES[timePage]}
-            </p>
-          )}
           {showTodayMeta && (
             <p className="mt-0.5 text-xs text-muted-foreground">
               {format(now, "M月d日 · EEEE", { locale: zhCN })}

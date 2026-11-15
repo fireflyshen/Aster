@@ -3,14 +3,16 @@ import type {
   TagCategoryRule,
   TimePolicy,
 } from "@core/time/model";
-import { Download, History, Plus, Trash2, Upload } from "lucide-react";
+import { ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -151,11 +153,14 @@ export function TimeSettingsPage({
 
   async function handleApplyImport() {
     setImportBusy(true);
+    setImportError("");
     try {
       const res = await runMutation("已完成 Timewarrior 历史快照导入", () =>
         applyTimewarriorImport({ clipOpenToCutover }),
       );
       if (res) setImportPreview(null);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "导入失败");
     } finally {
       setImportBusy(false);
     }
@@ -200,113 +205,126 @@ export function TimeSettingsPage({
   }
 
   return (
-    <div className="space-y-5">
-      {/* Policy Form */}
-      <form
-        onSubmit={(e) => void handleSavePolicy(e)}
-        className="space-y-5 rounded-xl border border-border/70 bg-card/50 p-4"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-medium">基础规则与作息模板</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              日/周时间线按所设 IANA 时区划分，精力重置周期为该时区每日 06:00。
-            </p>
+    <div className="max-w-2xl space-y-10">
+      {/* Main Policy Form: Clean Linear-style setting rows */}
+      <form onSubmit={(e) => void handleSavePolicy(e)} className="space-y-10">
+        <section>
+          <div className="flex items-center justify-between border-b border-border/60 pb-2">
+            <h2 className="text-xs font-medium text-muted-foreground">
+              基础偏好
+            </h2>
+            <span className="text-xs text-muted-foreground/70">
+              v{policy.policyVersion}
+            </span>
           </div>
-          <Badge variant="outline">策略 v{policy.policyVersion}</Badge>
-        </div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="time-policy-tz">IANA 时区</Label>
-            <Input
-              id="time-policy-tz"
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              placeholder="Asia/Shanghai"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="time-policy-long">长计时提醒阈值（分钟）</Label>
-            <Input
-              id="time-policy-long"
-              type="number"
-              min={15}
-              max={1440}
-              value={thresholdMins}
-              onChange={(e) => setThresholdMins(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-3 rounded-lg border border-border/60 bg-background/50 p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs font-medium">作息候选（睡眠模板）</div>
-              <div className="text-[11px] text-muted-foreground">
-                每天展示睡眠时段候选，一键“睡眠照常”确认，不填也不会阻塞任何记录。
+          <div className="divide-y divide-border/35">
+            <div className="flex flex-wrap items-center justify-between gap-4 py-3.5">
+              <div>
+                <div className="text-sm text-foreground">IANA 时区</div>
+                <div className="text-xs text-muted-foreground">
+                  按该时区切分日/周时间线与精力重置点
+                </div>
               </div>
+              <Input
+                id="time-policy-tz"
+                aria-label="IANA 时区"
+                className="h-8 w-44 text-xs"
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                placeholder="Asia/Shanghai"
+              />
             </div>
-            <Switch
-              checked={sleepEnabled}
-              onCheckedChange={setSleepEnabled}
-              aria-label="启用睡眠候选模板"
-            />
-          </div>
-          {sleepEnabled && (
-            <div className="grid grid-cols-2 gap-2.5 sm:max-w-xs">
-              <div className="space-y-1">
-                <Label htmlFor="sleep-start" className="text-[11px]">
-                  入睡时间
-                </Label>
-                <Input
-                  id="sleep-start"
-                  type="time"
-                  value={sleepStart}
-                  onChange={(e) => setSleepStart(e.target.value)}
+
+            <div className="flex flex-wrap items-center justify-between gap-4 py-3.5">
+              <div>
+                <div className="text-sm text-foreground">长计时提醒（分钟）</div>
+                <div className="text-xs text-muted-foreground">
+                  单条计时超出该时长后温和提示是否忘记结束
+                </div>
+              </div>
+              <Input
+                id="time-policy-long"
+                aria-label="长计时提醒阈值"
+                type="number"
+                min={15}
+                max={1440}
+                className="h-8 w-24 text-right text-xs tabular-nums"
+                value={thresholdMins}
+                onChange={(e) => setThresholdMins(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-3 py-3.5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm text-foreground">睡眠模板候选</div>
+                  <div className="text-xs text-muted-foreground">
+                    每日生成一条作息候选，可一键“照常”或跳过
+                  </div>
+                </div>
+                <Switch
+                  checked={sleepEnabled}
+                  onCheckedChange={setSleepEnabled}
+                  aria-label="启用睡眠候选模板"
                 />
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="sleep-end" className="text-[11px]">
-                  起床时间
-                </Label>
-                <Input
-                  id="sleep-end"
-                  type="time"
-                  value={sleepEnd}
-                  onChange={(e) => setSleepEnd(e.target.value)}
-                />
-              </div>
+              {sleepEnabled && (
+                <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-muted-foreground">
+                  <label className="flex items-center gap-2">
+                    <span>入睡</span>
+                    <Input
+                      id="sleep-start"
+                      type="time"
+                      className="h-7 w-28 text-xs"
+                      value={sleepStart}
+                      onChange={(e) => setSleepStart(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <span>起床</span>
+                    <Input
+                      id="sleep-end"
+                      type="time"
+                      className="h-7 w-28 text-xs"
+                      value={sleepEnd}
+                      onChange={(e) => setSleepEnd(e.target.value)}
+                    />
+                  </label>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        </section>
 
         {/* Auto-classification rules */}
-        <div className="space-y-2.5">
-          <div>
-            <div className="text-xs font-medium">自动分类映射规则</div>
-            <div className="text-[11px] text-muted-foreground">
-              未显式指定分类时按规则匹配；未命中先记为“未分类”，不打断记录节奏。
-            </div>
+        <section>
+          <div className="border-b border-border/60 pb-2">
+            <h2 className="text-xs font-medium text-muted-foreground">
+              自动分类规则
+            </h2>
           </div>
-          <div className="space-y-1.5">
+
+          <div className="divide-y divide-border/35">
             {projectRules.map((rule) => (
               <div
                 key={`proj-${rule.pattern}`}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/60 px-3 py-1.5 text-xs"
+                className="group flex items-center justify-between gap-4 py-2.5 text-xs"
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">项目前缀: {rule.pattern}</Badge>
-                  <span>→</span>
-                  <Badge variant="secondary">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">项目</span>
+                  <span className="text-sm text-foreground">{rule.pattern}</span>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="text-muted-foreground">
                     {resolveCategoryLabel(rule.categoryId, policy)}
-                  </Badge>
+                  </span>
                 </div>
                 <Button
                   type="button"
                   size="icon-xs"
                   variant="ghost"
                   aria-label="删除项目规则"
+                  className="size-6 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                   onClick={() =>
                     setProjectRules((prev) =>
                       prev.filter((r) => r.pattern !== rule.pattern),
@@ -320,20 +338,22 @@ export function TimeSettingsPage({
             {tagRules.map((rule) => (
               <div
                 key={`tag-${rule.tag}`}
-                className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/60 px-3 py-1.5 text-xs"
+                className="group flex items-center justify-between gap-4 py-2.5 text-xs"
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">标签: {rule.tag}</Badge>
-                  <span>→</span>
-                  <Badge variant="secondary">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">标签</span>
+                  <span className="text-sm text-foreground">{rule.tag}</span>
+                  <span className="text-muted-foreground/50">→</span>
+                  <span className="text-muted-foreground">
                     {resolveCategoryLabel(rule.categoryId, policy)}
-                  </Badge>
+                  </span>
                 </div>
                 <Button
                   type="button"
                   size="icon-xs"
                   variant="ghost"
                   aria-label="删除标签规则"
+                  className="size-6 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                   onClick={() =>
                     setTagRules((prev) =>
                       prev.filter((r) => r.tag !== rule.tag),
@@ -346,14 +366,14 @@ export function TimeSettingsPage({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-b border-border/50 pb-2">
             <Select
               value={newRuleKind}
               onValueChange={(v) =>
                 setNewRuleKind(v === "tag" ? "tag" : "project")
               }
             >
-              <SelectTrigger className="h-8 w-[110px] text-xs">
+              <SelectTrigger className="h-7 w-auto gap-1 border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -361,16 +381,17 @@ export function TimeSettingsPage({
                 <SelectItem value="tag">任务标签</SelectItem>
               </SelectContent>
             </Select>
-            <Input
-              className="h-8 min-w-[140px] flex-1 text-xs"
+            <input
+              type="text"
+              className="min-w-[120px] flex-1 bg-transparent py-1 text-xs text-foreground placeholder:text-muted-foreground/55 outline-none"
               placeholder={
-                newRuleKind === "project" ? "例如：Study" : "例如：reading"
+                newRuleKind === "project" ? "输入项目名如 Study…" : "输入标签如 reading…"
               }
               value={newRulePattern}
               onChange={(e) => setNewRulePattern(e.target.value)}
             />
             <Select value={newRuleCategory} onValueChange={setNewRuleCategory}>
-              <SelectTrigger className="h-8 w-[120px] text-xs">
+              <SelectTrigger className="h-7 w-auto gap-1 border-0 bg-transparent px-1.5 text-xs text-muted-foreground shadow-none">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -384,166 +405,165 @@ export function TimeSettingsPage({
             <Button
               type="button"
               size="xs"
-              variant="outline"
+              variant="ghost"
+              className="gap-1 text-xs"
+              disabled={!newRulePattern.trim()}
               onClick={handleAddRule}
             >
               <Plus className="size-3.5" />
-              添加规则
+              添加
             </Button>
           </div>
-        </div>
 
-        <div className="flex justify-end">
-          <Button type="submit" size="sm" disabled={busy}>
-            保存时间设置
-          </Button>
-        </div>
+          <div className="mt-5 flex justify-end">
+            <Button type="submit" size="sm" disabled={busy}>
+              保存设置
+            </Button>
+          </div>
+        </section>
       </form>
 
-      {/* Timewarrior Snapshot Import */}
-      <section className="space-y-3 rounded-xl border border-border/70 bg-card/50 p-4">
-        <div>
-          <h2 className="flex items-center gap-1.5 text-sm font-medium">
-            <History className="size-4 text-primary" />
-            历史 Timewarrior 快照导入
+      {/* Progressive disclosure: Data & Recovery utilities tucked cleanly inside Collapsibles */}
+      <section className="space-y-1">
+        <div className="border-b border-border/60 pb-2">
+          <h2 className="text-xs font-medium text-muted-foreground">
+            数据工具
           </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            导入采用冻结快照与启用切换点裁剪，保留幂等批次元数据，不会污染正在运行的新计时。
-          </p>
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Checkbox
-            checked={clipOpenToCutover}
-            onCheckedChange={(v) => setClipOpenToCutover(Boolean(v))}
-          />
-          将跨越切换点的未闭合 Timewarrior 记录裁剪截止至切换点并导入
-        </label>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            disabled={busy || importBusy}
-            onClick={() => void handlePreviewImport()}
-          >
-            预览导入范围
-          </Button>
-          {importPreview && (
-            <Button
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <button
               type="button"
-              size="xs"
-              disabled={
-                busy || importBusy || importPreview.importableCount === 0
-              }
-              onClick={() => void handleApplyImport()}
+              className="group flex w-full items-center justify-between border-b border-border/35 py-3 text-left text-sm text-foreground transition-colors hover:text-foreground/80"
             >
-              确认导入（{importPreview.importableCount} 条）
-            </Button>
-          )}
-        </div>
-
-        {importError && (
-          <p className="text-xs text-destructive">{importError}</p>
-        )}
-
-        {importPreview && (
-          <Alert>
-            <AlertDescription className="space-y-1 text-xs">
-              <div>
-                可导入 <strong>{importPreview.importableCount}</strong> 条 ·
-                切换后跳过 {importPreview.skippedAfterCutoverCount} 条 · 冲突{" "}
-                {importPreview.conflictCount} 条 · 未闭合{" "}
-                {importPreview.openAtCutoverCount} 条
-              </div>
-              {importPreview.alreadyImportedBatchId && (
-                <div className="text-muted-foreground">
-                  该快照已导入过（批次{" "}
-                  {importPreview.alreadyImportedBatchId.slice(0, 8)}
-                  ），不会重复创建活动。
-                </div>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
-      </section>
-
-      {/* Time SQLite Backup & Independent Restore */}
-      <section className="space-y-3 rounded-xl border border-border/70 bg-card/50 p-4">
-        <div>
-          <h2 className="text-sm font-medium">Time 独立账本备份与恢复</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            单独备份 `time.sqlite`
-            与校验快照；恢复仅作用于时间账本并推进代际屏障，不改写任务状态。
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            disabled={busy || backupBusy}
-            onClick={() => void handleExportTimeBackup()}
-          >
-            <Download className="size-3.5" />
-            导出 Time 备份
-          </Button>
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            disabled={busy || backupBusy}
-            onClick={() => backupInputRef.current?.click()}
-          >
-            <Upload className="size-3.5" />
-            选择备份预览恢复
-          </Button>
-          <input
-            ref={backupInputRef}
-            type="file"
-            accept="application/json"
-            className="hidden"
-            onChange={(e) => void handleBackupFileChange(e.target.files?.[0])}
-          />
-        </div>
-
-        {backupError && (
-          <p className="text-xs text-destructive">{backupError}</p>
-        )}
-
-        {backupPreview && (
-          <Alert>
-            <AlertDescription className="space-y-2 text-xs">
-              <div>
-                校验通过：包含 {backupPreview.candidateCounts.activities}{" "}
-                条活动，恢复后将从代际 {backupPreview.currentCounts.timeEpoch}{" "}
-                推进至 {backupPreview.currentCounts.timeEpoch + 1}。
-              </div>
-              {backupPreview.warnings.map((w) => (
-                <div key={w} className="text-amber-600 dark:text-amber-400">
-                  {w}
-                </div>
-              ))}
+              <span>历史 Timewarrior 快照导入</span>
+              <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-3 py-4 text-xs">
+            <p className="text-muted-foreground">
+              仅导入切换时刻之前的历史区间，保留幂等记录，不干扰当前运行中的计时。
+            </p>
+            <label className="flex items-center gap-2 text-muted-foreground">
+              <Checkbox
+                checked={clipOpenToCutover}
+                onCheckedChange={(v) => setClipOpenToCutover(Boolean(v))}
+              />
+              裁剪并导入跨越切换点的未闭合记录
+            </label>
+            <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 size="xs"
-                variant="destructive"
-                disabled={busy || backupBusy}
-                onClick={() =>
-                  void runMutation("已恢复 Time 账本备份", () =>
-                    applyTimeBackupRestore(backupPreview.token),
-                  ).then((res) => {
-                    if (res) setBackupPreview(null);
-                  })
-                }
+                variant="outline"
+                disabled={busy || importBusy}
+                onClick={() => void handlePreviewImport()}
               >
-                确认仅恢复 Time 账本
+                预览范围
               </Button>
-            </AlertDescription>
-          </Alert>
-        )}
+              {importPreview && (
+                <Button
+                  type="button"
+                  size="xs"
+                  disabled={
+                    busy || importBusy || importPreview.importableCount === 0
+                  }
+                  onClick={() => void handleApplyImport()}
+                >
+                  确认导入（{importPreview.importableCount} 条）
+                </Button>
+              )}
+            </div>
+            {importError && <p className="text-destructive">{importError}</p>}
+            {importPreview && (
+              <p className="text-muted-foreground">
+                可导入 {importPreview.importableCount} 条 · 切换后跳过{" "}
+                {importPreview.skippedAfterCutoverCount} 条 · 冲突{" "}
+                {importPreview.conflictCount} 条
+                {importPreview.alreadyImportedBatchId
+                  ? `（该快照已导入，批次 ${importPreview.alreadyImportedBatchId.slice(0, 8)}）`
+                  : ""}
+              </p>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="group flex w-full items-center justify-between border-b border-border/35 py-3 text-left text-sm text-foreground transition-colors hover:text-foreground/80"
+            >
+              <span>Time 账本独立备份与恢复</span>
+              <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-3 py-4 text-xs">
+            <p className="text-muted-foreground">
+              单独导出或恢复 `time.sqlite`，不会改写 Taskwarrior 任务状态。
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                disabled={busy || backupBusy}
+                onClick={() => void handleExportTimeBackup()}
+              >
+                导出备份
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                disabled={busy || backupBusy}
+                onClick={() => backupInputRef.current?.click()}
+              >
+                选择文件预览恢复
+              </Button>
+              <input
+                ref={backupInputRef}
+                type="file"
+                accept="application/json"
+                className="hidden"
+                onChange={(e) =>
+                  void handleBackupFileChange(e.target.files?.[0])
+                }
+              />
+            </div>
+            {backupError && <p className="text-destructive">{backupError}</p>}
+            {backupPreview && (
+              <div className="space-y-2 border-l-2 border-border pl-3">
+                <p className="text-foreground">
+                  校验通过：含 {backupPreview.candidateCounts.activities}{" "}
+                  条活动（代际 {backupPreview.currentCounts.timeEpoch} →{" "}
+                  {backupPreview.currentCounts.timeEpoch + 1}）
+                </p>
+                {backupPreview.warnings.map((w) => (
+                  <p key={w} className="text-amber-600 dark:text-amber-400">
+                    {w}
+                  </p>
+                ))}
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="destructive"
+                  disabled={busy || backupBusy}
+                  onClick={() =>
+                    void runMutation("已恢复 Time 账本备份", () =>
+                      applyTimeBackupRestore(backupPreview.token),
+                    ).then((res) => {
+                      if (res) setBackupPreview(null);
+                    })
+                  }
+                >
+                  确认恢复
+                </Button>
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
       </section>
     </div>
   );

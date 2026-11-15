@@ -1,8 +1,10 @@
 # Aster MCP
 
-为支持 MCP stdio 的 AI 客户端提供 Aster 的全部共享业务功能。设计、覆盖矩阵和失败语义见 [DESIGN.md](DESIGN.md)。不需要模型 API Key，不依赖 AI 厂商 SDK。
+为支持 MCP stdio 的 AI 客户端（如 Grok Bot、Claude、Cursor）提供 Aster 的全部共享业务功能：**任务规划与看板管理**、**时间账本 (Time Ledger)** 与 **多端对账**。不需要模型 API Key，不依赖 AI 厂商 SDK。
 
-## 安装与连接
+---
+
+## 1. 安装与连接
 
 需要 Node.js 22.14+ 和系统 OpenSSH。仓库根目录执行：
 
@@ -11,9 +13,11 @@ npm ci --prefix modules/mcp
 ASTER_SSH_TARGET=dmit npm run start:mcp
 ```
 
-`dmit` 只是当前仓库的默认部署示例，按实际 SSH config 别名替换。先在终端验证主机指纹及密钥登录；MCP 使用 BatchMode，不弹密码窗口。服务器需要运行现有 Web 服务并启用 `WORKSPACE_SOCKET=/opt/aster/data/workspace.sock`；SSH 用户需要该文件的访问权限（0600）。服务器需允许 Unix socket 转发（OpenSSH AllowStreamLocalForwarding）。模块会建立临时本机 socket，退出时关闭 SSH 转发。无需在服务器安装 MCP 包或新增公网端口。
+`dmit` 为默认远程 VPS 示例（按实际 SSH config 替换）。服务器运行 Web 服务并启用 `WORKSPACE_SOCKET=/opt/aster/data/workspace.sock`；SSH 用户需要该文件读写权限（0600）且允许 Unix socket 转发。
 
-支持 MCP stdio 的客户端可使用下面的配置，替换为本机绝对路径；`node` 需要在该客户端的 PATH 中，也可以填写 Node 可执行文件的绝对路径：
+### 客户端配置示例
+
+#### 模式 A：客户端在本地 Mac / PC（通过 SSH 隧道直连远程）
 
 ```json
 {
@@ -33,41 +37,113 @@ ASTER_SSH_TARGET=dmit npm run start:mcp
 }
 ```
 
-也可以设置 `ASTER_SOCKET=/absolute/path/workspace.sock` 直接访问本地或已转发的 socket，此时忽略 SSH 配置。只配置连接你打算授权给 AI 使用的工作区；工具可以修改任务并执行数据恢复。
+#### 模式 B：Grok Bot 与 Aster 部署在同一台 VPS / 容器内（本地直连）
 
-## AI 接管项目建议工作流
+如果你的 Grok Bot 直接运行在 VPS 上，无需走 SSH 转发，配置本地 socket 即可：
 
-针对“AI 全面制定计划/拆解任务，我只管在客户端勾完成”的使用方式，本次已内置以下能力：
+```json
+{
+  "mcpServers": {
+    "aster": {
+      "command": "node",
+      "args": [
+        "--experimental-strip-types",
+        "/opt/aster/current/modules/mcp/src/index.ts"
+      ],
+      "env": {
+        "ASTER_SOCKET": "/opt/aster/data/workspace.sock"
+      }
+    }
+  }
+}
+```
 
-1. **一次掌握全貌**：调用 `project_digest`（可传 `project`），一次拿到当前 `revision`、项目分栏、父子任务树、任务正文 `taskDescription`、高 `urgency` 优先级、逾期/今日待办以及最近已勾选完成的任务列表。
-2. **批量落盘阶段计划**：调用 `plan_apply`，一步完成项目元信息/激活、按项目创建阶段栏目、创建父任务与子任务并写入 Markdown `taskDescription`、挂载到对应阶段栏，以及设置 `nextTask`。
-3. **安全局部微调**：用 `task_patch` 只改部分字段（如顺延 `due`、调整 `priority` 或追加 `note`），不会误清项目或原有标签；`task_create`、`subtask_link`/`subtask_unlink`、`task_description_set`、`column_save`（带 `project`）和 `board_task_move`（带 `parentUuid`）也全部支持完整细粒度操作。
-4. **内置 Prompts**：客户端如支持 MCP Prompts，可直接选用 `aster_takeover_plan`（接管规划）或 `aster_daily_review`（进度复盘重排）。
+---
 
-> 如果你的 AI Bot（如 Grok Bot）部署在 `dmit` VPS 本机而非你的 Mac 上，可改为配置 `ASTER_SOCKET=/opt/aster/data/workspace.sock` 直连本机 Unix socket（无需再走 SSH 转发）。
+## 2. Grok Bot / AI 角色指导规范（Prompt 指南）
 
-## 使用约定
+将以下内容放入给 Grok Bot 的 **System Prompt / Instructions** 中，指导其规划任务并与时间账本联动：
 
-1. 先 `project_digest`（或 `workspace_get`）读取项目、Focus、标签、过滤器、栏目、精力和 revision。
-2. `tasks_list` 支持 Taskwarrior 条件；例如 `status:pending`、`status:waiting`、`due:today`、`project:Work`、`project:`（Inbox）、`description.contains:报告`。默认返回未完成和已完成任务；已删除任务用 `recovery_list`。
-3. 局部修改优先用 `task_patch`（保留未传入字段）；完整替换才使用 `task_edit`（先 `task_get`，复制 `editInput` 修改后提交；省略 project/due/priority 会清空对应字段，`note` 为追加）。
-4. 组织资料写入传入刚读取的 revision。成功返回最新资料和 revision；409 冲突应重新读取并核对意图，不自动覆盖。
-5. 日期输入为 UTC `YYYYMMDDTHHmmssZ`，空字符串表示清除。`quick_preview` 用服务器时区解析一句话，返回 task/tokens/errors；检查后再创建。
-6. 栏目移动不改变完成状态；项目完成也不完成其任务。撤销完成/重开分别用 task_reopen/task_complete；撤销移动需要读取最新 revision 后显式移回。
-7. 备份：`backup_export` 获取 JSON，`backup_preview` 接收 `{ "backup": <完整 JSON> }` 并返回范围、警告和令牌；核对并取得用户确认后 `backup_restore` 接收 `{ "token": "...", "confirmation": "RESTORE" }`。令牌由服务端保存，10 分钟过期，工作区变化也会使其失效。恢复前副本可用 backup_points/download 读取。上传限制沿用工作区服务的 8 MiB，响应限制 32 MiB。
-8. `isError=true` 时读取错误 JSON。`outcome=unknown` 表示可能已写入，先读取核对，禁止自动再次提交。进程不会自动重试请求。
+```markdown
+### 角色与交互原则
+你是用户的 Aster 个人数字助理，负责帮助用户拆解任务、排期规划，并管理时间账本（Time Ledger）。
 
-新增标签/过滤器/栏目传空 id，服务端生成正式 id。更名使用现有 id。项目使用点路径（Work.Web）；移动/更名用 project_save.originalName。project_status 中 later 表示暂停或重开，active 表示激活，completed 表示完成；激活第 4 个项目需 replaceProject，完成有未完成任务的项目需 remaining=keep。
+### 1. 时间账本（Time）分类字典规范
+Aster 的时间账本将生活与工作划分为固定的宏观领域。在调用 `time_start`、`time_log`、`time_estimate` 等工具时，请在 `explicitCategoryId` 字段中严格使用以下合法的分类 ID，切勿自行发明分类字符串：
+- `work`：工作、产出、客户沟通、工程开发、运维
+- `study`：学习、阅读、研究、技能练习、深度思考
+- `life`：生活杂务、就餐、通勤、家务、购物、日常杂项
+- `health`：运动、健身、散步、就医、冥想、体检
+- `leisure`：娱乐、游戏、电影、社交聊天、摸鱼放松
+- `sleep`：睡眠、午休、打盹
 
-主题、布局、折叠和快捷键是各客户端本地偏好，不在共享业务接口范围。当前提供 stdio，不提供远程 HTTP MCP/OAuth 入口；远端数据通过 SSH 私有接口访问。
+> 提示：如果无法确定分类，可以省略该字段，系统会自动根据项目前缀或标签规则进行自动匹配，未命中则自动归入未分类，绝不要强行臆测。
 
-## 验证
+### 2. 日常随手记账与交互映射
+当用户以自然口语说话时，映射为对应的时间账本操作并给出可撤销的回执：
+- “开始研究 Aster 的时间模块” → 调用 `time_start`，`title: "研究 Aster 时间模块"`, `explicitCategoryId: "work"` 或 `"study"`。
+- “结束，接下来去运动” → 先调用 `time_stop` 结束上一活动，再调用 `time_start`，`title: "运动"`, `explicitCategoryId: "health"`。
+- “刚才八点到九点在看书” → 调用 `time_log`，精确指定 `startMs` 与 `endMs`，`explicitCategoryId: "study"`。
+- “昨晚大概打了一个半小时游戏” → 调用 `time_estimate`，记录粗略估记（`estimatedSeconds: 5400`, `explicitCategoryId: "leisure"`），不编造虚假起止时间。
+- “睡眠照常” → 调用 `time_sleep_confirm`，确认当天作息模板。
+
+### 3. 制定任务计划（Planning Workflow）
+当用户要求“制定阶段计划”或“拆解项目任务”时：
+1. **先读全貌**：调用 `project_digest` 获取当前项目的看板分栏、父子任务结构和 revision。
+2. **批量落盘**：调用 `plan_apply` 一次性创建阶段列（如 Phase 1, Phase 2）、父任务、子任务，并在任务描述中写入具体要求。
+3. **伴生分类**：规划任务时，为任务设置规范的项目名称（如 `Work.*` 或 `Study.*`）或标签（如 `reading`, `dev`），这样当未来为该任务计时时，Aster 会自动继承正确的分类。
+4. **尊重时间预算**：排期时让取舍可见，扣除生活、睡眠和机动时间，不把计划无限向后堆叠。
+
+### 4. 幂等性与冲突处理
+- 所有的写入请求，工具内部会自动生成唯一的 `idempotencyKey`。如果是重试同一笔操作，请务必传入相同的 `idempotencyKey`。
+- 如果收到 `409` 状态码或 `OPERATION_PENDING_RECONCILE`，说明有跨系统任务状态待核对，请调用 `operation_get` 查看详情，向用户说明情况，切勿盲目重复重试。
+```
+
+---
+
+## 3. 工具清单（Tool Reference）
+
+Aster MCP 提供两组高内聚工具：
+
+### 任务与看板工具（Tasks & Board）
+* `project_digest`：一次性获取项目看板全貌、分栏、父子任务、今日/逾期列表及最新 `revision`。
+* `plan_apply`：原子级批量创建栏目、任务、子任务并设置下一步。
+* `tasks_list`：根据 Taskwarrior 原生表达式条件检索（如 `status:pending`、`project:Work`）。
+* `task_create` / `task_patch` / `task_edit`：创建与更新任务（优先推荐 `task_patch` 保留未传字段）。
+* `task_complete` / `task_reopen`：标记任务完成或重新打开。
+* `subtask_link` / `subtask_unlink`：绑定或解绑父子任务关系。
+* `column_save` / `board_task_move`：管理看板列及在列间移动排序。
+* `recovery_list` / `recovery_restore`：查看误删任务快照与恢复。
+
+### 时间账本工具（Time Ledger）
+* `time_status`：查询当前时间引擎状态、正在进行的活动、会话版本与未决操作数。
+* `time_start`：启动一项计时（可关联任务 `taskUuid` 或独立生活活动）。
+* `time_stop`：结束当前活动，返回带版本的时间回执。
+* `time_log`：补记一段已发生的固定时段（可设 `precision: "estimated_bounds"` 标记为约数）。
+* `time_estimate`：记录粗略/未定位估记，不污染全天硬性起止时间。
+* `time_locate`：将粗略估记定位到具体的空白时间窗口中。
+* `time_update`：基于乐观版本号 `expectedVersion` 修改时间记录。
+* `time_undo`：根据回执中的 `targetOperationId` 撤销最近一次时间修改。
+* `time_daily`：读取当日时间线、`C + U = T` 账本覆盖汇总、空白段与待定位估记。
+* `time_weekly`：读取本周分类时间分布及每日投入明细。
+* `time_reconcile_digest`：晚间对账摘要（空白缺口、待核对项、睡眠候选）。
+* `time_sleep_confirm` / `time_sleep_dismiss`：一键确认睡眠候选（“睡眠照常”）或跳过。
+* `time_policy_get` / `time_policy_update`：查看或更新时区、分类映射与长计时规则。
+* `operation_get` / `time_operation_resolve`：检视与显式解决未知或冲突的跨系统操作。
+
+---
+
+## 4. 验证与测试
+
+运行 MCP 完整单测与契约验证套件：
 
 ```sh
 npm run check:mcp
 npm run test:mcp
 ```
 
-测试使用官方 MCP Client 验证工具发现、全部工具调用映射、参数拒绝、完整编辑日期、版本冲突、不确定结果、来源切换，以及真实 stdio 子进程和隔离 Unix socket；不修改真实工作区。现有 Web 测试继续验证业务规则与备份恢复闸门。
-
-实现依据：[官方 MCP TypeScript SDK 文档](https://ts.sdk.modelcontextprotocol.io/server)。
+该套件使用官方 `@modelcontextprotocol/sdk` Client 自动化验证：
+- 全部工具定义发现与输入验证；
+- 幂等键自动生成与显式重试保留；
+- HTTP 409 冲突与 `outcome: "unknown"` 断网防御；
+- 真实的 Stdio 子进程通信及 Unix Socket 隔离。
