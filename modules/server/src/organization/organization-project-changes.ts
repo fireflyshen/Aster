@@ -183,7 +183,7 @@ export async function applyProjectSaveOrDeleteChange(
         : project,
     );
     const updatedTarget = projects.find((project) => project.name === name);
-    if (updatedTarget) {
+    if (updatedTarget?.status !== undefined) {
       next.status = updatedTarget.status;
     }
   }

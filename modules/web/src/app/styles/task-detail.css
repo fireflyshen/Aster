@@ -460,21 +460,38 @@
 .habit-detail-dialog > * {
   min-width: 0;
 }
+.habit-heatmap {
+  --heatmap-cell-size: 11px;
+}
+.habit-heatmap[data-compact="true"] {
+  --heatmap-cell-size: 10px;
+}
+.habit-heatmap-scroll {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.habit-heatmap-scroll:focus-visible {
+  outline: 1px solid var(--ring);
+  outline-offset: 2px;
+}
 .habit-heatmap-grid {
   display: grid;
-  grid-template-rows: 16px repeat(7, auto);
+  grid-template-rows: 16px repeat(7, var(--heatmap-cell-size));
   gap: 3px;
-  width: 100%;
-  min-width: 0;
+  width: max-content;
 }
 .habit-heatmap .habit-heatmap-cell {
   display: block;
-  width: 100%;
+  width: var(--heatmap-cell-size);
+  height: var(--heatmap-cell-size);
   min-width: 0;
-  height: auto;
   min-height: 0;
   padding: 0;
-  aspect-ratio: 1;
 }
 .habit-heatmap-month {
   min-width: 0;
@@ -489,4 +506,44 @@
   align-items: center;
   color: var(--muted-foreground);
   font-size: 10px;
+}
+
+@media (max-width: 639px) {
+  .habit-detail-heading > :first-child {
+    flex-basis: 100%;
+  }
+  .habit-detail-actions {
+    flex-basis: 100%;
+  }
+}
+
+.habit-review-row:hover,
+.habit-review-row:focus-within {
+  background: var(--row-hover);
+}
+.habit-review-actions {
+  position: absolute;
+  right: 0;
+  top: 6px;
+  padding-left: 12px;
+  background: var(--row-hover);
+}
+@media (hover: hover) {
+  .habit-review-actions {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .habit-review-row:hover .habit-review-actions,
+  .habit-review-row:focus-within .habit-review-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+@media (hover: none) {
+  .habit-review-actions {
+    position: static;
+    justify-content: flex-end;
+    padding: 4px 0 0;
+    background: transparent;
+  }
 }

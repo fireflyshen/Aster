@@ -1,8 +1,4 @@
 import {
-  formatCurrencyCny,
-  formatDurationChinese,
-} from "@/features/time/time-format";
-import {
   HabitNegativeRowControls,
   HabitNegativeStatusRing,
   HabitSubtaskMetricsButton,
@@ -202,7 +198,9 @@ export function TaskRow({
     (!parentHabit || Boolean(parentHabit.trackTime));
   const effectiveIsTimeMode = isTimeMode && timingAllowed;
   const effectiveOnToggleStart = timingAllowed ? onToggleStart : undefined;
-  const effectiveOnClearStartMark = timingAllowed ? onClearStartMark : undefined;
+  const effectiveOnClearStartMark = timingAllowed
+    ? onClearStartMark
+    : undefined;
 
   const hasMoreMenu = Boolean(
     (!completed &&
@@ -221,7 +219,17 @@ export function TaskRow({
     hasMoreMenu ||
     (variant === "list" && extraActions),
   );
+  const showCost = Boolean(
+    variant === "list" &&
+    effectiveIsTimeMode &&
+    highlightCost &&
+    costSummary &&
+    (costSummary.confirmedCostCents > 0 ||
+      costSummary.provisionalCostCents > 0 ||
+      costSummary.hasBudget),
+  );
   const hasDetails = !!(
+    showCost ||
     habit ||
     (showProject && (task.project || showInbox)) ||
     task.due ||
@@ -463,6 +471,7 @@ export function TaskRow({
                 {hasDetails && (
                   <TaskMetaChips
                     task={task}
+                    costSummary={showCost ? costSummary : undefined}
                     variant={variant}
                     checked={checked}
                     overdue={overdue}
@@ -557,64 +566,6 @@ export function TaskRow({
                 onAssignSubtaskPlan={habitActions.assignSubtaskPlan}
               />
             )}
-
-            {effectiveIsTimeMode &&
-              highlightCost &&
-              costSummary &&
-              (costSummary.confirmedCostCents > 0 ||
-                costSummary.provisionalCostCents > 0 ||
-                costSummary.hasBudget) && (
-                <div
-                  data-task-cost
-                  onClick={onEdit}
-                  className={cn(
-                    "shrink-0 cursor-pointer flex-col items-end justify-center py-1 text-right tabular-nums",
-                    variant === "list" ? "flex max-w-[168px]" : "hidden",
-                  )}
-                >
-                  <span className="text-[13px] font-semibold leading-tight text-foreground">
-                    {costSummary.confirmedCostCents > 0
-                      ? formatCurrencyCny(costSummary.confirmedCostCents)
-                      : costSummary.provisionalCostCents > 0
-                        ? `暂计 ${formatCurrencyCny(costSummary.provisionalCostCents)}`
-                        : costSummary.currentBudgetCents !== undefined
-                          ? `预算 ${formatCurrencyCny(costSummary.currentBudgetCents)}`
-                          : "—"}
-                  </span>
-                  {costSummary.confirmedSeconds > 0 ? (
-                    <span className="text-[11px] leading-tight text-muted-foreground">
-                      已投入{" "}
-                      {formatDurationChinese(costSummary.confirmedSeconds)}
-                    </span>
-                  ) : costSummary.provisionalSeconds > 0 ? (
-                    <span className="text-[11px] leading-tight text-amber-600 dark:text-amber-400">
-                      暂计{" "}
-                      {formatDurationChinese(costSummary.provisionalSeconds)} ·
-                      待核对
-                    </span>
-                  ) : costSummary.currentAllowanceSeconds !== undefined ? (
-                    <span className="text-[11px] leading-tight text-muted-foreground">
-                      预计{" "}
-                      {formatDurationChinese(
-                        costSummary.currentAllowanceSeconds,
-                      )}
-                    </span>
-                  ) : null}
-                  {costSummary.overInitialBudgetCents > 0 && (
-                    <span className="text-[11px] leading-tight font-medium text-amber-600 dark:text-amber-400">
-                      超出最初预估{" "}
-                      {formatCurrencyCny(costSummary.overInitialBudgetCents)}
-                    </span>
-                  )}
-                  {costSummary.confirmedCostCents > 0 &&
-                    costSummary.provisionalCostCents > 0 && (
-                      <span className="text-[10px] leading-tight text-amber-600 dark:text-amber-400">
-                        待核对{" "}
-                        {formatCurrencyCny(costSummary.provisionalCostCents)}
-                      </span>
-                    )}
-                </div>
-              )}
           </div>
         </div>
         {subtreeNode}

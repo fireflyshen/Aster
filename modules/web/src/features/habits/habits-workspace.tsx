@@ -10,10 +10,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { ProjectIcon } from "@/features/projects/project-icon";
 import { formatScheduleLabel } from "@core/habits/logic";
-import type {
-  HabitListItem,
-  HabitStatus,
-} from "@core/habits/model";
+import type { HabitListItem, HabitStatus } from "@core/habits/model";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
 import { cn } from "cn";
@@ -66,7 +63,8 @@ export function HabitsWorkspace({
   );
 
   const labelColorMap = useMemo(
-    () => new Map(availableLabels.map((tag) => [tag.name, itemColor(tag.color)])),
+    () =>
+      new Map(availableLabels.map((tag) => [tag.name, itemColor(tag.color)])),
     [availableLabels],
   );
 
@@ -144,7 +142,9 @@ export function HabitsWorkspace({
             <button
               key={tab.id}
               type="button"
-              onClick={() => controller.setStatusFilter(tab.id as HabitStatus | "all")}
+              onClick={() =>
+                controller.setStatusFilter(tab.id as HabitStatus | "all")
+              }
               className={cn(
                 "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
                 controller.statusFilter === tab.id
@@ -284,7 +284,9 @@ export function HabitsWorkspace({
           onTogglePositive={(habitId, date, completed) =>
             void controller.togglePositive(habitId, date, completed)
           }
-          onSetChecklistItem={(input) => void controller.setChecklistItem(input)}
+          onSetChecklistItem={(input) =>
+            void controller.setChecklistItem(input)
+          }
           onSwitchPlan={(habitId, planId, date) =>
             void controller.switchPlan(habitId, planId, date)
           }
@@ -361,16 +363,16 @@ export function HabitsWorkspace({
               )}
           </div>
         ) : (
-          <div className="divide-y divide-border/60 rounded-xl border border-border/75 bg-card/75">
+          <div className="divide-y divide-border/60">
             {controller.habits.map((habit) => (
               <div
                 key={habit.id}
-                className="group flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-(--row-hover)/65"
+                className="habit-review-row group relative min-w-0 py-2.5 transition-colors"
               >
                 <button
                   type="button"
                   onClick={() => controller.setDetailId(habit.id)}
-                  className="min-w-0 flex-1 text-left"
+                  className="habit-review-main block w-full min-w-0 text-left"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-foreground">
@@ -406,6 +408,11 @@ export function HabitsWorkspace({
                     )}
                   </div>
 
+                  {habit.description && (
+                    <p className="mt-0.5 w-full min-w-0 truncate text-left text-[12px] leading-[18px] text-muted-foreground/75">
+                      {habit.description}
+                    </p>
+                  )}
                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     {habit.project && (
                       <span className="inline-flex items-center gap-1">
@@ -428,88 +435,78 @@ export function HabitsWorkspace({
                         @{tag}
                       </span>
                     ))}
-                    {habit.description && (
-                      <span className="max-w-md truncate text-[11px] text-muted-foreground/85">
-                        {habit.description}
-                      </span>
-                    )}
-                  </div>
-                </button>
-
-                <div className="flex shrink-0 items-center gap-3">
-                  <div className="text-right tabular-nums">
-                    <div className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
+                    <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums">
                       <Sparkles className="size-3 text-(--habit-accent)" />
                       连续 {habit.streak.currentStreak} {habit.streak.unit}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
+                    </span>
+                    <span className="whitespace-nowrap tabular-nums">
                       近30天 {habit.streak.recent30Achieved}/
                       {habit.streak.recent30Scheduled}
                       {habit.kind === "negative" &&
                         ` · 发生 ${habit.streak.recent30Events}次`}
-                    </div>
+                    </span>
                   </div>
+                </button>
 
-                  <div className="flex items-center gap-0.5 opacity-85 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                <div className="habit-review-actions flex items-center gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`编辑 ${habit.title}`}
+                    onClick={() => openEdit(habit)}
+                    className="size-7 text-muted-foreground hover:text-foreground"
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  {habit.status === "active" ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-xs"
-                      aria-label={`编辑 ${habit.title}`}
-                      onClick={() => openEdit(habit)}
+                      aria-label={`暂停 ${habit.title}`}
+                      disabled={controller.busy}
+                      onClick={() =>
+                        void controller.setHabitStatus(habit.id, "paused")
+                      }
                       className="size-7 text-muted-foreground hover:text-foreground"
                     >
-                      <Pencil className="size-3.5" />
+                      <Pause className="size-3.5" />
                     </Button>
-                    {habit.status === "active" ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`暂停 ${habit.title}`}
-                        disabled={controller.busy}
-                        onClick={() =>
-                          void controller.setHabitStatus(habit.id, "paused")
-                        }
-                        className="size-7 text-muted-foreground hover:text-foreground"
-                      >
-                        <Pause className="size-3.5" />
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`恢复 ${habit.title}`}
-                        disabled={controller.busy}
-                        onClick={() =>
-                          void controller.setHabitStatus(habit.id, "active")
-                        }
-                        className="size-7 text-muted-foreground hover:text-foreground"
-                      >
-                        {habit.status === "archived" ? (
-                          <RotateCcw className="size-3.5" />
-                        ) : (
-                          <Play className="size-3.5" />
-                        )}
-                      </Button>
-                    )}
-                    {habit.status !== "archived" && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`归档 ${habit.title}`}
-                        disabled={controller.busy}
-                        onClick={() =>
-                          void controller.setHabitStatus(habit.id, "archived")
-                        }
-                        className="size-7 text-muted-foreground hover:text-foreground"
-                      >
-                        <Archive className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`恢复 ${habit.title}`}
+                      disabled={controller.busy}
+                      onClick={() =>
+                        void controller.setHabitStatus(habit.id, "active")
+                      }
+                      className="size-7 text-muted-foreground hover:text-foreground"
+                    >
+                      {habit.status === "archived" ? (
+                        <RotateCcw className="size-3.5" />
+                      ) : (
+                        <Play className="size-3.5" />
+                      )}
+                    </Button>
+                  )}
+                  {habit.status !== "archived" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label={`归档 ${habit.title}`}
+                      disabled={controller.busy}
+                      onClick={() =>
+                        void controller.setHabitStatus(habit.id, "archived")
+                      }
+                      className="size-7 text-muted-foreground hover:text-foreground"
+                    >
+                      <Archive className="size-3.5" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}

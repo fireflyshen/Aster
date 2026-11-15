@@ -152,13 +152,13 @@ export function HabitDetailDialog({
       >
         <DialogContent className="habit-detail-dialog min-w-0 max-h-[90dvh] overflow-y-auto sm:max-w-[680px]">
           <DialogHeader>
-            <div className="flex flex-wrap items-start justify-between gap-3 pr-6">
+            <div className="habit-detail-heading flex flex-wrap items-start justify-between gap-3 pr-6">
               <div className="min-w-0 flex-1">
                 <DialogTitle className="flex flex-wrap items-center gap-2 text-lg">
                   <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                     {habit.title}
                   </span>
-                  <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-normal text-secondary-foreground">
+                  <span className="rounded-full whitespace-nowrap bg-secondary px-2 py-0.5 text-[11px] font-normal text-secondary-foreground">
                     {habit.kind === "positive"
                       ? habit.completionMode === "checklist"
                         ? habit.abEnabled
@@ -167,7 +167,7 @@ export function HabitDetailDialog({
                         : "正向打卡"
                       : "反向 · 记破例"}
                   </span>
-                  <span className="rounded-full border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
+                  <span className="rounded-full whitespace-nowrap border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
                     {statusLabel(habit.status)}
                   </span>
                 </DialogTitle>
@@ -193,7 +193,7 @@ export function HabitDetailDialog({
                 </DialogDescription>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1">
+              <div className="habit-detail-actions flex flex-wrap items-center gap-1">
                 <Button
                   type="button"
                   variant="outline"

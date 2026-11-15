@@ -1,3 +1,8 @@
+import type { TaskCostSummary } from "@core/time/model";
+import {
+  formatCurrencyCny,
+  formatDurationChinese,
+} from "@/features/time/time-format";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -52,6 +57,7 @@ function TodoistCalendarGlyph() {
 /** Renders the Todoist-aligned bottom metadata line for task rows and board cards. */
 export function TaskMetaChips({
   task,
+  costSummary,
   variant,
   checked,
   overdue,
@@ -80,6 +86,7 @@ export function TaskMetaChips({
   onOpenHabitDetail,
 }: {
   task: Task;
+  costSummary?: TaskCostSummary;
   variant: "list" | "card";
   checked: boolean;
   overdue: boolean;
@@ -296,6 +303,35 @@ export function TaskMetaChips({
                   : `进行中 · ${formatDuration(trackedSeconds || 0)}`
                 : formatDuration(trackedSeconds || 0)}
         </span>
+      )}
+
+      {costSummary && (
+        <button
+          type="button"
+          data-task-cost
+          onClick={onEdit}
+          disabled={disabled}
+          className="inline-flex shrink-0 items-center gap-1 text-[12px] leading-none whitespace-nowrap text-foreground/85 tabular-nums hover:text-foreground"
+          aria-label={`查看时间成本：${formatCurrencyCny(costSummary.confirmedCostCents)}，已投入${formatDurationChinese(costSummary.confirmedSeconds)}`}
+          title={`已投入 ${formatDurationChinese(costSummary.confirmedSeconds)} · 已确认 ${formatCurrencyCny(costSummary.confirmedCostCents)}${costSummary.provisionalCostCents > 0 ? ` · 另有暂计 ${formatCurrencyCny(costSummary.provisionalCostCents)}` : ""}`}
+        >
+          {costSummary.confirmedCostCents > 0
+            ? formatCurrencyCny(costSummary.confirmedCostCents)
+            : costSummary.provisionalCostCents > 0
+              ? `暂计 ${formatCurrencyCny(costSummary.provisionalCostCents)}`
+              : `预算 ${formatCurrencyCny(costSummary.currentBudgetCents ?? 0)}`}
+          {costSummary.confirmedCostCents > 0 &&
+            costSummary.provisionalCostCents > 0 && (
+              <span className="text-muted-foreground">
+                + 暂计 {formatCurrencyCny(costSummary.provisionalCostCents)}
+              </span>
+            )}
+          {costSummary.overInitialBudgetCents > 0 && (
+            <span className="text-(--due-tomorrow)">
+              超预估 {formatCurrencyCny(costSummary.overInitialBudgetCents)}
+            </span>
+          )}
+        </button>
       )}
 
       {!!task.wait && new Date(task.wait) > new Date() && !checked && (
