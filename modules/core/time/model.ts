@@ -94,7 +94,8 @@ export type ActivitySource =
   | "manual"
   | "bot"
   | "sleep_candidate"
-  | "timewarrior_import";
+  | "timewarrior_import"
+  | "task_bridge";
 export type ActivityReviewState =
   | "ok"
   | "review_required"

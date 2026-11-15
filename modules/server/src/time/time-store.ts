@@ -820,6 +820,148 @@ export async function createTimeStore(
     });
   }
 
+  function closeActiveRowTx(
+    conn: DatabaseSync,
+    activeRow: ActivityRow,
+    effectiveAtMs: number,
+    ts: number,
+    policy: TimePolicy,
+  ): {
+    closedActivity: Activity;
+    modifiedEntry: UndoMetadata["modifiedActivities"][number];
+    warning?: TimeWarning;
+  } {
+    if (activeRow.start_ms !== null && effectiveAtMs < activeRow.start_ms) {
+      throw new TimeStoreError(
+        409,
+        "INVALID_TIMER_BOUNDARY",
+        "Stop timestamp cannot be earlier than start time.",
+      );
+    }
+    const closeEndMs =
+      activeRow.suspend_ms !== null
+        ? Math.min(effectiveAtMs, activeRow.suspend_ms)
+        : effectiveAtMs;
+    if (activeRow.start_ms !== null && closeEndMs > activeRow.start_ms) {
+      const closingOverlaps = findLocatedOverlaps(
+        conn,
+        activeRow.start_ms,
+        closeEndMs,
+        closeEndMs,
+        activeRow.id,
+      );
+      if (closingOverlaps.length > 0) {
+        throw new TimeStoreError(
+          409,
+          "INTERVAL_CONFLICT",
+          "Closing active interval overlaps with another recorded activity.",
+          { conflicts: closingOverlaps },
+        );
+      }
+    }
+    const { reviewState, warning } = maybeLongActivityWarning(
+      activeRow,
+      closeEndMs,
+      policy,
+    );
+    const nextVersion = activeRow.version + 1;
+    const modifiedEntry: UndoMetadata["modifiedActivities"][number] = {
+      id: activeRow.id,
+      expectedPostVersion: nextVersion,
+      restore: captureSnapshotFields(activeRow),
+    };
+    conn
+      .prepare(
+        `UPDATE activities
+         SET end_ms = ?, review_state = ?, version = ?, updated_at_ms = ?
+         WHERE id = ? AND version = ?`,
+      )
+      .run(
+        closeEndMs,
+        reviewState,
+        nextVersion,
+        ts,
+        activeRow.id,
+        activeRow.version,
+      );
+    const closedActivity = rowToActivity(
+      conn
+        .prepare("SELECT * FROM activities WHERE id = ?")
+        .get(activeRow.id) as ActivityRow,
+    );
+    return { closedActivity, modifiedEntry, warning };
+  }
+
+  function openNewActiveRowTx(
+    conn: DatabaseSync,
+    meta: MetaRow,
+    input: {
+      title: string;
+      explicitCategoryId?: string;
+      taskUuid?: string;
+      projectSnapshot?: string;
+      tags?: string[];
+      source?: ActivitySource;
+      note?: string;
+      rawInput?: string;
+      effectiveAtMs: number;
+    },
+    ts: number,
+    policy: TimePolicy,
+  ): { newActivity: Activity; nextSessionVersion: number } {
+    const overlaps = findLocatedOverlaps(
+      conn,
+      input.effectiveAtMs,
+      input.effectiveAtMs + 1,
+      input.effectiveAtMs + 1,
+    );
+    if (overlaps.length > 0) {
+      throw new TimeStoreError(
+        409,
+        "INTERVAL_CONFLICT",
+        "Start timestamp falls inside an existing logged interval.",
+        { conflicts: overlaps },
+      );
+    }
+    const classificationInput: ClassificationInput = {
+      explicitCategoryId: input.explicitCategoryId,
+      taskUuid: input.taskUuid,
+      project: input.projectSnapshot,
+      tags: input.tags,
+    };
+    const classified = resolveActivityCategory(policy, classificationInput);
+    const newActivity: Activity = {
+      id: randomUUID(),
+      version: 1,
+      kind: "located",
+      title: input.title,
+      categoryId: classified.categoryId,
+      ruleVersion: classified.ruleVersion,
+      ruleSource: classified.ruleSource,
+      ...(input.taskUuid ? { taskUuid: input.taskUuid } : {}),
+      ...(input.projectSnapshot
+        ? { projectSnapshot: input.projectSnapshot }
+        : {}),
+      startMs: input.effectiveAtMs,
+      precision: "exact",
+      source: input.source ?? "timer",
+      reviewState: "ok",
+      ...(input.rawInput ? { rawInput: input.rawInput } : {}),
+      ...(input.note ? { note: input.note } : {}),
+      timezone: policy.timezone,
+      createdAtMs: ts,
+      updatedAtMs: ts,
+    };
+    insertActivityRow(conn, newActivity);
+    const nextSessionVersion = meta.session_version + 1;
+    conn
+      .prepare(
+        "UPDATE time_meta SET active_activity_id = ?, session_version = ?, updated_at_ms = ? WHERE id = 1",
+      )
+      .run(newActivity.id, nextSessionVersion, ts);
+    return { newActivity, nextSessionVersion };
+  }
+
   function startActivity(input: {
     idempotencyKey: string;
     receivedAtMs?: number;
@@ -933,123 +1075,35 @@ export async function createTimeStore(
 
       let closedActivity: Activity | undefined;
       if (activeRow && activeRow.end_ms === null) {
-        if (activeRow.start_ms !== null && effectiveAtMs < activeRow.start_ms) {
-          throw new TimeStoreError(
-            409,
-            "INVALID_TIMER_BOUNDARY",
-            "Switch timestamp cannot be earlier than the active activity start time.",
-          );
-        }
-        const closeEndMs =
-          activeRow.suspend_ms !== null
-            ? Math.min(effectiveAtMs, activeRow.suspend_ms)
-            : effectiveAtMs;
-        if (activeRow.start_ms !== null && closeEndMs > activeRow.start_ms) {
-          const closingOverlaps = findLocatedOverlaps(
-            conn,
-            activeRow.start_ms,
-            closeEndMs,
-            closeEndMs,
-            activeRow.id,
-          );
-          if (closingOverlaps.length > 0) {
-            throw new TimeStoreError(
-              409,
-              "INTERVAL_CONFLICT",
-              "Closing active interval overlaps with another recorded activity.",
-              { conflicts: closingOverlaps },
-            );
-          }
-        }
-        const { reviewState, warning } = maybeLongActivityWarning(
+        const closedRes = closeActiveRowTx(
+          conn,
           activeRow,
-          closeEndMs,
+          effectiveAtMs,
+          ts,
           policy,
         );
-        if (warning) warnings.push(warning);
-
-        const nextPrevVersion = activeRow.version + 1;
-        modifiedActivities.push({
-          id: activeRow.id,
-          expectedPostVersion: nextPrevVersion,
-          restore: captureSnapshotFields(activeRow),
-        });
-
-        conn
-          .prepare(
-            `UPDATE activities
-             SET end_ms = ?, review_state = ?, version = ?, updated_at_ms = ?
-             WHERE id = ? AND version = ?`,
-          )
-          .run(
-            closeEndMs,
-            reviewState,
-            nextPrevVersion,
-            ts,
-            activeRow.id,
-            activeRow.version,
-          );
-        closedActivity = rowToActivity(
-          conn
-            .prepare("SELECT * FROM activities WHERE id = ?")
-            .get(activeRow.id) as ActivityRow,
-        );
+        closedActivity = closedRes.closedActivity;
+        modifiedActivities.push(closedRes.modifiedEntry);
+        if (closedRes.warning) warnings.push(closedRes.warning);
       }
 
-      // Verify starting at effectiveAtMs does not overlap any existing closed interval.
-      const overlaps = findLocatedOverlaps(
+      const { newActivity, nextSessionVersion } = openNewActiveRowTx(
         conn,
-        effectiveAtMs,
-        effectiveAtMs + 1,
-        effectiveAtMs + 1,
+        meta,
+        {
+          title,
+          explicitCategoryId: input.explicitCategoryId,
+          taskUuid: input.taskUuid,
+          projectSnapshot: input.projectSnapshot,
+          tags: input.tags,
+          source: input.source,
+          note: input.note,
+          rawInput: input.rawInput,
+          effectiveAtMs,
+        },
+        ts,
+        policy,
       );
-      if (overlaps.length > 0) {
-        throw new TimeStoreError(
-          409,
-          "INTERVAL_CONFLICT",
-          "Start timestamp falls inside an existing logged interval.",
-          { conflicts: overlaps },
-        );
-      }
-
-      const classificationInput: ClassificationInput = {
-        explicitCategoryId: input.explicitCategoryId,
-        taskUuid: input.taskUuid,
-        project: input.projectSnapshot,
-        tags: input.tags,
-      };
-      const classified = resolveActivityCategory(policy, classificationInput);
-
-      const newActivity: Activity = {
-        id: randomUUID(),
-        version: 1,
-        kind: "located",
-        title,
-        categoryId: classified.categoryId,
-        ruleVersion: classified.ruleVersion,
-        ruleSource: classified.ruleSource,
-        ...(input.taskUuid ? { taskUuid: input.taskUuid } : {}),
-        ...(input.projectSnapshot
-          ? { projectSnapshot: input.projectSnapshot }
-          : {}),
-        startMs: effectiveAtMs,
-        precision: "exact",
-        source: input.source ?? "timer",
-        reviewState: "ok",
-        ...(input.rawInput ? { rawInput: input.rawInput } : {}),
-        ...(input.note ? { note: input.note } : {}),
-        timezone: policy.timezone,
-        createdAtMs: ts,
-        updatedAtMs: ts,
-      };
-
-      insertActivityRow(conn, newActivity);
-      const nextSessionVersion = meta.session_version + 1;
-      conn
-        .prepare(
-          "UPDATE time_meta SET active_activity_id = ?, session_version = ?, updated_at_ms = ? WHERE id = 1",
-        )
-        .run(newActivity.id, nextSessionVersion, ts);
 
       const operationId = randomUUID();
       const undo: UndoMetadata = {
@@ -1173,59 +1227,16 @@ export async function createTimeStore(
           { currentVersion: activeRow.version },
         );
       }
-      if (activeRow.start_ms !== null && effectiveAtMs < activeRow.start_ms) {
-        throw new TimeStoreError(
-          409,
-          "INVALID_TIMER_BOUNDARY",
-          "Stop timestamp cannot be earlier than start time.",
-        );
-      }
-
       const policy = parsePolicy(meta);
       const ts = nowFn();
-      const closeEndMs =
-        activeRow.suspend_ms !== null
-          ? Math.min(effectiveAtMs, activeRow.suspend_ms)
-          : effectiveAtMs;
-      if (activeRow.start_ms !== null && closeEndMs > activeRow.start_ms) {
-        const closingOverlaps = findLocatedOverlaps(
-          conn,
-          activeRow.start_ms,
-          closeEndMs,
-          closeEndMs,
-          activeRow.id,
-        );
-        if (closingOverlaps.length > 0) {
-          throw new TimeStoreError(
-            409,
-            "INTERVAL_CONFLICT",
-            "Stopping active interval overlaps with another recorded activity.",
-            { conflicts: closingOverlaps },
-          );
-        }
-      }
-      const { reviewState, warning } = maybeLongActivityWarning(
+      const { closedActivity: closed, modifiedEntry, warning } = closeActiveRowTx(
+        conn,
         activeRow,
-        closeEndMs,
+        effectiveAtMs,
+        ts,
         policy,
       );
       const warnings = warning ? [warning] : [];
-      const nextVersion = activeRow.version + 1;
-
-      conn
-        .prepare(
-          `UPDATE activities
-           SET end_ms = ?, review_state = ?, version = ?, updated_at_ms = ?
-           WHERE id = ? AND version = ?`,
-        )
-        .run(
-          closeEndMs,
-          reviewState,
-          nextVersion,
-          ts,
-          activeRow.id,
-          activeRow.version,
-        );
 
       const nextSessionVersion = meta.session_version + 1;
       conn
@@ -1234,11 +1245,6 @@ export async function createTimeStore(
         )
         .run(nextSessionVersion, ts);
 
-      const closed = rowToActivity(
-        conn
-          .prepare("SELECT * FROM activities WHERE id = ?")
-          .get(activeRow.id) as ActivityRow,
-      );
       const operationId = randomUUID();
       const receipt: ActivityMutationReceipt = {
         operationId,
@@ -1250,13 +1256,7 @@ export async function createTimeStore(
         timeEpoch: meta.time_epoch,
         taskDataEpoch: meta.task_data_epoch,
         undo: {
-          modifiedActivities: [
-            {
-              id: activeRow.id,
-              expectedPostVersion: nextVersion,
-              restore: captureSnapshotFields(activeRow),
-            },
-          ],
+          modifiedActivities: [modifiedEntry],
           touchedTimer: true,
           expectedPostActiveActivityId: null,
           restoreActiveActivityId: activeRow.id,
@@ -2894,6 +2894,664 @@ export async function createTimeStore(
     });
   }
 
+  function getEnergyInputs():
+    | {
+        available: false;
+        restoring: true;
+        timeEpoch: number;
+        taskDataEpoch: number;
+      }
+    | {
+        available: true;
+        enabled: boolean;
+        timezone: string;
+        cutoverAtMs?: number;
+        activeActivityId: string | null;
+        activities: Activity[];
+        importedRanges: Array<{ rangeStartMs?: number; rangeEndMs?: number }>;
+        timeEpoch: number;
+        taskDataEpoch: number;
+      } {
+    if (restoring) {
+      return {
+        available: false,
+        restoring: true,
+        timeEpoch: initialBarrier.timeEpoch,
+        taskDataEpoch: initialBarrier.taskDataEpoch,
+      };
+    }
+    const conn = db;
+    const meta = readMeta(conn);
+    const policy = parsePolicy(meta);
+    const activities = loadAllActivities(conn);
+    const batches = conn
+      .prepare("SELECT range_start_ms, range_end_ms FROM import_batches")
+      .all() as Array<{ range_start_ms: number | null; range_end_ms: number | null }>;
+    return {
+      available: true,
+      enabled: meta.enabled === 1,
+      timezone: policy.timezone,
+      cutoverAtMs: meta.cutover_at_ms ?? undefined,
+      activeActivityId: meta.active_activity_id,
+      activities,
+      importedRanges: batches.map((b) => ({
+        rangeStartMs: b.range_start_ms ?? undefined,
+        rangeEndMs: b.range_end_ms ?? undefined,
+      })),
+      timeEpoch: meta.time_epoch,
+      taskDataEpoch: meta.task_data_epoch,
+    };
+  }
+
+  function finalizeOperationRowTx(
+    conn: DatabaseSync,
+    operationId: string,
+    params: {
+      state: OperationState;
+      targetActivityId?: string | null;
+      externalDisposition?: string | null;
+      receipt: Record<string, unknown>;
+      ts: number;
+    },
+  ): void {
+    conn
+      .prepare(
+        `UPDATE operations
+         SET state = ?,
+             target_activity_id = COALESCE(?, target_activity_id),
+             external_disposition = COALESCE(?, external_disposition),
+             receipt_json = ?,
+             updated_at_ms = ?
+         WHERE operation_id = ?`,
+      )
+      .run(
+        params.state,
+        params.targetActivityId ?? null,
+        params.externalDisposition ?? null,
+        JSON.stringify(params.receipt),
+        params.ts,
+        operationId,
+      );
+  }
+
+  function applyCoordinatedOperationResult(input: {
+    operationId: string;
+    taskMeta?: {
+      title: string;
+      projectSnapshot?: string;
+      tags?: string[];
+    };
+    effectiveAtMs?: number;
+    finalState?: "applied" | "skipped_already_satisfied";
+    externalDisposition?: string;
+    onConflictMarkPending?: boolean;
+  }): {
+    applied: boolean;
+    state: OperationState;
+    timeEffect: "started" | "switched" | "stopped" | "none";
+    receipt?: Record<string, unknown>;
+    activity?: Activity;
+    closedActivity?: Activity;
+    warnings?: TimeWarning[];
+  } {
+    return inImmediateTx((conn) => {
+      const op = conn
+        .prepare("SELECT * FROM operations WHERE operation_id = ?")
+        .get(input.operationId) as OperationRow | undefined;
+      if (!op) {
+        throw new TimeStoreError(
+          404,
+          "OPERATION_NOT_FOUND",
+          "Operation not found.",
+        );
+      }
+      if (op.state === "applied" || op.state === "skipped_already_satisfied") {
+        if (op.receipt_json) {
+          const parsed = JSON.parse(op.receipt_json) as Record<string, unknown>;
+          return {
+            applied: true,
+            state: op.state,
+            timeEffect:
+              (parsed.timeEffect as
+                | "started"
+                | "switched"
+                | "stopped"
+                | "none") ?? "none",
+            receipt: parsed,
+          };
+        }
+      }
+
+      const meta = readMeta(conn);
+      const ts = nowFn();
+      const preState = op.pre_state_json
+        ? (JSON.parse(op.pre_state_json) as Record<string, unknown>)
+        : {};
+      const expectedSession =
+        typeof preState.preSessionVersion === "number"
+          ? preState.preSessionVersion
+          : undefined;
+      const preconditionFailed =
+        op.time_epoch !== meta.time_epoch ||
+        op.task_data_epoch !== meta.task_data_epoch ||
+        (expectedSession !== undefined && expectedSession !== meta.session_version);
+
+      if (preconditionFailed) {
+        conn
+          .prepare(
+            `UPDATE operations
+             SET state = 'pending_reconcile',
+                 external_disposition = COALESCE(external_disposition, 'PRECONDITION_MISMATCH'),
+                 updated_at_ms = ?
+             WHERE operation_id = ?`,
+          )
+          .run(ts, op.operation_id);
+        if (input.onConflictMarkPending) {
+          return {
+            applied: false,
+            state: "pending_reconcile",
+            timeEffect: "none",
+          };
+        }
+        throw new TimeStoreError(
+          409,
+          "OPERATION_PENDING_RECONCILE",
+          "Timer epoch or session changed before local Time changes applied.",
+          { operationId: op.operation_id, state: "pending_reconcile" },
+        );
+      }
+
+      const policy = parsePolicy(meta);
+      const effectiveAtMs = input.effectiveAtMs ?? op.effective_at_ms ?? ts;
+      const finalState: OperationState =
+        input.finalState ??
+        (op.state === "skipped_already_satisfied"
+          ? "skipped_already_satisfied"
+          : "applied");
+      const activeRow = meta.active_activity_id
+        ? (conn
+            .prepare("SELECT * FROM activities WHERE id = ?")
+            .get(meta.active_activity_id) as ActivityRow | undefined)
+        : undefined;
+      const targetUuid = op.target_task_uuid?.toLowerCase();
+
+      if (op.kind === "task_start") {
+        if (
+          activeRow &&
+          activeRow.end_ms === null &&
+          activeRow.suspend_ms === null &&
+          targetUuid &&
+          activeRow.task_uuid?.toLowerCase() === targetUuid
+        ) {
+          const active = rowToActivity(activeRow);
+          const receipt: Record<string, unknown> = {
+            operationId: op.operation_id,
+            idempotencyKey: op.idempotency_key,
+            ok: true,
+            changed: false,
+            timeEffect: "none",
+            activity: active,
+            warnings: [],
+            sessionVersion: meta.session_version,
+            timeEpoch: meta.time_epoch,
+            taskDataEpoch: meta.task_data_epoch,
+          };
+          finalizeOperationRowTx(conn, op.operation_id, {
+            state: finalState,
+            targetActivityId: active.id,
+            externalDisposition: input.externalDisposition,
+            receipt,
+            ts,
+          });
+          return {
+            applied: true,
+            state: finalState,
+            timeEffect: "none",
+            receipt,
+            activity: active,
+            warnings: [],
+          };
+        }
+
+        const warnings: TimeWarning[] = [];
+        const modifiedActivities: UndoMetadata["modifiedActivities"] = [];
+        let closedActivity: Activity | undefined;
+        if (activeRow && activeRow.end_ms === null) {
+          const closedRes = closeActiveRowTx(
+            conn,
+            activeRow,
+            effectiveAtMs,
+            ts,
+            policy,
+          );
+          closedActivity = closedRes.closedActivity;
+          modifiedActivities.push(closedRes.modifiedEntry);
+          if (closedRes.warning) warnings.push(closedRes.warning);
+        }
+
+        const title =
+          input.taskMeta?.title?.trim() ||
+          (typeof preState.title === "string" && preState.title.trim()) ||
+          "Task";
+        const { newActivity, nextSessionVersion } = openNewActiveRowTx(
+          conn,
+          meta,
+          {
+            title,
+            taskUuid: op.target_task_uuid ?? undefined,
+            projectSnapshot: input.taskMeta?.projectSnapshot,
+            tags: input.taskMeta?.tags,
+            source: "task_bridge",
+            effectiveAtMs,
+          },
+          ts,
+          policy,
+        );
+        const timeEffect = closedActivity ? "switched" : "started";
+        const undo: UndoMetadata = {
+          createdActivityId: newActivity.id,
+          createdPostVersion: 1,
+          modifiedActivities,
+          touchedTimer: true,
+          expectedPostActiveActivityId: newActivity.id,
+          restoreActiveActivityId: activeRow?.id ?? null,
+        };
+        const receipt: Record<string, unknown> = {
+          operationId: op.operation_id,
+          idempotencyKey: op.idempotency_key,
+          ok: true,
+          changed: true,
+          timeEffect,
+          activity: newActivity,
+          ...(closedActivity ? { closedActivity } : {}),
+          warnings,
+          sessionVersion: nextSessionVersion,
+          timeEpoch: meta.time_epoch,
+          taskDataEpoch: meta.task_data_epoch,
+          undo,
+        };
+        finalizeOperationRowTx(conn, op.operation_id, {
+          state: finalState,
+          targetActivityId: newActivity.id,
+          externalDisposition: input.externalDisposition,
+          receipt,
+          ts,
+        });
+        return {
+          applied: true,
+          state: finalState,
+          timeEffect,
+          receipt,
+          activity: newActivity,
+          closedActivity,
+          warnings,
+        };
+      }
+
+      if (
+        op.kind === "task_stop" ||
+        op.kind === "task_complete" ||
+        op.kind === "task_delete"
+      ) {
+        if (
+          activeRow &&
+          activeRow.end_ms === null &&
+          targetUuid &&
+          activeRow.task_uuid?.toLowerCase() === targetUuid
+        ) {
+          const {
+            closedActivity,
+            modifiedEntry,
+            warning,
+          } = closeActiveRowTx(conn, activeRow, effectiveAtMs, ts, policy);
+          const warnings = warning ? [warning] : [];
+          const nextSessionVersion = meta.session_version + 1;
+          conn
+            .prepare(
+              "UPDATE time_meta SET active_activity_id = NULL, session_version = ?, updated_at_ms = ? WHERE id = 1",
+            )
+            .run(nextSessionVersion, ts);
+          const undo: UndoMetadata = {
+            modifiedActivities: [modifiedEntry],
+            touchedTimer: true,
+            expectedPostActiveActivityId: null,
+            restoreActiveActivityId: activeRow.id,
+          };
+          const receipt: Record<string, unknown> = {
+            operationId: op.operation_id,
+            idempotencyKey: op.idempotency_key,
+            ok: true,
+            changed: true,
+            timeEffect: "stopped",
+            activity: closedActivity,
+            warnings,
+            sessionVersion: nextSessionVersion,
+            timeEpoch: meta.time_epoch,
+            taskDataEpoch: meta.task_data_epoch,
+            undo,
+          };
+          finalizeOperationRowTx(conn, op.operation_id, {
+            state: finalState,
+            targetActivityId: closedActivity.id,
+            externalDisposition: input.externalDisposition,
+            receipt,
+            ts,
+          });
+          return {
+            applied: true,
+            state: finalState,
+            timeEffect: "stopped",
+            receipt,
+            activity: closedActivity,
+            warnings,
+          };
+        }
+
+        // Other task (e.g. task B) or idle remains untouched!
+        const receipt: Record<string, unknown> = {
+          operationId: op.operation_id,
+          idempotencyKey: op.idempotency_key,
+          ok: true,
+          changed: false,
+          timeEffect: "none",
+          warnings: [],
+          sessionVersion: meta.session_version,
+          timeEpoch: meta.time_epoch,
+          taskDataEpoch: meta.task_data_epoch,
+        };
+        finalizeOperationRowTx(conn, op.operation_id, {
+          state: finalState,
+          externalDisposition: input.externalDisposition,
+          receipt,
+          ts,
+        });
+        return {
+          applied: true,
+          state: finalState,
+          timeEffect: "none",
+          receipt,
+          warnings: [],
+        };
+      }
+
+      throw new TimeStoreError(
+        400,
+        "UNSUPPORTED_COORDINATED_KIND",
+        `Unsupported coordinated operation kind: ${op.kind}`,
+      );
+    });
+  }
+
+  function markPreparedOperationsPendingOnStartup(): TimeOperationRecord[] {
+    return inImmediateTx((conn) => {
+      const rows = conn
+        .prepare("SELECT * FROM operations WHERE state = 'prepared'")
+        .all() as OperationRow[];
+      if (rows.length === 0) return [];
+      const ts = nowFn();
+      conn
+        .prepare(
+          `UPDATE operations
+           SET state = 'pending_reconcile',
+               external_disposition = COALESCE(external_disposition, 'PREPARED_INTERRUPTED'),
+               updated_at_ms = ?
+           WHERE state = 'prepared'`,
+        )
+        .run(ts);
+      return rows.map((r) =>
+        rowToOperation({
+          ...r,
+          state: "pending_reconcile",
+          external_disposition:
+            r.external_disposition ?? "PREPARED_INTERRUPTED",
+          updated_at_ms: ts,
+        }),
+      );
+    });
+  }
+
+  function resolvePendingOperation(input: {
+    operationId: string;
+    action: "dismiss" | "accept_started" | "stop_active";
+    effectiveAtMs?: number;
+    taskMeta?: {
+      title: string;
+      projectSnapshot?: string;
+      tags?: string[];
+    };
+  }) {
+    if (input.action === "dismiss") {
+      return inImmediateTx((conn) => {
+        const op = conn
+          .prepare("SELECT * FROM operations WHERE operation_id = ?")
+          .get(input.operationId) as OperationRow | undefined;
+        if (!op) {
+          throw new TimeStoreError(
+            404,
+            "OPERATION_NOT_FOUND",
+            "Operation not found.",
+          );
+        }
+        const ts = nowFn();
+        const receipt = {
+          operationId: op.operation_id,
+          idempotencyKey: op.idempotency_key,
+          ok: true,
+          changed: false,
+          timeEffect: "none",
+          resolvedBy: "user",
+          action: "dismiss",
+        };
+        finalizeOperationRowTx(conn, op.operation_id, {
+          state: "failed",
+          externalDisposition: "RESOLVED_DISMISSED",
+          receipt,
+          ts,
+        });
+        return {
+          applied: true,
+          state: "failed" as OperationState,
+          timeEffect: "none" as const,
+          receipt,
+        };
+      });
+    }
+
+    if (input.action === "stop_active") {
+      return inImmediateTx((conn) => {
+        const op = conn
+          .prepare("SELECT * FROM operations WHERE operation_id = ?")
+          .get(input.operationId) as OperationRow | undefined;
+        if (!op) {
+          throw new TimeStoreError(
+            404,
+            "OPERATION_NOT_FOUND",
+            "Operation not found.",
+          );
+        }
+        const meta = readMeta(conn);
+        const ts = nowFn();
+        const policy = parsePolicy(meta);
+        const effectiveAtMs = input.effectiveAtMs ?? op.effective_at_ms ?? ts;
+        const activeRow = meta.active_activity_id
+          ? (conn
+              .prepare("SELECT * FROM activities WHERE id = ?")
+              .get(meta.active_activity_id) as ActivityRow | undefined)
+          : undefined;
+        if (!activeRow || activeRow.end_ms !== null) {
+          const receipt = {
+            operationId: op.operation_id,
+            ok: true,
+            changed: false,
+            timeEffect: "none",
+            resolvedBy: "user",
+            action: "stop_active",
+          };
+          finalizeOperationRowTx(conn, op.operation_id, {
+            state: "applied",
+            externalDisposition: "RESOLVED_NO_ACTIVE",
+            receipt,
+            ts,
+          });
+          return {
+            applied: true,
+            state: "applied" as OperationState,
+            timeEffect: "none" as const,
+            receipt,
+          };
+        }
+        const { closedActivity, modifiedEntry, warning } = closeActiveRowTx(
+          conn,
+          activeRow,
+          effectiveAtMs,
+          ts,
+          policy,
+        );
+        const nextSessionVersion = meta.session_version + 1;
+        conn
+          .prepare(
+            "UPDATE time_meta SET active_activity_id = NULL, session_version = ?, updated_at_ms = ? WHERE id = 1",
+          )
+          .run(nextSessionVersion, ts);
+        const receipt = {
+          operationId: op.operation_id,
+          idempotencyKey: op.idempotency_key,
+          ok: true,
+          changed: true,
+          timeEffect: "stopped",
+          activity: closedActivity,
+          warnings: warning ? [warning] : [],
+          sessionVersion: nextSessionVersion,
+          timeEpoch: meta.time_epoch,
+          taskDataEpoch: meta.task_data_epoch,
+          undo: {
+            modifiedActivities: [modifiedEntry],
+            touchedTimer: true,
+            expectedPostActiveActivityId: null,
+            restoreActiveActivityId: activeRow.id,
+          },
+          resolvedBy: "user",
+          action: "stop_active",
+        };
+        finalizeOperationRowTx(conn, op.operation_id, {
+          state: "applied",
+          targetActivityId: closedActivity.id,
+          externalDisposition: "RESOLVED_STOPPED",
+          receipt,
+          ts,
+        });
+        return {
+          applied: true,
+          state: "applied" as OperationState,
+          timeEffect: "stopped" as const,
+          receipt,
+          activity: closedActivity,
+          warnings: warning ? [warning] : [],
+        };
+      });
+    }
+
+    // action === "accept_started"
+    return inImmediateTx((conn) => {
+      const op = conn
+        .prepare("SELECT * FROM operations WHERE operation_id = ?")
+        .get(input.operationId) as OperationRow | undefined;
+      if (!op) {
+        throw new TimeStoreError(
+          404,
+          "OPERATION_NOT_FOUND",
+          "Operation not found.",
+        );
+      }
+      const meta = readMeta(conn);
+      const ts = nowFn();
+      const policy = parsePolicy(meta);
+      const effectiveAtMs = input.effectiveAtMs ?? op.effective_at_ms ?? ts;
+      const activeRow = meta.active_activity_id
+        ? (conn
+            .prepare("SELECT * FROM activities WHERE id = ?")
+            .get(meta.active_activity_id) as ActivityRow | undefined)
+        : undefined;
+      const warnings: TimeWarning[] = [];
+      const modifiedActivities: UndoMetadata["modifiedActivities"] = [];
+      let closedActivity: Activity | undefined;
+      if (activeRow && activeRow.end_ms === null) {
+        const closedRes = closeActiveRowTx(
+          conn,
+          activeRow,
+          effectiveAtMs,
+          ts,
+          policy,
+        );
+        closedActivity = closedRes.closedActivity;
+        modifiedActivities.push(closedRes.modifiedEntry);
+        if (closedRes.warning) warnings.push(closedRes.warning);
+      }
+      const preState = op.pre_state_json
+        ? (JSON.parse(op.pre_state_json) as Record<string, unknown>)
+        : {};
+      const title =
+        input.taskMeta?.title?.trim() ||
+        (typeof preState.title === "string" && preState.title.trim()) ||
+        "Task";
+      const { newActivity, nextSessionVersion } = openNewActiveRowTx(
+        conn,
+        meta,
+        {
+          title,
+          taskUuid: op.target_task_uuid ?? undefined,
+          projectSnapshot: input.taskMeta?.projectSnapshot,
+          tags: input.taskMeta?.tags,
+          source: "task_bridge",
+          effectiveAtMs,
+        },
+        ts,
+        policy,
+      );
+      const receipt = {
+        operationId: op.operation_id,
+        idempotencyKey: op.idempotency_key,
+        ok: true,
+        changed: true,
+        timeEffect: closedActivity ? "switched" : "started",
+        activity: newActivity,
+        ...(closedActivity ? { closedActivity } : {}),
+        warnings,
+        sessionVersion: nextSessionVersion,
+        timeEpoch: meta.time_epoch,
+        taskDataEpoch: meta.task_data_epoch,
+        undo: {
+          createdActivityId: newActivity.id,
+          createdPostVersion: 1,
+          modifiedActivities,
+          touchedTimer: true,
+          expectedPostActiveActivityId: newActivity.id,
+          restoreActiveActivityId: activeRow?.id ?? null,
+        },
+        resolvedBy: "user",
+        action: "accept_started",
+      };
+      finalizeOperationRowTx(conn, op.operation_id, {
+        state: "applied",
+        targetActivityId: newActivity.id,
+        externalDisposition: "RESOLVED_ACCEPTED",
+        receipt,
+        ts,
+      });
+      return {
+        applied: true,
+        state: "applied" as OperationState,
+        timeEffect: (closedActivity ? "switched" : "started") as
+          | "switched"
+          | "started",
+        receipt,
+        activity: newActivity,
+        closedActivity,
+        warnings,
+      };
+    });
+  }
+
   async function prepareTaskRestore(
     restoreId: string,
     atMs?: number,
@@ -3183,6 +3841,10 @@ export async function createTimeStore(
     isTaskAffectedByTimerOrPending,
     beginCoordinatedOperation,
     updateCoordinatedState,
+    getEnergyInputs,
+    applyCoordinatedOperationResult,
+    markPreparedOperationsPendingOnStartup,
+    resolvePendingOperation,
     prepareTaskRestore,
     finalizeTaskRestore,
     setRestoring,

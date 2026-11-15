@@ -162,10 +162,15 @@ test("HTTP writes enforce origin, UUID and fields; task text remains one argumen
     const args = JSON.parse(await readFile(log, "utf8"));
     assert.equal(args[1], "description:" + description);
     assert.ok(args.includes("+工作"));
-    assert.deepEqual(await (await fetch(s.url + "api/tasks")).json(), {
-      tasks: [],
-      projects: [],
-    });
+    const tasksResp = await (await fetch(s.url + "api/tasks")).json();
+    assert.deepEqual(
+      { tasks: tasksResp.tasks, projects: tasksResp.projects },
+      {
+        tasks: [],
+        projects: [],
+      },
+    );
+    assert.equal(tasksResp.timerSnapshot.backend, "time");
     const preview = await post("quick/preview", { text: "明天 报告 #工作 p1" });
     assert.equal(preview.status, 200);
     assert.equal((await preview.json()).task.project, "工作");
@@ -629,6 +634,7 @@ const fs=require('node:fs');console.log(fs.readFileSync(${JSON.stringify(interva
   );
   const server = await start({
     NODE_ENV: "test",
+    TIME_ENABLED: "0",
     TASK_COMMAND: command,
     ORGANIZATION_FILE: dir + "/organization.json",
     PUBLIC_ORIGIN: "https://aster.example",

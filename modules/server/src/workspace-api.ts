@@ -1,5 +1,6 @@
 import { parseQuickTask } from "../../core/tasks/quick-task.ts";
 import type { TaskService } from "../../core/tasks/service.ts";
+import type { TimerSnapshot } from "../../core/time/model.ts";
 import type { Organization } from "../../core/workspace/organization.ts";
 import type { createBackupRestore } from "./backup-restore.ts";
 import type { createOrganizationService } from "./organization-service.ts";
@@ -56,6 +57,7 @@ export interface WorkspaceHandlers {
   download: (id: string) => Promise<unknown>;
   preview: (input: unknown) => Promise<unknown>;
   restore: (token: unknown) => Promise<unknown>;
+  extraRoutes?: WorkspaceRouteSpec[];
 }
 
 const UUID_PATTERN =
@@ -128,6 +130,10 @@ export async function loadScopedTasks(
   organization: OrganizationService,
   parameters: URLSearchParams,
   defaultScope: TaskScopeDefault = "pending",
+  timeSnapshot?: {
+    isEnabled: () => boolean;
+    getTimerSnapshot: (input: { taskUuids: string[] }) => TimerSnapshot;
+  },
 ) {
   const [workspace, projects] = await Promise.all([
     organization.snapshot(),
@@ -167,14 +173,24 @@ export async function loadScopedTasks(
     tasks = [...pending, ...completed.filter((t) => isAncestorPending(t.uuid))];
   }
 
+  const projectsList = [
+    ...new Set([
+      ...projects,
+      ...(workspace.projects || []).map((project) => project.name),
+    ]),
+  ].sort((a, b) => a.localeCompare(b));
+
+  const timerSnapshot =
+    parameters.get("includeSnapshot") !== "0" && timeSnapshot?.isEnabled()
+      ? timeSnapshot.getTimerSnapshot({
+          taskUuids: tasks.map((task) => task.uuid),
+        })
+      : undefined;
+
   return {
     tasks,
-    projects: [
-      ...new Set([
-        ...projects,
-        ...(workspace.projects || []).map((project) => project.name),
-      ]),
-    ].sort((a, b) => a.localeCompare(b)),
+    projects: projectsList,
+    ...(timerSnapshot ? { timerSnapshot } : {}),
   };
 }
 
@@ -187,6 +203,11 @@ export function createWorkspaceHandlers(deps: {
   recovery: RecoveryService;
   backupRestore: BackupRestoreService;
   taskAction: (input: Record<string, unknown>) => Promise<unknown>;
+  timeSnapshot?: {
+    isEnabled: () => boolean;
+    getTimerSnapshot: (input: { taskUuids: string[] }) => TimerSnapshot;
+  };
+  extraRoutes?: WorkspaceRouteSpec[];
 }): WorkspaceHandlers {
   const {
     identity,
@@ -196,6 +217,8 @@ export function createWorkspaceHandlers(deps: {
     recovery,
     backupRestore,
     taskAction,
+    timeSnapshot,
+    extraRoutes,
   } = deps;
   return {
     identity,
@@ -204,7 +227,13 @@ export function createWorkspaceHandlers(deps: {
     loadOrganization: organization.load,
     changeOrganization: organization.change,
     tasks: (parameters, defaultScope) =>
-      loadScopedTasks(service, organization, parameters, defaultScope),
+      loadScopedTasks(
+        service,
+        organization,
+        parameters,
+        defaultScope,
+        timeSnapshot,
+      ),
     addTask: (input) => handleAddTask(service, organization, input),
     action: taskAction,
     parseQuickTask: parseQuickTaskPreview,
@@ -215,6 +244,7 @@ export function createWorkspaceHandlers(deps: {
     download: backupRestore.download,
     preview: backupRestore.preview,
     restore: backupRestore.apply,
+    ...(extraRoutes ? { extraRoutes } : {}),
   };
 }
 
@@ -351,5 +381,8 @@ export function createWorkspaceRoutes(
       },
     },
   ];
+  for (const extra of handlers.extraRoutes ?? []) {
+    routes.push(extra);
+  }
   return new Map(routes.map((spec) => [`${spec.method} ${spec.route}`, spec]));
 }

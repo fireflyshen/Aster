@@ -1,28 +1,45 @@
 import type { createTaskService } from "../../core/tasks/service.ts";
 import { isVirtualTag } from "../../core/tasks/options.ts";
 import { loadTimewarriorIntervals } from "../../core/tasks/timewarrior.ts";
-import { calculateEnergy } from "../../core/workspace/energy.ts";
+import type { TimerSnapshot } from "../../core/time/model.ts";
+import {
+  calculateEnergy,
+  calculateTimeModeEnergy,
+  type EnergySummary,
+} from "../../core/workspace/energy.ts";
 import type {
   OrganizationChange,
   SavedFilter,
+  WorkspaceTiming,
 } from "../../core/workspace/organization.ts";
 import { projectNames } from "../../core/workspace/projects.ts";
 import { createOrganizationStore } from "./organization-store.ts";
+import type { TimeStore } from "./time/time-store.ts";
+
+export type OrganizationTimeBridge = {
+  isEnabled: () => boolean;
+  getEnergyInputs: TimeStore["getEnergyInputs"];
+  getTimerSnapshot: TimeStore["getTimerSnapshot"];
+};
 
 export function createOrganizationService(
   service: ReturnType<typeof createTaskService>,
   path: string,
+  timeBridge?: OrganizationTimeBridge,
 ) {
   const organization = createOrganizationStore(path);
   async function readWorkspace() {
-    const [data, tasks, nativeProjects, timing] = await Promise.all([
+    const timeActive = Boolean(timeBridge?.isEnabled());
+    const [data, tasks, nativeProjects, legacyTiming] = await Promise.all([
       organization.read(),
       service.filterTasks("status.not:deleted"),
       service.loadProjects(),
-      loadTimewarriorIntervals(service.connection).then(
-        (intervals) => ({ available: true, intervals }),
-        () => ({ available: false, intervals: [] }),
-      ),
+      timeActive
+        ? Promise.resolve({ available: true, intervals: [] })
+        : loadTimewarriorIntervals(service.connection).then(
+            (intervals) => ({ available: true, intervals }),
+            () => ({ available: false, intervals: [] }),
+          ),
     ]);
     // _tags also returns configured suggestions such as nonag and nocal.
     // Only task-backed labels and explicitly saved labels are manageable here.
@@ -61,6 +78,67 @@ export function createOrganizationService(
     for (const task of pending)
       if (task.project)
         projectCounts[task.project] = (projectCounts[task.project] || 0) + 1;
+    const taskUuids = tasks.map((task) => task.uuid);
+    let timingInfo: WorkspaceTiming;
+    let energy: EnergySummary | undefined;
+    let timerSnapshot: TimerSnapshot | undefined;
+
+    if (timeActive && timeBridge) {
+      const inputs = timeBridge.getEnergyInputs();
+      timerSnapshot = timeBridge.getTimerSnapshot({ taskUuids });
+      if (!inputs.available) {
+        timingInfo = {
+          available: false,
+          error:
+            "Time ledger is temporarily unavailable while restoring. Retry shortly.",
+          backend: "time",
+          hardEnergyLimit: false,
+          timeEnabled: true,
+          timeAvailable: false,
+          timeError: "restoring",
+          energyPeriod: "06:00",
+        };
+      } else {
+        energy = calculateTimeModeEnergy({
+          tasks,
+          activities: inputs.activities,
+          activeActivityId: inputs.activeActivityId,
+          timezone: inputs.timezone,
+          cutoverAtMs: inputs.cutoverAtMs,
+          importedRanges: inputs.importedRanges,
+          state: data.energyState,
+        });
+        timingInfo = {
+          available: true,
+          backend: "time",
+          hardEnergyLimit: false,
+          timeEnabled: true,
+          timeAvailable: true,
+          energyPeriod: `06:00 周期 (${inputs.timezone})`,
+          timezone: inputs.timezone,
+          historyComplete: energy.complete,
+        };
+      }
+    } else {
+      timingInfo = {
+        available: legacyTiming.available,
+        backend: "timewarrior",
+        hardEnergyLimit: true,
+        timeEnabled: false,
+        timeAvailable: false,
+        energyPeriod: "06:00",
+        ...(!legacyTiming.available
+          ? {
+              error:
+                "Timer history unavailable. Refresh before starting a task or changing energy.",
+            }
+          : {}),
+      };
+      energy = legacyTiming.available
+        ? calculateEnergy(tasks, legacyTiming.intervals, data.energyState)
+        : undefined;
+    }
+
     const result = {
       ...data,
       projects: projectNames([
@@ -78,20 +156,16 @@ export function createOrganizationService(
         })),
       projectCounts,
       tags: [...tags.values()].sort((a, b) => a.name.localeCompare(b.name)),
-      timing: {
-        available: timing.available,
-        ...(!timing.available
-          ? {
-              error:
-                "Timer history unavailable. Refresh before starting a task or changing energy.",
-            }
-          : {}),
-      },
-      energy: timing.available
-        ? calculateEnergy(tasks, timing.intervals, data.energyState)
-        : undefined,
+      timing: timingInfo,
+      energy,
+      ...(timerSnapshot ? { timerSnapshot } : {}),
     };
-    return { data: result, tasks, actualTags, intervals: timing.intervals };
+    return {
+      data: result,
+      tasks,
+      actualTags,
+      intervals: legacyTiming.intervals,
+    };
   }
   async function loadOrganization() {
     return (await readWorkspace()).data;

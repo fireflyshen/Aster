@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { copyFile, mkdir, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
@@ -303,9 +303,51 @@ export function createTimeBackupService(
     }
   }
 
+  async function previewRestoreBuffer(bytes: Buffer): Promise<TimeRestorePreview> {
+    if (!Buffer.isBuffer(bytes) || bytes.length === 0) {
+      throw new TimeStoreError(
+        400,
+        "INVALID_TIME_BACKUP",
+        "Backup database payload is empty or invalid.",
+      );
+    }
+    await mkdir(restoreRoot, { recursive: true, mode: 0o700 });
+    const candidatePath = join(restoreRoot, `candidate-${randomUUID()}.sqlite`);
+    await writeFile(candidatePath, bytes, { mode: 0o600 });
+    try {
+      return await previewRestore(candidatePath);
+    } catch (error) {
+      await rm(candidatePath, { force: true }).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async function exportBundle() {
+    const backupId = randomUUID();
+    const tempDir = join(restoreRoot, `export-${backupId}`);
+    try {
+      const manifest = await exportStaging(tempDir, { backupId });
+      const sqliteBytes = await readFile(join(tempDir, "time.sqlite"));
+      const barrierJson = await store.readBarrier();
+      return {
+        format: "aster-time-backup" as const,
+        version: 1 as const,
+        manifest,
+        barrier: barrierJson,
+        sqliteBase64: sqliteBytes.toString("base64"),
+      };
+    } finally {
+      await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+
   return {
     exportStaging,
+    exportBundle,
     previewRestore,
+    previewRestoreBuffer,
     applyRestore,
   };
 }
+
+export type TimeBackupService = ReturnType<typeof createTimeBackupService>;

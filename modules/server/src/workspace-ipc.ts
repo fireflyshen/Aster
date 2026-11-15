@@ -146,9 +146,25 @@ export async function startWorkspaceSocket(
       res.writeHead(result.status);
       res.end(JSON.stringify(result.body));
     } catch (error) {
-      const e = error as Error & { status?: number; outcome?: string };
+      const e = error as Error & {
+        status?: number;
+        outcome?: string;
+        code?: string;
+        details?: unknown;
+        operationId?: string;
+      };
       res.writeHead(e.status || 400);
-      res.end(JSON.stringify({ error: e.message, outcome: e.outcome }));
+      res.end(
+        JSON.stringify({
+          error: e.message,
+          outcome: e.outcome,
+          ...(typeof e.code === "string" ? { code: e.code } : {}),
+          ...(e.details !== undefined ? { details: e.details } : {}),
+          ...(typeof e.operationId === "string"
+            ? { operationId: e.operationId }
+            : {}),
+        }),
+      );
     } finally {
       release?.();
     }
