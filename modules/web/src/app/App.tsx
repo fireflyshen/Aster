@@ -183,6 +183,8 @@ export function App() {
         currentProject={nav.currentProject}
         organizationPage={nav.organizationPage}
         projectsPage={nav.projectsPage}
+        timePage={nav.timePage}
+        onOpenTimePage={nav.openTimePage}
         organization={data.organization}
         activeEntry={
           nav.activeEntry
@@ -324,6 +326,13 @@ export function App() {
           }
           onCreateTaskInView={taskActions.createTaskInView}
           renderTask={renderTask}
+          timePage={nav.timePage}
+          isTimeMode={data.isTimeMode}
+          timerSnapshot={data.timerSnapshot}
+          timerLiveStatus={data.timerLiveStatus}
+          activeActivitySeconds={data.activeActivitySeconds}
+          onOpenTimePage={nav.openTimePage}
+          onRefreshTimerSnapshot={data.refreshTimerSnapshot}
         />
       </div>
 

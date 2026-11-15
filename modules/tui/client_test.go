@@ -772,4 +772,141 @@ func TestUrgencyViewSortingAndScoreDisplay(t *testing.T) {
 	}
 }
 
+func TestTimeModeSnapshotAndPausedEnergy(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.TrueColor)
+	lipgloss.SetHasDarkBackground(false)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+	csi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+	now := time.Now()
+	m := sampleModel()
+	hardLimit := false
+	m.org.Timing = &struct {
+		Available       bool   `json:"available"`
+		Error           string `json:"error"`
+		Backend         string `json:"backend"`
+		HardEnergyLimit *bool  `json:"hardEnergyLimit"`
+		TimeEnabled     bool   `json:"timeEnabled"`
+		TimeAvailable   bool   `json:"timeAvailable"`
+		TimeError       string `json:"timeError"`
+		EnergyPeriod    string `json:"energyPeriod"`
+		Timezone        string `json:"timezone"`
+		HistoryComplete bool   `json:"historyComplete"`
+	}{
+		Available:       true,
+		Backend:         "time",
+		HardEnergyLimit: &hardLimit,
+		TimeEnabled:     true,
+		TimeAvailable:   true,
+	}
+	m.org.Energy = &struct {
+		Remaining           *float64           `json:"remaining"`
+		Max                 float64            `json:"max"`
+		ActiveCount         int                `json:"activeCount"`
+		TrackedSecondsToday float64            `json:"trackedSecondsToday"`
+		TaskSeconds         map[string]float64 `json:"taskSeconds"`
+		Mode                string             `json:"mode"`
+		Timezone            string             `json:"timezone"`
+		ResetHour           int                `json:"resetHour"`
+		PeriodLabel         string             `json:"periodLabel"`
+		Complete            bool               `json:"complete"`
+		Paused              bool               `json:"paused"`
+		IncompleteReason    string             `json:"incompleteReason"`
+	}{
+		Remaining: nil,
+		Max:       100,
+		Mode:      "time",
+		Paused:    true,
+	}
+	m.timerSnap = &TimerSnapshot{
+		Backend:        "time",
+		TimeEpoch:      1,
+		TaskDataEpoch:  1,
+		State:          "ready",
+		SessionVersion: 3,
+		SnapshotAt:     now.UTC().Format(time.RFC3339),
+		LiveUntil:      now.Add(30 * time.Second).UTC().Format(time.RFC3339),
+		ActiveActivity: &ActiveActivitySnapshot{
+			ID:         "act-2",
+			Title:      "Subtask 1",
+			CategoryID: "work",
+			TaskUUID:   m.tasks[1].UUID,
+			StartedAt:  now.Add(-5 * time.Minute).UTC().Format(time.RFC3339),
+			State:      "running",
+		},
+		TaskTotalsSeconds: map[string]float64{
+			strings.ToLower(m.tasks[1].UUID): 300,
+			strings.ToLower(m.tasks[0].UUID): 120,
+		},
+		TotalsComplete: true,
+	}
+	m.org.TimerSnapshot = m.timerSnap
+	m.snapReceived = now
+	// Task 0 has t.Start set while Task 1 is the active Time timer -> MUST NOT tick Task 0!
+	m.tasks[0].Start = now.Add(-2 * time.Hour).UTC().Format("20060102T150405Z")
+	m.tasks[2].Priority = ""
+	m.idx = buildViewIndex(m.tasks, m.org)
+
+	// 1. Paused nil Energy renders safely as —/100 暂不估算.
+	meter := csi.ReplaceAllString(
+		energyMeter(m.org.Energy.Remaining, m.org.Energy.Max, false, 6),
+		"",
+	)
+	if !strings.Contains(meter, "—/100") {
+		t.Fatalf("expected paused nil energy to display —/100, got %q", meter)
+	}
+
+	// 2. After 2 hours (> 30s liveUntil), Task 1 stops extrapolating at +30s (330s) and reports stale!
+	later := now.Add(2 * time.Hour)
+	canTick, capped, stateLbl := m.snapshotLiveStatus(later)
+	if canTick || stateLbl != "stale" || int(capped) != 30 {
+		t.Fatalf(
+			"expected stale capped at 30s, got canTick=%v capped=%v state=%s",
+			canTick,
+			capped,
+			stateLbl,
+		)
+	}
+	f := renderFrame{now: later, idx: m.idx}
+	// Task 1 active total = 330s -> 5m (NOT 2h+)
+	sp1 := csi.ReplaceAllString(
+		renderSpans(
+			m.taskMetaSpans(f, row{kind: "task", task: m.tasks[1]}, false),
+			60,
+			60,
+			false,
+		),
+		"",
+	)
+	if !strings.Contains(sp1, "▶ 5m") {
+		t.Fatalf("expected active task capped at 5m, got %q", sp1)
+	}
+	// Task 0 has t.Start set (2h ago) while NOT active -> static ▷ 2m (frozen at snapshot total 120s)!
+	sp0 := csi.ReplaceAllString(
+		renderSpans(
+			m.taskMetaSpans(f, row{kind: "task", task: m.tasks[0]}, false),
+			60,
+			60,
+			false,
+		),
+		"",
+	)
+	if !strings.Contains(sp0, "▷ 2m") {
+		t.Fatalf("expected non-active started task frozen at ▷ 2m, got %q", sp0)
+	}
+	// Task 2 omitted from TaskTotalsSeconds -> shows ⧖ — instead of 0!
+	sp2 := csi.ReplaceAllString(
+		renderSpans(
+			m.taskMetaSpans(f, row{kind: "task", task: m.tasks[2]}, false),
+			60,
+			60,
+			false,
+		),
+		"",
+	)
+	if !strings.Contains(sp2, "⧖ —") {
+		t.Fatalf("expected omitted key to show ⧖ —, got %q", sp2)
+	}
+}
+
 func inkStyle() lipgloss.Style { return lipgloss.NewStyle().Foreground(ink) }

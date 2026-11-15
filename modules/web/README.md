@@ -21,6 +21,8 @@ npm run build:web
 
 前端构建输出为 `dist/web/client/`；服务端单独通过 `npm run build:server` 构建为 `dist/server/server.mjs`。模块的独立配置在 `components.json`、`vite.config.ts`、`dev.mjs` 和 `tsconfig.json`；shadcn/ui 组件放在 `src/components/ui/`。
 
+生产构建将 React 运行时与日期组件依赖分别打包为 `react-vendor` 和 `calendar-vendor`，与应用代码分开缓存；看板继续按需加载。保留 Vite 默认的 500 kB 分块警告阈值，便于发现后续体积增长。
+
 ## 功能与边界
 
 界面使用 shadcn/ui，按 Todoist 参考截图对齐页面比例、列表、行内编辑和任务详情，保留 Aster 的中性配色。桌面默认展开 280px 侧栏，搜索放在侧栏，视图入口放在右上角；列表正文最大宽 800px，居中显示。任务用圆形完成框和逐行细线分隔，子任务只按层级缩进。手机侧栏默认收起，并保留右下角添加入口。

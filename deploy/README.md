@@ -36,3 +36,23 @@ SSH_TARGET=dmit bash deploy/deploy.sh [suffix]
 3. **Artifact Upload**: Streams clean release artifacts to `/opt/aster/releases/${RELEASE_ID}` via SSH tar (with macOS extended attributes stripped).
 4. **Service Switch & Recreate**: Atomically updates `/opt/aster/current -> ${REMOTE_RELEASE}`, recreates the Docker container via `docker compose up -d --force-recreate aster` (or restarts `systemctl restart aster.service` if on systemd), and polls `http://127.0.0.1:4180/healthz`.
 5. **Auto-Rollback**: If health checks fail within 10 seconds, it automatically rolls back the symlink and restarts the container to restore the previous release.
+
+### Backup runtime and preflight
+
+The active container mounts only `current`, so host paths under `releases/` and
+`backups/` are not visible there. Deployment uses a one-off Compose service
+container with explicit read-only mounts for the candidate release and backup
+archive. It retains the service image, environment, user and data volumes.
+Candidate syntax and visibility are checked before stopping the active service.
+If live checkpoint backup is unavailable, the service is paused for maintenance
+backup; any subsequent backup-stage failure restarts the previous service.
+
+For the first upgrade from a server bundle that predates `time.sqlite`, deployment
+passes `--allow-uninitialized-time` to the maintenance helper. The backup records
+`time: { status: "not_initialized" }`; normal server startup initializes Time after
+activation. The helper still refuses a missing enabled database by default, and
+rejects orphaned barrier, WAL or SHM files even with the migration flag. Existing
+Time databases are always backed up.
+
+Run the isolated deployment regression checks with `npm run test:deploy`.
+They simulate Docker and systemd without connecting to the production server.

@@ -86,6 +86,8 @@ export async function runMaintenanceBackup(input: {
   timeFile: string;
   taskchampionDbPath?: string;
   timeEnabled: boolean;
+  // Only for deployment from a verified release that predates Time support.
+  allowUninitializedTime?: boolean;
   timeBackup?: TimeBackupService;
   minFreeBytes?: number;
 }): Promise<{
@@ -190,7 +192,20 @@ export async function runMaintenanceBackup(input: {
     }
 
     const timeExists = await fileExists(input.timeFile);
-    if (input.timeEnabled && !timeExists) {
+    const timeArtifacts = [
+      defaultBarrierPath(input.timeFile),
+      `${input.timeFile}-wal`,
+      `${input.timeFile}-shm`,
+    ];
+    const hadTimeArtifacts =
+      !timeExists &&
+      (await Promise.all(timeArtifacts.map(fileExists))).some(Boolean);
+    if (!timeExists && hadTimeArtifacts) {
+      throw new Error(
+        `Time database is missing at ${input.timeFile}, but Time artifacts remain. Restore or inspect the database before deploying.`,
+      );
+    }
+    if (input.timeEnabled && !timeExists && !input.allowUninitializedTime) {
       throw new Error(
         `Time is enabled, but database file is missing at ${input.timeFile}.`,
       );

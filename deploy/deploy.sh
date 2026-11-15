@@ -68,6 +68,23 @@ run_service_node() {
   fi
 }
 
+# Candidate and archived backup paths exist on the host, outside the current
+# release bind mount. Use a one-off service container with explicit read-only
+# mounts while retaining the service environment, user and data volumes.
+run_candidate_node() {
+  if [ \"\$RUNTIME_MODE\" = 'docker' ]; then
+    (cd /opt/aster && docker compose run --rm --no-deps -T \
+      -v '${REMOTE_RELEASE}:${REMOTE_RELEASE}:ro' \
+      -v '${REMOTE_BACKUP}:${REMOTE_BACKUP}:ro' \
+      --entrypoint node aster \"\$@\")
+  else
+    run_service_node \"\$@\"
+  fi
+}
+
+# Check candidate visibility and syntax before stopping the active service.
+run_candidate_node --check '${REMOTE_RELEASE}/server.mjs'
+
 # Verify Node runtime supports node:sqlite online backup() before modifying anything.
 run_service_node -e '
   const { DatabaseSync, backup } = require(\"node:sqlite\");
@@ -133,14 +150,6 @@ fi
 if [ \"\$LIVE_RESULT\" -ne 0 ]; then
   # Offline or legacy release fallback: pause managed writes briefly and invoke unified snapshot helper.
   WAS_RUNNING=0
-  if [ \"\$RUNTIME_MODE\" = 'docker' ] && docker ps -q -f name=^/aster\$ | grep -q .; then
-    WAS_RUNNING=1
-    cd /opt/aster && docker compose stop aster
-  elif [ \"\$RUNTIME_MODE\" = 'systemd' ] && systemctl is-active --quiet aster.service; then
-    WAS_RUNNING=1
-    systemctl stop aster.service
-  fi
-
   restart_previous() {
     if [ \"\$WAS_RUNNING\" -eq 1 ]; then
       if [ \"\$RUNTIME_MODE\" = 'docker' ]; then
@@ -150,10 +159,36 @@ if [ \"\$LIVE_RESULT\" -ne 0 ]; then
       fi
     fi
   }
+  trap 'status=\$?; if [ \"\$status\" -ne 0 ]; then restart_previous; fi' EXIT
+  if [ \"\$RUNTIME_MODE\" = 'docker' ] && docker ps -q -f name=^/aster\$ | grep -q .; then
+    WAS_RUNNING=1
+    cd /opt/aster && docker compose stop aster
+  elif [ \"\$RUNTIME_MODE\" = 'systemd' ] && systemctl is-active --quiet aster.service; then
+    WAS_RUNNING=1
+    systemctl stop aster.service
+  fi
 
-  if ! run_service_node '${REMOTE_RELEASE}/server.mjs' --maintenance-backup --backup-id '${BACKUP_ID}' --release-id '${RELEASE_ID}'; then
+  # The candidate defaults Time on, but a legacy active release has never
+  # initialized its database. Allow that migration only with positive evidence
+  # that the previous server bundle predates Time; the helper also rejects
+  # orphaned barrier/WAL/SHM files even when this flag is present.
+  MAINTENANCE_ARGS=(--maintenance-backup --backup-id '${BACKUP_ID}' --release-id '${RELEASE_ID}')
+  if [ -r /opt/aster/current/server.mjs ]; then
+    if grep -F 'time.sqlite' /opt/aster/current/server.mjs >/dev/null; then
+      :
+    else
+      GREP_STATUS=\$?
+      if [ \"\$GREP_STATUS\" -eq 1 ]; then
+        MAINTENANCE_ARGS+=(--allow-uninitialized-time)
+      else
+        echo 'Error: cannot inspect previous release Time support.' >&2
+        exit 1
+      fi
+    fi
+  fi
+
+  if ! run_candidate_node '${REMOTE_RELEASE}/server.mjs' \"\${MAINTENANCE_ARGS[@]}\"; then
     rm -rf \"\$STAGING_DIR\"
-    restart_previous
     echo 'Error: maintenance backup failed; release aborted without switching.' >&2
     exit 1
   fi
@@ -167,7 +202,7 @@ if [ ! -f \"\${STAGING_DIR}/manifest.json\" ]; then
 fi
 
 cp -a \"\${STAGING_DIR}/.\" '${REMOTE_BACKUP}/'
-run_service_node -e '
+run_candidate_node -e '
   const fs = require(\"node:fs\");
   const path = require(\"node:path\");
   const crypto = require(\"node:crypto\");

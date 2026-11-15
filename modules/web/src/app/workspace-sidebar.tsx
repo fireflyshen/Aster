@@ -24,9 +24,11 @@ import { cn } from "cn";
 import {
   Archive,
   Asterisk,
+  BarChart3,
   Check,
   ChevronDown,
   CircleCheck,
+  Clock,
   Clock3,
   DatabaseBackup,
   Flame,
@@ -34,10 +36,14 @@ import {
   PanelLeft,
   Plus,
   Search,
+  SlidersHorizontal,
   Target,
 } from "lucide-react";
 import { useState } from "react";
-import type { CompleteBehavior } from "./hooks/use-workspace-navigation";
+import type {
+  CompleteBehavior,
+  TimePage,
+} from "./hooks/use-workspace-navigation";
 import {
   SidebarEnergyMeter,
   SidebarFavorites,
@@ -143,6 +149,8 @@ type WorkspaceSidebarProps = {
   onRecovery: () => void;
   completeBehavior?: CompleteBehavior;
   onCompleteBehaviorChange?: (next: CompleteBehavior) => void;
+  timePage?: TimePage | null;
+  onOpenTimePage?: (page: TimePage) => void;
 };
 
 /** Persistent navigation drawer housing views, favorites, focus/later projects, and energy meter. */
@@ -184,6 +192,8 @@ export function WorkspaceSidebar({
   onRecovery,
   completeBehavior = "hide",
   onCompleteBehaviorChange,
+  timePage = null,
+  onOpenTimePage,
 }: WorkspaceSidebarProps) {
   const [laterCollapsed, setLaterCollapsed] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -317,7 +327,8 @@ export function WorkspaceSidebar({
                 view === value &&
                 !currentProject &&
                 !organizationPage &&
-                !hasActiveItem
+                !hasActiveItem &&
+                !timePage
                   ? "page"
                   : undefined
               }
@@ -353,6 +364,57 @@ export function WorkspaceSidebar({
           过滤器&标签
         </Button>
       </nav>
+      {onOpenTimePage && (
+        <section className="mt-4" aria-label="时间账本">
+          <div className="mb-1 px-2 text-[11px] font-medium text-muted-foreground/80">
+            时间账本
+          </div>
+          <nav className="flex flex-col gap-0.5">
+            <Button
+              variant="navigation"
+              aria-current={timePage === "today" ? "page" : undefined}
+              disabled={disabled}
+              onClick={() => {
+                onOpenTimePage("today");
+                closeOnMobile();
+              }}
+            >
+              <Clock className="size-[18px] text-primary" />
+              <span className="flex-1 truncate text-left">今日时间线</span>
+              {timerSnapshot?.state === "pending_reconcile" && (
+                <span
+                  aria-label="有待核对的计时"
+                  className="size-2 shrink-0 rounded-full bg-amber-500"
+                />
+              )}
+            </Button>
+            <Button
+              variant="navigation"
+              aria-current={timePage === "weekly" ? "page" : undefined}
+              disabled={disabled}
+              onClick={() => {
+                onOpenTimePage("weekly");
+                closeOnMobile();
+              }}
+            >
+              <BarChart3 className="size-[18px] text-muted-foreground" />
+              本周分布
+            </Button>
+            <Button
+              variant="navigation"
+              aria-current={timePage === "settings" ? "page" : undefined}
+              disabled={disabled}
+              onClick={() => {
+                onOpenTimePage("settings");
+                closeOnMobile();
+              }}
+            >
+              <SlidersHorizontal className="size-[18px] text-muted-foreground" />
+              时间设置
+            </Button>
+          </nav>
+        </section>
+      )}
       <SidebarFavorites
         organization={organization}
         organizationPage={organizationPage}

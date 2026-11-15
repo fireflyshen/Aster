@@ -35,6 +35,10 @@ import type { TaskRenderFn } from "../hooks/use-task-renderer";
 import type { ActiveEntry } from "../hooks/use-workspace-navigation";
 import { ProjectInlineMeta } from "./project-inline-meta";
 import { WorkspaceHeading } from "./workspace-header";
+import { TimeLedgerWorkspace } from "@/features/time/time-ledger-workspace";
+import type { TimePage } from "../hooks/use-workspace-navigation";
+import type { TimerSnapshot } from "@core/time/model";
+import { snapshotLiveStatus } from "@core/time/snapshot";
 
 const TaskBoard = lazy(() =>
   import("@/features/tasks/task-board").then((module) => ({
@@ -123,6 +127,13 @@ type WorkspaceContentProps = {
     columnId?: string,
   ) => Promise<boolean>;
   renderTask: TaskRenderFn;
+  timePage: TimePage | null;
+  isTimeMode: boolean;
+  timerSnapshot?: TimerSnapshot | null;
+  timerLiveStatus?: ReturnType<typeof snapshotLiveStatus> | null;
+  activeActivitySeconds: number | undefined;
+  onOpenTimePage: (page: TimePage) => void;
+  onRefreshTimerSnapshot: () => Promise<unknown>;
 };
 
 /** Renders workspace header, active alert notices, search bar, management pages, and unified task view. */
@@ -195,6 +206,13 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     onMoveTask,
     onCreateTaskInView,
     renderTask,
+    timePage,
+    isTimeMode,
+    timerSnapshot,
+    timerLiveStatus,
+    activeActivitySeconds,
+    onOpenTimePage,
+    onRefreshTimerSnapshot,
   } = props;
 
   const isProjectOwned =
@@ -269,6 +287,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           currentProject={currentProject}
           organizationPage={organizationPage}
           projectsPage={projectsPage}
+          timePage={timePage}
           specialPage={specialPage}
           organizationReady={organizationReady}
           organizationSaving={organizationSaving}
@@ -311,7 +330,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           onManageOrganization={onOpenOrganization}
         />
 
-        {currentProject && !organizationPage && (
+        {currentProject && !organizationPage && !timePage && (
           <ProjectInlineMeta
             currentProject={currentProject}
             revision={organization.revision}
@@ -362,7 +381,21 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           </Alert>
         )}
 
-        {organizationPage ? (
+        {timePage ? (
+          <TimeLedgerWorkspace
+            page={timePage}
+            tasks={tasks}
+            timerSnapshot={timerSnapshot}
+            timerLiveStatus={timerLiveStatus}
+            activeActivitySeconds={activeActivitySeconds}
+            isTimeMode={isTimeMode}
+            onOpenPage={onOpenTimePage}
+            onTimeMutated={() => {
+              void onRefreshTimerSnapshot();
+              void onReloadAll();
+            }}
+          />
+        ) : organizationPage ? (
           projectsPage ? (
             <div className="space-y-8">
               <FocusOverview

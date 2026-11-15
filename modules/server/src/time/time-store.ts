@@ -417,8 +417,14 @@ export async function createTimeStore(
     }
   }
 
-  function inImmediateTx<T>(fn: (conn: DatabaseSync) => T): T {
-    return inImmediateTxOn(assertOpen(), fn);
+  function inImmediateTx<T>(
+    fn: (conn: DatabaseSync) => T,
+    options?: { allowWhileRestoring?: boolean },
+  ): T {
+    return inImmediateTxOn(
+      options?.allowWhileRestoring ? db : assertOpen(),
+      fn,
+    );
   }
 
   function readMeta(conn: DatabaseSync): MetaRow {
@@ -524,7 +530,7 @@ export async function createTimeStore(
     return conn
       .prepare(
         `SELECT * FROM operations
-         WHERE state IN ('prepared', 'external_acknowledged', 'skipped_already_satisfied', 'pending_reconcile')
+         WHERE state IN ('prepared', 'external_acknowledged', 'pending_reconcile')
          ORDER BY created_at_ms ASC`,
       )
       .all() as OperationRow[];
@@ -715,7 +721,7 @@ export async function createTimeStore(
     const pendingCount = (
       conn
         .prepare(
-          "SELECT COUNT(*) as cnt FROM operations WHERE state IN ('prepared', 'external_acknowledged', 'skipped_already_satisfied', 'pending_reconcile')",
+          "SELECT COUNT(*) as cnt FROM operations WHERE state IN ('prepared', 'external_acknowledged', 'pending_reconcile')",
         )
         .get() as { cnt: number }
     ).cnt;
@@ -3067,7 +3073,8 @@ export async function createTimeStore(
       const effectiveAtMs = input.effectiveAtMs ?? op.effective_at_ms ?? ts;
       const finalState: OperationState =
         input.finalState ??
-        (op.state === "skipped_already_satisfied"
+        (op.state === "skipped_already_satisfied" ||
+        op.external_disposition?.startsWith("SKIPPED_")
           ? "skipped_already_satisfied"
           : "applied");
       const activeRow = meta.active_activity_id
@@ -3566,93 +3573,96 @@ export async function createTimeStore(
     suspendedAtMs: number;
   }> {
     const suspendMs = atMs ?? nowFn();
-    const result = inImmediateTx((conn) => {
-      const existing = conn
-        .prepare("SELECT * FROM task_restore_markers WHERE restore_id = ?")
-        .get(restoreId) as
-        | {
-            restore_id: string;
-            phase: "prepared" | "finalized";
-            suspend_ms: number;
-            task_data_epoch: number;
-            summary_json: string;
-          }
-        | undefined;
-      if (existing) {
-        const parsed = JSON.parse(existing.summary_json) as {
-          frozenActivityId?: string;
-        };
-        return {
-          alreadyPrepared: true,
-          taskDataEpoch: existing.task_data_epoch,
-          frozenActivityId: parsed.frozenActivityId,
-          suspendedAtMs: existing.suspend_ms,
-          meta: readMeta(conn),
-        };
-      }
+    const result = inImmediateTx(
+      (conn) => {
+        const existing = conn
+          .prepare("SELECT * FROM task_restore_markers WHERE restore_id = ?")
+          .get(restoreId) as
+          | {
+              restore_id: string;
+              phase: "prepared" | "finalized";
+              suspend_ms: number;
+              task_data_epoch: number;
+              summary_json: string;
+            }
+          | undefined;
+        if (existing) {
+          const parsed = JSON.parse(existing.summary_json) as {
+            frozenActivityId?: string;
+          };
+          return {
+            alreadyPrepared: true,
+            taskDataEpoch: existing.task_data_epoch,
+            frozenActivityId: parsed.frozenActivityId,
+            suspendedAtMs: existing.suspend_ms,
+            meta: readMeta(conn),
+          };
+        }
 
-      const meta = readMeta(conn);
-      const nextTaskEpoch = meta.task_data_epoch + 1;
-      const ts = nowFn();
-      let frozenActivityId: string | undefined;
+        const meta = readMeta(conn);
+        const nextTaskEpoch = meta.task_data_epoch + 1;
+        const ts = nowFn();
+        let frozenActivityId: string | undefined;
 
-      if (meta.active_activity_id) {
-        const active = conn
-          .prepare("SELECT * FROM activities WHERE id = ?")
-          .get(meta.active_activity_id) as ActivityRow | undefined;
-        if (active && active.task_uuid && active.end_ms === null) {
-          const appliedSuspendMs = active.suspend_ms ?? suspendMs;
-          conn
-            .prepare(
-              `UPDATE activities
+        if (meta.active_activity_id) {
+          const active = conn
+            .prepare("SELECT * FROM activities WHERE id = ?")
+            .get(meta.active_activity_id) as ActivityRow | undefined;
+          if (active && active.task_uuid && active.end_ms === null) {
+            const appliedSuspendMs = active.suspend_ms ?? suspendMs;
+            conn
+              .prepare(
+                `UPDATE activities
                SET suspend_ms = ?, review_state = 'review_required', version = ?, updated_at_ms = ?
                WHERE id = ?`,
-            )
-            .run(appliedSuspendMs, active.version + 1, ts, active.id);
-          frozenActivityId = active.id;
+              )
+              .run(appliedSuspendMs, active.version + 1, ts, active.id);
+            frozenActivityId = active.id;
+          }
         }
-      }
 
-      conn
-        .prepare(
-          `UPDATE operations
+        conn
+          .prepare(
+            `UPDATE operations
            SET state = 'pending_reconcile',
                external_disposition = COALESCE(external_disposition, 'TASK_DATA_EPOCH_CHANGED'),
                updated_at_ms = ?
-           WHERE state IN ('prepared', 'external_acknowledged', 'skipped_already_satisfied', 'pending_reconcile')`,
-        )
-        .run(ts);
+           WHERE state IN ('prepared', 'external_acknowledged', 'pending_reconcile')`,
+          )
+          .run(ts);
 
-      const nextSessionVersion = frozenActivityId
-        ? meta.session_version + 1
-        : meta.session_version;
-      conn
-        .prepare(
-          "UPDATE time_meta SET task_data_epoch = ?, session_version = ?, updated_at_ms = ? WHERE id = 1",
-        )
-        .run(nextTaskEpoch, nextSessionVersion, ts);
+        const nextSessionVersion = frozenActivityId
+          ? meta.session_version + 1
+          : meta.session_version;
+        conn
+          .prepare(
+            "UPDATE time_meta SET task_data_epoch = ?, session_version = ?, updated_at_ms = ? WHERE id = 1",
+          )
+          .run(nextTaskEpoch, nextSessionVersion, ts);
 
-      conn
-        .prepare(
-          `INSERT INTO task_restore_markers (restore_id, phase, suspend_ms, task_data_epoch, summary_json, updated_at_ms)
+        conn
+          .prepare(
+            `INSERT INTO task_restore_markers (restore_id, phase, suspend_ms, task_data_epoch, summary_json, updated_at_ms)
            VALUES (?, 'prepared', ?, ?, ?, ?)`,
-        )
-        .run(
-          restoreId,
-          suspendMs,
-          nextTaskEpoch,
-          JSON.stringify({ frozenActivityId }),
-          ts,
-        );
+          )
+          .run(
+            restoreId,
+            suspendMs,
+            nextTaskEpoch,
+            JSON.stringify({ frozenActivityId }),
+            ts,
+          );
 
-      return {
-        alreadyPrepared: false,
-        taskDataEpoch: nextTaskEpoch,
-        frozenActivityId,
-        suspendedAtMs: suspendMs,
-        meta: readMeta(conn),
-      };
-    });
+        return {
+          alreadyPrepared: false,
+          taskDataEpoch: nextTaskEpoch,
+          frozenActivityId,
+          suspendedAtMs: suspendMs,
+          meta: readMeta(conn),
+        };
+      },
+      { allowWhileRestoring: true },
+    );
 
     await syncBarrierFromDb(result.meta);
     return {
@@ -3677,80 +3687,83 @@ export async function createTimeStore(
     outcome: "committed" | "rolled_back";
     frozenActivityStatus?: string;
   } {
-    return inImmediateTx((conn) => {
-      const marker = conn
-        .prepare("SELECT * FROM task_restore_markers WHERE restore_id = ?")
-        .get(restoreId) as
-        | {
-            restore_id: string;
-            phase: "prepared" | "finalized";
-            suspend_ms: number;
-            task_data_epoch: number;
-            summary_json: string;
-          }
-        | undefined;
-      if (marker?.phase === "finalized") {
-        const parsed = JSON.parse(marker.summary_json) as {
-          outcome?: "committed" | "rolled_back";
-          frozenActivityStatus?: string;
-        };
-        return {
-          alreadyFinalized: true,
-          taskDataEpoch: marker.task_data_epoch,
-          outcome: parsed.outcome ?? outcome,
-          frozenActivityStatus: parsed.frozenActivityStatus,
-        };
-      }
-
-      const meta = readMeta(conn);
-      const ts = nowFn();
-      let frozenActivityStatus: string | undefined;
-
-      if (meta.active_activity_id) {
-        const active = conn
-          .prepare("SELECT * FROM activities WHERE id = ?")
-          .get(meta.active_activity_id) as ActivityRow | undefined;
-        if (active && active.task_uuid) {
-          const taskState = inspectTask?.(active.task_uuid) ?? null;
-          frozenActivityStatus = !taskState?.exists
-            ? "missing"
-            : taskState.status || "unknown";
+    return inImmediateTx(
+      (conn) => {
+        const marker = conn
+          .prepare("SELECT * FROM task_restore_markers WHERE restore_id = ?")
+          .get(restoreId) as
+          | {
+              restore_id: string;
+              phase: "prepared" | "finalized";
+              suspend_ms: number;
+              task_data_epoch: number;
+              summary_json: string;
+            }
+          | undefined;
+        if (marker?.phase === "finalized") {
+          const parsed = JSON.parse(marker.summary_json) as {
+            outcome?: "committed" | "rolled_back";
+            frozenActivityStatus?: string;
+          };
+          return {
+            alreadyFinalized: true,
+            taskDataEpoch: marker.task_data_epoch,
+            outcome: parsed.outcome ?? outcome,
+            frozenActivityStatus: parsed.frozenActivityStatus,
+          };
         }
-      }
 
-      const summary = {
-        ...(marker ? JSON.parse(marker.summary_json) : {}),
-        outcome,
-        frozenActivityStatus,
-      };
-      if (marker) {
-        conn
-          .prepare(
-            "UPDATE task_restore_markers SET phase = 'finalized', summary_json = ?, updated_at_ms = ? WHERE restore_id = ?",
-          )
-          .run(JSON.stringify(summary), ts, restoreId);
-      } else {
-        conn
-          .prepare(
-            `INSERT INTO task_restore_markers (restore_id, phase, suspend_ms, task_data_epoch, summary_json, updated_at_ms)
+        const meta = readMeta(conn);
+        const ts = nowFn();
+        let frozenActivityStatus: string | undefined;
+
+        if (meta.active_activity_id) {
+          const active = conn
+            .prepare("SELECT * FROM activities WHERE id = ?")
+            .get(meta.active_activity_id) as ActivityRow | undefined;
+          if (active && active.task_uuid) {
+            const taskState = inspectTask?.(active.task_uuid) ?? null;
+            frozenActivityStatus = !taskState?.exists
+              ? "missing"
+              : taskState.status || "unknown";
+          }
+        }
+
+        const summary = {
+          ...(marker ? JSON.parse(marker.summary_json) : {}),
+          outcome,
+          frozenActivityStatus,
+        };
+        if (marker) {
+          conn
+            .prepare(
+              "UPDATE task_restore_markers SET phase = 'finalized', summary_json = ?, updated_at_ms = ? WHERE restore_id = ?",
+            )
+            .run(JSON.stringify(summary), ts, restoreId);
+        } else {
+          conn
+            .prepare(
+              `INSERT INTO task_restore_markers (restore_id, phase, suspend_ms, task_data_epoch, summary_json, updated_at_ms)
              VALUES (?, 'finalized', ?, ?, ?, ?)`,
-          )
-          .run(
-            restoreId,
-            ts,
-            meta.task_data_epoch,
-            JSON.stringify(summary),
-            ts,
-          );
-      }
+            )
+            .run(
+              restoreId,
+              ts,
+              meta.task_data_epoch,
+              JSON.stringify(summary),
+              ts,
+            );
+        }
 
-      return {
-        alreadyFinalized: false,
-        taskDataEpoch: meta.task_data_epoch,
-        outcome,
-        ...(frozenActivityStatus ? { frozenActivityStatus } : {}),
-      };
-    });
+        return {
+          alreadyFinalized: false,
+          taskDataEpoch: meta.task_data_epoch,
+          outcome,
+          ...(frozenActivityStatus ? { frozenActivityStatus } : {}),
+        };
+      },
+      { allowWhileRestoring: true },
+    );
   }
 
   function setRestoring(value: boolean): void {
@@ -3810,7 +3823,7 @@ export async function createTimeStore(
              SET state = 'pending_reconcile',
                  external_disposition = COALESCE(external_disposition, 'TIME_RESTORE_BARRIER'),
                  updated_at_ms = ?
-             WHERE state IN ('prepared', 'external_acknowledged', 'skipped_already_satisfied')`,
+             WHERE state IN ('prepared', 'external_acknowledged')`,
           )
           .run(ts);
       });

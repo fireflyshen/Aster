@@ -36,7 +36,10 @@ import {
   Target,
 } from "lucide-react";
 import { ThemeSwitcher } from "../theme-switcher";
-import type { CompleteBehavior } from "../hooks/use-workspace-navigation";
+import type {
+  CompleteBehavior,
+  TimePage,
+} from "../hooks/use-workspace-navigation";
 import { views } from "../workspace-sidebar";
 import { WorkspaceHeadingMenu } from "./workspace-heading-menu";
 
@@ -133,6 +136,7 @@ type WorkspaceHeadingProps = {
   currentProject: string;
   organizationPage: boolean;
   projectsPage: boolean;
+  timePage?: TimePage | null;
   specialPage: boolean;
   organizationReady: boolean;
   organizationSaving: boolean;
@@ -162,6 +166,18 @@ type WorkspaceHeadingProps = {
   onManageOrganization: () => void;
 };
 
+const TIME_PAGE_TITLES: Record<TimePage, string> = {
+  today: "今日时间线",
+  weekly: "本周分布",
+  settings: "时间设置",
+};
+
+const TIME_PAGE_SUBTITLES: Record<TimePage, string> = {
+  today: "记录当前活动、核对空白时段并管理待定位估记",
+  weekly: "观察本周分类时间投入与未记录缺口，暂不替代真实发生时间",
+  settings: "配置时区、作息候选模板、自动分类映射与历史快照导入",
+};
+
 /** View heading bar with breadcrumbs, Todoist count/subtitle, Focus toggle, and layout/options controls. */
 export function WorkspaceHeading({
   view,
@@ -169,6 +185,7 @@ export function WorkspaceHeading({
   currentProject,
   organizationPage,
   projectsPage,
+  timePage = null,
   specialPage,
   organizationReady,
   organizationSaving,
@@ -198,18 +215,33 @@ export function WorkspaceHeading({
   onManageOrganization,
 }: WorkspaceHeadingProps) {
   const showTodayMeta =
-    view === "today" && !currentProject && !organizationPage && !activeItem;
+    view === "today" &&
+    !currentProject &&
+    !organizationPage &&
+    !activeItem &&
+    !timePage;
   const showUrgencyMeta =
-    view === "urgency" && !currentProject && !organizationPage && !activeItem;
+    view === "urgency" &&
+    !currentProject &&
+    !organizationPage &&
+    !activeItem &&
+    !timePage;
   const showInboxCount =
-    view === "pending" && !currentProject && !organizationPage && !activeItem;
-  const titleText = organizationPage
-    ? projectsPage
-      ? "我的项目"
-      : "过滤器&标签"
-    : activeItem?.name ||
-      (currentProject ? projectLeaf(currentProject) : views[view]);
+    view === "pending" &&
+    !currentProject &&
+    !organizationPage &&
+    !activeItem &&
+    !timePage;
+  const titleText = timePage
+    ? TIME_PAGE_TITLES[timePage]
+    : organizationPage
+      ? projectsPage
+        ? "我的项目"
+        : "过滤器&标签"
+      : activeItem?.name ||
+        (currentProject ? projectLeaf(currentProject) : views[view]);
   const filterSubtitle =
+    !timePage &&
     !organizationPage &&
     activeEntry?.kind === "filter" &&
     activeItem &&
@@ -254,9 +286,15 @@ export function WorkspaceHeading({
       >
         <div className="flex min-w-0 flex-col">
           <div className="flex min-w-0 items-center gap-2.5">
-            {currentProject && !organizationPage && !activeItem && (
-              <ProjectIcon name={currentProject} className="size-5 shrink-0" />
-            )}
+            {currentProject &&
+              !organizationPage &&
+              !timePage &&
+              !activeItem && (
+                <ProjectIcon
+                  name={currentProject}
+                  className="size-5 shrink-0"
+                />
+              )}
             <h1
               title={currentProject ? projectPath(currentProject) : undefined}
               id="view-title"
@@ -280,41 +318,52 @@ export function WorkspaceHeading({
                 {viewCounts.pending ?? 0}
               </span>
             )}
-            {!organizationPage && activeItem && activeCount !== undefined && (
-              <span className="text-xs font-medium text-muted-foreground/80 tabular-nums">
-                {activeCount}
-              </span>
-            )}
-            {currentProject && !organizationPage && !activeItem && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                disabled={disabled}
-                onClick={() =>
-                  onTransitionProject(
-                    currentProjectFocus?.name || currentProject,
-                    currentProjectFocus ? "later" : "active",
-                  )
-                }
-                className={cn(
-                  "h-6 shrink-0 gap-1 rounded-full border px-2.5 text-[11px] font-medium",
-                  currentProjectFocus
-                    ? "border-primary/25 bg-primary/8 text-foreground hover:bg-primary/14"
-                    : "border-border text-muted-foreground hover:bg-(--row-hover) hover:text-foreground",
-                )}
-              >
-                {currentProjectFocus ? (
-                  <>
-                    <Target className="size-3" strokeWidth={1.8} />
-                    焦点
-                  </>
-                ) : (
-                  "稍后"
-                )}
-              </Button>
-            )}
+            {!timePage &&
+              !organizationPage &&
+              activeItem &&
+              activeCount !== undefined && (
+                <span className="text-xs font-medium text-muted-foreground/80 tabular-nums">
+                  {activeCount}
+                </span>
+              )}
+            {currentProject &&
+              !timePage &&
+              !organizationPage &&
+              !activeItem && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  disabled={disabled}
+                  onClick={() =>
+                    onTransitionProject(
+                      currentProjectFocus?.name || currentProject,
+                      currentProjectFocus ? "later" : "active",
+                    )
+                  }
+                  className={cn(
+                    "h-6 shrink-0 gap-1 rounded-full border px-2.5 text-[11px] font-medium",
+                    currentProjectFocus
+                      ? "border-primary/25 bg-primary/8 text-foreground hover:bg-primary/14"
+                      : "border-border text-muted-foreground hover:bg-(--row-hover) hover:text-foreground",
+                  )}
+                >
+                  {currentProjectFocus ? (
+                    <>
+                      <Target className="size-3" strokeWidth={1.8} />
+                      焦点
+                    </>
+                  ) : (
+                    "稍后"
+                  )}
+                </Button>
+              )}
           </div>
+          {timePage && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {TIME_PAGE_SUBTITLES[timePage]}
+            </p>
+          )}
           {showTodayMeta && (
             <p className="mt-0.5 text-xs text-muted-foreground">
               {format(now, "M月d日 · EEEE", { locale: zhCN })}

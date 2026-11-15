@@ -1,0 +1,693 @@
+import type { Activity, LocatedSegment, TimePolicy } from "@core/time/model";
+import { zonedDateTimeToUtcMs } from "@core/time/zone";
+import type { Task } from "@shared/tasks";
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { formatClockInZone } from "./time-format";
+
+export type LogDialogSeed = {
+  mode: "log" | "estimate";
+  date: string;
+  startTime: string;
+  endTime: string;
+  estimatedMinutes: string;
+};
+
+export function TimeLogOrEstimateDialog({
+  open,
+  onOpenChange,
+  seed,
+  timeZone,
+  policy,
+  tasks,
+  busy,
+  onSubmitLog,
+  onSubmitEstimate,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  seed: LogDialogSeed | null;
+  timeZone: string;
+  policy: TimePolicy | null;
+  tasks: Task[];
+  busy: boolean;
+  onSubmitLog: (input: {
+    title: string;
+    startMs: number;
+    endMs: number;
+    explicitCategoryId?: string;
+    taskUuid?: string;
+    precision: "exact" | "estimated_bounds";
+    note?: string;
+  }) => Promise<boolean>;
+  onSubmitEstimate: (input: {
+    title: string;
+    estimatedSeconds: number;
+    targetDate: string;
+    windowStartMs?: number;
+    windowEndMs?: number;
+    explicitCategoryId?: string;
+    taskUuid?: string;
+    note?: string;
+  }) => Promise<boolean>;
+}) {
+  const [mode, setMode] = useState<"log" | "estimate">("log");
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("19:00");
+  const [endTime, setEndTime] = useState("20:00");
+  const [estimatedMinutes, setEstimatedMinutes] = useState("60");
+  const [categoryId, setCategoryId] = useState("auto");
+  const [taskUuid, setTaskUuid] = useState("none");
+  const [approximate, setApproximate] = useState(false);
+  const [useWindow, setUseWindow] = useState(true);
+  const [note, setNote] = useState("");
+  const [localError, setLocalError] = useState("");
+
+  useEffect(() => {
+    if (!open || !seed) return;
+    setMode(seed.mode);
+    setDate(seed.date);
+    setStartTime(seed.startTime);
+    setEndTime(seed.endTime);
+    setEstimatedMinutes(seed.estimatedMinutes);
+    setTitle("");
+    setCategoryId("auto");
+    setTaskUuid("none");
+    setApproximate(false);
+    setUseWindow(true);
+    setNote("");
+    setLocalError("");
+  }, [open, seed]);
+
+  const categories = policy?.categories || [];
+  const pendingTasks = tasks.filter((t) => t.status === "pending");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLocalError("");
+    const selectedTask =
+      taskUuid !== "none" ? tasks.find((t) => t.uuid === taskUuid) : undefined;
+    const finalTitle = (title.trim() || selectedTask?.description || "").trim();
+    if (!finalTitle) {
+      setLocalError("请输入活动名称或关联一个任务。");
+      return;
+    }
+
+    if (mode === "log") {
+      try {
+        const startMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
+        const endMs = zonedDateTimeToUtcMs(date, endTime, timeZone);
+        if (endMs <= startMs) {
+          setLocalError("结束时间必须晚于开始时间。");
+          return;
+        }
+        const ok = await onSubmitLog({
+          title: finalTitle,
+          startMs,
+          endMs,
+          explicitCategoryId: categoryId !== "auto" ? categoryId : undefined,
+          taskUuid: selectedTask?.uuid,
+          precision: approximate ? "estimated_bounds" : "exact",
+          note: note.trim() || undefined,
+        });
+        if (ok) onOpenChange(false);
+      } catch (err) {
+        setLocalError(err instanceof Error ? err.message : "时间格式无效");
+      }
+      return;
+    }
+
+    const mins = Number(estimatedMinutes);
+    if (!Number.isFinite(mins) || mins <= 0) {
+      setLocalError("估计时长必须大于 0 分钟。");
+      return;
+    }
+    let windowStartMs: number | undefined;
+    let windowEndMs: number | undefined;
+    if (useWindow) {
+      try {
+        windowStartMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
+        windowEndMs = zonedDateTimeToUtcMs(date, endTime, timeZone);
+        if (windowEndMs <= windowStartMs) {
+          setLocalError("窗口结束时间必须晚于开始时间。");
+          return;
+        }
+      } catch (err) {
+        setLocalError(err instanceof Error ? err.message : "窗口时间格式无效");
+        return;
+      }
+    }
+    const ok = await onSubmitEstimate({
+      title: finalTitle,
+      estimatedSeconds: Math.round(mins * 60),
+      targetDate: date,
+      windowStartMs,
+      windowEndMs,
+      explicitCategoryId: categoryId !== "auto" ? categoryId : undefined,
+      taskUuid: selectedTask?.uuid,
+      note: note.trim() || undefined,
+    });
+    if (ok) onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            {mode === "log" ? "补记已发生时段" : "记录待定位估记"}
+          </DialogTitle>
+          <DialogDescription>
+            {mode === "log"
+              ? "明确知道起止时段时可直接记入当天时间线（不确定边界可勾选“大约”）。"
+              : "只记得大概花了一段时间时先保留为估记，不直接计入已定位总量，稍后再定位。"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
+          <div className="flex gap-1.5 rounded-lg bg-muted/60 p-1">
+            <Button
+              type="button"
+              size="xs"
+              variant={mode === "log" ? "default" : "ghost"}
+              className="flex-1"
+              onClick={() => setMode("log")}
+            >
+              固定时段补记
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              variant={mode === "estimate" ? "default" : "ghost"}
+              className="flex-1"
+              onClick={() => setMode("estimate")}
+            >
+              模糊时长估记
+            </Button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="time-log-title">活动内容</Label>
+            <Input
+              id="time-log-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="例如：看书、散步、沟通需求…"
+              autoFocus
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1.5">
+              <Label htmlFor="time-log-cat">分类</Label>
+              <Select value={categoryId} onValueChange={setCategoryId}>
+                <SelectTrigger id="time-log-cat">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">按规则自动分类</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="uncategorized">未分类</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="time-log-task">关联任务（可选）</Label>
+              <Select value={taskUuid} onValueChange={setTaskUuid}>
+                <SelectTrigger id="time-log-task">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">不关联任务</SelectItem>
+                  {pendingTasks.slice(0, 60).map((task) => (
+                    <SelectItem key={task.uuid} value={task.uuid}>
+                      {task.description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="time-log-date">日期</Label>
+              <Input
+                id="time-log-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+            {mode === "log" ? (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="time-log-start">开始</Label>
+                  <Input
+                    id="time-log-start"
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="time-log-end">结束</Label>
+                  <Input
+                    id="time-log-end"
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="col-span-2 space-y-1.5">
+                <Label htmlFor="time-est-mins">估计分钟数</Label>
+                <Input
+                  id="time-est-mins"
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={estimatedMinutes}
+                  onChange={(e) => setEstimatedMinutes(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
+
+          {mode === "log" ? (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Checkbox
+                checked={approximate}
+                onCheckedChange={(v) => setApproximate(Boolean(v))}
+              />
+              起止时刻是回忆估算（标记为“大约”，避免制造精确假象）
+            </label>
+          ) : (
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={useWindow}
+                  onCheckedChange={(v) => setUseWindow(Boolean(v))}
+                />
+                大概发生在一个时间窗口内（可选）
+              </label>
+              {useWindow && (
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="time"
+                    aria-label="窗口开始"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                  />
+                  <Input
+                    type="time"
+                    aria-label="窗口结束"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="time-log-note">备注（可选）</Label>
+            <Textarea
+              id="time-log-note"
+              rows={2}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="补充说明…"
+            />
+          </div>
+
+          {localError && (
+            <p className="text-xs text-destructive">{localError}</p>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => onOpenChange(false)}
+            >
+              取消
+            </Button>
+            <Button type="submit" disabled={busy}>
+              {mode === "log" ? "保存记录" : "保存估记"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function LocateEstimateDialog({
+  activity,
+  defaultDate,
+  timeZone,
+  busy,
+  onOpenChange,
+  onLocate,
+}: {
+  activity: Activity | null;
+  defaultDate: string;
+  timeZone: string;
+  busy: boolean;
+  onOpenChange: (open: boolean) => void;
+  onLocate: (input: {
+    activityId: string;
+    expectedVersion: number;
+    startMs: number;
+    endMs: number;
+  }) => Promise<boolean>;
+}) {
+  const [date, setDate] = useState(defaultDate);
+  const [startTime, setStartTime] = useState("20:00");
+  const [endTime, setEndTime] = useState("21:00");
+  const [localError, setLocalError] = useState("");
+
+  useEffect(() => {
+    if (!activity) return;
+    const baseDate = activity.targetDate || defaultDate;
+    setDate(baseDate);
+    const startMs =
+      activity.windowStartMs ??
+      zonedDateTimeToUtcMs(baseDate, "20:00", timeZone);
+    const durMs = (activity.estimatedSeconds || 3600) * 1000;
+    const suggestedEndMs = startMs + durMs;
+    setStartTime(formatClockInZone(startMs, timeZone));
+    setEndTime(formatClockInZone(suggestedEndMs, timeZone));
+    setLocalError("");
+  }, [activity, defaultDate, timeZone]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!activity) return;
+    setLocalError("");
+    try {
+      const startMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
+      const endMs = zonedDateTimeToUtcMs(date, endTime, timeZone);
+      if (endMs <= startMs) {
+        setLocalError("结束时间必须晚于开始时间。");
+        return;
+      }
+      const ok = await onLocate({
+        activityId: activity.id,
+        expectedVersion: activity.version,
+        startMs,
+        endMs,
+      });
+      if (ok) onOpenChange(false);
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "时间无效");
+    }
+  }
+
+  return (
+    <Dialog open={Boolean(activity)} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>将估记定位到具体时段</DialogTitle>
+          <DialogDescription>
+            定位后将把「{activity?.title}」从待定位估记转为已定位时间（C 增加，U
+            减少）。
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="loc-date">日期</Label>
+            <Input
+              id="loc-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="loc-start">开始</Label>
+              <Input
+                id="loc-start"
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="loc-end">结束</Label>
+              <Input
+                id="loc-end"
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+              />
+            </div>
+          </div>
+          {localError && (
+            <p className="text-xs text-destructive">{localError}</p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => onOpenChange(false)}
+            >
+              取消
+            </Button>
+            <Button type="submit" disabled={busy}>
+              确认定位
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function EditSegmentDialog({
+  segment,
+  date,
+  timeZone,
+  policy,
+  busy,
+  onOpenChange,
+  onSave,
+}: {
+  segment: LocatedSegment | null;
+  date: string;
+  timeZone: string;
+  policy: TimePolicy | null;
+  busy: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (input: {
+    activityId: string;
+    expectedVersion: number;
+    patch: {
+      title?: string;
+      categoryId?: string;
+      precision?: "exact" | "estimated_bounds";
+      startMs?: number;
+      endMs?: number;
+      clearTaskLink?: boolean;
+      confirmReview?: boolean;
+    };
+  }) => Promise<boolean>;
+}) {
+  const [title, setTitle] = useState("");
+  const [categoryId, setCategoryId] = useState("uncategorized");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [approximate, setApproximate] = useState(false);
+  const [clearTaskLink, setClearTaskLink] = useState(false);
+  const [confirmReview, setConfirmReview] = useState(false);
+  const [localError, setLocalError] = useState("");
+
+  useEffect(() => {
+    if (!segment) return;
+    setTitle(segment.title);
+    setCategoryId(segment.categoryId || "uncategorized");
+    setStartTime(formatClockInZone(segment.startMs, timeZone));
+    setEndTime(formatClockInZone(segment.endMs, timeZone));
+    setApproximate(segment.precision === "estimated_bounds");
+    setClearTaskLink(false);
+    setConfirmReview(segment.reviewState === "review_required");
+    setLocalError("");
+  }, [segment, timeZone]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!segment) return;
+    setLocalError("");
+    if (!title.trim()) {
+      setLocalError("活动标题不能为空。");
+      return;
+    }
+    const patch: {
+      title?: string;
+      categoryId?: string;
+      precision?: "exact" | "estimated_bounds";
+      startMs?: number;
+      endMs?: number;
+      clearTaskLink?: boolean;
+      confirmReview?: boolean;
+    } = {
+      title: title.trim(),
+      categoryId,
+      precision: approximate ? "estimated_bounds" : "exact",
+      ...(clearTaskLink ? { clearTaskLink: true } : {}),
+      ...(confirmReview ? { confirmReview: true } : {}),
+    };
+    if (!segment.running) {
+      try {
+        const startMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
+        const endMs = zonedDateTimeToUtcMs(date, endTime, timeZone);
+        if (endMs <= startMs) {
+          setLocalError("结束时间必须晚于开始时间。");
+          return;
+        }
+        patch.startMs = startMs;
+        patch.endMs = endMs;
+      } catch (err) {
+        setLocalError(err instanceof Error ? err.message : "时间无效");
+        return;
+      }
+    }
+    const ok = await onSave({
+      activityId: segment.activityId,
+      expectedVersion: segment.version,
+      patch,
+    });
+    if (ok) onOpenChange(false);
+  }
+
+  return (
+    <Dialog open={Boolean(segment)} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>修改时间记录</DialogTitle>
+          <DialogDescription>
+            支持修改标题、分类、精确度或时段；提交将按版本号校验，并生成可撤销回执。
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-seg-title">活动内容</Label>
+            <Input
+              id="edit-seg-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-seg-cat">分类</Label>
+            <Select value={categoryId} onValueChange={setCategoryId}>
+              <SelectTrigger id="edit-seg-cat">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(policy?.categories || []).map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+                <SelectItem value="uncategorized">未分类</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {!segment?.running && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-seg-start">开始</Label>
+                <Input
+                  id="edit-seg-start"
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-seg-end">结束</Label>
+                <Input
+                  id="edit-seg-end"
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Checkbox
+              checked={approximate}
+              onCheckedChange={(v) => setApproximate(Boolean(v))}
+            />
+            起止时间为估计（显示“大约”）
+          </label>
+          {segment?.taskUuid && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Checkbox
+                checked={clearTaskLink}
+                onCheckedChange={(v) => setClearTaskLink(Boolean(v))}
+              />
+              解除与任务 UUID 的关联
+            </label>
+          )}
+          {segment?.reviewState === "review_required" && (
+            <label className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+              <Checkbox
+                checked={confirmReview}
+                onCheckedChange={(v) => setConfirmReview(Boolean(v))}
+              />
+              核对无误，清除“待核对”标记
+            </label>
+          )}
+          {localError && (
+            <p className="text-xs text-destructive">{localError}</p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => onOpenChange(false)}
+            >
+              取消
+            </Button>
+            <Button type="submit" disabled={busy}>
+              保存修改
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -83,6 +83,9 @@ if (process.argv.includes("--maintenance-backup")) {
       timeFile,
       taskchampionDbPath,
       timeEnabled: timeEnabledFlag,
+      allowUninitializedTime: process.argv.includes(
+        "--allow-uninitialized-time",
+      ),
     });
     process.stdout.write(JSON.stringify(result) + "\n");
     process.exit(0);

@@ -22,5 +22,18 @@ export default defineConfig({
       "/healthz": { target: backendTarget, changeOrigin: false },
     },
   },
-  build: { outDir: "../../dist/web/client", emptyOutDir: true },
+  build: {
+    outDir: "../../dist/web/client",
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Keep stable, shared dependencies separate from the application and
+        // leave feature chunks (such as the lazy-loaded board) to Rollup.
+        manualChunks: {
+          "react-vendor": ["react", "react-dom", "react-dom/client"],
+          "calendar-vendor": ["react-day-picker", "date-fns"],
+        },
+      },
+    },
+  },
 });

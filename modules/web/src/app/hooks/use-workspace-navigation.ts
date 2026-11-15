@@ -10,6 +10,8 @@ export type ActiveEntry = {
 
 export type CompleteBehavior = "hide" | "strikethrough";
 
+export type TimePage = "today" | "weekly" | "settings";
+
 const COMPLETE_BEHAVIOR_KEY = "aster:completeBehavior";
 
 const VALID_VIEWS: readonly View[] = [
@@ -87,6 +89,7 @@ export function useWorkspaceNavigation() {
   const [currentProject, setCurrentProject] = useState("");
   const [organizationPage, setOrganizationPage] = useState(false);
   const [projectsPage, setProjectsPage] = useState(false);
+  const [timePage, setTimePage] = useState<TimePage | null>(null);
   const [activeEntry, setActiveEntry] = useState<ActiveEntry | undefined>();
   const [commandOpen, setCommandOpen] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -139,6 +142,7 @@ export function useWorkspaceNavigation() {
     resetMobileScroll();
     setOrganizationPage(false);
     setProjectsPage(false);
+    setTimePage(null);
     setActiveEntry(undefined);
   }, []);
 
@@ -147,6 +151,7 @@ export function useWorkspaceNavigation() {
       resetMobileScroll();
       setOrganizationPage(false);
       setProjectsPage(false);
+      setTimePage(null);
       setActiveEntry(entry);
       setCurrentProject("");
       setView("pending");
@@ -179,6 +184,7 @@ export function useWorkspaceNavigation() {
   const openManagementPage = useCallback(
     (kind: "organization" | "projects", closeSearch = true) => {
       resetMobileScroll();
+      setTimePage(null);
       setProjectsPage(kind === "projects");
       setOrganizationPage(true);
       setActiveEntry(undefined);
@@ -190,6 +196,17 @@ export function useWorkspaceNavigation() {
     },
     [],
   );
+
+  const openTimePage = useCallback((page: TimePage) => {
+    resetMobileScroll();
+    setOrganizationPage(false);
+    setProjectsPage(false);
+    setActiveEntry(undefined);
+    setCurrentProject("");
+    setSearchOpen(false);
+    setQuery("");
+    setTimePage(page);
+  }, []);
 
   const onProjectRemap = useCallback((updater: (current: string) => string) => {
     setCurrentProject((prev) => updater(prev));
@@ -224,7 +241,9 @@ export function useWorkspaceNavigation() {
           ? ("scope=all" as const)
           : ("scope=pending" as const);
 
-  const specialPage = Boolean(organizationPage || projectsPage || activeEntry);
+  const specialPage = Boolean(
+    organizationPage || projectsPage || activeEntry || timePage,
+  );
 
   return {
     navOpen,
@@ -241,6 +260,8 @@ export function useWorkspaceNavigation() {
     setOrganizationPage,
     projectsPage,
     setProjectsPage,
+    timePage,
+    setTimePage,
     activeEntry,
     setActiveEntry,
     commandOpen,
@@ -262,6 +283,7 @@ export function useWorkspaceNavigation() {
     selectProject,
     selectView,
     openManagementPage,
+    openTimePage,
     onProjectRemap,
   };
 }

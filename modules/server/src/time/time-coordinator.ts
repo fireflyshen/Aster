@@ -178,7 +178,7 @@ export function createTimeCoordinator(deps: {
       // COORD-01: If pending/waiting task already has `start`, skip external command.
       if (raw.start) {
         store.updateCoordinatedState(op.operationId, {
-          state: "skipped_already_satisfied",
+          state: "external_acknowledged",
           externalDisposition: "SKIPPED_ALREADY_STARTED",
         });
         const applied = store.applyCoordinatedOperationResult({
@@ -377,7 +377,7 @@ export function createTimeCoordinator(deps: {
         skipped = true;
         externalDisposition = "SKIPPED_ALREADY_STOPPED";
         store.updateCoordinatedState(op.operationId, {
-          state: "skipped_already_satisfied",
+          state: "external_acknowledged",
           externalDisposition,
         });
       } else {
@@ -494,7 +494,8 @@ export function createTimeCoordinator(deps: {
         operationId: op.operationId,
         taskMeta,
         finalState:
-          op.state === "skipped_already_satisfied"
+          op.state === "skipped_already_satisfied" ||
+          op.externalDisposition?.startsWith("SKIPPED_")
             ? "skipped_already_satisfied"
             : "applied",
         onConflictMarkPending: true,

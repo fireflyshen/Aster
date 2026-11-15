@@ -716,3 +716,192 @@ const fs=require('node:fs');console.log(fs.readFileSync(${JSON.stringify(interva
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("default Time mode HTTP API: no energy block, single active timer switch, stop A keeps B, ledger and /healthz", async () => {
+  const dir = await mkdtemp(tmpdir() + "/aster-time-http-");
+  const uuid1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const uuid2 = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const stateFile = dir + "/tasks.json";
+  await writeFile(
+    stateFile,
+    JSON.stringify([
+      {
+        id: 1,
+        uuid: uuid1,
+        description: "Write Time core",
+        project: "Aster",
+        status: "pending",
+        entry: "20261115T060000Z",
+        modified: "20261115T060000Z",
+      },
+      {
+        id: 2,
+        uuid: uuid2,
+        description: "Review PR",
+        status: "pending",
+        entry: "20261115T060000Z",
+        modified: "20261115T060000Z",
+      },
+    ]),
+  );
+
+  const command = dir + "/task";
+  await writeFile(
+    command,
+    `#!${process.execPath}
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+const statePath = ${JSON.stringify(stateFile)};
+const load = () => JSON.parse(fs.readFileSync(statePath, "utf8"));
+const save = (t) => fs.writeFileSync(statePath, JSON.stringify(t));
+if (args.includes("--version")) {
+  console.log("3.5.0");
+  process.exit(0);
+}
+if (args.includes("export")) {
+  const tasks = load();
+  const uuidArg = args.find((a) => a.startsWith("uuid:"));
+  if (uuidArg) {
+    const id = uuidArg.slice(5);
+    console.log(JSON.stringify(tasks.filter((t) => t.uuid === id)));
+  } else {
+    console.log(JSON.stringify(tasks));
+  }
+  process.exit(0);
+}
+if (args.includes("rc.data.location") || args[0] === "_get") {
+  console.log(${JSON.stringify(dir)});
+  process.exit(0);
+}
+const uuidArg = args.find((a) => a.startsWith("uuid:"));
+if (uuidArg && (args.includes("start") || args.includes("stop") || args.includes("done"))) {
+  const id = uuidArg.slice(5);
+  const tasks = load();
+  const target = tasks.find((t) => t.uuid === id);
+  if (target) {
+    if (args.includes("start")) target.start = new Date().toISOString().replace(/[-:]/g, "").replace(/\\.\\d{3}Z$/, "Z");
+    if (args.includes("stop")) delete target.start;
+    if (args.includes("done")) {
+      delete target.start;
+      target.status = "completed";
+      target.end = new Date().toISOString().replace(/[-:]/g, "").replace(/\\.\\d{3}Z$/, "Z");
+    }
+    target.modified = new Date().toISOString().replace(/[-:]/g, "").replace(/\\.\\d{3}Z$/, "Z");
+    save(tasks);
+  }
+  process.exit(0);
+}
+process.exit(0);
+`,
+    { mode: 0o755 },
+  );
+
+  const server = await start({
+    NODE_ENV: "test",
+    TASK_COMMAND: command,
+    ORGANIZATION_FILE: dir + "/organization.json",
+    TIME_FILE: dir + "/time.sqlite",
+    PUBLIC_ORIGIN: "https://aster.example",
+  });
+
+  const post = (route, data) =>
+    fetch(server.url + "api/" + route, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://aster.example",
+      },
+      body: JSON.stringify(data),
+    });
+
+  try {
+    const health = await (await fetch(server.url + "healthz")).json();
+    assert.equal(health.ok, true);
+    assert.equal(health.time.enabled, true);
+    assert.equal(health.time.state, "ready");
+
+    const org = await (await fetch(server.url + "api/organization")).json();
+    assert.equal(org.timing.backend, "time");
+    assert.equal(org.timing.hardEnergyLimit, false);
+    assert.equal(org.timerSnapshot.backend, "time");
+
+    // Exhaust energy via >5.5h Time log on task 1, then verify starting task 2 is NOT blocked!
+    const day = org.energy.day;
+    const windowStartMs = new Date(`${day}T06:00:00`).getTime();
+    const logStartMs = windowStartMs + 60_000;
+    const logEndMs = logStartMs + 20_700_000;
+    const logRes = await post("time/log", {
+      idempotencyKey: "http-log-1",
+      title: "Marathon focus",
+      explicitCategoryId: "work",
+      taskUuid: uuid1,
+      startMs: logStartMs,
+      endMs: logEndMs,
+    });
+    const logBody = await logRes.json();
+    assert.equal(logRes.status, 200, JSON.stringify(logBody));
+
+    // Start task 1 -> start task 2 (single active switches to task 2) -> stop task 1 does NOT stop task 2!
+    assert.equal(
+      (await post("action", { uuid: uuid1, action: "start" })).status,
+      200,
+    );
+    assert.equal(
+      (await post("action", { uuid: uuid2, action: "start" })).status,
+      200,
+    );
+    const snapBeforeStop1 = await (
+      await fetch(server.url + `api/time/snapshot?uuids=${uuid1},${uuid2}`)
+    ).json();
+    assert.equal(snapBeforeStop1.activeActivity.taskUuid, uuid2);
+
+    const stop1 = await (
+      await post("action", { uuid: uuid1, action: "stop" })
+    ).json();
+    assert.equal(stop1.ok, true);
+    assert.equal(stop1.timeEffect, "none");
+
+    const snapAfterStop1 = await (
+      await fetch(server.url + `api/time/snapshot?uuids=${uuid1},${uuid2}`)
+    ).json();
+    assert.equal(snapAfterStop1.activeActivity.taskUuid, uuid2);
+
+    // Window estimate -> daily ledger -> locate -> weekly distribution (03:00..05:30 local, always before active timers)
+    const estWinStartMs = windowStartMs - 3 * 3600_000;
+    const estWinEndMs = windowStartMs - 1800_000;
+    const estRes = await post("time/estimate", {
+      idempotencyKey: "http-est-1",
+      title: "Morning reading",
+      explicitCategoryId: "study",
+      targetDate: day,
+      estimatedSeconds: 2700,
+      windowStartMs: estWinStartMs,
+      windowEndMs: estWinEndMs,
+    });
+    const estBody = await estRes.json();
+    assert.equal(estRes.status, 200, JSON.stringify(estBody));
+
+    const daily = await (
+      await fetch(server.url + `api/time/daily?date=${day}`)
+    ).json();
+    assert.equal(daily.unlocatedEstimates.length, 1);
+
+    const locRes = await post("time/locate", {
+      idempotencyKey: "http-loc-1",
+      activityId: estBody.activity.id,
+      expectedVersion: 1,
+      startMs: estWinStartMs + 3600_000,
+      endMs: estWinStartMs + 3600_000 + 2700_000,
+    });
+    const locBody = await locRes.json();
+    assert.equal(locRes.status, 200, JSON.stringify(locBody));
+
+    const weekly = await (
+      await fetch(server.url + `api/time/weekly?date=${day}`)
+    ).json();
+    assert.equal(weekly.unlocatedEstimates.length, 0);
+  } finally {
+    await server.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
