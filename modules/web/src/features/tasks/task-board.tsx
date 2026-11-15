@@ -26,6 +26,8 @@ import type { DropPosition } from "./drag-model";
 import { InlineColumnCreator } from "./inline-column-creator";
 import { TaskDragLayer } from "./task-drag-layer";
 import { buildTaskGroups, type TaskGroupBy } from "./task-grouping";
+import type { TodayHabitsActions } from "@/features/habits/today-habits-section";
+import type { TodayHabitsResponse } from "@core/habits/model";
 import { TodaySplitView } from "./today-split-view";
 import { useBoardDnd } from "./use-board-dnd";
 
@@ -73,6 +75,10 @@ type TaskBoardProps = {
   onChange: (change: BoardChange) => Promise<boolean>;
   onReload: () => Promise<Organization | undefined>;
   onClearError: () => void;
+  todayHabits?: {
+    todayData: TodayHabitsResponse | null;
+    actions: TodayHabitsActions;
+  };
 };
 
 /** Orchestrates list sections, Today split sections, and draggable board columns. */
@@ -112,6 +118,7 @@ export function TaskBoard({
   onChange,
   onReload,
   onClearError,
+  todayHabits,
 }: TaskBoardProps) {
   const [announcement, setAnnouncement] = useState("");
   const allTasksList = allTasks.length ? allTasks : tasks;
@@ -297,6 +304,7 @@ export function TaskBoard({
                 onRescheduleOverdue={onRescheduleOverdue}
                 onCreateTask={onCreateTask}
                 onAdd={onAdd}
+                todayHabits={todayHabits}
               />
             ) : (
               columns.map((column, index) => {

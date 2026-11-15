@@ -4,10 +4,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  HabitMetaChip,
+  type HabitTaskActions,
+} from "@/features/habits/habit-task-controls";
 import { ProjectIcon } from "@/features/projects/project-icon";
 import { DatePicker } from "@/features/tasks/date-picker";
 import { PRIORITIES, priorityOption } from "@/features/tasks/task-constants";
 import { dueLabel, toDueDay } from "@/features/tasks/task-date";
+import type { HabitListItem } from "@core/habits/model";
 import { formatDuration } from "@core/workspace/energy";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
@@ -69,6 +74,10 @@ export function TaskMetaChips({
   onEdit,
   onDueChange,
   onPriorityChange,
+  habit,
+  habitTodayDate,
+  onHabitSwitchPlan,
+  onOpenHabitDetail,
 }: {
   task: Task;
   variant: "list" | "card";
@@ -93,6 +102,10 @@ export function TaskMetaChips({
   onEdit: () => void;
   onDueChange?: (due: string) => void;
   onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
+  habit?: HabitListItem;
+  habitTodayDate?: string;
+  onHabitSwitchPlan?: HabitTaskActions["switchPlan"];
+  onOpenHabitDetail?: (habitId: string) => void;
 }) {
   const dueDay = toDueDay(task.due);
   const now = new Date();
@@ -118,6 +131,16 @@ export function TaskMetaChips({
       data-task-details
       className="mt-1 flex min-w-0 w-full flex-wrap items-center gap-x-2.5 gap-y-1 text-xs leading-4 text-muted-foreground"
     >
+      {habit && habitTodayDate && (
+        <HabitMetaChip
+          habit={habit}
+          date={habitTodayDate}
+          disabled={disabled}
+          onSwitchPlan={onHabitSwitchPlan}
+          onOpenDetail={onOpenHabitDetail}
+        />
+      )}
+
       {task.due &&
         (!checked && onDueChange ? (
           <div

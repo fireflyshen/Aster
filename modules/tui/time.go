@@ -1213,6 +1213,8 @@ func (m *model) syncTimeExtraRows() {
 				out[i].chart = true
 				out[i].chartValue = stat.chartValue
 				out[i].chartMax = stat.chartMax
+				out[i].chartSeconds = stat.chartSeconds
+				out[i].chartCost = stat.chartCost
 			}
 		}
 		out[0].subtitle += " · v 维度 · m 时长/成本"
@@ -1756,7 +1758,20 @@ func (m model) inspectTimeRow(
 	case "time.weekly_project", "time.weekly_tag", "time.statistic", "time.day":
 		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.title)
 		*lines = append(*lines, "")
-		add(r.subtitle)
+		if r.chart {
+			add("时长       " + formatDurationShort(r.chartSeconds))
+			add("时间成本   " + formatCurrencyCny(r.chartCost))
+			*lines = append(*lines, "")
+			if r.kind == "time.day" {
+				add("Enter 查看当日时间线")
+			}
+			_, _, dimension := m.timeReportDefaults()
+			if (m.view == "time.report" && dimension == "tag") || (m.view == "time.weekly" && m.timeState.WeeklyDimension == "tag") {
+				add("多标签分别累计")
+			}
+		} else {
+			add(r.subtitle)
+		}
 		return true
 	case "time.report_task":
 		if m.timeState.Report != nil {

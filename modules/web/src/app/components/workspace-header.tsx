@@ -137,6 +137,7 @@ type WorkspaceHeadingProps = {
   organizationPage: boolean;
   projectsPage: boolean;
   timePage?: TimePage | null;
+  habitsPage?: boolean;
   specialPage: boolean;
   organizationReady: boolean;
   organizationSaving: boolean;
@@ -181,6 +182,7 @@ export function WorkspaceHeading({
   organizationPage,
   projectsPage,
   timePage = null,
+  habitsPage = false,
   specialPage,
   organizationReady,
   organizationSaving,
@@ -214,9 +216,11 @@ export function WorkspaceHeading({
     !currentProject &&
     !organizationPage &&
     !activeItem &&
-    !timePage;
+    !timePage &&
+    !habitsPage;
   const showUrgencyMeta =
     !timePage &&
+    !habitsPage &&
     !organizationPage &&
     activeEntry?.kind === "filter" &&
     activeItem?.id === "builtin:urgency";
@@ -225,17 +229,21 @@ export function WorkspaceHeading({
     !currentProject &&
     !organizationPage &&
     !activeItem &&
-    !timePage;
-  const titleText = timePage
-    ? TIME_PAGE_TITLES[timePage]
-    : organizationPage
-      ? projectsPage
-        ? "项目管理"
-        : "过滤器 & 标签"
-      : activeItem?.name ||
-        (currentProject ? projectLeaf(currentProject) : views[view]);
+    !timePage &&
+    !habitsPage;
+  const titleText = habitsPage
+    ? "习惯"
+    : timePage
+      ? TIME_PAGE_TITLES[timePage]
+      : organizationPage
+        ? projectsPage
+          ? "项目管理"
+          : "过滤器 & 标签"
+        : activeItem?.name ||
+          (currentProject ? projectLeaf(currentProject) : views[view]);
   const filterSubtitle =
     !timePage &&
+    !habitsPage &&
     !organizationPage &&
     activeEntry?.kind === "filter" &&
     activeItem &&
@@ -283,6 +291,7 @@ export function WorkspaceHeading({
             {currentProject &&
               !organizationPage &&
               !timePage &&
+              !habitsPage &&
               !activeItem && (
                 <ProjectIcon
                   name={currentProject}
@@ -313,6 +322,7 @@ export function WorkspaceHeading({
               </span>
             )}
             {!timePage &&
+              !habitsPage &&
               !organizationPage &&
               activeItem &&
               activeCount !== undefined && (
@@ -322,6 +332,7 @@ export function WorkspaceHeading({
               )}
             {currentProject &&
               !timePage &&
+              !habitsPage &&
               !organizationPage &&
               !activeItem && (
                 <Button

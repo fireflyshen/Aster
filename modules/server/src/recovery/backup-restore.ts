@@ -33,6 +33,7 @@ import type {
   RestorePoint,
 } from "../../../core/workspace/backup.ts";
 import type { TimeStore } from "../time/time-store.ts";
+import type { HabitStore } from "../habits/habit-store.ts";
 
 type Item = {
   live: string;
@@ -79,6 +80,7 @@ export function createBackupRestore(
   gate: ReturnType<typeof createWorkspaceGate>,
   paths: { organization: string; recovery: string },
   timeStore?: TimeStore,
+  habitStore?: HabitStore,
 ) {
   const root = join(dirname(paths.organization), "restore-points");
   const schemaFile = join(dirname(paths.organization), "restored-uda.json");
@@ -163,6 +165,7 @@ export function createBackupRestore(
           recovery: data.recovery,
           timers: canonicalIntervals(data.timewarrior.intervals || []),
           available: data.timewarrior.available,
+          ...(data.habits ? { habits: data.habits } : {}),
         }),
       )
       .digest("hex");
@@ -542,6 +545,9 @@ export function createBackupRestore(
           await atomicJson(manifestFile, manifest);
           nativeCommitted = true;
           service.setRestoredSchema(data.taskwarrior.uda || {});
+          if (habitStore && data.habits) {
+            habitStore.restoreBackup(data.habits);
+          }
           plans.delete(token);
         } catch (error) {
           if (!nativeCommitted) {

@@ -1,4 +1,5 @@
 import type { createTaskService } from "../../../core/tasks/service.ts";
+import type { HabitStore } from "../habits/habit-store.ts";
 import type { createOrganizationService } from "../organization/organization-service.ts";
 import type { createRecoveryService } from "../recovery/recovery.ts";
 import type { TimeCoordinator } from "../time/time-coordinator.ts";
@@ -12,6 +13,7 @@ export function createTaskActions(
     isEnabled: () => boolean;
     coordinator: TimeCoordinator;
   },
+  habitStore?: HabitStore,
 ) {
   return async (input: Record<string, unknown>) => {
     if (typeof input.uuid !== "string") throw new Error("Task not found.");
@@ -24,6 +26,7 @@ export function createTaskActions(
 
     const deleteTaskAndOrganizationLinks = async (uuid: string) => {
       await recovery.delete(uuid);
+      habitStore?.deleteHabitIfExists(uuid);
       const org = await organization.load();
       let rev = org.revision;
       if (org.subtasks) {

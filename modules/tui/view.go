@@ -35,16 +35,21 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 	}
 	end := min(len(es), start+h-4)
 	rowW := max(1, w-4)
+	sectionSpace := max(0, h-4-(end-start))
 	for i := start; i < end; i++ {
 		e := es[i]
 		if e.header {
+			if i > start && sectionSpace > 0 {
+				lines = append(lines, "")
+				sectionSpace--
+			}
 			lines = append(
 				lines,
 				renderSpans(
 					[]styledSpan{
 						span(
 							e.title,
-							lipgloss.NewStyle().Foreground(muted).Bold(true),
+							lipgloss.NewStyle().Foreground(muted),
 						),
 					},
 					rowW,
@@ -151,9 +156,19 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 				countText,
 			),
 		)
+		treePrefix, displayLabel := "", clippedLabel
+		if strings.HasPrefix(e.id, "project:") {
+			parts := strings.Split(strings.TrimPrefix(e.id, "project:"), ".")
+			leaf := parts[len(parts)-1]
+			if strings.HasSuffix(clippedLabel, leaf) {
+				treePrefix = strings.TrimSuffix(clippedLabel, leaf)
+				displayLabel = leaf
+			}
+		}
 		spans := []styledSpan{
 			span(prefix, prefixStyle),
-			span(clippedLabel, textStyle),
+			span(treePrefix, lipgloss.NewStyle().Foreground(treeLine)),
+			span(displayLabel, textStyle),
 			span(strings.Repeat(" ", gap), textStyle),
 			span(countText, countStyle),
 		}
@@ -517,9 +532,17 @@ func (m model) list(w, h int, f renderFrame) string {
 				)
 			}
 			ls = []string{renderSpans(spans, rowW, rowW, selected)}
+		case "time.segment":
+			ls = renderTimelineLines(r, rowW, selected, i+1 < len(rs) && rs[i+1].kind == "time.segment")
+		case "time.summary":
+			ls = renderTimeSummaryLines(r, rowW, selected)
 		case "task":
 			ls = m.renderTaskLines(f, r, rowW, selected)
 		default:
+			if r.chart {
+				ls = m.renderStatisticLines(r, rowW, selected)
+				break
+			}
 			marker := "  "
 			markerStyle := dim
 			titleStyle := lipgloss.NewStyle().Foreground(ink).Bold(true)
@@ -533,10 +556,6 @@ func (m model) list(w, h int, f renderFrame) string {
 					Foreground(selectedFG).
 					Bold(true)
 				subStyle = lipgloss.NewStyle().Foreground(muted)
-			}
-			if r.kind == "time.segment" {
-				marker += "● "
-				titleStyle = lipgloss.NewStyle().Foreground(ink)
 			}
 			line1Spans := []styledSpan{span(marker, markerStyle)}
 			dotColor := ""
@@ -557,27 +576,8 @@ func (m model) list(w, h int, f renderFrame) string {
 			line1Spans = append(line1Spans, span(clean(r.title), titleStyle))
 			ls = []string{renderSpans(line1Spans, rowW, rowW, selected)}
 			if sub := clean(r.subtitle); sub != "" {
-				subSpans := []styledSpan{
-					span(func() string {
-						if r.kind == "time.segment" {
-							return strings.TrimSuffix(marker, "● ")
-						}
-						return marker
-					}(), markerStyle),
-					span(func() string {
-						if r.kind == "time.segment" {
-							return "│ " + sub
-						}
-						return "  " + sub
-					}(), subStyle),
-				}
+				subSpans := []styledSpan{span(marker, markerStyle), span("  "+sub, subStyle)}
 				ls = append(ls, renderSpans(subSpans, rowW, rowW, selected))
-			}
-			if r.chart && rowW >= 12 {
-				ls = append(
-					ls,
-					"    "+renderStatisticBar(r.chartValue, r.chartMax, rowW-4),
-				)
 			}
 		}
 		blocks = append(blocks, block{i, ls})
@@ -613,6 +613,26 @@ func (m model) list(w, h int, f renderFrame) string {
 	rightMeta := ""
 	if m.taskView() {
 		rightMeta = fmt.Sprintf("%d 项", len(f.visible))
+	} else if m.isTimeNavView() {
+		count, unit := 0, "项"
+		for _, r := range rs {
+			if r.kind != "time.summary" {
+				count++
+			}
+			if r.kind == "time.day" {
+				unit = "天"
+			}
+		}
+		if m.view == "time.today" {
+			count = 0
+			unit = "段"
+			for _, r := range rs {
+				if r.kind == "time.segment" {
+					count++
+				}
+			}
+		}
+		rightMeta = fmt.Sprintf("%d %s", count, unit)
 	} else {
 		rightMeta = fmt.Sprintf("%d 项", len(rs))
 	}

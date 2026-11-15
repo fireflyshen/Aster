@@ -82,6 +82,7 @@ export function useWorkspaceNavigation() {
   const [organizationPage, setOrganizationPage] = useState(false);
   const [projectsPage, setProjectsPage] = useState(false);
   const [timePage, setTimePage] = useState<TimePage | null>(null);
+  const [habitsPage, setHabitsPage] = useState(false);
   const [activeEntry, setActiveEntry] = useState<ActiveEntry | undefined>();
   const [commandOpen, setCommandOpen] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
@@ -135,6 +136,7 @@ export function useWorkspaceNavigation() {
     setOrganizationPage(false);
     setProjectsPage(false);
     setTimePage(null);
+    setHabitsPage(false);
     setActiveEntry(undefined);
   }, []);
 
@@ -144,6 +146,7 @@ export function useWorkspaceNavigation() {
       setOrganizationPage(false);
       setProjectsPage(false);
       setTimePage(null);
+      setHabitsPage(false);
       setActiveEntry(entry);
       setCurrentProject("");
       setView("pending");
@@ -177,6 +180,7 @@ export function useWorkspaceNavigation() {
     (kind: "organization" | "projects", closeSearch = true) => {
       resetMobileScroll();
       setTimePage(null);
+      setHabitsPage(false);
       setProjectsPage(kind === "projects");
       setOrganizationPage(true);
       setActiveEntry(undefined);
@@ -193,11 +197,24 @@ export function useWorkspaceNavigation() {
     resetMobileScroll();
     setOrganizationPage(false);
     setProjectsPage(false);
+    setHabitsPage(false);
     setActiveEntry(undefined);
     setCurrentProject("");
     setSearchOpen(false);
     setQuery("");
     setTimePage(page);
+  }, []);
+
+  const openHabitsPage = useCallback(() => {
+    resetMobileScroll();
+    setOrganizationPage(false);
+    setProjectsPage(false);
+    setTimePage(null);
+    setActiveEntry(undefined);
+    setCurrentProject("");
+    setSearchOpen(false);
+    setQuery("");
+    setHabitsPage(true);
   }, []);
 
   const onProjectRemap = useCallback((updater: (current: string) => string) => {
@@ -229,7 +246,7 @@ export function useWorkspaceNavigation() {
         : ("scope=pending" as const);
 
   const specialPage = Boolean(
-    organizationPage || projectsPage || activeEntry || timePage,
+    organizationPage || projectsPage || activeEntry || timePage || habitsPage,
   );
 
   return {
@@ -249,6 +266,8 @@ export function useWorkspaceNavigation() {
     setProjectsPage,
     timePage,
     setTimePage,
+    habitsPage,
+    setHabitsPage,
     activeEntry,
     setActiveEntry,
     commandOpen,
@@ -271,6 +290,7 @@ export function useWorkspaceNavigation() {
     selectView,
     openManagementPage,
     openTimePage,
+    openHabitsPage,
     onProjectRemap,
   };
 }

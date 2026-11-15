@@ -1,6 +1,8 @@
+import type { HabitTaskActions } from "@/features/habits/habit-task-controls";
 import { toDueDay } from "@/features/tasks/task-date";
 import { TaskRow } from "@/features/tasks/task-row";
 import { TaskColumnPicker } from "@/features/tasks/task-column-picker";
+import type { HabitListItem } from "@core/habits/model";
 import { taskColumnId, UNSECTIONED } from "@core/workspace/board";
 import type { TaskCostSummary } from "@core/time/model";
 import type { Organization } from "@core/workspace/organization";
@@ -55,6 +57,8 @@ interface UseTaskRendererOptions {
   ) => Promise<boolean>;
   unlinkSubtask: (uuid: string) => unknown;
   moveTask: (task: Task, columnId: string) => unknown;
+  habitByTaskUuid?: Map<string, HabitListItem>;
+  habitActions?: HabitTaskActions;
 }
 
 /** Builds the recursive `TaskRow` render callback bound to workspace task actions and state. */
@@ -85,6 +89,8 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
     createSubtask,
     unlinkSubtask,
     moveTask,
+    habitByTaskUuid,
+    habitActions,
   } = options;
 
   const todayDayKey = format(now, "yyyy-MM-dd");
@@ -97,14 +103,28 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
     renderSubtaskWrapper,
   ) => {
     const subtasks = subtasksMap.get(task.uuid) || [];
+    const habit = habitByTaskUuid?.get(task.uuid);
+    const parentUuid = taskLinks[task.uuid];
+    const parentHabit = parentUuid
+      ? habitByTaskUuid?.get(parentUuid)
+      : undefined;
     const dueDay = task.due ? toDueDay(task.due) : "";
     const overdue = Boolean(
-      dueDay && task.status !== "completed" && dueDay < todayDayKey,
+      !habit &&
+      !parentHabit &&
+      dueDay &&
+      task.status !== "completed" &&
+      dueDay < todayDayKey,
     );
     const isRowTransition = completion?.uuid === task.uuid;
-    const completed =
-      task.status === "completed" ||
-      Boolean(isRowTransition && completion?.checked);
+    const completed = habit
+      ? habit.kind === "positive" && Boolean(habit.todayEvaluation?.achieved)
+      : parentHabit
+        ? Boolean(
+            parentHabit.todayEvaluation?.checklistProgress[task.uuid]?.done,
+          )
+        : task.status === "completed" ||
+          Boolean(isRowTransition && completion?.checked);
 
     const renderPlainChild = (child: Task): ReactNode =>
       renderTask(child, undefined, variant, depth + 1, renderSubtaskWrapper);
@@ -133,7 +153,29 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
         overdue={overdue}
         disabled={rowDisabled}
         onEdit={() => openEditor(task)}
-        onComplete={() => void toggleTask(task, completed)}
+        onComplete={() => {
+          if (habit && habitActions) {
+            if (habit.kind === "positive") {
+              void habitActions.togglePositive(
+                habit.id,
+                todayDayKey,
+                !completed,
+              );
+            }
+            return;
+          }
+          if (parentHabit && habitActions) {
+            void habitActions.setChecklistItem({
+              habitId: parentHabit.id,
+              itemId: task.uuid,
+              date: todayDayKey,
+              planId: parentHabit.todayEvaluation?.planId,
+              done: !completed,
+            });
+            return;
+          }
+          void toggleTask(task, completed);
+        }}
         onToggleStart={() => void toggleStartTask(task)}
         onClearStartMark={
           clearStartMark ? () => void clearStartMark(task) : undefined
@@ -191,6 +233,10 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
         expandSubtasks={
           expandedDrop?.uuid === task.uuid ? expandedDrop.version : undefined
         }
+        habit={habit}
+        parentHabit={parentHabit}
+        habitTodayDate={todayDayKey}
+        habitActions={habitActions}
       />
     );
   };

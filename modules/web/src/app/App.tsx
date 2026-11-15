@@ -1,3 +1,6 @@
+import { useHabitsWorkspace } from "@/features/habits/use-habits";
+import type { TodayHabitsActions } from "@/features/habits/today-habits-section";
+import { useMemo, useState } from "react";
 import { isCompletedFilterExpression } from "@core/workspace/builtin-filters";
 import { ProjectColorsProvider } from "@/features/projects/project-icon";
 import { WorkspaceContent } from "./components/workspace-content";
@@ -85,6 +88,37 @@ export function App() {
     changeOrganization: data.changeOrganization,
   });
 
+  const [habitFormOpen, setHabitFormOpen] = useState(false);
+  const habits = useHabitsWorkspace({
+    habitsPageActive: nav.habitsPage,
+    isTodayView: nav.view === "today" && !nav.currentProject && !nav.specialPage,
+  });
+
+  const todayHabitsActions = useMemo<TodayHabitsActions>(
+    () => ({
+      disabled: habits.busy,
+      onTogglePositive: (habitId, date, completed) =>
+        void habits.togglePositive(habitId, date, completed),
+      onSetChecklistItem: (input) => void habits.setChecklistItem(input),
+      onSwitchPlan: (habitId, planId, date) =>
+        void habits.switchPlan(habitId, planId, date),
+      onRecordNegative: (habitId, date, note) =>
+        void habits.recordNegative(habitId, date, note),
+      onUndoNegative: (habitId, date, eventId) =>
+        void habits.undoNegative(habitId, date, eventId),
+      onUpdateNegativeNote: (habitId, eventId, note, date) =>
+        void habits.updateNegativeNote(habitId, eventId, note, date),
+      onSetDailyNote: (habitId, note, date) =>
+        void habits.setDailyNote(habitId, note, date),
+      onOpenHabitsPage: nav.openHabitsPage,
+      onOpenHabitDetail: (habitId) => {
+        nav.openHabitsPage();
+        habits.setDetailId(habitId);
+      },
+    }),
+    [habits, nav.openHabitsPage],
+  );
+
   useModalOpenSync(
     [
       taskActions.open,
@@ -94,6 +128,8 @@ export function App() {
       projectActions.focusPickerOpen,
       Boolean(projectActions.transitionProject),
       Boolean(projectActions.deletingProject),
+      habitFormOpen,
+      Boolean(habits.detailId),
     ],
     nav.setSubModalOpen,
   );
@@ -193,6 +229,9 @@ export function App() {
         currentProject={nav.currentProject}
         organizationPage={nav.organizationPage}
         projectsPage={nav.projectsPage}
+        habitsPage={nav.habitsPage}
+        habitsCount={habits.todayData?.summary.total}
+        onOpenHabitsPage={nav.openHabitsPage}
         timePage={nav.timePage}
         onOpenTimePage={nav.openTimePage}
         organization={data.organization}
@@ -343,6 +382,11 @@ export function App() {
           activeActivitySeconds={data.activeActivitySeconds}
           onOpenTimePage={nav.openTimePage}
           onRefreshTimerSnapshot={data.refreshTimerSnapshot}
+          habitsPage={nav.habitsPage}
+          habitFormOpen={habitFormOpen}
+          setHabitFormOpen={setHabitFormOpen}
+          habitsController={habits}
+          todayHabitsActions={todayHabitsActions}
         />
       </div>
 
@@ -391,6 +435,11 @@ export function App() {
         onSelectProject={nav.selectProject}
         onSelectEntry={nav.openEntry}
         onOpenOrganization={() => nav.openManagementPage("organization")}
+        onOpenHabits={nav.openHabitsPage}
+        onAddHabit={() => {
+          nav.openHabitsPage();
+          setHabitFormOpen(true);
+        }}
         onEditProject={projectActions.editProject}
         onTransitionProject={projectActions.transition}
         onOpenEditor={taskActions.openEditor}

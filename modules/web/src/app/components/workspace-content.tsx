@@ -39,6 +39,14 @@ import type { TaskRenderFn } from "../hooks/use-task-renderer";
 import type { ActiveEntry } from "../hooks/use-workspace-navigation";
 import { ProjectInlineMeta } from "./project-inline-meta";
 import { WorkspaceHeading } from "./workspace-header";
+import {
+  HabitsWorkspace,
+  type HabitsWorkspaceController,
+} from "@/features/habits/habits-workspace";
+import {
+  TodayHabitsSection,
+  type TodayHabitsActions,
+} from "@/features/habits/today-habits-section";
 import { TimeLedgerWorkspace } from "@/features/time/time-ledger-workspace";
 import type { TimePage } from "../hooks/use-workspace-navigation";
 import type { TimerSnapshot } from "@core/time/model";
@@ -138,6 +146,11 @@ type WorkspaceContentProps = {
   activeActivitySeconds: number | undefined;
   onOpenTimePage: (page: TimePage) => void;
   onRefreshTimerSnapshot: () => Promise<unknown>;
+  habitsPage: boolean;
+  habitFormOpen: boolean;
+  setHabitFormOpen: (open: boolean) => void;
+  habitsController: HabitsWorkspaceController;
+  todayHabitsActions: TodayHabitsActions;
 };
 
 /** Renders workspace header, active alert notices, search bar, management pages, and unified task view. */
@@ -217,6 +230,11 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     activeActivitySeconds,
     onOpenTimePage,
     onRefreshTimerSnapshot,
+    habitsPage,
+    habitFormOpen,
+    setHabitFormOpen,
+    habitsController,
+    todayHabitsActions,
   } = props;
 
   const isCompletedFilter = Boolean(
@@ -256,7 +274,9 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     : views[view];
 
   const activeLayout =
-    !organizationPage && !timePage && layout === "board" ? "board" : "list";
+    !organizationPage && !timePage && !habitsPage && layout === "board"
+      ? "board"
+      : "list";
 
   return (
     <main
@@ -304,6 +324,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           organizationPage={organizationPage}
           projectsPage={projectsPage}
           timePage={timePage}
+          habitsPage={habitsPage}
           specialPage={specialPage}
           organizationReady={organizationReady}
           organizationSaving={organizationSaving}
@@ -397,7 +418,15 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           </Alert>
         )}
 
-        {timePage ? (
+        {habitsPage ? (
+          <HabitsWorkspace
+            controller={habitsController}
+            projects={filterProjects}
+            availableLabels={organization.tags}
+            formOpen={habitFormOpen}
+            onFormOpenChange={setHabitFormOpen}
+          />
+        ) : timePage ? (
           <TimeLedgerWorkspace
             page={timePage}
             tasks={tasks}
@@ -482,6 +511,20 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           )
         ) : (
           <TabsContent value={layout} className="mt-0 min-w-0">
+            {view === "today" &&
+              !currentProject &&
+              !activeEntry &&
+              !(layout === "list" && groupBy === "today") &&
+              habitsController.todayData &&
+              habitsController.todayData.items.length > 0 && (
+                <div className="mb-4">
+                  <TodayHabitsSection
+                    todayData={habitsController.todayData}
+                    availableLabels={organization.tags}
+                    actions={todayHabitsActions}
+                  />
+                </div>
+              )}
             <Suspense
               fallback={
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -548,6 +591,10 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                 hasSearch={Boolean(query.trim())}
                 onClearSearch={() => onQueryChange("")}
                 onAdd={(nextDraft) => onOpenEditor(undefined, nextDraft)}
+                todayHabits={{
+                  todayData: habitsController.todayData,
+                  actions: todayHabitsActions,
+                }}
               />
             </Suspense>
           </TabsContent>

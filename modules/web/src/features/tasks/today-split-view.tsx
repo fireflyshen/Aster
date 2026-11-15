@@ -14,6 +14,11 @@ import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import {
+  TodayHabitsSection,
+  type TodayHabitsActions,
+} from "@/features/habits/today-habits-section";
+import type { TodayHabitsResponse } from "@core/habits/model";
 import { CalendarClock, CheckCircle2, ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { BoardCard } from "./board-card";
@@ -43,6 +48,10 @@ type TodaySplitViewProps = {
   onRescheduleOverdue?: (overdueTasks: Task[]) => Promise<void>;
   onCreateTask?: (task: TaskInput, columnId?: string) => Promise<boolean>;
   onAdd: (draft?: TaskInput) => void;
+  todayHabits?: {
+    todayData: TodayHabitsResponse | null;
+    actions: TodayHabitsActions;
+  };
 };
 
 /** Today view split into collapsible Overdue section and Today section. */
@@ -61,6 +70,7 @@ export function TodaySplitView({
   onRescheduleOverdue,
   onCreateTask,
   onAdd,
+  todayHabits,
 }: TodaySplitViewProps) {
   const [overdueCollapsed, setOverdueCollapsed] = useState(false);
   const [reschedulingOverdue, setReschedulingOverdue] = useState(false);
@@ -106,8 +116,18 @@ export function TodaySplitView({
     </BoardCard>
   );
 
+  const hasTodayHabits = Boolean(todayHabits?.todayData?.items.length);
+
   return (
     <div className="space-y-6">
+      {todayHabits && hasTodayHabits && (
+        <TodayHabitsSection
+          todayData={todayHabits.todayData}
+          availableLabels={availableLabels}
+          actions={todayHabits.actions}
+        />
+      )}
+
       {overdueEntries.length > 0 && (
         <section
           data-board-column={UNSECTIONED}
@@ -169,7 +189,7 @@ export function TodaySplitView({
         aria-label="今日任务"
         className="min-w-0"
       >
-        {overdueEntries.length > 0 && (
+        {(overdueEntries.length > 0 || hasTodayHabits) && (
           <div className="mb-1 flex h-10 items-center gap-2 border-b border-border/80">
             <h2 className="text-sm font-semibold">
               {format(new Date(), "M月d日")} · 今天 ·{" "}

@@ -67,6 +67,16 @@
   --due-today: #1e7e40;
   --due-tomorrow: #b56712;
   --due-upcoming: #6d46b8;
+  /* Habit heatmap: low-saturation ash-green scale on warm paper */
+  --habit-unscheduled-border: #dcd9d2;
+  --habit-zero: #e4e2dc;
+  --habit-level-1: #cfdbd1;
+  --habit-level-2: #a3bca9;
+  --habit-level-3: #70967b;
+  --habit-level-4: #436b50;
+  --habit-in-progress-bg: #f1efe9;
+  --habit-in-progress-ring: #6c9277;
+  --habit-accent: #4c7559;
   --floating-shadow: 0 6px 24px #1c1a1614, 0 1px 4px #1c1a1608;
   --modal-shadow: 0 16px 56px #1c1a161c, 0 2px 8px #1c1a160a;
   --radius: 0.5rem;
@@ -118,6 +128,16 @@
   --due-today: #43b366;
   --due-tomorrow: #e69530;
   --due-upcoming: #a67fe3;
+  /* Habit heatmap: low-saturation sage scale on carbon graphite */
+  --habit-unscheduled-border: #38383c;
+  --habit-zero: #2d2d31;
+  --habit-level-1: #28392e;
+  --habit-level-2: #365340;
+  --habit-level-3: #4b7859;
+  --habit-level-4: #6aa37b;
+  --habit-in-progress-bg: #252726;
+  --habit-in-progress-ring: #74a884;
+  --habit-accent: #74a884;
   --floating-shadow: 0 6px 24px #0000004d, 0 1px 4px #0000002e;
   --modal-shadow: 0 16px 56px #00000075, 0 2px 8px #00000038;
   color-scheme: dark;

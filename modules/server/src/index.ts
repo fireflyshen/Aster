@@ -12,6 +12,8 @@ import { checkSqliteBackupSupport } from "./time/time-barrier.ts";
 import { createTimeCoordinator } from "./time/time-coordinator.ts";
 import { createTimeAutoStopScheduler } from "./time/time-scheduler.ts";
 import { createTimeStore } from "./time/time-store.ts";
+import { createHabitHandlers } from "./habits/habit-api.ts";
+import { createHabitStore } from "./habits/habit-store.ts";
 import { runCliMaintenanceIfRequested } from "./transport/cli-maintenance.ts";
 import { createApiHandler } from "./transport/http-adapter.ts";
 import {
@@ -35,6 +37,9 @@ const recoveryFile = resolve(
 );
 const timeFile = resolve(
   process.env.TIME_DB_FILE || resolve(dataDir, "time.sqlite"),
+);
+const habitsFile = resolve(
+  process.env.HABITS_DB_FILE || resolve(dataDir, "habits.sqlite"),
 );
 const timeEnabledFlag = process.env.TIME_ENABLED !== "0";
 
@@ -82,6 +87,12 @@ const timeCoordinator = timeStore
   ? createTimeCoordinator({ service, store: timeStore })
   : undefined;
 const isTimeEnabled = () => Boolean(timeEnabledFlag && timeStore);
+const habitStore = createHabitStore(habitsFile, {
+  getTimezone: () =>
+    timeStore
+      ? timeStore.getPolicy().timezone
+      : Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Shanghai",
+});
 
 const organization = createOrganizationService(
   service,
@@ -94,7 +105,12 @@ const organization = createOrganizationService(
       }
     : undefined,
 );
-const recovery = createRecoveryService(service, organization, recoveryFile);
+const recovery = createRecoveryService(
+  service,
+  organization,
+  recoveryFile,
+  habitStore,
+);
 const taskAction = createTaskActions(
   service,
   organization,
@@ -102,6 +118,7 @@ const taskAction = createTaskActions(
   timeCoordinator
     ? { isEnabled: isTimeEnabled, coordinator: timeCoordinator }
     : undefined,
+  habitStore,
 );
 const gate = createWorkspaceGate();
 const backupRestore = createBackupRestore(
@@ -111,6 +128,7 @@ const backupRestore = createBackupRestore(
   gate,
   { organization: organizationFile, recovery: recoveryFile },
   timeStore,
+  habitStore,
 );
 
 await backupRestore.repair();
@@ -144,6 +162,21 @@ const timeRoutes = createTimeHandlers({
   },
 });
 
+const habitRoutes = createHabitHandlers({
+  store: habitStore,
+  loadCatalog: async () => {
+    const [tasks, org] = await Promise.all([
+      service.listTasks(),
+      organization.load(),
+    ]);
+    return {
+      tasks,
+      subtasks: org.subtasks ?? {},
+      descriptions: org.descriptions ?? {},
+    };
+  },
+});
+
 const handlers = createWorkspaceHandlers({
   identity,
   gate,
@@ -158,7 +191,7 @@ const handlers = createWorkspaceHandlers({
         getTimerSnapshot: timeStore.getTimerSnapshot,
       }
     : undefined,
-  extraRoutes: timeRoutes,
+  extraRoutes: [...timeRoutes, ...habitRoutes],
 });
 
 const handleApi = createApiHandler({

@@ -2,6 +2,12 @@ import {
   formatCurrencyCny,
   formatDurationChinese,
 } from "@/features/time/time-format";
+import {
+  HabitNegativeRowControls,
+  HabitNegativeStatusRing,
+  HabitSubtaskMetricsButton,
+  type HabitTaskActions,
+} from "@/features/habits/habit-task-controls";
 import { TaskCheckbox } from "@/features/tasks/task-checkbox";
 import { toDueDay } from "@/features/tasks/task-date";
 import { TaskMetaChips } from "@/features/tasks/task-meta-chips";
@@ -9,6 +15,7 @@ import { TaskRowActions } from "@/features/tasks/task-row-actions";
 import { handleTaskRowShortcut } from "@/features/tasks/task-row-shortcuts";
 import { TaskRowSubtree } from "@/features/tasks/task-row-subtree";
 import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
+import type { HabitListItem } from "@core/habits/model";
 import { formatDescriptionPreview } from "@core/tasks/description";
 import { taskDate } from "@core/tasks/quick-task";
 import type { TaskCostSummary } from "@core/time/model";
@@ -66,6 +73,10 @@ export type TaskRowProps = {
   onEditSubtask?: (subtask: Task) => void;
   renderSubtask?: (subtask: Task) => ReactNode;
   expandSubtasks?: number;
+  habit?: HabitListItem;
+  parentHabit?: HabitListItem;
+  habitTodayDate?: string;
+  habitActions?: HabitTaskActions;
 };
 
 /** Single task item rendered either as a List row or a Board card. */
@@ -103,6 +114,10 @@ export function TaskRow({
   onUnlinkSubtask,
   renderSubtask,
   expandSubtasks,
+  habit,
+  parentHabit,
+  habitTodayDate,
+  habitActions,
 }: TaskRowProps) {
   const checked = transition?.checked ?? completed;
   const started = !!task.start && !checked;
@@ -158,10 +173,30 @@ export function TaskRow({
     };
   }, [drawerPinned, task.uuid]);
 
-  const totalSubtasks = subtasks.length;
-  const completedSubtasks = subtasks.filter(
-    (s) => s.status === "completed",
-  ).length;
+  const activePlanKey =
+    habit?.abEnabled && habit.plans.length > 1
+      ? habit.todayEvaluation?.planId === habit.plans[1]?.id
+        ? "B"
+        : "A"
+      : undefined;
+  const habitPlanSubtasks = activePlanKey
+    ? subtasks.filter(
+        (s) =>
+          (habit?.subtaskPlans?.[s.uuid] === "B" ? "B" : "A") === activePlanKey,
+      )
+    : subtasks;
+  const effectiveSubtasks = subtasks;
+  const totalSubtasks = habit
+    ? habit.todayEvaluation?.requiredTotalCount ||
+      habitPlanSubtasks.length ||
+      subtasks.length
+    : subtasks.length;
+  const completedSubtasks = habit
+    ? (habit.todayEvaluation?.requiredDoneCount ??
+      habitPlanSubtasks.filter((s) =>
+        Boolean(habit.todayEvaluation?.checklistProgress[s.uuid]?.done),
+      ).length)
+    : subtasks.filter((s) => s.status === "completed").length;
   const hasMoreMenu = Boolean(
     (!completed &&
       (onDueChange ||
@@ -180,6 +215,7 @@ export function TaskRow({
     (variant === "list" && extraActions),
   );
   const hasDetails = !!(
+    habit ||
     (showProject && (task.project || showInbox)) ||
     task.due ||
     task.recur ||
@@ -212,9 +248,9 @@ export function TaskRow({
       <TaskRowSubtree
         parentTask={task}
         variant={variant}
-        completed={completed}
+        completed={habit ? false : completed}
         disabled={disabled}
-        subtasks={subtasks}
+        subtasks={effectiveSubtasks}
         isAddingSubtask={isAddingSubtask}
         projects={projects}
         availableLabels={availableLabels}
@@ -347,15 +383,19 @@ export function TaskRow({
             )}
 
             <div className="task-row-check mt-2 flex size-5 shrink-0 items-center justify-center self-start md:mt-1.5">
-              <TaskCheckbox
-                id={`complete-${task.uuid}`}
-                checked={checked}
-                completed={completed}
-                priority={task.priority}
-                description={task.description}
-                disabled={disabled}
-                onComplete={onComplete}
-              />
+              {habit?.kind === "negative" ? (
+                <HabitNegativeStatusRing habit={habit} />
+              ) : (
+                <TaskCheckbox
+                  id={`complete-${task.uuid}`}
+                  checked={checked}
+                  completed={completed}
+                  priority={task.priority}
+                  description={task.description}
+                  disabled={disabled}
+                  onComplete={onComplete}
+                />
+              )}
             </div>
 
             <div
@@ -440,9 +480,34 @@ export function TaskRow({
                   onEdit={onEdit}
                   onDueChange={onDueChange}
                   onPriorityChange={onPriorityChange}
+                  habit={habit}
+                  habitTodayDate={habitTodayDate}
+                  onHabitSwitchPlan={habitActions?.switchPlan}
+                  onOpenHabitDetail={habitActions?.openDetail}
                 />
               )}
             </div>
+
+            {habit?.kind === "negative" && habitActions && habitTodayDate && (
+              <HabitNegativeRowControls
+                habit={habit}
+                date={habitTodayDate}
+                disabled={disabled}
+                onRecordNegative={habitActions.recordNegative}
+                onUndoNegative={habitActions.undoNegative}
+              />
+            )}
+
+            {parentHabit && habitActions && habitTodayDate && (
+              <HabitSubtaskMetricsButton
+                parentHabit={parentHabit}
+                subtaskUuid={task.uuid}
+                date={habitTodayDate}
+                disabled={disabled}
+                onSetChecklistItem={habitActions.setChecklistItem}
+                onAssignSubtaskPlan={habitActions.assignSubtaskPlan}
+              />
+            )}
 
             {isTimeMode &&
               highlightCost &&

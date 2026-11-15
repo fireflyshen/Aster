@@ -6,6 +6,7 @@ import type { RawTask } from "../../../core/tasks/raw.ts";
 import type { createTaskService } from "../../../core/tasks/service.ts";
 import type { createOrganizationService } from "../organization/organization-service.ts";
 import type { DeletedTask } from "../../../core/workspace/recovery.ts";
+import type { HabitStore } from "../habits/habit-store.ts";
 
 type Entry = {
   task: RawTask;
@@ -19,6 +20,7 @@ export function createRecoveryService(
   service: ReturnType<typeof createTaskService>,
   organization: ReturnType<typeof createOrganizationService>,
   path: string,
+  habitStore?: HabitStore,
 ) {
   let queue: Promise<unknown> = Promise.resolve();
   function serial<T>(fn: () => Promise<T>): Promise<T> {
@@ -201,6 +203,7 @@ export function createRecoveryService(
             organization: after,
             recovery,
             timewarrior,
+            ...(habitStore ? { habits: habitStore.exportBackup() } : {}),
             warnings: timewarrior.available
               ? []
               : [

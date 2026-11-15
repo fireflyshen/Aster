@@ -9,6 +9,7 @@ import (
 
 	"github.com/NimbleMarkets/ntcharts/barchart"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // ntcharts draws the bar; labels and values use Aster's existing typography.
@@ -36,7 +37,17 @@ func renderStatisticBar(value, maximum float64, width int) string {
 		},
 	)
 	chart.Draw()
-	return chart.View()
+	// Keep ntcharts scaling, but use a fine rule instead of a solid cell.
+	fine := strings.Map(func(r rune) rune {
+		switch r {
+		case '█', '▉', '▊', '▋':
+			return '━'
+		case '▌', '▍', '▎', '▏':
+			return '╸'
+		}
+		return r
+	}, ansi.Strip(chart.View()))
+	return lipgloss.NewStyle().Foreground(muted).Render(fine)
 }
 
 type timeStatistic struct {
@@ -230,9 +241,11 @@ func (m model) statisticRows() []row {
 					metricLabel,
 					hint,
 				),
-				chart:      true,
-				chartValue: metric(item),
-				chartMax:   maximum,
+				chart:        true,
+				chartValue:   metric(item),
+				chartMax:     maximum,
+				chartSeconds: item.seconds,
+				chartCost:    item.cost,
 			},
 		)
 	}

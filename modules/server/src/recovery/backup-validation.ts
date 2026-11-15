@@ -13,6 +13,7 @@ import {
 } from "../../../core/workspace/projects.ts";
 import type { RawTask } from "../../../core/tasks/raw.ts";
 import type { BackupCounts } from "../../../core/workspace/backup.ts";
+import type { HabitBackupPayload } from "../../../core/habits/model.ts";
 export type RawInterval = {
   id?: number;
   start: string;
@@ -38,6 +39,7 @@ export type AsterBackup = {
     }[];
   };
   timewarrior: { available: boolean; intervals: RawInterval[] | null };
+  habits?: HabitBackupPayload;
   warnings?: string[];
 };
 function record(value: unknown): asserts value is Record<string, unknown> {
@@ -322,6 +324,15 @@ export function validateBackup(value: unknown): AsterBackup {
       for (const tag of interval.tags) text(tag, 2000);
     }
     if (interval.annotation !== undefined) text(interval.annotation, 8000);
+  }
+  if (value.habits !== undefined) {
+    record(value.habits);
+    if (value.habits.version !== 1)
+      throw new Error("Invalid habits backup version.");
+    list(value.habits.habits, 5000);
+    list(value.habits.revisions, 50000);
+    list(value.habits.dailyLogs, 50000);
+    list(value.habits.negativeEvents, 50000);
   }
   const backup = structuredClone(value) as unknown as AsterBackup;
   // Only persisted fields enter organization storage; derived figures are recalculated.

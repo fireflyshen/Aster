@@ -25,6 +25,8 @@ export type WorkspaceModalsProps = TaskWorkspaceDialogsProps &
       item: SavedFilter | SavedTag;
     }) => void;
     onOpenOrganization: () => void;
+    onOpenHabits: () => void;
+    onAddHabit: () => void;
     onEditProject: (name: string) => void;
     onLoadOrganization: () => Promise<unknown>;
   };
@@ -49,6 +51,8 @@ export function WorkspaceModals(props: WorkspaceModalsProps) {
     onTransitionProject,
     onSelectEntry,
     onOpenOrganization,
+    onOpenHabits,
+    onAddHabit,
     setRecoveryOpen,
     onOpenEditor,
   } = props;
@@ -73,6 +77,8 @@ export function WorkspaceModals(props: WorkspaceModalsProps) {
         onProjectStatus={onTransitionProject}
         onEntry={onSelectEntry}
         onOrganization={onOpenOrganization}
+        onHabits={onOpenHabits}
+        onAddHabit={onAddHabit}
         onRecovery={() => setRecoveryOpen(true)}
         onEditTask={(task) => onOpenEditor(task)}
       />

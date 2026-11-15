@@ -24,6 +24,7 @@ import { cn } from "cn";
 import {
   Asterisk,
   BarChart3,
+  CalendarCheck2,
   Check,
   ChevronDown,
   Clock,
@@ -121,6 +122,9 @@ type WorkspaceSidebarProps = {
   onCompleteBehaviorChange?: (next: CompleteBehavior) => void;
   timePage?: TimePage | null;
   onOpenTimePage?: (page: TimePage) => void;
+  habitsPage?: boolean;
+  habitsCount?: number;
+  onOpenHabitsPage?: () => void;
 };
 
 /** Persistent navigation drawer housing views, favorites, focus/later projects, and energy meter. */
@@ -164,6 +168,9 @@ export function WorkspaceSidebar({
   onCompleteBehaviorChange,
   timePage = null,
   onOpenTimePage,
+  habitsPage = false,
+  habitsCount,
+  onOpenHabitsPage,
 }: WorkspaceSidebarProps) {
   const [laterCollapsed, setLaterCollapsed] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -302,7 +309,8 @@ export function WorkspaceSidebar({
                   !currentProject &&
                   !organizationPage &&
                   !hasActiveItem &&
-                  !timePage
+                  !timePage &&
+                  !habitsPage
                     ? "page"
                     : undefined
                 }
@@ -325,6 +333,25 @@ export function WorkspaceSidebar({
               </Button>
             );
           })}
+          {onOpenHabitsPage && (
+            <Button
+              variant="navigation"
+              disabled={disabled}
+              aria-current={habitsPage ? "page" : undefined}
+              onClick={() => {
+                onOpenHabitsPage();
+                closeOnMobile();
+              }}
+            >
+              <CalendarCheck2 className="size-[18px] shrink-0 text-(--habit-accent)" />
+              <span className="truncate">习惯</span>
+              {habitsCount ? (
+                <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                  {habitsCount}
+                </span>
+              ) : null}
+            </Button>
+          )}
         </nav>
       </section>
       {onOpenTimePage && (

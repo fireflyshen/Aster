@@ -20,6 +20,7 @@ import {
 import { projectTaskCount } from "@core/workspace/projects";
 import type { Task, View } from "@shared/tasks";
 import {
+  CalendarCheck2,
   CalendarDays,
   Columns3,
   DatabaseBackup,
@@ -60,6 +61,8 @@ export function CommandPalette({
   onProjectStatus,
   onEntry,
   onOrganization,
+  onHabits,
+  onAddHabit,
   onRecovery,
   onEditTask,
 }: {
@@ -83,6 +86,8 @@ export function CommandPalette({
     item: SavedFilter | SavedTag;
   }) => void;
   onOrganization: () => void;
+  onHabits: () => void;
+  onAddHabit: () => void;
   onRecovery: () => void;
   onEditTask: (task: Task) => void;
 }) {
@@ -133,6 +138,13 @@ export function CommandPalette({
           >
             <FolderPlus className="size-4" />
             <span>新建项目…</span>
+          </CommandItem>
+          <CommandItem
+            value="New habit create habit 新建习惯 打卡 习惯"
+            onSelect={() => run(onAddHabit)}
+          >
+            <CalendarCheck2 className="size-4" />
+            <span>新建习惯…</span>
           </CommandItem>
           <CommandItem
             value="Choose Focus project activate goal 设为焦点项目"
@@ -204,6 +216,13 @@ export function CommandPalette({
               </CommandItem>
             );
           })}
+          <CommandItem
+            value="Go to Habits heatmap review 前往 习惯 热力图 打卡"
+            onSelect={() => run(onHabits)}
+          >
+            <CalendarCheck2 className="size-4" />
+            <span>习惯</span>
+          </CommandItem>
           <CommandItem
             value="Go to Filters and labels organization 过滤器 标签"
             onSelect={() => run(onOrganization)}
