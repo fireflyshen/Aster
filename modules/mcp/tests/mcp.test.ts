@@ -575,12 +575,7 @@ const cases: [string, any, string, string, any?][] = [
     "/api/time/plans/start",
     { idempotencyKey: "k-plan-start-1", planId: "plan-1" },
   ],
-  [
-    "time_events_list",
-    { limit: 10 },
-    "GET",
-    "/api/time/events?limit=10",
-  ],
+  ["time_events_list", { limit: 10 }, "GET", "/api/time/events?limit=10"],
   [
     "time_events_ack",
     { eventIds: ["ev-1"] },

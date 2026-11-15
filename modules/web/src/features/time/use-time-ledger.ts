@@ -162,10 +162,12 @@ export function useTimeLedger({
   useEffect(() => {
     const active = status?.activeActivity;
     if (page !== "today" || !active || active.endMs !== undefined) return;
-    const targetMs =
-      active.autoStopAtMs ?? active.reviewDueAtMs;
+    const targetMs = active.autoStopAtMs ?? active.reviewDueAtMs;
     if (targetMs === undefined) return;
-    const delayMs = Math.max(250, Math.min(2_147_483_647, targetMs - Date.now() + 400));
+    const delayMs = Math.max(
+      250,
+      Math.min(2_147_483_647, targetMs - Date.now() + 400),
+    );
     const timer = window.setTimeout(() => {
       void loadData();
       onTimeMutated();
@@ -234,18 +236,15 @@ export function useTimeLedger({
     }
   }, [lastUndoable, loadData, onTimeMutated]);
 
-  const handleAckEvents = useCallback(
-    async (eventIds: string[]) => {
-      if (eventIds.length === 0) return;
-      try {
-        await ackTimeEvents(eventIds);
-        setEvents((prev) => prev.filter((e) => !eventIds.includes(e.id)));
-      } catch (err) {
-        setError(errorMessage(err));
-      }
-    },
-    [],
-  );
+  const handleAckEvents = useCallback(async (eventIds: string[]) => {
+    if (eventIds.length === 0) return;
+    try {
+      await ackTimeEvents(eventIds);
+      setEvents((prev) => prev.filter((e) => !eventIds.includes(e.id)));
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }, []);
 
   return {
     status,

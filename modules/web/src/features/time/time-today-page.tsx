@@ -205,7 +205,10 @@ export function TimeTodayPage({
     const allowNum = planAllowanceMin.trim()
       ? Number(planAllowanceMin.trim())
       : undefined;
-    if (allowNum !== undefined && (!Number.isFinite(allowNum) || allowNum <= 0)) {
+    if (
+      allowNum !== undefined &&
+      (!Number.isFinite(allowNum) || allowNum <= 0)
+    ) {
       return { hasLimit: true as const, error: "预计用时须大于 0 分钟" };
     }
     let plannedStartAtMs: number | undefined;
@@ -245,8 +248,7 @@ export function TimeTodayPage({
       plannedStartAtMs !== undefined ||
       hardStopAtMs !== undefined;
     if (!hasAny) return { hasLimit: false as const };
-    const hardStopPassed =
-      hardStopAtMs !== undefined && hardStopAtMs <= nowMs;
+    const hardStopPassed = hardStopAtMs !== undefined && hardStopAtMs <= nowMs;
     const predictedStart =
       plannedStartAtMs !== undefined && plannedStartAtMs > nowMs
         ? plannedStartAtMs
@@ -614,9 +616,8 @@ export function TimeTodayPage({
                 )
               : undefined;
             const linkedPlan =
-              plans.find(
-                (p) => p.id === (ev.planId ?? seg?.timingPlanId),
-              ) ?? undefined;
+              plans.find((p) => p.id === (ev.planId ?? seg?.timingPlanId)) ??
+              undefined;
             const isAutoStopped = ev.kind === "auto_stopped";
             const isCheckpointDue = ev.kind === "checkpoint_due";
 
@@ -682,16 +683,16 @@ export function TimeTodayPage({
                       增加时间并继续
                     </Button>
                   )}
-                  {isCheckpointDue &&
-                    active &&
-                    active.id === ev.activityId && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() =>
-                          void runMutation(`已确认此刻：${active.title}`, async () => {
+                  {isCheckpointDue && active && active.id === ev.activityId && (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      disabled={busy}
+                      onClick={() =>
+                        void runMutation(
+                          `已确认此刻：${active.title}`,
+                          async () => {
                             const receipt = await confirmTimeActivity({
                               activityId: active.id,
                               expectedVersion: active.version,
@@ -699,13 +700,14 @@ export function TimeTodayPage({
                             });
                             await onAckEvents([ev.id]);
                             return receipt;
-                          })
-                        }
-                      >
-                        <Check className="size-3" />
-                        确认这段
-                      </Button>
-                    )}
+                          },
+                        )
+                      }
+                    >
+                      <Check className="size-3" />
+                      确认这段
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     size="xs"
@@ -758,7 +760,8 @@ export function TimeTodayPage({
                         {activeRemainingStopSec <= 0
                           ? "已到停止时刻"
                           : `剩余 ${Math.max(1, Math.ceil(activeRemainingStopSec / 60))} 分钟`}{" "}
-                        · {formatClockInZone(active.autoStopAtMs, timeZone)} 停止
+                        · {formatClockInZone(active.autoStopAtMs, timeZone)}{" "}
+                        停止
                       </span>
                     )}
                   {timerSnapshot?.state === "restoring" && (
@@ -820,7 +823,8 @@ export function TimeTodayPage({
             {longActivityAlert && (
               <div className="flex flex-wrap items-center gap-3 text-xs text-amber-600/90 dark:text-amber-400/90">
                 <span>
-                  已持续超过 {thresholdMinutesLabel} 分钟，若早已结束请在时间线修正；如仍在进行可确认至此。
+                  已持续超过 {thresholdMinutesLabel}{" "}
+                  分钟，若早已结束请在时间线修正；如仍在进行可确认至此。
                 </span>
                 <Button
                   type="button"
@@ -862,7 +866,10 @@ export function TimeTodayPage({
               onChange={(e) => setQuickTitle(e.target.value)}
             />
             <div className="flex items-center gap-1">
-              <Select value={quickCategoryId} onValueChange={setQuickCategoryId}>
+              <Select
+                value={quickCategoryId}
+                onValueChange={setQuickCategoryId}
+              >
                 <SelectTrigger
                   className="h-7 w-auto gap-1 border-0 bg-transparent px-2 text-xs text-muted-foreground shadow-none hover:text-foreground focus-visible:ring-0"
                   aria-label="活动分类"
@@ -920,7 +927,7 @@ export function TimeTodayPage({
                     !Boolean(quickTitle.trim() || quickTaskUuid !== "none") ||
                     Boolean(
                       "error" in draftPlanEvaluation &&
-                        draftPlanEvaluation.error,
+                      draftPlanEvaluation.error,
                     ) ||
                     Boolean(draftPlanEvaluation.hardStopPassed)
                   }
@@ -1050,7 +1057,11 @@ export function TimeTodayPage({
                           <>
                             {" "}
                             · 最晚{" "}
-                            {formatClockInZone(plan.hardStopAtMs, timeZone)} 停止
+                            {formatClockInZone(
+                              plan.hardStopAtMs,
+                              timeZone,
+                            )}{" "}
+                            停止
                           </>
                         )}
                       </span>

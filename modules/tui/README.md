@@ -1,7 +1,8 @@
 # Aster TUI 工作台
 
 独立 Go 模块，采用 Bubble Tea、Bubbles 和 Lip
-Gloss；通过系统 OpenSSH 连接运行 Aster Server 的远程主机，与 Web、MCP 和 Desktop 共享同一份 Taskwarrior 与工作区。
+Gloss；通过系统 OpenSSH 连接运行 Aster
+Server 的远程主机，与 Web、MCP 和 Desktop 共享同一份 Taskwarrior 与工作区。
 
 ## 构建与连接
 
@@ -24,8 +25,8 @@ aster --ssh <your-vps-ssh-alias> --task /usr/local/bin/task \
 `-ssh` 缺省值为 `dmit`（可通过参数覆盖为任意 SSH host alias）。`--no-color`
 禁用颜色。颜色默认适配终端。当前使用 SSH 共享模式；不提供离线写入或独立本地 Taskwarrior 模式。
 
-服务端需启用
-`WORKSPACE_SOCKET`。完整功能需要部署对应版本的 [`modules/server`](../server/README.md)：提供私有任务查询、快速解析、Time 计时快照、备份导出/预览/恢复端点。遇到旧服务接口时会明确提示升级，不会绕过服务端直接改写工作区资料。
+服务端需启用 `WORKSPACE_SOCKET`。完整功能需要部署对应版本的
+[`modules/server`](../server/README.md)：提供私有任务查询、快速解析、Time 计时快照、备份导出/预览/恢复端点。遇到旧服务接口时会明确提示升级，不会绕过服务端直接改写工作区资料。
 
 ## 布局
 

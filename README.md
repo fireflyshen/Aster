@@ -1,25 +1,48 @@
 # Aster
 
-Aster 是一个基于 **Taskwarrior 3** 构建的个人任务与时间工作区 Monorepo：用统一的共享后端整合 **Web（桌面 & 手机）**、**Desktop（Raycast / TinyCast）**、**Go TUI 终端** 与 **MCP（AI / Grok Bot）** 四套客户端，在保留 Taskwarrior 原生存储的同时补齐 Focus、看板分组、嵌套子任务、误删恢复与 **Time Ledger 时间账本**。
+Aster 是一个基于 **Taskwarrior 3**
+构建的个人任务与时间工作区 Monorepo：用统一的共享后端整合
+**Web（桌面 & 手机）**、**Desktop（Raycast / TinyCast）**、**Go TUI 终端** 与
+**MCP（AI / Grok Bot）**
+四套客户端，在保留 Taskwarrior 原生存储的同时补齐 Focus、看板分组、嵌套子任务、误删恢复与
+**Time Ledger 时间账本**。
 
 ---
 
 ## 核心特性
 
 1. **统一共享服务端（`modules/server`）**
-   - Node.js 22.16+ 原生实现（零第三方运行时依赖），通过 HTTP（Web / 本地客户端）与私有 Unix Socket IPC（SSH 远程客户端、MCP、Go TUI）对外提供同一套序列化事务与并发门控。
-   - **Organization 独立持久化队列**：使用 `organization.json` 乐观版本号队列管理项目树、最多 3 个 Active 的 Focus 目标、看板自定义分栏与排序、saved filters、项目与任务 Markdown 说明及颜色。
-   - **Time Ledger（SQLite WAL）**：独立 `time.sqlite` + 恢复隔离屏障（`.barrier.json`）管理 24h 时间覆盖（`C + U = T`）、睡眠候选识别、待定位估记、跨小时检查点与两阶段 Taskwarrior 协调事务。
-   - **TimingPlan 自动停止机制**：支持「预计用时」+「计划开始」+「最晚停止」的清晰边界，采用 **手动开始 → 到限自动停止 → 确认或修正记录** 流程；服务重启仍按原定时限准确结算，不会无故把计划直接变成已执行记录。详见 [产品设计](docs/time-management-design.md) 与 [工程契约](docs/time-management-v1-decisions.md)。
+   - Node.js 22.16+ 原生实现（零第三方运行时依赖），通过 HTTP（Web
+     / 本地客户端）与私有 Unix Socket IPC（SSH 远程客户端、MCP、Go
+     TUI）对外提供同一套序列化事务与并发门控。
+   - **Organization 独立持久化队列**：使用 `organization.json`
+     乐观版本号队列管理项目树、最多 3 个 Active 的 Focus 目标、看板自定义分栏与排序、saved
+     filters、项目与任务 Markdown 说明及颜色。
+   - **Time Ledger（SQLite WAL）**：独立
+     `time.sqlite` + 恢复隔离屏障（`.barrier.json`）管理 24h 时间覆盖（`C + U = T`）、睡眠候选识别、待定位估记、跨小时检查点与两阶段 Taskwarrior 协调事务。
+   - **TimingPlan 自动停止机制**：支持「预计用时」+「计划开始」+「最晚停止」的清晰边界，采用
+     **手动开始 → 到限自动停止 → 确认或修正记录**
+     流程；服务重启仍按原定时限准确结算，不会无故把计划直接变成已执行记录。详见
+     [产品设计](docs/time-management-design.md) 与
+     [工程契约](docs/time-management-v1-decisions.md)。
 2. **极简 Web 应用（`modules/web`）**
-   - React 19 + shadcn/ui + Tailwind CSS，支持 Todoist 风格快速捕捉（`Q`）、行内编辑、树形子任务、List/Board 一体化视图、Data & Recovery 备份恢复。
-   - 提供极简留白的 **Time Ledger（Today / Weekly / Settings）** 与顶部单行执行条、到限确认与修正弹窗。
+   - React 19 + shadcn/ui + Tailwind
+     CSS，支持 Todoist 风格快速捕捉（`Q`）、行内编辑、树形子任务、List/Board 一体化视图、Data
+     & Recovery 备份恢复。
+   - 提供极简留白的 **Time Ledger（Today / Weekly / Settings）**
+     与顶部单行执行条、到限确认与修正弹窗。
 3. **AI / Grok Bot 接口（`modules/mcp`）**
-   - 标准 MCP stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务规划、看板拆解、Time 随手记账、TimingPlan 定时安排与对账摘要。
-   - 给 Grok Bot / AI 助手配置 System Prompt、可用工具与**合法分类字典**，请直接阅读 [`modules/mcp/README.md`](modules/mcp/README.md)。
+   - 标准 MCP
+     stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务规划、看板拆解、Time 随手记账、TimingPlan 定时安排与对账摘要。
+   - 给 Grok Bot / AI 助手配置 System
+     Prompt、可用工具与**合法分类字典**，请直接阅读
+     [`modules/mcp/README.md`](modules/mcp/README.md)。
 4. **桌面扩展 & 终端工作台（`modules/desktop` & `modules/tui`）**
-   - **Desktop（Raycast / TinyCast）**：提供 `My Tasks`、`Focus & Projects` 与 `Quick Add Task` 三个命令入口，复用 SSH / 本地共享工作区或原生 Taskwarrior 3。
-   - **Go TUI**：单二进制终端界面，支持宽窄屏自适应布局、Focus/看板管理、实时计时状态与全量备份导出恢复。
+   - **Desktop（Raycast / TinyCast）**：提供 `My Tasks`、`Focus & Projects` 与
+     `Quick Add Task` 三个命令入口，复用 SSH / 本地共享工作区或原生 Taskwarrior
+     3。
+   - **Go
+     TUI**：单二进制终端界面，支持宽窄屏自适应布局、Focus/看板管理、实时计时状态与全量备份导出恢复。
 
 ---
 
@@ -86,8 +109,10 @@ docs/                      时间管理产品设计与 V1 工程契约
 
 ### 1. 环境准备
 
-- **Node.js 22.16+**（需要内置 TypeScript strip-types 与 `node:sqlite` `backup()` 支持）
-- **Taskwarrior 3**（可安装在本机，或仅安装在你的远程 Linux VPS 上通过 SSH 连接）
+- **Node.js 22.16+**（需要内置 TypeScript strip-types 与 `node:sqlite`
+  `backup()` 支持）
+- **Taskwarrior 3**（可安装在本机，或仅安装在你的远程 Linux
+  VPS 上通过 SSH 连接）
 - 可选：**Go 1.24+**（编译 TUI）、**Raycast / TinyCast**（运行桌面扩展）
 
 在仓库根目录安装依赖：
@@ -108,7 +133,8 @@ SSH_TARGET= npm run dev:web
 SSH_TARGET=<your-vps-ssh-alias> npm run dev:web
 ```
 
-启动后访问 **http://localhost:4180/**（Vite 会将 `/api` 与 `/healthz` 代理到内部运行的 `modules/server`）。
+启动后访问 **http://localhost:4180/**（Vite 会将 `/api` 与 `/healthz`
+代理到内部运行的 `modules/server`）。
 
 ### 3. 启动 MCP（连接 Grok Bot / Claude / Cursor）
 
@@ -120,7 +146,8 @@ ASTER_SSH_TARGET=<your-vps-ssh-alias> npm run start:mcp
 npm run start:mcp
 ```
 
-完整 Prompt 写法、时间分类规范与工具清单见 [`modules/mcp/README.md`](modules/mcp/README.md)。
+完整 Prompt 写法、时间分类规范与工具清单见
+[`modules/mcp/README.md`](modules/mcp/README.md)。
 
 ### 4. 构建 Go TUI
 
@@ -136,35 +163,52 @@ go build -o ../../dist/tui/aster .
 npm run dev:desktop
 ```
 
-扩展首选项可在 Raycast 设置中调整 `Connection Mode`（`ssh` / `local` / `wsl`）、`SSH Target`、`Remote Task Command` 与 `Shared Workspace` URL（SSH 模式下设 `auto` 会自动经现有 SSH 隧道访问 `WORKSPACE_SOCKET`）。
+扩展首选项可在 Raycast 设置中调整 `Connection Mode`（`ssh` / `local` /
+`wsl`）、`SSH Target`、`Remote Task Command` 与 `Shared Workspace`
+URL（SSH 模式下设 `auto` 会自动经现有 SSH 隧道访问 `WORKSPACE_SOCKET`）。
 
 ---
 
 ## 自托管部署到个人服务器
 
-别人拉取本仓库后，可以直接部署到任意具备 **Node.js 22.16+** 与 **Taskwarrior 3** 的 Linux VPS：
+别人拉取本仓库后，可以直接部署到任意具备 **Node.js 22.16+** 与 **Taskwarrior 3**
+的 Linux VPS：
 
-1. 在服务器上准备 `/opt/aster/data`、参考 [`deploy/aster.env.example`](deploy/aster.env.example) 创建 `/opt/aster/aster.env`（设置 `PUBLIC_ORIGIN`、`ORGANIZATION_FILE`、`TIME_DB_FILE`、`WORKSPACE_SOCKET` 等）。
-2. 参考 [`deploy/aster.service`](deploy/aster.service)（systemd）或 Docker Compose 配置守护进程，并参考 [`deploy/Caddyfile.fragment`](deploy/Caddyfile.fragment) 配置 HTTPS 反向代理与身份认证（如 Cloudflare Access）。
+1. 在服务器上准备 `/opt/aster/data`、参考
+   [`deploy/aster.env.example`](deploy/aster.env.example) 创建
+   `/opt/aster/aster.env`（设置
+   `PUBLIC_ORIGIN`、`ORGANIZATION_FILE`、`TIME_DB_FILE`、`WORKSPACE_SOCKET`
+   等）。
+2. 参考 [`deploy/aster.service`](deploy/aster.service)（systemd）或 Docker
+   Compose 配置守护进程，并参考
+   [`deploy/Caddyfile.fragment`](deploy/Caddyfile.fragment)
+   配置 HTTPS 反向代理与身份认证（如 Cloudflare Access）。
 3. 在本地执行：
 
 ```sh
 SSH_TARGET=<your-vps-ssh-alias> bash deploy/deploy.sh
 ```
 
-脚本会自动打包单文件服务端产物 `dist/server/server.mjs` 与静态前端 `dist/web/client/`、在远端执行一致性的预发布备份与校验、切换 `/opt/aster/current` 并检查 `/healthz`；若健康检查未通过则自动回滚。详细步骤见 [`deploy/README.md`](deploy/README.md)。
+脚本会自动打包单文件服务端产物 `dist/server/server.mjs` 与静态前端
+`dist/web/client/`、在远端执行一致性的预发布备份与校验、切换
+`/opt/aster/current` 并检查 `/healthz`；若健康检查未通过则自动回滚。详细步骤见
+[`deploy/README.md`](deploy/README.md)。
 
 ---
 
 ## 桌面快捷捕捉与常用键盘操作
 
-- **My Tasks**：`⌘N` 快速添加、`⌘E` 编辑、`⌘R` 刷新、`⌘O` 查看详情、`⌘Z` 撤销最近完成或重开、`⌘⇧F` 自定义过滤器、`⌘⇧M` 移动分组、`⌘⇧O` 在浏览器打开 Web 工作区。
+- **My Tasks**：`⌘N` 快速添加、`⌘E` 编辑、`⌘R` 刷新、`⌘O` 查看详情、`⌘Z`
+  撤销最近完成或重开、`⌘⇧F` 自定义过滤器、`⌘⇧M` 移动分组、`⌘⇧O`
+  在浏览器打开 Web 工作区。
 - **Quick Add Task**：支持中英文自然日期表达式与项目/标签/优先级符号，例如：
   ```text
   Submit report tomorrow at 14 #Work @focus p1
   明天下午2点 写周报 #"产品 设计" %设计 p2
   ```
-- Web 与 TUI 的完整快捷键说明分别见 [`modules/web/README.md`](modules/web/README.md) 与 [`modules/tui/README.md`](modules/tui/README.md)。
+- Web 与 TUI 的完整快捷键说明分别见
+  [`modules/web/README.md`](modules/web/README.md) 与
+  [`modules/tui/README.md`](modules/tui/README.md)。
 
 ---
 

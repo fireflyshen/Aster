@@ -19,7 +19,9 @@ function durationSec(act: { startMs?: number; endMs?: number }): number {
   return Math.round(((act.endMs ?? 0) - (act.startMs ?? 0)) / 1000);
 }
 
-function configurePolicy(store: Awaited<ReturnType<typeof createTimeStore>>): void {
+function configurePolicy(
+  store: Awaited<ReturnType<typeof createTimeStore>>,
+): void {
   store.updatePolicy({
     expectedPolicyVersion: store.getStatus().policy.policyVersion,
     patch: { timezone: "Asia/Shanghai" },
@@ -32,7 +34,10 @@ function assertTimeError(
   status?: number,
 ): void {
   assert.throws(fn, (err: unknown) => {
-    assert.ok(err instanceof TimeStoreError, `Expected TimeStoreError, got ${err}`);
+    assert.ok(
+      err instanceof TimeStoreError,
+      `Expected TimeStoreError, got ${err}`,
+    );
     assert.equal(err.code, code);
     if (status !== undefined) assert.equal(err.status, status);
     return true;
@@ -132,7 +137,10 @@ test("STOP-01..STOP-04: manual start only, min(start+allowance, hardStop), idle 
 
     // STOP-03: idlePlan crossed 13:15 plannedStart and 13:30 hardStop without any activity ever created
     const allActs = store.queryActivities({});
-    assert.equal(allActs.filter((a) => a.timingPlanId === idlePlan.id).length, 0);
+    assert.equal(
+      allActs.filter((a) => a.timingPlanId === idlePlan.id).length,
+      0,
+    );
     assert.equal(store.getTimingPlan(idlePlan.id, now)?.status, "expired");
 
     // STOP-04: Trying to start an expired plan throws 409 TIMING_PLAN_EXPIRED WITHOUT disturbing an active unrelated timer!
@@ -152,7 +160,8 @@ test("STOP-01..STOP-04: manual start only, min(start+allowance, hardStop), idle 
     );
     assert.equal(store.getStatus().activeActivity?.id, unrelated.activity?.id);
     assert.equal(
-      store.queryActivities({}).filter((a) => a.timingPlanId === idlePlan.id).length,
+      store.queryActivities({}).filter((a) => a.timingPlanId === idlePlan.id)
+        .length,
       0,
     );
 
@@ -202,11 +211,17 @@ test("STOP-05 & STOP-10: pause/resume shares quota & hardStop; manual early stop
 
     // Segment 1: 14:00 -> 14:20 (20m) then pause
     now = at("14:00");
-    const s1 = store.startActivity({ idempotencyKey: "p5-s1", timingPlanId: plan.id });
+    const s1 = store.startActivity({
+      idempotencyKey: "p5-s1",
+      timingPlanId: plan.id,
+    });
     assert.equal(s1.activity?.autoStopAtMs, at("15:00"));
 
     now = at("14:20");
-    const paused = store.stopActivity({ idempotencyKey: "p5-pause", pause: true });
+    const paused = store.stopActivity({
+      idempotencyKey: "p5-pause",
+      pause: true,
+    });
     assert.equal(paused.activity?.endMs, at("14:20"));
     assert.equal(paused.activity?.reviewState, "ok");
     assert.equal(paused.activity?.confirmedThroughMs, at("14:20"));
@@ -219,7 +234,10 @@ test("STOP-05 & STOP-10: pause/resume shares quota & hardStop; manual early stop
 
     // Segment 2: resume at 14:40 -> remaining 40m would be 15:20, clamped to hardStop 15:00!
     now = at("14:40");
-    const s2 = store.startActivity({ idempotencyKey: "p5-s2", timingPlanId: plan.id });
+    const s2 = store.startActivity({
+      idempotencyKey: "p5-s2",
+      timingPlanId: plan.id,
+    });
     assert.equal(s2.activity?.autoStopAtMs, at("15:00"));
     assert.equal(s2.activity?.autoStopBasis, "hard_deadline");
 
@@ -239,13 +257,19 @@ test("STOP-05 & STOP-10: pause/resume shares quota & hardStop; manual early stop
       allowanceSeconds: 1800,
     });
     now = at("16:00");
-    store.startActivity({ idempotencyKey: "p5-nh1", timingPlanId: noHardPlan.id });
+    store.startActivity({
+      idempotencyKey: "p5-nh1",
+      timingPlanId: noHardPlan.id,
+    });
     now = at("16:35");
     store.settleDueTimers(now);
     assert.equal(store.getTimingPlan(noHardPlan.id, now)?.status, "stopped");
     assertTimeError(
       () =>
-        store.startActivity({ idempotencyKey: "p5-nh-again", timingPlanId: noHardPlan.id }),
+        store.startActivity({
+          idempotencyKey: "p5-nh-again",
+          timingPlanId: noHardPlan.id,
+        }),
       "TIME_ALLOWANCE_EXHAUSTED",
       409,
     );
@@ -372,7 +396,8 @@ test("STOP-06, STOP-09, STOP-11: restart recovery, scheduler gate lock, dedup ev
       store: store2,
       gate: {
         enter: () => {
-          if (locked) throw new TimeStoreError(423, "WORKSPACE_RESTORING", "locked");
+          if (locked)
+            throw new TimeStoreError(423, "WORKSPACE_RESTORING", "locked");
           return () => {};
         },
       },
@@ -383,7 +408,9 @@ test("STOP-06, STOP-09, STOP-11: restart recovery, scheduler gate lock, dedup ev
     assert.equal(scheduler.tickNow().skipped, "locked");
     locked = false;
     assert.equal(scheduler.tickNow().settled, true);
-    const act2After = store2.queryActivities({}).find((a) => a.id === run2.activity!.id)!;
+    const act2After = store2
+      .queryActivities({})
+      .find((a) => a.id === run2.activity!.id)!;
     assert.equal(act2After.endMs, at("16:10"));
     assert.equal(act2After.version, 2);
     // Stale client attempting to extend against pre-stop version 1 is rejected
@@ -423,7 +450,10 @@ test("STOP-07, STOP-08, STOP-12: provisional isolation (C+U=T), confirm/correct/
       plannedStartAtMs: at("14:00"),
       hardStopAtMs: at("15:00"),
     });
-    const run = store.startActivity({ idempotencyKey: "s7-start", timingPlanId: plan.id });
+    const run = store.startActivity({
+      idempotencyKey: "s7-start",
+      timingPlanId: plan.id,
+    });
 
     // Auto-stops at 14:40 -> stays provisional, NOT in formal coveredSeconds or category totals
     now = at("14:40");
@@ -440,7 +470,9 @@ test("STOP-07, STOP-08, STOP-12: provisional isolation (C+U=T), confirm/correct/
 
     // Confirm action -> formalizes into coveredSeconds & byCategorySeconds
     const stoppedId = beforeConfirm.locatedSegments[0].activityId;
-    const stoppedAct = store.queryActivities({}).find((a) => a.id === stoppedId)!;
+    const stoppedAct = store
+      .queryActivities({})
+      .find((a) => a.id === stoppedId)!;
     const confirmed = store.confirmActivity({
       idempotencyKey: "s7-confirm",
       activityId: stoppedAct.id,
@@ -467,7 +499,10 @@ test("STOP-07, STOP-08, STOP-12: provisional isolation (C+U=T), confirm/correct/
     });
     const afterCorrect = store.getDailySummary("2026-11-15", at("14:45"));
     assert.equal(afterCorrect.coveredSeconds, 1800);
-    assert.equal(afterCorrect.unrecordedSeconds, afterCorrect.pastCapacitySeconds - 1800);
+    assert.equal(
+      afterCorrect.unrecordedSeconds,
+      afterCorrect.pastCapacitySeconds - 1800,
+    );
 
     // Path 3: User actually worked +10m beyond 60m plan -> manually extend activity beyond allowance displays exceededPlanSeconds
     const overrun = store.updateActivity({
@@ -489,9 +524,15 @@ test("STOP-07, STOP-08, STOP-12: provisional isolation (C+U=T), confirm/correct/
     });
     assert.equal(pExt.status, "paused");
     assert.equal(pExt.remainingSeconds, 300);
-    const cont = store.startActivity({ idempotencyKey: "s7-cont", timingPlanId: plan.id });
+    const cont = store.startActivity({
+      idempotencyKey: "s7-cont",
+      timingPlanId: plan.id,
+    });
     assert.equal(cont.activity?.autoStopAtMs, at("15:00"));
-    store.stopActivity({ idempotencyKey: "s7-stop-cont", effectiveAtMs: at("15:00") });
+    store.stopActivity({
+      idempotencyKey: "s7-stop-cont",
+      effectiveAtMs: at("15:00"),
+    });
 
     // STOP-12 uncapped activity checkpoint flow: starts with 60m reviewDueAtMs, emits checkpoint_due once overdue, confirms prefix!
     now = at("16:00");
@@ -507,8 +548,9 @@ test("STOP-07, STOP-08, STOP-12: provisional isolation (C+U=T), confirm/correct/
     now = at("16:45");
     store.settleDueTimers(now);
     assert.equal(
-      store.listTimeEvents({ includeAcknowledged: true }).filter((e) => e.kind === "checkpoint_due")
-        .length,
+      store
+        .listTimeEvents({ includeAcknowledged: true })
+        .filter((e) => e.kind === "checkpoint_due").length,
       0,
     );
 
@@ -575,7 +617,9 @@ test("HTTP API handlers cover timing plans, start/pause, auto-stop events, and c
       body: Record<string, unknown> = {},
       query = "",
     ) {
-      const spec = handlers.find((h) => h.method === method && h.route === route);
+      const spec = handlers.find(
+        (h) => h.method === method && h.route === route,
+      );
       assert.ok(spec, `Missing handler ${method} ${route}`);
       return spec.handle({
         searchParams: new URLSearchParams(query),
@@ -617,13 +661,18 @@ test("HTTP API handlers cover timing plans, start/pause, auto-stop events, and c
     // Auto-stop triggers by 14:35 when querying events!
     now = at("14:35");
     const evRes = await call("GET", "api/time/events");
-    const events = (evRes.body as { events: Array<{ id: string; activityId: string }> }).events;
+    const events = (
+      evRes.body as { events: Array<{ id: string; activityId: string }> }
+    ).events;
     assert.equal(events.length, 1);
 
     const ackRes = await call("POST", "api/time/events/ack", {
       eventIds: [events[0].id],
     });
-    assert.equal((ackRes.body as { acknowledgedCount: number }).acknowledgedCount, 1);
+    assert.equal(
+      (ackRes.body as { acknowledgedCount: number }).acknowledgedCount,
+      1,
+    );
     const evAfterAck = await call("GET", "api/time/events");
     assert.equal((evAfterAck.body as { events: unknown[] }).events.length, 0);
 
@@ -636,7 +685,8 @@ test("HTTP API handlers cover timing plans, start/pause, auto-stop events, and c
       receivedAtMs: now,
     });
     assert.equal(
-      (confirmRes.body as { activity: { reviewState: string } }).activity.reviewState,
+      (confirmRes.body as { activity: { reviewState: string } }).activity
+        .reviewState,
       "ok",
     );
 
@@ -647,7 +697,8 @@ test("HTTP API handlers cover timing plans, start/pause, auto-stop events, and c
       receivedAtMs: now,
     });
     assert.equal(
-      (extendRes.body as { plan: { remainingSeconds: number } }).plan.remainingSeconds,
+      (extendRes.body as { plan: { remainingSeconds: number } }).plan
+        .remainingSeconds,
       900,
     );
 
@@ -663,7 +714,11 @@ test("HTTP API handlers cover timing plans, start/pause, auto-stop events, and c
       pause: true,
       receivedAtMs: now,
     });
-    assert.equal((pauseRes.body as { plan: { remainingSeconds: number } }).plan.remainingSeconds, 600);
+    assert.equal(
+      (pauseRes.body as { plan: { remainingSeconds: number } }).plan
+        .remainingSeconds,
+      600,
+    );
 
     store.close();
   } finally {

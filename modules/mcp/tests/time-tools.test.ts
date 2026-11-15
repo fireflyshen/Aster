@@ -35,7 +35,10 @@ test("time MCP tools validate inputs, auto-generate unique idempotency keys, and
     const missingPayload = JSON.parse(
       (missingTitle.content as Array<{ text: string }>)[0].text,
     );
-    assert.match(missingPayload.error, /Provide title, taskUuid, or timingPlanId/);
+    assert.match(
+      missingPayload.error,
+      /Provide title, taskUuid, or timingPlanId/,
+    );
 
     // Task-linked start succeeds without title and gets unique auto-generated idempotency keys
     const start1 = await client.callTool({

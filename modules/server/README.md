@@ -1,6 +1,8 @@
 # Aster · Server
 
-Aster 的统一后端服务模块（Node.js 22.16+ 原生模块，无第三方运行时依赖），为 Web、Desktop（Raycast / TinyCast）、MCP 与 Go TUI 提供单一共享工作区、任务队列与 Time Ledger 引擎。
+Aster 的统一后端服务模块（Node.js
+22.16+ 原生模块，无第三方运行时依赖），为 Web、Desktop（Raycast /
+TinyCast）、MCP 与 Go TUI 提供单一共享工作区、任务队列与 Time Ledger 引擎。
 
 ## 模块结构
 
@@ -16,16 +18,24 @@ src/
 
 ## 传输层与安全模型
 
-所有工作区业务接口收敛在 [`src/transport/workspace-api.ts`](src/transport/workspace-api.ts)：
+所有工作区业务接口收敛在
+[`src/transport/workspace-api.ts`](src/transport/workspace-api.ts)：
 
 - **HTTP（`src/transport/http-server.ts` / `src/transport/http-adapter.ts`）**：
-  - 所有 `POST /api/*` 强制校验 `Origin === PUBLIC_ORIGIN` 且 `Content-Type` 为 `application/json`；
-  - 默认响应头设置 `Cache-Control: no-store`、`X-Content-Type-Options: nosniff`、严格 `Content-Security-Policy` 与 `frame-ancestors 'none'`；
-  - 静态资源目录按 `CLIENT_ROOT` → `./client/`（发布打包模式）→ `../web/client/` 解析；
-  - 公网访问建议放置在反向代理 / Cloudflare Access / VPN 之后（由代理层负责身份认证）。
+  - 所有 `POST /api/*` 强制校验 `Origin === PUBLIC_ORIGIN` 且 `Content-Type` 为
+    `application/json`；
+  - 默认响应头设置
+    `Cache-Control: no-store`、`X-Content-Type-Options: nosniff`、严格
+    `Content-Security-Policy` 与 `frame-ancestors 'none'`；
+  - 静态资源目录按 `CLIENT_ROOT` → `./client/`（发布打包模式）→ `../web/client/`
+    解析；
+  - 公网访问建议放置在反向代理 / Cloudflare Access /
+    VPN 之后（由代理层负责身份认证）。
 - **私有 Unix Socket IPC（`src/transport/workspace-ipc.ts`）**：
-  - 可选绑定 `WORKSPACE_SOCKET`（如 `/opt/aster/data/workspace.sock`，`0600` 权限，进程 `umask 0077`），不监听额外 TCP 端口；
-  - 校验 `X-Aster-Source` 数据源身份，并与 HTTP 请求共用同一并发门控（`src/transport/workspace-gate.ts`）及序列化事务队列。
+  - 可选绑定 `WORKSPACE_SOCKET`（如 `/opt/aster/data/workspace.sock`，`0600`
+    权限，进程 `umask 0077`），不监听额外 TCP 端口；
+  - 校验 `X-Aster-Source`
+    数据源身份，并与 HTTP 请求共用同一并发门控（`src/transport/workspace-gate.ts`）及序列化事务队列。
 
 ## 关键环境变量
 

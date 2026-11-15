@@ -16,8 +16,11 @@ SSH_TARGET=<your-vps-ssh-alias> npm run dev:web   # 通过 SSH 连接远程 Task
 SSH_TARGET= npm run dev:web
 ```
 
-打开 **http://localhost:4180/**。`dev:web` 会同时启动 [`modules/server`](../server/README.md)（默认内部端口
-`4181`，`SSH_TARGET` 默认示例值 `dmit`）和 Vite 开发服务（`4180`）。若使用 SSH 模式，请先确保终端能运行 `ssh <your-vps-ssh-alias> 'task --version'`。
+打开 **http://localhost:4180/**。`dev:web` 会同时启动
+[`modules/server`](../server/README.md)（默认内部端口 `4181`，`SSH_TARGET`
+默认示例值
+`dmit`）和 Vite 开发服务（`4180`）。若使用 SSH 模式，请先确保终端能运行
+`ssh <your-vps-ssh-alias> 'task --version'`。
 
 ```sh
 npm run check:web
@@ -88,7 +91,8 @@ Meet with Ada tomorrow at 14
 - 联网使用，不缓存私人任务，不自动重试写入。结果无法确认时先刷新检查。
 
 生产部署通常与反向代理 / Cloudflare Access 配合使用（详见
-[部署说明](../../deploy/README.md)），服务端仅要求显式设置 `PUBLIC_ORIGIN` 以校验浏览器写操作来源。
+[部署说明](../../deploy/README.md)），服务端仅要求显式设置 `PUBLIC_ORIGIN`
+以校验浏览器写操作来源。
 
 ## 过滤器与标签
 
@@ -189,10 +193,10 @@ preserve goal fields when older clients omit them.
 Desktop（Raycast / TinyCast）、MCP 与 Go
 TUI 通过现有 SSH 连接访问同一服务端进程上的
 `/opt/aster/data/workspace.sock`（权限
-`0600`）或在本地直连 HTTP 服务。服务端通过 `modules/server/src/transport/workspace-api.ts`
-对 HTTP 与 Unix
-Socket 暴露统一的任务查询、动作、组织资料、时间账本、恢复与备份接口；浏览器 HTTP
-写请求强制校验 `PUBLIC_ORIGIN` 与 `application/json`。
+`0600`）或在本地直连 HTTP 服务。服务端通过
+`modules/server/src/transport/workspace-api.ts` 对 HTTP 与 Unix
+Socket 暴露统一的任务查询、动作、组织资料、时间账本、恢复与备份接口；浏览器 HTTP 写请求强制校验
+`PUBLIC_ORIGIN` 与 `application/json`。
 
 ### Nested projects
 
@@ -229,8 +233,11 @@ remains separate workspace metadata.
 Web 端 `src/features/time/` 提供极简、留白优先的时间账本视图，对应设计见
 [产品设计](../../docs/time-management-design.md)：
 
-- **Today / Weekly / Settings** 三个精简子页面，展示当日覆盖率（`C + U = T`）、待确认睡眠候选、未定位估记、空白时间块与规则配置；
-- **执行条 & 定时计划（TimingPlan）**：遵循 **手动开始 → 到限自动停止 → 确认或修正记录** 流程。到期自动停止或跨小时检查点通过顶部单行极简提示呈现，支持一键确认、暂停/继续（共享同一剩余额度与最晚停止时刻）、加时或修改结束时刻。
+- **Today / Weekly / Settings**
+  三个精简子页面，展示当日覆盖率（`C + U = T`）、待确认睡眠候选、未定位估记、空白时间块与规则配置；
+- **执行条 & 定时计划（TimingPlan）**：遵循
+  **手动开始 → 到限自动停止 → 确认或修正记录**
+  流程。到期自动停止或跨小时检查点通过顶部单行极简提示呈现，支持一键确认、暂停/继续（共享同一剩余额度与最晚停止时刻）、加时或修改结束时刻。
 
 ## 列表分组与看板统一
 
