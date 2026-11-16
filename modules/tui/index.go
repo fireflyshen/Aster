@@ -131,7 +131,12 @@ func buildViewIndex(tasks []Task, org Organization) viewIndex {
 		idx.dates[t.UUID] = td
 		if t.Status == "pending" || t.Status == "waiting" {
 			idx.openUUIDs[t.UUID] = true
-			if eff := effectiveTaskState(t, td, idx.projByName, now); eff != "" {
+			if eff := effectiveTaskState(
+				t,
+				td,
+				idx.projByName,
+				now,
+			); eff != "" {
 				idx.taskStates[t.UUID] = eff
 				if eff == "doing" {
 					idx.doingCount++
@@ -296,9 +301,11 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 				}
 			}
 		case m.view == "inbox":
-			match = unfinished && !isHabitProject(t, idx.projByName) && t.Project == ""
+			match = unfinished && !isHabitProject(t, idx.projByName) &&
+				t.Project == ""
 		case m.view == "today":
-			match = unfinished && !isHabitProject(t, idx.projByName) && !td.due.IsZero() &&
+			match = unfinished && !isHabitProject(t, idx.projByName) &&
+				!td.due.IsZero() &&
 				td.due.Before(todayEnd) &&
 				!td.wait.After(now)
 		case projTarget != "":
@@ -613,7 +620,10 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 			continue
 		}
 		for _, t := range items {
-			out = append(out, idx.makeTaskRow(t, depth[t.UUID], lastChild[t.UUID]))
+			out = append(
+				out,
+				idx.makeTaskRow(t, depth[t.UUID], lastChild[t.UUID]),
+			)
 		}
 	}
 	return out
@@ -678,8 +688,18 @@ func (idx viewIndex) nowRows(m model, now time.Time) []row {
 		return doing[i].Description < doing[j].Description
 	})
 	sort.SliceStable(planned, func(i, j int) bool {
-		si := effectiveTaskState(planned[i], idx.dates[planned[i].UUID], idx.projByName, now) == "scheduled"
-		sj := effectiveTaskState(planned[j], idx.dates[planned[j].UUID], idx.projByName, now) == "scheduled"
+		si := effectiveTaskState(
+			planned[i],
+			idx.dates[planned[i].UUID],
+			idx.projByName,
+			now,
+		) == "scheduled"
+		sj := effectiveTaskState(
+			planned[j],
+			idx.dates[planned[j].UUID],
+			idx.projByName,
+			now,
+		) == "scheduled"
 		if si != sj {
 			return !si
 		}
@@ -696,10 +716,10 @@ func (idx viewIndex) nowRows(m model, now time.Time) []row {
 	})
 
 	type nowSection struct {
-		id         string
-		title      string
-		tasks      []Task
-		openByDef  bool
+		id        string
+		title     string
+		tasks     []Task
+		openByDef bool
 	}
 	doingTitle := "处理中"
 	sections := []nowSection{
@@ -720,13 +740,17 @@ func (idx viewIndex) nowRows(m model, now time.Time) []row {
 		})
 		expanded := sec.openByDef && !m.collapsed[sec.id]
 		if !sec.openByDef {
-			expanded = m.nowExpanded[sec.id] || (m.query != "" && len(items) > 0)
+			expanded = m.nowExpanded[sec.id] ||
+				(m.query != "" && len(items) > 0)
 		}
 		if !expanded {
 			continue
 		}
 		for _, t := range items {
-			out = append(out, idx.makeTaskRow(t, depth[t.UUID], lastChild[t.UUID]))
+			out = append(
+				out,
+				idx.makeTaskRow(t, depth[t.UUID], lastChild[t.UUID]),
+			)
 		}
 	}
 	return out

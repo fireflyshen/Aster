@@ -191,8 +191,7 @@ export function NowWorkspace({
     (summary?.parkedReviewDue.length ?? 0) +
     (summary?.anomalies.length ?? 0);
   const doingLimit =
-    summary?.limit ??
-    normalizeDoingLimit(organization.preferences?.doingLimit);
+    summary?.limit ?? normalizeDoingLimit(organization.preferences?.doingLimit);
 
   const plannedOpen = Boolean(nowSections?.planned);
   const waitingOpen = Boolean(nowSections?.waiting);
@@ -466,7 +465,10 @@ export function NowWorkspace({
                   计划中
                 </h2>
                 <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
-                  {plannedGroups.reduce((acc, [, list]) => acc + list.length, 0)}
+                  {plannedGroups.reduce(
+                    (acc, [, list]) => acc + list.length,
+                    0,
+                  )}
                 </span>
               </button>
             </div>

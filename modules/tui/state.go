@@ -12,10 +12,13 @@ const (
 )
 
 func (m model) doingLimit() int {
-	if m.stateSummary != nil && m.stateSummary.Limit >= minDoingLimit && m.stateSummary.Limit <= maxDoingLimit {
+	if m.stateSummary != nil && m.stateSummary.Limit >= minDoingLimit &&
+		m.stateSummary.Limit <= maxDoingLimit {
 		return m.stateSummary.Limit
 	}
-	if m.org.Preferences != nil && m.org.Preferences.DoingLimit >= minDoingLimit && m.org.Preferences.DoingLimit <= maxDoingLimit {
+	if m.org.Preferences != nil &&
+		m.org.Preferences.DoingLimit >= minDoingLimit &&
+		m.org.Preferences.DoingLimit <= maxDoingLimit {
 		return m.org.Preferences.DoingLimit
 	}
 	return defaultDoingLimit
@@ -143,7 +146,8 @@ func effectiveTaskState(
 	if !isValidTaskState(explicit) {
 		explicit = ""
 	}
-	waitingTW := t.Status == "waiting" || (!td.wait.IsZero() && td.wait.After(now))
+	waitingTW := t.Status == "waiting" ||
+		(!td.wait.IsZero() && td.wait.After(now))
 	if waitingTW {
 		if explicit == "waiting" || explicit == "parked" {
 			return explicit

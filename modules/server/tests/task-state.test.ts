@@ -739,9 +739,15 @@ test("stateManager enforces configurable preferences.doingLimit dynamically", as
     let summary = await stateManager.getSummary();
     assert.equal(summary.limit, 2);
 
-    await stateManager.setState({ uuid: uid(2), state: "doing" }, { source: "web" });
+    await stateManager.setState(
+      { uuid: uid(2), state: "doing" },
+      { source: "web" },
+    );
     await assert.rejects(
-      stateManager.setState({ uuid: uid(3), state: "doing" }, { source: "web" }),
+      stateManager.setState(
+        { uuid: uid(3), state: "doing" },
+        { source: "web" },
+      ),
       (err: unknown) =>
         err instanceof TaskStateError &&
         err.code === "STATE_DOING_LIMIT" &&
@@ -752,7 +758,10 @@ test("stateManager enforces configurable preferences.doingLimit dynamically", as
     await orgSvc.updatePreferences({ doingLimit: 4 });
     summary = await stateManager.getSummary();
     assert.equal(summary.limit, 4);
-    await stateManager.setState({ uuid: uid(3), state: "doing" }, { source: "web" });
+    await stateManager.setState(
+      { uuid: uid(3), state: "doing" },
+      { source: "web" },
+    );
     assert.equal(tasks.get(uid(3))?.state, "doing");
   } finally {
     await rm(dir, { recursive: true, force: true });

@@ -15,7 +15,12 @@ Aster 是一个基于 **Taskwarrior 3**
    - Node.js 22.16+ 原生实现（零第三方运行时依赖），通过 HTTP（Web
      / 本地客户端）与私有 Unix Socket IPC（SSH 远程客户端、MCP、Go
      TUI）对外提供同一套序列化事务与并发门控。
-   - **任务执行状态机 & 历史审计**：基于 Taskwarrior UDA（`state`、`waitreason`、`statechanged`）与 `state-history.jsonl` 管理 `planned` / `doing`（最多 5 项）/ `scheduled` / `waiting` / `parked`，支持 `409 STATE_DOING_LIMIT` 原子替换、依赖阻塞与跨日自动升迁；配套 [`scripts/migrate-task-state.mjs`](scripts/migrate-task-state.mjs) 做幂等数据迁移。
+   - **任务执行状态机 & 历史审计**：基于 Taskwarrior
+     UDA（`state`、`waitreason`、`statechanged`）与 `state-history.jsonl` 管理
+     `planned` / `doing`（最多 5 项）/ `scheduled` / `waiting` / `parked`，支持
+     `409 STATE_DOING_LIMIT` 原子替换、依赖阻塞与跨日自动升迁；配套
+     [`scripts/migrate-task-state.mjs`](scripts/migrate-task-state.mjs)
+     做幂等数据迁移。
    - 统一持久化 **Organization & Habits**：`organization.json`
      队列管理项目树、最多 3 个 Active 的 Focus 目标、看板自定义分栏与排序、saved
      filters（仅保留用户自定义过滤器与标签）、项目与任务 Markdown 说明及颜色；`habits.sqlite`
@@ -32,16 +37,19 @@ Aster 是一个基于 **Taskwarrior 3**
      [产品设计](docs/time-management-design.md) 与
      [工程契约](docs/time-management-v1-decisions.md)。
 2. **极简 Web 应用（`modules/web`）**
-   - React 19 + shadcn/ui + Tailwind
-     CSS，默认进入 **「现在能做」（`now`）** 状态工作区（顶部处理中最多 5 项 + 可折叠计划中/等待中/长期搁置与状态提醒条），支持 Todoist 风格窄列表快速捕捉（`Q`）、行内编辑、树形子任务、List/Board 一体化视图、任务列表与详情内嵌投入成本及预算演化、Data
+   - React 19 + shadcn/ui + Tailwind CSS，默认进入 **「现在能做」（`now`）**
+     状态工作区（顶部处理中最多 5 项 + 可折叠计划中/等待中/长期搁置与状态提醒条），支持 Todoist 风格窄列表快速捕捉（`Q`）、行内编辑、树形子任务、List/Board 一体化视图、任务列表与详情内嵌投入成本及预算演化、Data
      & Recovery 备份恢复。
    - 提供极简留白的 **Time
      Ledger（今日时间线 / 本周分布 / 成本报告 / 时间设置）**
      与顶部单行执行条、到限确认与修正弹窗。
-   - **习惯管理（Habits，Web 端）**：习惯直接在左侧专属 **「习惯」菜单** 查看与打卡（不嵌入「现在能做」「今天」「收件箱」「预览」等普通任务列表），与普通任务共用底层 Todo、项目、标签、说明与原生子任务。支持正向打卡、反向习惯（不发生即达成、仅记破例与备注）、可展开动作清单（可选 A/B 训练方案与组/次/重成绩）及统一低饱和灰绿综合热力图。
+   - **习惯管理（Habits，Web 端）**：习惯直接在左侧专属 **「习惯」菜单**
+     查看与打卡（不嵌入「现在能做」「今天」「收件箱」「预览」等普通任务列表），与普通任务共用底层 Todo、项目、标签、说明与原生子任务。支持正向打卡、反向习惯（不发生即达成、仅记破例与备注）、可展开动作清单（可选 A/B 训练方案与组/次/重成绩）及统一低饱和灰绿综合热力图。
 3. **AI / Grok Bot 接口（`modules/mcp`）**
    - 标准 MCP
-     stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务状态机（`task_state_set` / `task_schedule` / `task_depends` / `state_summary` / `state_history`）、任务规划与看板拆解、**习惯管理（`habit_*`：创建绑定习惯 Todo、日常打卡、动作清单组/次/重与 A/B 切换、反向破例、热力图与补录）**、Time 随手记账、TimingPlan 定时安排与对账摘要。
+     stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务状态机（`task_state_set`
+     / `task_schedule` / `task_depends` / `state_summary` /
+     `state_history`）、任务规划与看板拆解、**习惯管理（`habit_*`：创建绑定习惯 Todo、日常打卡、动作清单组/次/重与 A/B 切换、反向破例、热力图与补录）**、Time 随手记账、TimingPlan 定时安排与对账摘要。
    - 给 Grok Bot / AI 助手配置 System
      Prompt、项目/标签归类规范、**习惯 Todo 操作与防误删原则**及完整工具清单，请直接阅读
      [`modules/mcp/README.md`](modules/mcp/README.md)。
@@ -49,8 +57,9 @@ Aster 是一个基于 **Taskwarrior 3**
    - **Desktop（Raycast / TinyCast）**：提供 `My Tasks`、`Focus & Projects` 与
      `Quick Add Task` 三个命令入口，复用 SSH / 本地共享工作区或原生 Taskwarrior
      3。
-   - **Go
-     TUI**：单二进制终端界面，默认进入 **「现在能做」** 核心视图，支持状态徽章/阻塞标记、`t` 切换执行状态、上限 5 项替换选择器、宽窄屏自适应布局、Focus/看板管理、实时计时状态与全量备份导出恢复。
+   - **Go TUI**：单二进制终端界面，默认进入 **「现在能做」**
+     核心视图，支持状态徽章/阻塞标记、`t`
+     切换执行状态、上限 5 项替换选择器、宽窄屏自适应布局、Focus/看板管理、实时计时状态与全量备份导出恢复。
 
 ---
 

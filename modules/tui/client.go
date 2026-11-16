@@ -22,21 +22,21 @@ type Note struct {
 	Description string `json:"description"`
 }
 type Task struct {
-	Parent      string   `json:"parent"`
-	Wait        string   `json:"wait"`
-	End         string   `json:"end"`
-	Recur       string   `json:"recur"`
-	Until       string   `json:"until"`
-	Scheduled   string   `json:"scheduled"`
-	Depends     any      `json:"depends"`
-	UUID        string   `json:"uuid"`
-	Description string   `json:"description"`
-	Project     string   `json:"project"`
-	Status      string   `json:"status"`
-	Due         string   `json:"due"`
-	Priority    string   `json:"priority"`
-	Urgency     float64  `json:"urgency"`
-	Tags        []string `json:"tags"`
+	Parent       string   `json:"parent"`
+	Wait         string   `json:"wait"`
+	End          string   `json:"end"`
+	Recur        string   `json:"recur"`
+	Until        string   `json:"until"`
+	Scheduled    string   `json:"scheduled"`
+	Depends      any      `json:"depends"`
+	UUID         string   `json:"uuid"`
+	Description  string   `json:"description"`
+	Project      string   `json:"project"`
+	Status       string   `json:"status"`
+	Due          string   `json:"due"`
+	Priority     string   `json:"priority"`
+	Urgency      float64  `json:"urgency"`
+	Tags         []string `json:"tags"`
 	Start        string   `json:"start"`
 	State        string   `json:"state,omitempty"`
 	WaitReason   string   `json:"waitreason,omitempty"`
@@ -132,7 +132,7 @@ type Organization struct {
 	ProjectCounts map[string]int    `json:"projectCounts"`
 	Subtasks      map[string]string `json:"subtasks"`
 	Descriptions  map[string]string `json:"descriptions"`
-	Energy             *struct {
+	Energy        *struct {
 		Remaining           *float64           `json:"remaining"`
 		Max                 float64            `json:"max"`
 		ActiveCount         int                `json:"activeCount"`
@@ -163,8 +163,8 @@ type Organization struct {
 	Preferences   *struct {
 		DoingLimit int `json:"doingLimit,omitempty"`
 	} `json:"preferences,omitempty"`
-	Projects      []Project      `json:"projects"`
-	Board         struct {
+	Projects []Project `json:"projects"`
+	Board    struct {
 		Columns    []Column    `json:"columns"`
 		Placements []Placement `json:"placements"`
 		Order      []string    `json:"order"`

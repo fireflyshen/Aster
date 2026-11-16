@@ -147,9 +147,7 @@ function buildTaskArgs(opts, commandArgs) {
 async function runTask(opts, commandArgs) {
   const fullArgs = buildTaskArgs(opts, commandArgs);
   if (opts.sshTarget) {
-    const remoteCmd = [opts.taskCommand, ...fullArgs]
-      .map(shellQuote)
-      .join(" ");
+    const remoteCmd = [opts.taskCommand, ...fullArgs].map(shellQuote).join(" ");
     const { stdout } = await execFileAsync("ssh", [opts.sshTarget, remoteCmd], {
       maxBuffer: 20 * 1024 * 1024,
     });
@@ -427,7 +425,8 @@ async function main() {
     };
     if (inheritedState === "scheduled") {
       const parentPlan = fixedPlan.get(parentUuid);
-      const sched = parentPlan?.scheduled || openByUuid.get(parentUuid)?.scheduled;
+      const sched =
+        parentPlan?.scheduled || openByUuid.get(parentUuid)?.scheduled;
       if (sched) plan.scheduled = sched;
     }
     fixedPlan.set(task.uuid, plan);
@@ -451,7 +450,8 @@ async function main() {
   const plannedWrites = Array.from(fixedPlan.values());
   for (const plan of plannedWrites) {
     counts[plan.state] = (counts[plan.state] || 0) + 1;
-    if (plan.state === "doing") doingList.push({ task: plan.task, existing: false });
+    if (plan.state === "doing")
+      doingList.push({ task: plan.task, existing: false });
   }
 
   console.log(

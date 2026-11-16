@@ -22,7 +22,11 @@ func TestStateTransitionsWaitingScheduleDependsAndCompleteGuard(t *testing.T) {
 	nextModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
 	m = nextModel.(model)
 	if m.mode != "choice" || len(m.options) != 4 {
-		t.Fatalf("expected choice mode with 4 state targets, got mode=%s len=%d", m.mode, len(m.options))
+		t.Fatalf(
+			"expected choice mode with 4 state targets, got mode=%s len=%d",
+			m.mode,
+			len(m.options),
+		)
 	}
 
 	// 2. Direct transition to doing sends action=state.set, state=doing.
@@ -34,14 +38,19 @@ func TestStateTransitionsWaitingScheduleDependsAndCompleteGuard(t *testing.T) {
 	cmd()
 	p := readPayload(t, log)
 	data := p["data"].(map[string]any)
-	if data["action"] != "state.set" || data["uuid"] != "a" || data["state"] != "doing" {
+	if data["action"] != "state.set" || data["uuid"] != "a" ||
+		data["state"] != "doing" {
 		t.Fatalf("unexpected state.set payload: %+v", p)
 	}
 
 	// 3. Transition to waiting opens form requiring waitReason.
 	m.action("setstate:waiting")
 	if m.mode != "form" || m.formKind != "task.state.waiting" {
-		t.Fatalf("expected task.state.waiting form, got mode=%s kind=%s", m.mode, m.formKind)
+		t.Fatalf(
+			"expected task.state.waiting form, got mode=%s kind=%s",
+			m.mode,
+			m.formKind,
+		)
 	}
 	if _, err := m.submit(); err == nil {
 		t.Fatal("expected error when waitReason is empty")
@@ -55,7 +64,8 @@ func TestStateTransitionsWaitingScheduleDependsAndCompleteGuard(t *testing.T) {
 	cmd()
 	p = readPayload(t, log)
 	data = p["data"].(map[string]any)
-	if data["action"] != "state.set" || data["state"] != "waiting" || data["waitReason"] != "等小王确认报价" {
+	if data["action"] != "state.set" || data["state"] != "waiting" ||
+		data["waitReason"] != "等小王确认报价" {
 		t.Fatalf("unexpected waiting payload: %+v", p)
 	}
 	m.mode = ""
@@ -134,10 +144,16 @@ func TestStateDoingLimit409OpensReplacementPickerAndRetries(t *testing.T) {
 	next, _ := m.Update(saved{err: reqErr})
 	m = next.(model)
 	if m.blocked {
-		t.Fatal("STATE_DOING_LIMIT should open replacement picker, not lock writes")
+		t.Fatal(
+			"STATE_DOING_LIMIT should open replacement picker, not lock writes",
+		)
 	}
 	if m.mode != "choice" || len(m.options) != 2 {
-		t.Fatalf("expected 2 replacement choices, got mode=%s len=%d", m.mode, len(m.options))
+		t.Fatalf(
+			"expected 2 replacement choices, got mode=%s len=%d",
+			m.mode,
+			len(m.options),
+		)
 	}
 	if m.options[0].value != "setstate.replace:d1" {
 		t.Fatalf("unexpected replacement choice: %+v", m.options[0])
@@ -153,7 +169,9 @@ func TestStateDoingLimit409OpensReplacementPickerAndRetries(t *testing.T) {
 	retryCmd()
 	p := readPayload(t, log2)
 	data := p["data"].(map[string]any)
-	if data["action"] != "state.set" || data["uuid"] != "a" || data["state"] != "doing" || data["replaceUuid"] != "d1" {
+	if data["action"] != "state.set" || data["uuid"] != "a" ||
+		data["state"] != "doing" ||
+		data["replaceUuid"] != "d1" {
 		t.Fatalf("unexpected replacement retry payload: %+v", p)
 	}
 }
@@ -167,7 +185,9 @@ func TestRequestErrorParsesStateDoingLimitDetails(t *testing.T) {
 	)
 	err := c.request("/api/action", map[string]any{"action": "state.set"}, nil)
 	re, ok := err.(*requestError)
-	if !ok || re.code != 409 || re.errCode != "STATE_DOING_LIMIT" || len(re.doing) != 1 || re.doing[0].UUID != "u1" {
+	if !ok || re.code != 409 || re.errCode != "STATE_DOING_LIMIT" ||
+		len(re.doing) != 1 ||
+		re.doing[0].UUID != "u1" {
 		t.Fatalf("unexpected requestError parse: %+v", err)
 	}
 }
@@ -201,16 +221,30 @@ func TestGroupHeaderLeftGutterAlignmentAndNowCollapseArrow(t *testing.T) {
 		}
 	}
 	if !strings.Contains(doingGroupLine, "▾ 处理中 1/5") {
-		t.Fatalf("expected expanded arrow in left gutter on doing header, got %q", doingGroupLine)
+		t.Fatalf(
+			"expected expanded arrow in left gutter on doing header, got %q",
+			doingGroupLine,
+		)
 	}
 	if !strings.Contains(plannedGroupLine, "▸ 计划中") {
-		t.Fatalf("expected collapsed arrow on planned header by default, got %q", plannedGroupLine)
+		t.Fatalf(
+			"expected collapsed arrow on planned header by default, got %q",
+			plannedGroupLine,
+		)
 	}
 	// Group title ('处理中') and task checkbox ('○') align on the exact same terminal display column.
-	colGroup := lipgloss.Width(doingGroupLine[:strings.Index(doingGroupLine, "处理中")])
+	colGroup := lipgloss.Width(
+		doingGroupLine[:strings.Index(doingGroupLine, "处理中")],
+	)
 	colTask := lipgloss.Width(taskLine[:strings.Index(taskLine, "○")])
 	if colGroup <= 0 || colGroup != colTask {
-		t.Fatalf("expected group title (%d) and task glyph (%d) aligned at same column:\n%q\n%q", colGroup, colTask, doingGroupLine, taskLine)
+		t.Fatalf(
+			"expected group title (%d) and task glyph (%d) aligned at same column:\n%q\n%q",
+			colGroup,
+			colTask,
+			doingGroupLine,
+			taskLine,
+		)
 	}
 }
 
@@ -222,17 +256,27 @@ func TestConfigurableDoingLimitDisplayAndPreferencesSubmit(t *testing.T) {
 		DoingLimit int `json:"doingLimit,omitempty"`
 	}{DoingLimit: 8}
 	if m.doingLimit() != 8 {
-		t.Fatalf("expected doingLimit 8 from org.Preferences, got %d", m.doingLimit())
+		t.Fatalf(
+			"expected doingLimit 8 from org.Preferences, got %d",
+			m.doingLimit(),
+		)
 	}
 
 	m.stateSummary = &StateSummary{Limit: 3}
 	if m.doingLimit() != 3 {
-		t.Fatalf("expected doingLimit 3 from stateSummary override, got %d", m.doingLimit())
+		t.Fatalf(
+			"expected doingLimit 3 from stateSummary override, got %d",
+			m.doingLimit(),
+		)
 	}
 
 	m.action("now.limit")
 	if m.mode != "form" || m.formKind != "now.limit" {
-		t.Fatalf("expected now.limit form, got mode=%s kind=%s", m.mode, m.formKind)
+		t.Fatalf(
+			"expected now.limit form, got mode=%s kind=%s",
+			m.mode,
+			m.formKind,
+		)
 	}
 	m.fields[0].set("25")
 	if _, err := m.submit(); err == nil {
@@ -245,7 +289,8 @@ func TestConfigurableDoingLimitDisplayAndPreferencesSubmit(t *testing.T) {
 	}
 	cmd()
 	p := readPayload(t, log)
-	if p["route"] != "/api/preferences" || p["data"].(map[string]any)["doingLimit"] != float64(9) {
+	if p["route"] != "/api/preferences" ||
+		p["data"].(map[string]any)["doingLimit"] != float64(9) {
 		t.Fatalf("unexpected preferences payload: %+v", p)
 	}
 }

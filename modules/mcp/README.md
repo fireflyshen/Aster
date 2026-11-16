@@ -159,8 +159,11 @@ Aster 中的**习惯**直接作为普通待办（Todo）的扩展字段存在（
 
 **关键安全规则**：
 
-- **独立展示边界**：习惯仅在专属的 **「习惯」菜单** 与 **`habit_*` 工具** 中查看与打卡，不混入「现在能做 / 今天 / 收件箱 / 预览」视图与任务状态机（`project_digest` 仅汇总普通待办）。
-- **严禁误用 `task_complete` / `task_delete` 处理日常打卡**：无论是习惯本体还是其训练动作子任务，日常完成/打卡必须调用
+- **独立展示边界**：习惯仅在专属的 **「习惯」菜单** 与 **`habit_*` 工具**
+  中查看与打卡，不混入「现在能做 / 今天 / 收件箱 / 预览」视图与任务状态机（`project_digest`
+  仅汇总普通待办）。
+- **严禁误用 `task_complete` / `task_delete`
+  处理日常打卡**：无论是习惯本体还是其训练动作子任务，日常完成/打卡必须调用
   `habit_toggle` 或 `habit_checklist_item`，**绝不可调用
   `task_complete`（会把习惯或动作从待办视图永久完成隐藏）或
   `task_delete`（会联动清除习惯配置）**。
@@ -206,13 +209,18 @@ Aster 中的**习惯**直接作为普通待办（Todo）的扩展字段存在（
 
 ### 6. 任务状态机规范
 
-- 状态只用 `task_state_set` 改（支持 `planned` / `doing` 上限 5 条 / `waiting` / `parked`），不用标签，不写评论，也不得传入 `task_edit` / `task_patch`。
-- 新任务默认是计划中（`planned`），带上 `scheduled` 表示已排期；用 `task_schedule` 改排期（清空回到 `planned`），用 `task_depends` 维护前置依赖。
-- 等待中（`waiting`）必须写原因（`waitReason`），可选核对日（`checkDate`）；`plan_apply` 批量排期同样传入 `scheduled` 而非旧版 `wait`。
+- 状态只用 `task_state_set` 改（支持 `planned` / `doing` 上限 5 条 / `waiting` /
+  `parked`），不用标签，不写评论，也不得传入 `task_edit` / `task_patch`。
+- 新任务默认是计划中（`planned`），带上 `scheduled` 表示已排期；用
+  `task_schedule` 改排期（清空回到 `planned`），用 `task_depends` 维护前置依赖。
+- 等待中（`waiting`）必须写原因（`waitReason`），可选核对日（`checkDate`）；`plan_apply`
+  批量排期同样传入 `scheduled` 而非旧版 `wait`。
 - 收到 `409 STATE_DOING_LIMIT` 时，先问用户或 Cadence 放回哪一条，再带
   `replaceUuid` 重试，绝不静默挤掉。
 - 习惯任务不参与状态机。
-- 每天先读 `state_summary` 与 `project_digest`（含 `counts.byState`、`nowList`），处理 `promotionBlocked`、`waitingDue`、`parkedReviewDue` 与异常项。
+- 每天先读 `state_summary` 与 `project_digest`（含
+  `counts.byState`、`nowList`），处理
+  `promotionBlocked`、`waitingDue`、`parkedReviewDue` 与异常项。
 ```
 
 ---
@@ -231,8 +239,8 @@ Aster MCP 提供三组高内聚工具：
 - `task_create` / `task_patch` / `task_edit`：创建与更新任务（优先推荐
   `task_patch` 保留未传字段）。
 - `task_state_set` / `task_schedule` /
-  `task_depends`：流转任务执行状态（`planned` / `doing` 上限可配，默认 5 条 / `waiting` /
-  `parked`）、修改计划中排期与设置前置依赖。
+  `task_depends`：流转任务执行状态（`planned` / `doing` 上限可配，默认 5 条 /
+  `waiting` / `parked`）、修改计划中排期与设置前置依赖。
 - `state_summary` / `state_history` /
   `state_limit_set`：查看各状态汇总与当前上限、阻塞列表（`promotionBlocked`、`waitingDue`、`parkedReviewDue`、`anomalies`）、状态变更审计历史，以及调整「处理中」数量上限（`1..20`）。
 - `task_complete` / `task_reopen`：标记任务完成或重新打开。

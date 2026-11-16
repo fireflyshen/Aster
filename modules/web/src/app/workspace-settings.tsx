@@ -241,7 +241,8 @@ export function WorkspaceSettings({
                   </legend>
                   <p className="text-xs text-muted-foreground">
                     控制同时留在「处理中」区域的任务上限（{MIN_DOING_LIMIT}–
-                    {MAX_DOING_LIMIT} 条，默认 {DOING_LIMIT} 条）；修改后自动保存在服务端并多端同步。
+                    {MAX_DOING_LIMIT} 条，默认 {DOING_LIMIT}{" "}
+                    条）；修改后自动保存在服务端并多端同步。
                   </p>
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     <div className="inline-flex items-center rounded-md border border-border bg-background">

@@ -59,7 +59,8 @@ func (m *model) openActions() {
 	switch r.kind {
 	case "task":
 		add("edit", "编辑任务", "名称、项目、日期、优先级、标签、重复、描述")
-		if r.task.Status != "completed" && !isHabitProject(r.task, m.viewIdx().projByName) {
+		if r.task.Status != "completed" &&
+			!isHabitProject(r.task, m.viewIdx().projByName) {
 			add("task.state", "切换执行状态 (t)", "处理中 / 计划中 / 排期 / 等待 / 搁置")
 			add("task.schedule", "设置排期日期", "指定未来可见日期，清空回到计划中")
 			add("task.depends", "前置依赖", "勾选必须先完成的前置任务")
@@ -118,7 +119,11 @@ func (m *model) openActions() {
 	m.openTimeActions(add)
 	add("task.new", "添加任务", "完整表单")
 	add("quick", "一句话捕捉", "中文日期 / #项目 / @标签 / p1")
-	add("now.limit", "设置「处理中」上限", fmt.Sprintf("当前 %d 条（可设 1–20，多端同步）", m.doingLimit()))
+	add(
+		"now.limit",
+		"设置「处理中」上限",
+		fmt.Sprintf("当前 %d 条（可设 1–20，多端同步）", m.doingLimit()),
+	)
 	add("focus.choose", "选择 Focus 项目", "最多三个，可选择替换")
 	add("project.new", "新建项目", "无须创建占位任务")
 	if m.taskView() {
@@ -170,7 +175,10 @@ func (m *model) action(a string) tea.Cmd {
 			payload[k] = v
 		}
 		payload["replaceUuid"] = replaceUUID
-		m.pendingWrite = &pendingMutation{route: m.pendingWrite.route, data: payload}
+		m.pendingWrite = &pendingMutation{
+			route: m.pendingWrite.route,
+			data:  payload,
+		}
 		m.busy = true
 		return m.write(m.pendingWrite.route, payload)
 	}
@@ -187,7 +195,11 @@ func (m *model) action(a string) tea.Cmd {
 				"转为等待外部",
 				r.title,
 				textField("等待原因", r.task.WaitReason, "必填：等待谁/等待什么外部结果"),
-				textField("跟进日期（可选）", shownDate(r.task.Wait), "YYYY-MM-DD 或 YYYY-MM-DD HH:MM；留空不设"),
+				textField(
+					"跟进日期（可选）",
+					shownDate(r.task.Wait),
+					"YYYY-MM-DD 或 YYYY-MM-DD HH:MM；留空不设",
+				),
 			)
 		case "scheduled":
 			return m.action("task.schedule")
@@ -197,7 +209,10 @@ func (m *model) action(a string) tea.Cmd {
 				"uuid":   r.id,
 				"state":  target,
 			}
-			m.pendingWrite = &pendingMutation{route: "/api/action", data: payload}
+			m.pendingWrite = &pendingMutation{
+				route: "/api/action",
+				data:  payload,
+			}
 			m.busy = true
 			return m.write("/api/action", payload)
 		}
@@ -398,7 +413,12 @@ func (m *model) action(a string) tea.Cmd {
 			m.message = "习惯项目任务不使用执行态状态机"
 			return nil
 		}
-		eff := effectiveTaskState(r.task, idx.dates[r.id], idx.projByName, time.Now())
+		eff := effectiveTaskState(
+			r.task,
+			idx.dates[r.id],
+			idx.projByName,
+			time.Now(),
+		)
 		targets := allowedStateTargets(eff)
 		opts := make([]choice, 0, len(targets))
 		for _, target := range targets {
@@ -424,7 +444,11 @@ func (m *model) action(a string) tea.Cmd {
 			a,
 			"设置排期日期",
 			r.title,
-			textField("排期日期", shownDate(r.task.Scheduled), "YYYY-MM-DD 或 YYYY-MM-DD HH:MM；留空清除排期回到计划中"),
+			textField(
+				"排期日期",
+				shownDate(r.task.Scheduled),
+				"YYYY-MM-DD 或 YYYY-MM-DD HH:MM；留空清除排期回到计划中",
+			),
 		)
 	case "task.depends":
 		if r.kind != "task" {
@@ -434,7 +458,8 @@ func (m *model) action(a string) tea.Cmd {
 		existing := dependsUUIDs(r.task)
 		var opts []choice
 		for _, ot := range m.tasks {
-			if ot.UUID == r.id || (ot.Status != "pending" && ot.Status != "waiting") {
+			if ot.UUID == r.id ||
+				(ot.Status != "pending" && ot.Status != "waiting") {
 				continue
 			}
 			opts = append(opts, choice{
@@ -447,7 +472,11 @@ func (m *model) action(a string) tea.Cmd {
 			m.message = "暂无可选的前置未完成任务"
 			return nil
 		}
-		depsField := selectField("前置依赖（Enter 多选，Ctrl+S 保存）", strings.Join(existing, ", "), opts)
+		depsField := selectField(
+			"前置依赖（Enter 多选，Ctrl+S 保存）",
+			strings.Join(existing, ", "),
+			opts,
+		)
 		depsField.multi = true
 		return m.openForm(a, "设置前置依赖", r.title, depsField)
 	case "task.toggle", "task.timer", "task.clear_start":
@@ -457,7 +486,12 @@ func (m *model) action(a string) tea.Cmd {
 		}
 		if a == "task.toggle" && r.task.Status != "completed" {
 			idx := m.viewIdx()
-			eff := effectiveTaskState(r.task, idx.dates[r.id], idx.projByName, time.Now())
+			eff := effectiveTaskState(
+				r.task,
+				idx.dates[r.id],
+				idx.projByName,
+				time.Now(),
+			)
 			if eff == "waiting" || eff == "parked" {
 				m.message = "等待或搁置中的任务需先切回「计划中」或「处理中」才能完成"
 				return nil

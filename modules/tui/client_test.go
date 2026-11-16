@@ -737,7 +737,13 @@ func TestNowViewSortingAndStateBadges(t *testing.T) {
 	m := sampleModel()
 	m.view = "now"
 	m.tasks = []Task{
-		{UUID: "low", Description: "低分任务", Status: "pending", State: "doing", Urgency: 2.3},
+		{
+			UUID:        "low",
+			Description: "低分任务",
+			Status:      "pending",
+			State:       "doing",
+			Urgency:     2.3,
+		},
 		{
 			UUID:        "wait",
 			Description: "等待外部反馈",
@@ -768,23 +774,52 @@ func TestNowViewSortingAndStateBadges(t *testing.T) {
 
 	idx := m.viewIdx()
 	rows := idx.rows(m, time.Now())
-	if len(rows) < 6 || rows[0].id != "now:doing" || rows[1].id != "high" || rows[2].id != "low" {
-		t.Fatalf("unexpected now view rows order (expected now:doing -> [high, low]): %+v", rows)
+	if len(rows) < 6 || rows[0].id != "now:doing" || rows[1].id != "high" ||
+		rows[2].id != "low" {
+		t.Fatalf(
+			"unexpected now view rows order (expected now:doing -> [high, low]): %+v",
+			rows,
+		)
 	}
 	if !idx.blockedUUIDs["blocked"] {
 		t.Fatalf("expected blocked task to be detected in idx.blockedUUIDs")
 	}
 
 	f := renderFrame{now: time.Now(), idx: idx}
-	spHigh := csi.ReplaceAllString(renderSpans(m.taskMetaSpans(f, row{kind: "task", task: m.tasks[2]}, false), 60, 60, false), "")
-	if !strings.Contains(spHigh, "[处理中]") || !strings.Contains(spHigh, "12.4分") {
+	spHigh := csi.ReplaceAllString(
+		renderSpans(
+			m.taskMetaSpans(f, row{kind: "task", task: m.tasks[2]}, false),
+			60,
+			60,
+			false,
+		),
+		"",
+	)
+	if !strings.Contains(spHigh, "[处理中]") ||
+		!strings.Contains(spHigh, "12.4分") {
 		t.Fatalf("expected [处理中] & 12.4分 in task metadata, got %q", spHigh)
 	}
-	spWait := csi.ReplaceAllString(renderSpans(m.taskMetaSpans(f, row{kind: "task", task: m.tasks[1]}, false), 80, 80, false), "")
+	spWait := csi.ReplaceAllString(
+		renderSpans(
+			m.taskMetaSpans(f, row{kind: "task", task: m.tasks[1]}, false),
+			80,
+			80,
+			false,
+		),
+		"",
+	)
 	if !strings.Contains(spWait, "[等待:等对方发资料]") {
 		t.Fatalf("expected wait reason badge in metadata, got %q", spWait)
 	}
-	spBlocked := csi.ReplaceAllString(renderSpans(m.taskMetaSpans(f, row{kind: "task", task: m.tasks[3]}, false), 80, 80, false), "")
+	spBlocked := csi.ReplaceAllString(
+		renderSpans(
+			m.taskMetaSpans(f, row{kind: "task", task: m.tasks[3]}, false),
+			80,
+			80,
+			false,
+		),
+		"",
+	)
 	if !strings.Contains(spBlocked, "[阻塞]") {
 		t.Fatalf("expected [阻塞] in blocked task metadata, got %q", spBlocked)
 	}

@@ -20,7 +20,8 @@ A standard deployment places release artifacts and persistent state under
 - `/opt/aster/data/` -> persistent workspace & ledger files:
   - `organization.json`: filters, colors, favorites, project descriptions, Focus
     state, and board columns
-  - `state-history.jsonl`: append-only task state machine audit log (`STATE_LOG_FILE`)
+  - `state-history.jsonl`: append-only task state machine audit log
+    (`STATE_LOG_FILE`)
   - `habits.sqlite`: Habits configuration and daily tracking log
   - `recovery.json`: raw pre-delete task snapshots and journal
   - `time.sqlite` (+ `.barrier.json`): Time Ledger SQLite WAL database (when
@@ -34,7 +35,8 @@ A standard deployment places release artifacts and persistent state under
 Example templates in `deploy/`:
 
 - [`deploy/aster.env.example`](aster.env.example): runtime environment template
-- [`deploy/taskrc.state.example`](taskrc.state.example): recommended Taskwarrior 3 UDA & `report.now` config
+- [`deploy/taskrc.state.example`](taskrc.state.example): recommended Taskwarrior
+  3 UDA & `report.now` config
 - [`deploy/aster.service`](aster.service): hardened `systemd` unit file
 - [`deploy/Caddyfile.fragment`](Caddyfile.fragment): minimal Caddy reverse-proxy
   config

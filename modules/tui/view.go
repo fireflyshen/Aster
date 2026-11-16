@@ -196,7 +196,13 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 			[]styledSpan{span("↳ "+clip(clean(r.parentTitle), 18), dim)},
 		)
 	}
-	if eff := effectiveTaskState(t, td, f.idx.projByName, f.now); eff != "" && eff != "planned" {
+	if eff := effectiveTaskState(
+		t,
+		td,
+		f.idx.projByName,
+		f.now,
+	); eff != "" &&
+		eff != "planned" {
 		var stLbl string
 		stCol := muted
 		stBold := false
@@ -237,7 +243,12 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 	if f.idx.blockedUUIDs[t.UUID] {
 		groups = append(
 			groups,
-			[]styledSpan{span("[阻塞]", lipgloss.NewStyle().Foreground(dangerColor).Bold(true))},
+			[]styledSpan{
+				span(
+					"[阻塞]",
+					lipgloss.NewStyle().Foreground(dangerColor).Bold(true),
+				),
+			},
 		)
 	}
 	showProject := t.Project != ""
@@ -927,7 +938,12 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			}
 		}
 		kv("状态", statusLbl, statusCol)
-		if eff := effectiveTaskState(t, td, f.idx.projByName, f.now); eff != "" {
+		if eff := effectiveTaskState(
+			t,
+			td,
+			f.idx.projByName,
+			f.now,
+		); eff != "" {
 			effCol := inkSoft
 			switch eff {
 			case "doing":
