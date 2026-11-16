@@ -1,3 +1,4 @@
+import { DateField } from "@/components/ui/date-field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -666,10 +667,10 @@ export function HabitFormDialog({
                   className="h-8 w-20 text-xs tabular-nums"
                 />
                 <span>天执行一次，起始日</span>
-                <Input
-                  type="date"
+                <DateField
+                  aria-label="习惯起始日期"
                   value={anchorDate}
-                  onChange={(e) => setAnchorDate(e.target.value)}
+                  onChange={setAnchorDate}
                   className="h-8 w-36 text-xs"
                 />
               </div>

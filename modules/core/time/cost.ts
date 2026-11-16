@@ -34,6 +34,22 @@ export function normalizeHourlyRateCents(
   return Math.round(value);
 }
 
+/** Legacy sleep records still belong to the sleep project in reports. */
+export function resolveActivityProject(
+  activity: Pick<Activity, "projectSnapshot" | "categoryId">,
+  policy: TimePolicy,
+): string | undefined {
+  return (
+    activity.projectSnapshot?.trim() ||
+    (activity.categoryId === "sleep" ||
+    policy.categories.some(
+      (category) => category.id === activity.categoryId && category.isSleep,
+    )
+      ? "睡眠"
+      : undefined)
+  );
+}
+
 /** Sleep has duration, but never incurs time cost, even with legacy rate data. */
 export function resolveActivityHourlyRateCents(
   activity: Pick<Activity, "categoryId" | "hourlyRateCents">,
@@ -551,8 +567,8 @@ export function computeCostReport(options: {
       provisionalSeconds,
       provisionalCostCents,
       hourlyRateCents: rate,
-      ...(activity.projectSnapshot
-        ? { projectSnapshot: activity.projectSnapshot }
+      ...(resolveActivityProject(activity, options.policy)
+        ? { projectSnapshot: resolveActivityProject(activity, options.policy) }
         : {}),
       ...(tags.length > 0 ? { tags } : {}),
       ...(activity.taskUuid ? { taskUuid: activity.taskUuid } : {}),
@@ -563,7 +579,8 @@ export function computeCostReport(options: {
     const taskKey = activity.taskUuid?.toLowerCase();
     const taskMeta = taskKey ? options.taskMetaByUuid?.get(taskKey) : undefined;
     const projectName =
-      activity.projectSnapshot?.trim() || taskMeta?.project?.trim();
+      resolveActivityProject(activity, options.policy) ||
+      taskMeta?.project?.trim();
     const projectRow = ensureProject(projectName);
     projectRow.periodSeconds += confirmedSeconds;
     projectRow.periodCostCents += confirmedCostCents;

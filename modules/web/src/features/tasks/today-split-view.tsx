@@ -11,8 +11,6 @@ import {
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
-import { format } from "date-fns";
-import { zhCN } from "date-fns/locale";
 import {
   TodayHabitsSection,
   type TodayHabitsActions,
@@ -122,18 +120,7 @@ export function TodaySplitView({
   const hasTodayHabits = Boolean(todayHabits?.todayData?.items.length);
 
   return (
-    <div className="space-y-6">
-      {todayHabits && hasTodayHabits && (
-        <TodayHabitsSection
-          todayData={todayHabits.todayData}
-          todayHabitTasks={todayHabits.todayHabitTasks}
-          renderTask={renderTask}
-          availableLabels={availableLabels}
-          actions={todayHabits.actions}
-          disabled={disabled}
-        />
-      )}
-
+    <div className="today-sections">
       {overdueEntries.length > 0 && (
         <section
           data-board-column={UNSECTIONED}
@@ -177,10 +164,7 @@ export function TodaySplitView({
       >
         {(overdueEntries.length > 0 || hasTodayHabits) && (
           <div className="mb-1 flex h-10 items-center gap-2 border-b border-border/80">
-            <h2 className="text-sm font-semibold">
-              {format(new Date(), "M月d日")} · 今天 ·{" "}
-              {format(new Date(), "EEEE", { locale: zhCN })}
-            </h2>
+            <h2 className="text-sm font-semibold">今日任务</h2>
             <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
               {todayEntries.length}
             </span>
@@ -189,7 +173,7 @@ export function TodaySplitView({
         <div>
           {todayEntries.length === 0
             ? !hasSearch && (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
+                <div className="today-empty">
                   <CheckCircle2
                     className="mb-3 size-7 text-muted-foreground/55"
                     strokeWidth={1.4}
@@ -203,7 +187,7 @@ export function TodaySplitView({
                     {overdueEntries.length
                       ? `上方还有 ${overdueEntries.length} 项逾期任务，可以重新安排。`
                       : hasTodayHabits
-                        ? "习惯仍可在上方继续记录。"
+                        ? "下方的习惯可以继续记录。"
                         : "留点时间给自己，或添加新的安排。"}
                   </p>
                 </div>
@@ -230,6 +214,16 @@ export function TodaySplitView({
           )}
         </div>
       </section>
+      {todayHabits && hasTodayHabits && (
+        <TodayHabitsSection
+          todayData={todayHabits.todayData}
+          todayHabitTasks={todayHabits.todayHabitTasks}
+          renderTask={renderTask}
+          availableLabels={availableLabels}
+          actions={todayHabits.actions}
+          disabled={disabled}
+        />
+      )}
     </div>
   );
 }

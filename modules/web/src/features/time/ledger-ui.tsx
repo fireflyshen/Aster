@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 
 export function LedgerPeriodPicker({
   date,
@@ -25,14 +25,7 @@ export function LedgerPeriodPicker({
   return (
     <div className="ledger-period-bar">
       <div className="ledger-period-date">
-        <Input
-          type="date"
-          aria-label={label}
-          value={date}
-          onChange={(event) => {
-            if (event.target.value) onDate(event.target.value);
-          }}
-        />
+        <DateField aria-label={label} value={date} onChange={onDate} />
         <div className="ledger-date-stepper">
           <Button
             variant="ghost"

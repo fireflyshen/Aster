@@ -450,8 +450,8 @@ export function SidebarEnergyMeter({
                   : energy.remaining === 0 && hardEnergyLimit
                     ? "bg-destructive"
                     : energy.remaining <= 25
-                      ? "bg-foreground/50"
-                      : "bg-foreground/80",
+                      ? "bg-primary/55"
+                      : "bg-primary",
               )}
               style={{
                 width:

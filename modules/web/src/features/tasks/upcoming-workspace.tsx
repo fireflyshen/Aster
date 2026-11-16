@@ -1,18 +1,18 @@
+import { upcomingWeek } from "./upcoming-model";
 import { useState } from "react";
 import type { TaskRenderFn } from "@/app/hooks/use-task-renderer";
 import type { Task, TaskInput } from "@shared/tasks";
-import { taskDate } from "@core/tasks/quick-task";
 import { addLocalDays } from "@core/time/zone";
-import { Plus } from "lucide-react";
+import { Plus, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { zhCN } from "date-fns/locale";
 import { toDueDay } from "./task-date";
-import { LedgerPeriodPicker } from "@/features/time/ledger-ui";
-
-export function upcomingWeek(date: string) {
-  const day = new Date(`${date}T12:00:00`);
-  const mondayOffset = (day.getDay() + 6) % 7;
-  const monday = addLocalDays(date, -mondayOffset);
-  return Array.from({ length: 7 }, (_, index) => addLocalDays(monday, index));
-}
 
 export function UpcomingWorkspace({
   tasks,
@@ -31,11 +31,16 @@ export function UpcomingWorkspace({
   loading: boolean;
   taskLinks?: Record<string, string>;
 }) {
-  const today = taskDate(new Date()).slice(0, 10);
+  const today = toDueDay(new Date().toISOString());
   const [selectedDate, setSelectedDate] = useState(today);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
   const days = upcomingWeek(selectedDate);
   const byId = new Map(tasks.map((task) => [task.uuid, task]));
-  const groups = days.map((day) => ({
+  const visibleDays =
+    layout === "board"
+      ? days
+      : Array.from({ length: 28 }, (_, index) => addLocalDays(days[0], index));
+  const groups = visibleDays.map((day) => ({
     day,
     tasks: tasks.filter((task) => {
       if (!task.due || toDueDay(task.due) !== day) return false;
@@ -49,14 +54,62 @@ export function UpcomingWorkspace({
   };
   return (
     <div className="upcoming-workspace" data-upcoming-layout={layout}>
-      <LedgerPeriodPicker
-        date={selectedDate}
-        label="选择预览日期"
-        onDate={setSelectedDate}
-        onPrevious={() => setSelectedDate(addLocalDays(selectedDate, -7))}
-        onNext={() => setSelectedDate(addLocalDays(selectedDate, 7))}
-        onToday={() => setSelectedDate(today)}
-      />
+      <div className="upcoming-period">
+        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              className="upcoming-month"
+              aria-label="选择预览日期"
+            >
+              {new Intl.DateTimeFormat("zh-CN", {
+                year: "numeric",
+                month: "long",
+              }).format(new Date(selectedDate + "T12:00:00"))}
+              <ChevronDown className="size-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-auto p-0">
+            <Calendar
+              mode="single"
+              locale={zhCN}
+              selected={new Date(selectedDate + "T12:00:00")}
+              defaultMonth={new Date(selectedDate + "T12:00:00")}
+              onSelect={(date) => {
+                if (date) {
+                  setSelectedDate(toDueDay(date.toISOString()));
+                  setDatePickerOpen(false);
+                }
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+        <div className="ledger-date-stepper">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="上一周"
+            onClick={() => setSelectedDate(addLocalDays(selectedDate, -7))}
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedDate(today)}
+          >
+            今天
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="下一周"
+            onClick={() => setSelectedDate(addLocalDays(selectedDate, 7))}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      </div>
       <nav className="upcoming-week-nav" aria-label="一周日期">
         {days.map((day) => (
           <button

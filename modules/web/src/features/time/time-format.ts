@@ -232,3 +232,14 @@ export function formatTimeErrorMessage(
   }
   return String(error);
 }
+
+/** Compact ledger labels use one language and avoid fractional hours. */
+export function formatLedgerDuration(seconds: number): string {
+  const value = Math.max(0, Math.floor(seconds));
+  if (value < 60) return `${value}秒`;
+  const minutes = Math.floor(value / 60);
+  const hours = Math.floor(minutes / 60);
+  return hours
+    ? `${hours}时${minutes % 60 ? `${minutes % 60}分` : ""}`
+    : `${minutes}分`;
+}

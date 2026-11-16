@@ -2672,6 +2672,7 @@ export async function createTimeStore(
         version: 1,
         kind: "located",
         title: "睡眠",
+        projectSnapshot: "睡眠",
         categoryId: sleepCategory,
         ruleVersion: policy.policyVersion,
         ruleSource: "explicit",

@@ -397,3 +397,106 @@ test("server cost model captures rate snapshots, isolates provisional auto-stops
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("time records require a project, allow empty tags, and place sleep in its own project", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "aster-required-project-"));
+  const store = await createTimeStore(join(dir, "time.sqlite"), {
+    enabled: true,
+    now: () => at("18:00"),
+  });
+  try {
+    const handlers = createTimeHandlers({
+      identity: "project-test",
+      gate: {
+        exclusive: (fn: () => unknown) => fn(),
+        shared: (fn: () => unknown) => fn(),
+      } as never,
+      service: makeFakeTaskService([]),
+      store,
+      isEnabled: () => true,
+      paths: {
+        dataDir: dir,
+        organizationFile: join(dir, "organization.json"),
+        recoveryFile: join(dir, "recovery.json"),
+        timeFile: join(dir, "time.sqlite"),
+      },
+    });
+    const routes = new Map(
+      handlers.map((route) => [`${route.method}:${route.route}`, route]),
+    );
+    const rejectsProject = (path: string, body: unknown) =>
+      assert.rejects(
+        () => callRoute(routes, "POST", `/api/time/${path}`, body),
+        (error: unknown) =>
+          (error as { code?: string }).code === "PROJECT_REQUIRED",
+      );
+    await rejectsProject("start", {
+      idempotencyKey: "missing-start",
+      title: "Read",
+    });
+    await rejectsProject("log", {
+      idempotencyKey: "missing-log",
+      title: "Read",
+      projectSnapshot: "   ",
+      startMs: at("09:00"),
+      endMs: at("10:00"),
+      tags: ["reading"],
+    });
+    await rejectsProject("estimate", {
+      idempotencyKey: "missing-estimate",
+      title: "Walk",
+      estimatedSeconds: 600,
+    });
+    await rejectsProject("plans/create", {
+      title: "Focus",
+      allowanceMinutes: 30,
+    });
+    assert.equal(store.getStatus().activeActivity, null);
+    assert.equal(store.queryActivities({}).length, 0);
+    const logged = await callRoute(routes, "POST", "/api/time/log", {
+      idempotencyKey: "project-no-tags",
+      title: "Read",
+      projectSnapshot: " Study ",
+      startMs: at("09:00"),
+      endMs: at("10:00"),
+    });
+    const activity = logged.body.activity as {
+      id: string;
+      version: number;
+      projectSnapshot: string;
+      tags?: string[];
+    };
+    assert.equal(activity.projectSnapshot, "Study");
+    assert.equal(activity.tags?.length || 0, 0);
+    await rejectsProject("update", {
+      idempotencyKey: "remove-project",
+      activityId: activity.id,
+      expectedVersion: activity.version,
+      patch: { projectSnapshot: null },
+    });
+    assert.equal(store.getActivity(activity.id)?.projectSnapshot, "Study");
+    const sleep = await callRoute(routes, "POST", "/api/time/log", {
+      idempotencyKey: "sleep-project",
+      title: "Nap",
+      explicitCategoryId: "sleep",
+      startMs: at("13:00"),
+      endMs: at("14:00"),
+    });
+    assert.equal(
+      (sleep.body.activity as { projectSnapshot?: string }).projectSnapshot,
+      "睡眠",
+    );
+    assert.equal(
+      (sleep.body.activity as { hourlyRateCents?: number }).hourlyRateCents,
+      0,
+    );
+    const candidate = store.confirmSleepCandidate({
+      idempotencyKey: "sleep-candidate-project",
+      date: "2026-11-14",
+    });
+    assert.equal(candidate.activity?.projectSnapshot, "睡眠");
+  } finally {
+    store.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});

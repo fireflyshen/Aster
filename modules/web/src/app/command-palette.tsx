@@ -67,6 +67,7 @@ export function CommandPalette({
   onEntry,
   onOrganization,
   onHabits,
+  onTime,
   onAddHabit,
   onRecovery,
   onEditTask,
@@ -92,6 +93,7 @@ export function CommandPalette({
   }) => void;
   onOrganization: () => void;
   onHabits: () => void;
+  onTime: () => void;
   onAddHabit: () => void;
   onRecovery: () => void;
   onEditTask: (task: Task) => void;
@@ -213,6 +215,13 @@ export function CommandPalette({
         <CommandSeparator className="my-1" />
 
         <CommandGroup heading="视图">
+          <CommandItem
+            value="Time ledger 时间账本 时间线 本周分布 成本报告"
+            onSelect={() => run(onTime)}
+          >
+            <CalendarDays className="size-4" />
+            <span>时间账本</span>
+          </CommandItem>
           {(Object.entries(views) as [View, string][]).map(([value, label]) => {
             const Icon = viewIcons[value];
             return (

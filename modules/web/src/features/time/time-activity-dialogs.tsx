@@ -1,3 +1,4 @@
+import { DateField } from "@/components/ui/date-field";
 import type { Activity, LocatedSegment, TimePolicy } from "@core/time/model";
 import { zonedDateTimeToUtcMs } from "@core/time/zone";
 import type { Task } from "@shared/tasks";
@@ -181,7 +182,11 @@ export function TimeLogOrEstimateDialog({
     }
     const explicitCategoryId = isSleep ? "sleep" : "work";
     const resolvedProject =
-      project.trim() || selectedTask?.project || undefined;
+      project.trim() || selectedTask?.project || (isSleep ? "睡眠" : undefined);
+    if (!resolvedProject) {
+      setLocalError("请选择时间记录所属的项目。");
+      return;
+    }
     const resolvedTags =
       tags.length > 0
         ? tags
@@ -356,11 +361,11 @@ export function TimeLogOrEstimateDialog({
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1.5">
               <Label htmlFor="time-log-date">日期</Label>
-              <Input
+              <DateField
                 id="time-log-date"
-                type="date"
+
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={setDate}
               />
             </div>
             {mode === "log" ? (
@@ -568,11 +573,11 @@ export function LocateEstimateDialog({
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="loc-date">日期</Label>
-            <Input
+            <DateField
               id="loc-date"
-              type="date"
+
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={setDate}
             />
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -693,6 +698,10 @@ export function EditSegmentDialog({
       setLocalError("活动标题不能为空。");
       return;
     }
+    if (!project.trim() && !isSleep) {
+      setLocalError("请选择时间记录所属的项目。");
+      return;
+    }
     const nextCategoryId = isSleep
       ? "sleep"
       : segment.categoryId === "sleep"
@@ -711,7 +720,7 @@ export function EditSegmentDialog({
     } = {
       title: title.trim(),
       categoryId: nextCategoryId,
-      projectSnapshot: project.trim() || null,
+      projectSnapshot: project.trim() || (isSleep ? "睡眠" : null),
       tags,
       precision: approximate ? "estimated_bounds" : "exact",
       ...(clearTaskLink ? { clearTaskLink: true } : {}),

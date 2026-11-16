@@ -1,0 +1,111 @@
+/* One calendar surface for task deadlines, planning, habits and ledger dates. */
+[data-slot="calendar"] {
+  --cell-size: 34px;
+  width: 278px;
+  padding: 16px;
+  background: transparent;
+}
+[data-slot="calendar"] .rdp-months {
+  gap: 20px;
+}
+[data-slot="calendar"] .rdp-month {
+  gap: 14px;
+}
+[data-slot="calendar"] .rdp-month_caption {
+  height: 32px;
+  justify-content: flex-start;
+  padding: 0 76px 0 2px;
+}
+[data-slot="calendar"] .rdp-caption_label {
+  font-size: 14px;
+  font-weight: 600;
+}
+[data-slot="calendar"] .rdp-nav {
+  left: auto;
+  right: 0;
+  width: auto;
+  gap: 4px;
+}
+[data-slot="calendar"] .rdp-button_previous,
+[data-slot="calendar"] .rdp-button_next {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+  border-radius: 6px;
+  padding: 0;
+}
+[data-slot="calendar"] .rdp-weekdays {
+  height: 28px;
+  align-items: center;
+}
+[data-slot="calendar"] .rdp-weekday {
+  width: 34px;
+  font-size: 11px;
+  text-align: center;
+}
+[data-slot="calendar"] .rdp-week {
+  margin-top: 2px;
+}
+[data-slot="calendar"] td.rdp-day {
+  width: 34px;
+  height: 34px;
+  flex: 1 0 0;
+  border-radius: 6px;
+  background: transparent;
+}
+[data-slot="calendar"] .rdp-day > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  min-width: 32px;
+  margin: 1px;
+  padding: 0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: none;
+}
+[data-slot="calendar"] .rdp-today > button:not([data-selected-single="true"]) {
+  color: var(--primary);
+  font-weight: 650;
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+[data-slot="calendar"] .rdp-outside > button {
+  opacity: 0.35;
+}
+[data-slot="calendar"] .rdp-day > button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.calendar-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+}
+.date-field {
+  font-size: 13px;
+  height: 36px;
+  box-shadow: none;
+}
+@media (pointer: coarse) and (min-width: 360px) {
+  [data-slot="calendar"] {
+    --cell-size: 38px;
+    width: 306px;
+    padding: 16px;
+  }
+  [data-slot="calendar"] td.rdp-day {
+    width: 38px;
+    height: 38px;
+  }
+  [data-slot="calendar"] .rdp-day > button {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    min-width: 36px;
+  }
+}

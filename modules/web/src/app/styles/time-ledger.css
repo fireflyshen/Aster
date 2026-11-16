@@ -31,7 +31,7 @@
   gap: 12px;
   min-width: 0;
 }
-.ledger-period-date > input {
+.ledger-period-date > .date-field {
   width: 146px;
   height: 36px;
   background: transparent;
@@ -373,7 +373,7 @@
   .ledger-period-date {
     gap: 8px;
   }
-  .ledger-period-date > input {
+  .ledger-period-date > .date-field {
     width: 138px;
   }
   .ledger-week-bars {
@@ -395,5 +395,77 @@
   }
   .ledger-settings-group > div:first-child > span {
     display: none;
+  }
+}
+
+/* Amount, duration and edit action never shift between timeline rows. */
+.ledger-timeline-right {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px 16px;
+}
+.ledger-timeline-actions {
+  display: flex;
+  gap: 4px;
+}
+.ledger-timeline-values {
+  display: grid;
+  grid-template-columns: 82px 68px 24px;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ledger-timeline-cost {
+  color: var(--foreground);
+  font-weight: 500;
+  text-align: right;
+}
+.ledger-timeline-cost[data-zero="true"] {
+  color: var(--muted-foreground);
+  font-weight: 400;
+}
+.ledger-timeline-duration {
+  color: var(--muted-foreground);
+  text-align: right;
+}
+@media (max-width: 639px) {
+  .ledger-timeline-right {
+    width: 100%;
+    padding-left: 20px;
+    justify-content: space-between;
+  }
+  .ledger-timeline-values {
+    margin-left: auto;
+  }
+}
+@media (max-width: 399px) {
+  .ledger-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ledger-summary > div:first-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 639px) {
+  .ledger-timeline-values {
+    grid-template-columns: 82px 68px 44px;
+  }
+}
+@media (max-width: 639px) {
+  .ledger-period-date {
+    display: grid;
+    grid-template-columns: minmax(110px, 1fr) auto;
+    width: 100%;
+  }
+  .ledger-period-date > .date-field {
+    width: 100%;
+  }
+  .ledger-period-actions {
+    margin-left: auto;
   }
 }

@@ -1,3 +1,4 @@
+import { requireActivityProject } from "./time-project.ts";
 import { randomUUID } from "node:crypto";
 import type { TaskService } from "../../../core/tasks/service.ts";
 import type { RawTask } from "../../../core/tasks/raw.ts";
@@ -133,6 +134,7 @@ export function createTimeCoordinator(deps: {
         );
       }
 
+      requireActivityProject(raw.project);
       const currentStatus = store.getStatus();
       const inputHash = hashNormalizedInput("task_start", {
         uuid: normalizedUuid,

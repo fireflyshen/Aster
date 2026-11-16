@@ -130,7 +130,7 @@ test("historical segments keep captured hourlyRateCents while provisional segmen
   assert.equal(daily.confirmedCostCents, 10_000);
   assert.equal(daily.provisionalCostCents, 20_000);
   assert.equal(daily.byProjectCostCents["Work.Aster"], 10_000);
-  assert.equal(daily.byProjectCostCents[UNASSIGNED_PROJECT_KEY], 0);
+  assert.equal(daily.byProjectCostCents["睡眠"], 0);
   assert.equal(daily.byTagCostCents.dev, 10_000);
   assert.equal(daily.byTagCostCents.core, 10_000);
   assert.equal(daily.byTagCostCents[UNTAGGED_KEY], 0);
@@ -476,4 +476,38 @@ test("legacy sleep rates are zero in cost reports and task summaries including c
   });
   assert.equal(report.totalPeriodConfirmedCostCents, 0);
   assert.equal(report.totalPeriodConfirmedSeconds, 8 * 3600);
+});
+
+test("legacy sleep without a project is consistently grouped under sleep without rewriting history", () => {
+  const policy = makePolicy();
+  const activity = makeActivity({
+    id: "legacy-sleep",
+    title: "Sleep",
+    categoryId: "sleep",
+    startMs: at("01:00"),
+    endMs: at("07:00"),
+    confirmedThroughMs: at("07:00"),
+  });
+  const daily = computeDailyLedger(
+    "2026-11-15",
+    [activity],
+    policy,
+    at("18:00"),
+  );
+  assert.equal(daily.byProjectSeconds["睡眠"], 6 * 3600);
+  assert.equal(daily.byProjectSeconds[UNASSIGNED_PROJECT_KEY], undefined);
+  assert.equal(daily.locatedSegments[0].projectSnapshot, "睡眠");
+  const report = computeCostReport({
+    granularity: "week",
+    anchorDate: "2026-11-15",
+    sortBy: "highest_cost",
+    activities: [activity],
+    budgetsByTaskUuid: new Map(),
+    policy,
+    nowMs: at("18:00"),
+  });
+  assert.equal(report.byProject[0].projectName, "睡眠");
+  assert.equal(report.byProject[0].periodSeconds, 6 * 3600);
+  assert.equal(report.totalPeriodConfirmedCostCents, 0);
+  assert.equal(activity.projectSnapshot, undefined);
 });

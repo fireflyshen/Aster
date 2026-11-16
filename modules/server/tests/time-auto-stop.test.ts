@@ -629,6 +629,7 @@ test("HTTP API handlers cover timing plans, start/pause, auto-stop events, and c
     }
 
     const createdRes = await call("POST", "api/time/plans/create", {
+      projectSnapshot: "Work",
       title: "Design review",
       allowanceMinutes: 30,
       plannedStartTime: "14:00",

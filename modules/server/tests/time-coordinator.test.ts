@@ -93,6 +93,7 @@ test("COORD-01..04: skip already-started, unknown outcome pending_reconcile, unr
       uuid: uuidA,
       id: 1,
       description: "Task A",
+      project: "Work",
       status: "pending",
       entry: "20261115T090000Z",
       start: "20261115T095000Z",
@@ -102,6 +103,7 @@ test("COORD-01..04: skip already-started, unknown outcome pending_reconcile, unr
       uuid: uuidB,
       id: 2,
       description: "Task B",
+      project: "Work",
       status: "pending",
       entry: "20261115T090000Z",
       modified: "20261115T090000Z",
@@ -110,6 +112,7 @@ test("COORD-01..04: skip already-started, unknown outcome pending_reconcile, unr
       uuid: uuidC,
       id: 3,
       description: "Task C",
+      project: "Work",
       status: "pending",
       entry: "20261115T090000Z",
       modified: "20261115T090000Z",
@@ -214,6 +217,36 @@ test("COORD-01..04: skip already-started, unknown outcome pending_reconcile, unr
     assert.equal(recon.leftPending, 1);
     assert.equal(harness.calls.length, 0);
   } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("starting a task without a project rejects before Taskwarrior or timer writes", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "aster-coord-project-"));
+  const store = await createTimeStore(join(dir, "time.sqlite"));
+  try {
+    const harness = makeMemoryTaskHarness();
+    const uuid = "11111111-1111-4111-8111-111111111111";
+    harness.tasks.set(uuid, {
+      uuid,
+      description: "Inbox task",
+      status: "pending",
+      entry: "20261115T090000Z",
+    });
+    const coordinator = createTimeCoordinator({
+      service: harness.service,
+      store,
+    });
+    await assert.rejects(
+      () => coordinator.startTask(uuid),
+      (error: unknown) =>
+        (error as { code?: string }).code === "PROJECT_REQUIRED",
+    );
+    assert.equal(store.getStatus().activeActivity, null);
+    assert.equal(harness.tasks.get(uuid)?.start, undefined);
+    assert.ok(!harness.calls.some((call) => call.startsWith("startTask:")));
+  } finally {
+    store.close();
     await rm(dir, { recursive: true, force: true });
   }
 });

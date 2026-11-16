@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "cn";
+import { zhCN } from "date-fns/locale";
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -31,6 +32,13 @@ function Calendar({
 
   return (
     <DayPicker
+      locale={zhCN}
+      weekStartsOn={1}
+      labels={{
+        labelPrevious: () => "上个月",
+        labelNext: () => "下个月",
+        labelNav: () => "月份导航",
+      }}
       showOutsideDays={showOutsideDays}
       className={cn(
         "group/calendar bg-background p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",

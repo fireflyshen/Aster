@@ -11,6 +11,7 @@ import {
   formatCurrencyCny,
   formatDurationChinese,
   formatDurationCompact,
+  formatLedgerDuration,
   formatEstimateWindow,
   projectDisplayName,
   tagDisplayName,
@@ -61,7 +62,7 @@ export function TimeWeeklyPage({
         items={[
           {
             label: "本周已记录",
-            value: formatDurationCompact(weekly.coveredSeconds),
+            value: formatLedgerDuration(weekly.coveredSeconds),
             hint: `${weekly.daily.filter((day) => day.coveredSeconds > 0).length} 天有活动记录`,
           },
           {
@@ -71,7 +72,7 @@ export function TimeWeeklyPage({
           },
           {
             label: "待核对",
-            value: formatDurationCompact(weekly.provisionalSeconds ?? 0),
+            value: formatLedgerDuration(weekly.provisionalSeconds ?? 0),
             hint: "未计入已确认成本",
             attention: (weekly.provisionalSeconds ?? 0) > 0,
           },
@@ -91,7 +92,7 @@ export function TimeWeeklyPage({
               onClick={() => onOpenDay(day.date)}
               data-today={day.date === todayStr || undefined}
             >
-              <strong>{formatDurationCompact(day.coveredSeconds)}</strong>
+              <strong>{formatLedgerDuration(day.coveredSeconds)}</strong>
               <span className="ledger-week-track">
                 <i
                   style={{

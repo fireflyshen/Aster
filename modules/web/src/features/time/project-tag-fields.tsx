@@ -85,9 +85,9 @@ export function ProjectTagFields({
 
   const projectOptions = useMemo(() => {
     if (!project || availableProjects.includes(project)) {
-      return availableProjects;
+      return [...new Set([...availableProjects, "睡眠"])];
     }
-    return [project, ...availableProjects];
+    return [...new Set([project, ...availableProjects, "睡眠"])];
   }, [availableProjects, project]);
 
   const tagOptions = useMemo(() => {
@@ -129,13 +129,16 @@ export function ProjectTagFields({
           >
             <SelectTrigger
               id={`${idPrefix}-project`}
-              aria-label="关联项目"
+              aria-label="项目（必填）"
+              aria-required="true"
               className="h-8 min-w-0 max-w-40 gap-1 border-0 bg-transparent dark:bg-transparent px-1.5 text-xs text-muted-foreground shadow-none"
             >
-              <SelectValue placeholder="无项目" />
+              <SelectValue placeholder="选择项目（必填）" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={UNASSIGNED_PROJECT_SELECT}>无项目</SelectItem>
+              <SelectItem value={UNASSIGNED_PROJECT_SELECT} disabled>
+                选择项目（必填）
+              </SelectItem>
               {projectOptions.map((item) => (
                 <SelectItem key={item} value={item}>
                   {item}
@@ -152,7 +155,7 @@ export function ProjectTagFields({
               className="time-meta-tag-trigger"
             >
               <Tag className="size-3.5" />
-              标签
+              标签（可选）
               {tags.length > 0 && (
                 <span className="tabular-nums">{tags.length}</span>
               )}
@@ -217,7 +220,14 @@ export function ProjectTagFields({
             <Checkbox
               aria-label="睡眠，不计成本"
               checked={Boolean(isSleep)}
-              onCheckedChange={(v) => onSleepChange(Boolean(v))}
+              onCheckedChange={(v) =>
+                (() => {
+                  const sleep = Boolean(v);
+                  if (sleep && !project.trim()) onProjectChange("睡眠");
+                  else if (!sleep && project === "睡眠") onProjectChange("");
+                  onSleepChange(sleep);
+                })()
+              }
               className="size-3.5 shrink-0"
             />
             <Moon className="size-3.5 shrink-0" />
@@ -249,7 +259,7 @@ export function ProjectTagFields({
     <div className="space-y-2.5">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor={`${idPrefix}-project`}>关联项目（Taskwarrior）</Label>
+          <Label htmlFor={`${idPrefix}-project`}>项目（必填）</Label>
           <Select
             value={project || UNASSIGNED_PROJECT_SELECT}
             onValueChange={(v) =>
@@ -257,10 +267,12 @@ export function ProjectTagFields({
             }
           >
             <SelectTrigger id={`${idPrefix}-project`}>
-              <SelectValue placeholder="无项目" />
+              <SelectValue placeholder="选择项目（必填）" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={UNASSIGNED_PROJECT_SELECT}>无项目</SelectItem>
+              <SelectItem value={UNASSIGNED_PROJECT_SELECT} disabled>
+                选择项目（必填）
+              </SelectItem>
               {projectOptions.map((item) => (
                 <SelectItem key={item} value={item}>
                   {item}
@@ -275,7 +287,14 @@ export function ProjectTagFields({
             <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
               <Checkbox
                 checked={Boolean(isSleep)}
-                onCheckedChange={(v) => onSleepChange(Boolean(v))}
+                onCheckedChange={(v) =>
+                  (() => {
+                    const sleep = Boolean(v);
+                    if (sleep && !project.trim()) onProjectChange("睡眠");
+                    else if (!sleep && project === "睡眠") onProjectChange("");
+                    onSleepChange(sleep);
+                  })()
+                }
               />
               <span>睡眠时段（单价 ¥0 且免 6h 提醒）</span>
             </label>

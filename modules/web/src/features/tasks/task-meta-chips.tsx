@@ -1,3 +1,4 @@
+import { createContext, useContext } from "react";
 import { DescriptionPopover } from "./description-popover";
 import type { TaskCostSummary } from "@core/time/model";
 import {
@@ -39,6 +40,10 @@ function TodoistCalendarGlyph() {
     </svg>
   );
 }
+
+export const TaskGroupLabelContext = createContext<string | undefined>(
+  undefined,
+);
 
 /** Renders the Todoist-aligned bottom metadata line for task rows and board cards. */
 export function TaskMetaChips({
@@ -94,6 +99,8 @@ export function TaskMetaChips({
   onHabitSwitchPlan?: HabitTaskActions["switchPlan"];
   onOpenHabitDetail?: (habitId: string) => void;
 }) {
+  const groupLabel = useContext(TaskGroupLabelContext);
+  const visibleTags = task.tags.filter((tag) => tag !== groupLabel);
   const dueDay = toDueDay(task.due);
   const tone = taskDateTone(dueDay);
   const tagColorMap = new Map(
@@ -270,24 +277,28 @@ export function TaskMetaChips({
         </span>
       )}
 
-      {costSummary && (
-        <button
-          type="button"
-          data-task-cost
-          onClick={onEdit}
-          disabled={disabled}
-          className={cn(
-            "inline-flex shrink-0 items-center gap-1 text-[12px] leading-none whitespace-nowrap tabular-nums hover:text-foreground",
-            costSummary.overInitialBudgetCents > 0
-              ? "text-(--due-tomorrow)"
-              : "text-muted-foreground",
-          )}
-          aria-label={`查看时间成本：${costLabel}，已投入${formatDurationChinese(costSummary.confirmedSeconds)}`}
-          title={`已投入 ${formatDurationChinese(costSummary.confirmedSeconds)} · 已确认 ${formatCurrencyCny(costSummary.confirmedCostCents)}${costSummary.provisionalCostCents > 0 ? ` · 另有暂计 ${formatCurrencyCny(costSummary.provisionalCostCents)}` : ""}${costSummary.overInitialBudgetCents > 0 ? ` · 超出预估 ${formatCurrencyCny(costSummary.overInitialBudgetCents)}` : ""}`}
-        >
-          {costLabel}
-        </button>
-      )}
+      {costSummary &&
+        (costSummary.confirmedCostCents > 0 ||
+          costSummary.provisionalCostCents > 0 ||
+          costSummary.overInitialBudgetCents > 0 ||
+          timingActive) && (
+          <button
+            type="button"
+            data-task-cost
+            onClick={onEdit}
+            disabled={disabled}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-1 text-[12px] leading-none whitespace-nowrap tabular-nums hover:text-foreground",
+              costSummary.overInitialBudgetCents > 0
+                ? "text-(--due-tomorrow)"
+                : "text-muted-foreground",
+            )}
+            aria-label={`查看时间成本：${costLabel}，已投入${formatDurationChinese(costSummary.confirmedSeconds)}`}
+            title={`已投入 ${formatDurationChinese(costSummary.confirmedSeconds)} · 已确认 ${formatCurrencyCny(costSummary.confirmedCostCents)}${costSummary.provisionalCostCents > 0 ? ` · 另有暂计 ${formatCurrencyCny(costSummary.provisionalCostCents)}` : ""}${costSummary.overInitialBudgetCents > 0 ? ` · 超出预估 ${formatCurrencyCny(costSummary.overInitialBudgetCents)}` : ""}`}
+          >
+            {costLabel}
+          </button>
+        )}
 
       {!!task.wait && new Date(task.wait) > new Date() && !checked && (
         <span
@@ -323,9 +334,9 @@ export function TaskMetaChips({
         />
       )}
 
-      {task.tags.length > 0 && (
+      {visibleTags.length > 0 && (
         <span className="task-meta-tags" aria-label="标签">
-          {task.tags.map((tag) => {
+          {visibleTags.map((tag) => {
             const color = tagColorMap.get(tag);
             return (
               <span
@@ -369,7 +380,6 @@ export function TaskMetaChips({
           )}
           <span className="min-w-0 truncate">
             {task.project ? projectLeaf(task.project) : "收件箱"}
-            {sectionName ? ` / ${sectionName}` : ""}
           </span>
         </span>
       )}

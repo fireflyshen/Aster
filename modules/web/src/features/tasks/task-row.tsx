@@ -312,6 +312,28 @@ export function TaskRow({
   }
 
   const actionsVisible = drawerPinned || moreOpen || priorityPopoverOpen;
+  const negativeControls =
+    habit?.kind === "negative" && habitActions && habitTodayDate ? (
+      <HabitNegativeRowControls
+        habit={habit}
+        date={habitTodayDate}
+        disabled={disabled}
+        stacked={variant === "card"}
+        onRecordNegative={habitActions.recordNegative}
+        onUndoNegative={habitActions.undoNegative}
+      />
+    ) : null;
+  const subtaskMetricsControl =
+    parentHabit && habitActions && habitTodayDate ? (
+      <HabitSubtaskMetricsButton
+        parentHabit={parentHabit}
+        subtaskUuid={task.uuid}
+        date={habitTodayDate}
+        disabled={disabled}
+        onSetChecklistItem={habitActions.setChecklistItem}
+        onAssignSubtaskPlan={habitActions.assignSubtaskPlan}
+      />
+    ) : null;
 
   return (
     <article
@@ -522,27 +544,63 @@ export function TaskRow({
               )}
             </div>
 
-            {habit?.kind === "negative" && habitActions && habitTodayDate && (
-              <HabitNegativeRowControls
-                habit={habit}
-                date={habitTodayDate}
-                disabled={disabled}
-                onRecordNegative={habitActions.recordNegative}
-                onUndoNegative={habitActions.undoNegative}
-              />
-            )}
+            {variant !== "card" &&
+              habit?.kind === "negative" &&
+              habitActions &&
+              habitTodayDate && (
+                <HabitNegativeRowControls
+                  habit={habit}
+                  date={habitTodayDate}
+                  disabled={disabled}
+                  onRecordNegative={habitActions.recordNegative}
+                  onUndoNegative={habitActions.undoNegative}
+                />
+              )}
 
-            {parentHabit && habitActions && habitTodayDate && (
-              <HabitSubtaskMetricsButton
-                parentHabit={parentHabit}
-                subtaskUuid={task.uuid}
-                date={habitTodayDate}
-                disabled={disabled}
-                onSetChecklistItem={habitActions.setChecklistItem}
-                onAssignSubtaskPlan={habitActions.assignSubtaskPlan}
-              />
-            )}
+            {variant !== "card" &&
+              parentHabit &&
+              habitActions &&
+              habitTodayDate && (
+                <HabitSubtaskMetricsButton
+                  parentHabit={parentHabit}
+                  subtaskUuid={task.uuid}
+                  date={habitTodayDate}
+                  disabled={disabled}
+                  onSetChecklistItem={habitActions.setChecklistItem}
+                  onAssignSubtaskPlan={habitActions.assignSubtaskPlan}
+                />
+              )}
           </div>
+          {variant === "card" &&
+            habit?.kind === "negative" &&
+            habitActions &&
+            habitTodayDate && (
+              <div className="mt-2.5 border-t border-border/45 pt-2">
+                <HabitNegativeRowControls
+                  habit={habit}
+                  date={habitTodayDate}
+                  disabled={disabled}
+                  stacked
+                  onRecordNegative={habitActions.recordNegative}
+                  onUndoNegative={habitActions.undoNegative}
+                />
+              </div>
+            )}
+          {variant === "card" &&
+            parentHabit &&
+            habitActions &&
+            habitTodayDate && (
+              <div className="mt-1 pl-7">
+                <HabitSubtaskMetricsButton
+                  parentHabit={parentHabit}
+                  subtaskUuid={task.uuid}
+                  date={habitTodayDate}
+                  disabled={disabled}
+                  onSetChecklistItem={habitActions.setChecklistItem}
+                  onAssignSubtaskPlan={habitActions.assignSubtaskPlan}
+                />
+              </div>
+            )}
         </div>
         {subtreeNode}
       </div>

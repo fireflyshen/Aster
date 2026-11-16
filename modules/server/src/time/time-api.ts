@@ -1,3 +1,4 @@
+import { requireActivityProject } from "./time-project.ts";
 import type { TaskService } from "../../../core/tasks/service.ts";
 import { exportTimewarrior } from "../../../core/tasks/timewarrior.ts";
 import type { CostReportTaskMeta } from "../../../core/time/cost.ts";
@@ -62,6 +63,25 @@ export function createTimeHandlers(deps: {
     isEnabled,
     paths,
   } = deps;
+
+  async function projectForNewActivity(
+    body: Record<string, unknown>,
+  ): Promise<string> {
+    let project = optionalString(body.projectSnapshot, 200);
+    const taskUuid = optionalString(body.taskUuid, 64);
+    if (!project && taskUuid) {
+      try {
+        const task = await service.rawTask(taskUuid);
+        project = typeof task.project === "string" ? task.project : undefined;
+      } catch {
+        /* Explicit project remains usable without Taskwarrior. */
+      }
+    }
+    return requireActivityProject(
+      project,
+      optionalString(body.explicitCategoryId, 100),
+    );
+  }
 
   function requireStore(): TimeStore {
     if (!store) {
@@ -296,10 +316,7 @@ export function createTimeHandlers(deps: {
         const today = defaultDate(s);
         const taskUuid = requiredString(body.taskUuid, "taskUuid", 64);
         const mode = optionalString(body.mode, 16) as
-          | "set"
-          | "add"
-          | "clear"
-          | undefined;
+          "set" | "add" | "clear" | undefined;
         const plannedStartAtMs = parseTimestampInput(body, {
           msKey: "plannedStartAtMs",
           isoKey: "plannedStartAtIso",
@@ -564,6 +581,19 @@ export function createTimeHandlers(deps: {
           );
         }
 
+        if (!timingPlanId)
+          projectSnapshot = requireActivityProject(
+            projectSnapshot,
+            optionalString(body.explicitCategoryId, 100),
+          );
+        else {
+          const plan = s.getTimingPlan(timingPlanId);
+          if (plan)
+            requireActivityProject(
+              projectSnapshot || plan.projectSnapshot,
+              plan.categoryId,
+            );
+        }
         const receipt = s.startActivity({
           idempotencyKey,
           receivedAtMs: optionalNumber(body.receivedAtMs),
@@ -748,6 +778,10 @@ export function createTimeHandlers(deps: {
           defaultDate,
         });
 
+        projectSnapshot = requireActivityProject(
+          projectSnapshot,
+          optionalString(body.categoryId, 100),
+        );
         const result = s.createTimingPlan({
           idempotencyKey: optionalString(body.idempotencyKey, 200),
           receivedAtMs,
@@ -814,6 +848,17 @@ export function createTimeHandlers(deps: {
           defaultDate,
         });
 
+        if (body.projectSnapshot !== undefined) {
+          const plan = s.getTimingPlan(
+            requiredString(body.planId, "planId", 64),
+          );
+          body.projectSnapshot = requireActivityProject(
+            body.projectSnapshot,
+            typeof body.categoryId === "string"
+              ? body.categoryId
+              : plan?.categoryId,
+          );
+        }
         const result = s.updateTimingPlan({
           idempotencyKey: optionalString(body.idempotencyKey, 200),
           receivedAtMs,
@@ -857,6 +902,12 @@ export function createTimeHandlers(deps: {
         const s = requireEnabledStore();
         const body = await readBody();
         const planId = requiredString(body.planId, "planId", 64);
+        const existingPlan = s.getTimingPlan(planId);
+        if (existingPlan)
+          requireActivityProject(
+            existingPlan.projectSnapshot,
+            existingPlan.categoryId,
+          );
         const receipt = s.startActivity({
           idempotencyKey: requiredString(
             body.idempotencyKey,
@@ -935,7 +986,7 @@ export function createTimeHandlers(deps: {
             endMs: requiredNumber(body.endMs, "endMs"),
             explicitCategoryId: optionalString(body.explicitCategoryId, 100),
             taskUuid: optionalString(body.taskUuid, 64),
-            projectSnapshot: optionalString(body.projectSnapshot, 200),
+            projectSnapshot: await projectForNewActivity(body),
             tags: optionalStringArray(body.tags),
             precision:
               body.precision === "estimated_bounds" ||
@@ -943,8 +994,7 @@ export function createTimeHandlers(deps: {
                 ? "estimated_bounds"
                 : "exact",
             source: optionalString(body.source, 40) as
-              | ActivitySource
-              | undefined,
+              ActivitySource | undefined,
             note: optionalString(body.note, 2000),
             rawInput: optionalString(body.rawInput, 2000),
           }),
@@ -976,11 +1026,10 @@ export function createTimeHandlers(deps: {
             windowEndMs: optionalNumber(body.windowEndMs),
             explicitCategoryId: optionalString(body.explicitCategoryId, 100),
             taskUuid: optionalString(body.taskUuid, 64),
-            projectSnapshot: optionalString(body.projectSnapshot, 200),
+            projectSnapshot: await projectForNewActivity(body),
             tags: optionalStringArray(body.tags),
             source: optionalString(body.source, 40) as
-              | ActivitySource
-              | undefined,
+              ActivitySource | undefined,
             note: optionalString(body.note, 2000),
             rawInput: optionalString(body.rawInput, 2000),
           }),
@@ -1024,6 +1073,18 @@ export function createTimeHandlers(deps: {
             400,
             "INVALID_PATCH",
             "Missing update patch object.",
+          );
+        }
+        const patch = body.patch as Record<string, unknown>;
+        if (Object.prototype.hasOwnProperty.call(patch, "projectSnapshot")) {
+          const activity = s.getActivity(
+            requiredString(body.activityId, "activityId", 64),
+          );
+          patch.projectSnapshot = requireActivityProject(
+            patch.projectSnapshot,
+            typeof patch.categoryId === "string"
+              ? patch.categoryId
+              : activity?.categoryId,
           );
         }
         return {

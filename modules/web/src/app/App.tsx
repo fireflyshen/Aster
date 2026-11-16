@@ -492,6 +492,7 @@ export function App() {
         onSelectEntry={nav.openEntry}
         onOpenOrganization={() => nav.openManagementPage("organization")}
         onOpenHabits={nav.openHabitsPage}
+        onOpenTime={() => nav.openTimePage("today")}
         onAddHabit={() => {
           taskActions.openEditor(undefined, {
             description: "",

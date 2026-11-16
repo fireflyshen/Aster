@@ -74,6 +74,7 @@ import {
   formatCurrencyCny,
   formatDurationChinese,
   formatDurationCompact,
+  formatLedgerDuration,
   formatEstimateWindow,
   formatTimeRangeInZone,
   normalizeHourlyRateCents,
@@ -357,7 +358,10 @@ export function TimeTodayPage({
     if (!title) return;
     const categoryId = quickIsSleep ? "sleep" : "work";
     const resolvedProject =
-      quickProject.trim() || chosenTask?.project || undefined;
+      quickProject.trim() ||
+      chosenTask?.project ||
+      (quickIsSleep ? "睡眠" : undefined);
+    if (!resolvedProject) return;
     const resolvedTags =
       quickTags.length > 0
         ? quickTags
@@ -499,6 +503,11 @@ export function TimeTodayPage({
 
   const canStart =
     Boolean(quickTitle.trim() || quickTaskUuid !== "none") &&
+    Boolean(
+      quickProject.trim() ||
+      quickIsSleep ||
+      tasks.find((task) => task.uuid === quickTaskUuid)?.project,
+    ) &&
     !(
       showPlanLimit &&
       draftPlanEvaluation.hasLimit &&
@@ -553,7 +562,7 @@ export function TimeTodayPage({
         items={[
           {
             label: "已记录",
-            value: formatDurationCompact(daily.coveredSeconds),
+            value: formatLedgerDuration(daily.coveredSeconds),
             hint: `${daily.locatedSegments.length} 段活动`,
           },
           {
@@ -563,7 +572,7 @@ export function TimeTodayPage({
           },
           {
             label: "待核对",
-            value: formatDurationCompact(daily.provisionalSeconds ?? 0),
+            value: formatLedgerDuration(daily.provisionalSeconds ?? 0),
             hint:
               (daily.provisionalCostCents ?? 0) > 0
                 ? `${formatCurrencyCny(daily.provisionalCostCents)} · 未计入已确认成本`
@@ -749,11 +758,23 @@ export function TimeTodayPage({
               {active ? "切换" : "开始"}
             </Button>
           </div>
+          <ProjectTagFields
+            compact
+            idPrefix="today-quick"
+            project={quickProject}
+            onProjectChange={setQuickProject}
+            tags={quickTags}
+            onTagsChange={setQuickTags}
+            availableProjects={availableProjects}
+            availableTags={availableTags}
+            isSleep={quickIsSleep}
+            onSleepChange={setQuickIsSleep}
+          />
           <details className="ledger-capture-options">
             <summary>
               {quickProject || quickTaskUuid !== "none" || quickTags.length
                 ? `已选：${[quickTaskUuid !== "none" ? "关联任务" : "", quickProject, ...quickTags].filter(Boolean).join(" · ")}`
-                : "关联任务、项目与标签"}
+                : "关联任务与定时设置"}
               {showPlanLimit ? " · 已设定时" : ""}
             </summary>
             <div className="time-quick-options">
@@ -812,18 +833,6 @@ export function TimeTodayPage({
                   </Button>
                 )}
               </div>
-              <ProjectTagFields
-                compact
-                idPrefix="today-quick"
-                project={quickProject}
-                onProjectChange={setQuickProject}
-                tags={quickTags}
-                onTagsChange={setQuickTags}
-                availableProjects={availableProjects}
-                availableTags={availableTags}
-                isSleep={quickIsSleep}
-                onSleepChange={setQuickIsSleep}
-              />
             </div>
 
             {showPlanLimit && (
@@ -1544,11 +1553,12 @@ export function TimeTodayPage({
                       <span className="truncate text-[14px] text-foreground">
                         {item.segment.title}
                       </span>
-                      {item.segment.projectSnapshot && (
-                        <span className="rounded bg-muted/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                          {item.segment.projectSnapshot}
-                        </span>
-                      )}
+                      {item.segment.projectSnapshot &&
+                        item.segment.projectSnapshot !== item.segment.title && (
+                          <span className="rounded bg-muted/70 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                            {item.segment.projectSnapshot}
+                          </span>
+                        )}
                       {item.segment.tags?.map((tag) => (
                         <span
                           key={tag}
@@ -1557,11 +1567,6 @@ export function TimeTodayPage({
                           #{tag}
                         </span>
                       ))}
-                      {item.segment.categoryId === "sleep" && (
-                        <span className="text-[11px] text-muted-foreground/75">
-                          睡眠（¥0）
-                        </span>
-                      )}
                       {item.segment.precision === "estimated_bounds" && (
                         <span className="text-[11px] text-muted-foreground/65">
                           约
@@ -1585,67 +1590,85 @@ export function TimeTodayPage({
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    {item.segment.reviewState === "review_required" &&
-                      !item.segment.running && (
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="ghost"
-                          className="h-6 px-2 text-xs text-foreground"
-                          disabled={busy}
-                          onClick={() =>
-                            void runMutation(
-                              `已确认：${item.segment.title}`,
-                              () =>
-                                confirmTimeActivity({
-                                  activityId: item.segment.activityId,
-                                  expectedVersion: item.segment.version,
-                                }),
-                              { undoable: true },
-                            )
-                          }
-                        >
-                          确认时间
-                        </Button>
-                      )}
-                    {item.segment.reviewReason === "auto_stopped" &&
-                      item.segment.timingPlanId && (
-                        <Button
-                          type="button"
-                          size="xs"
-                          variant="ghost"
-                          className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                          disabled={busy}
-                          onClick={() => {
-                            const linked = plans.find(
-                              (p) => p.id === item.segment.timingPlanId,
-                            );
-                            if (linked) openPlanExtend(linked);
-                          }}
-                        >
-                          加时继续
-                        </Button>
-                      )}
-                    {item.segment.confirmedCostCents > 0 && (
-                      <span className="text-xs font-medium text-foreground tabular-nums">
-                        {formatCurrencyCny(item.segment.confirmedCostCents)}
+                  <div className="ledger-timeline-right">
+                    <div className="ledger-timeline-actions">
+                      {item.segment.reviewState === "review_required" &&
+                        !item.segment.running && (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs text-foreground"
+                            disabled={busy}
+                            onClick={() =>
+                              void runMutation(
+                                `已确认：${item.segment.title}`,
+                                () =>
+                                  confirmTimeActivity({
+                                    activityId: item.segment.activityId,
+                                    expectedVersion: item.segment.version,
+                                  }),
+                                { undoable: true },
+                              )
+                            }
+                          >
+                            确认时间
+                          </Button>
+                        )}
+                      {item.segment.reviewReason === "auto_stopped" &&
+                        item.segment.timingPlanId && (
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            disabled={busy}
+                            onClick={() => {
+                              const linked = plans.find(
+                                (p) => p.id === item.segment.timingPlanId,
+                              );
+                              if (linked) openPlanExtend(linked);
+                            }}
+                          >
+                            加时继续
+                          </Button>
+                        )}
+                    </div>
+                    <div className="ledger-timeline-values">
+                      <span
+                        className="ledger-timeline-cost"
+                        data-zero={
+                          item.segment.confirmedCostCents === 0 || undefined
+                        }
+                      >
+                        {new Intl.NumberFormat("zh-CN", {
+                          style: "currency",
+                          currency: "CNY",
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }).format(item.segment.confirmedCostCents / 100)}
                       </span>
-                    )}
-                    <span className="text-xs text-muted-foreground/80 tabular-nums">
-                      {formatDurationCompact(item.segment.durationSeconds)}
-                    </span>
-                    <Button
-                      type="button"
-                      size="icon-xs"
-                      variant="ghost"
-                      aria-label={`编辑 ${item.segment.title}`}
-                      className="size-6 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
-                      disabled={busy}
-                      onClick={() => setEditingSegment(item.segment)}
-                    >
-                      <Pencil className="size-3" />
-                    </Button>
+                      <span
+                        className="ledger-timeline-duration"
+                        title={formatDurationChinese(
+                          item.segment.durationSeconds,
+                        )}
+                      >
+                        {" "}
+                        {formatLedgerDuration(item.segment.durationSeconds)}
+                      </span>
+                      <Button
+                        type="button"
+                        size="icon-xs"
+                        variant="ghost"
+                        aria-label={`编辑 ${item.segment.title}`}
+                        className="size-6 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
+                        disabled={busy}
+                        onClick={() => setEditingSegment(item.segment)}
+                      >
+                        <Pencil className="size-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ),

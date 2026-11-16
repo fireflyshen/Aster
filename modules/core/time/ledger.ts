@@ -3,6 +3,7 @@ import {
   normalizeActivityTags,
   normalizeHourlyRateCents,
   resolveActivityHourlyRateCents,
+  resolveActivityProject,
   resolveEffectiveActivityEndMs,
   resolveEffectiveConfirmedEndMs,
   secondsDelta,
@@ -226,7 +227,7 @@ export function computeDailyLedger(
     );
     const tags = normalizeActivityTags(activity.tags);
     const projectKey =
-      activity.projectSnapshot?.trim() || UNASSIGNED_PROJECT_KEY;
+      resolveActivityProject(activity, policy) || UNASSIGNED_PROJECT_KEY;
 
     coveredSeconds += confirmedSeconds;
     provisionalSeconds += segmentProvisionalSeconds;
@@ -283,8 +284,8 @@ export function computeDailyLedger(
       title: activity.title,
       categoryId: activity.categoryId,
       ...(activity.taskUuid ? { taskUuid: activity.taskUuid } : {}),
-      ...(activity.projectSnapshot
-        ? { projectSnapshot: activity.projectSnapshot }
+      ...(resolveActivityProject(activity, policy)
+        ? { projectSnapshot: resolveActivityProject(activity, policy) }
         : {}),
       ...(tags.length > 0 ? { tags } : {}),
       hourlyRateCents: rateCents,

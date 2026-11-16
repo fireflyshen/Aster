@@ -1,3 +1,4 @@
+import { TaskGroupLabelContext } from "./task-meta-chips";
 import { RescheduleOverdue } from "./reschedule-overdue";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -388,46 +389,56 @@ export function TaskBoard({
                           </p>
                         </div>
                       )}
-                    {items.map((task) => (
-                      <BoardCard
-                        key={task.uuid}
-                        compact={layout === "list"}
-                        interactive={
-                          !isVirtualGrouped && canAddTask && !preserveTaskOrder
-                        }
-                        task={task}
-                        column={column}
-                        disabled={disabled}
-                        saving={moving?.uuid === task.uuid}
-                      >
-                        {renderTask(
-                          task,
-                          undefined,
-                          layout === "board" ? "card" : "list",
-                          0,
-                          layout === "list"
-                            ? (child, defaultRender) => (
-                                <BoardCard
-                                  key={child.uuid}
-                                  task={child}
-                                  column={column}
-                                  compact
-                                  isSubtask
-                                  disabled={disabled}
-                                  interactive={
-                                    !isVirtualGrouped &&
-                                    canAddTask &&
-                                    !preserveTaskOrder
-                                  }
-                                  saving={moving?.uuid === child.uuid}
-                                >
-                                  {defaultRender(child)}
-                                </BoardCard>
-                              )
-                            : undefined,
-                        )}
-                      </BoardCard>
-                    ))}
+                    <TaskGroupLabelContext.Provider
+                      value={
+                        virtualGroupBy === "label"
+                          ? column.id.slice("group:label:".length)
+                          : undefined
+                      }
+                    >
+                      {items.map((task) => (
+                        <BoardCard
+                          key={task.uuid}
+                          compact={layout === "list"}
+                          interactive={
+                            !isVirtualGrouped &&
+                            canAddTask &&
+                            !preserveTaskOrder
+                          }
+                          task={task}
+                          column={column}
+                          disabled={disabled}
+                          saving={moving?.uuid === task.uuid}
+                        >
+                          {renderTask(
+                            task,
+                            undefined,
+                            layout === "board" ? "card" : "list",
+                            0,
+                            layout === "list"
+                              ? (child, defaultRender) => (
+                                  <BoardCard
+                                    key={child.uuid}
+                                    task={child}
+                                    column={column}
+                                    compact
+                                    isSubtask
+                                    disabled={disabled}
+                                    interactive={
+                                      !isVirtualGrouped &&
+                                      canAddTask &&
+                                      !preserveTaskOrder
+                                    }
+                                    saving={moving?.uuid === child.uuid}
+                                  >
+                                    {defaultRender(child)}
+                                  </BoardCard>
+                                )
+                              : undefined,
+                          )}
+                        </BoardCard>
+                      ))}
+                    </TaskGroupLabelContext.Provider>
                     {canAddTask && column.id !== "group:today:overdue" && (
                       <TodoistTaskComposer
                         mode="add"

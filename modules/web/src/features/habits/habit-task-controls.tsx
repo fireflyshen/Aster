@@ -129,12 +129,14 @@ export function HabitNegativeRowControls({
   habit,
   date,
   disabled,
+  stacked = false,
   onRecordNegative,
   onUndoNegative,
 }: {
   habit: HabitListItem;
   date: string;
   disabled?: boolean;
+  stacked?: boolean;
   onRecordNegative: HabitTaskActions["recordNegative"];
   onUndoNegative: HabitTaskActions["undoNegative"];
 }) {
@@ -146,7 +148,11 @@ export function HabitNegativeRowControls({
 
   if (paused || habit.status === "archived") {
     return (
-      <span className="inline-flex h-6 shrink-0 items-center rounded-md border border-border/70 px-2 text-[11px] text-muted-foreground">
+      <span
+        data-no-drag
+        onClick={(event) => event.stopPropagation()}
+        className="inline-flex h-6 shrink-0 items-center rounded-md border border-border/70 px-2 text-[11px] text-muted-foreground"
+      >
         {habit.status === "archived" ? "已归档" : "已暂停"}
       </span>
     );
@@ -156,7 +162,10 @@ export function HabitNegativeRowControls({
     <div
       data-no-drag
       onClick={(event) => event.stopPropagation()}
-      className="relative z-1 flex shrink-0 items-center gap-1 self-start md:mt-0.5"
+      className={cn(
+        "relative z-1 flex items-center gap-1",
+        stacked ? "w-full flex-wrap" : "shrink-0 self-start md:mt-0.5",
+      )}
     >
       <span
         className={cn(

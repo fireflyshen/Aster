@@ -165,6 +165,7 @@ test("web time-api routes cleanly through real server handlers without double /a
 
     // 2. Mutations: start, stop, log, estimate, locate, update, undo, sleep, policy
     const started = await timeApi.startTimeActivity({
+      projectSnapshot: "测试项目",
       title: "Live Web Start",
       explicitCategoryId: "study",
     });
@@ -177,6 +178,7 @@ test("web time-api routes cleanly through real server handlers without double /a
     assert.ok(stopped.activity?.endMs);
 
     const logged = await timeApi.logTimeActivity({
+      projectSnapshot: "测试项目",
       title: "Evening Reading",
       startMs: 1763164800000,
       endMs: 1763168400000,
@@ -185,6 +187,7 @@ test("web time-api routes cleanly through real server handlers without double /a
     assert.equal(logged.activity?.precision, "estimated_bounds");
 
     const estimated = await timeApi.estimateTimeActivity({
+      projectSnapshot: "测试项目",
       title: "Unlocated Walk",
       estimatedSeconds: 1800,
       targetDate: "2026-11-15",
@@ -219,6 +222,7 @@ test("web time-api routes cleanly through real server handlers without double /a
 
     // 2.5 TimingPlan lifecycle + pause + confirm + events contract
     const createdPlan = await timeApi.createTimingPlan({
+      projectSnapshot: "测试项目",
       title: "Focused block",
       categoryId: "work",
       allowanceMinutes: 30,
@@ -253,6 +257,7 @@ test("web time-api routes cleanly through real server handlers without double /a
 
     // Confirm activity endpoint contract on active uncapped timer
     const openRun = await timeApi.startTimeActivity({
+      projectSnapshot: "测试项目",
       title: "Open run",
     });
     const confirmedOpen = await timeApi.confirmTimeActivity({
@@ -372,6 +377,7 @@ test("time log snapping avoids sub-minute overlap and formats Chinese conflict d
   try {
     // Previous timer starts at 16:45:00 and stops at 16:53:42.000
     await timeApi.startTimeActivity({
+      projectSnapshot: "测试项目",
       title: "C++ if、switch 与循环",
       explicitCategoryId: "study",
     });
@@ -408,6 +414,7 @@ test("time log snapping avoids sub-minute overlap and formats Chinese conflict d
     let capturedErr: unknown;
     try {
       await timeApi.logTimeActivity({
+      projectSnapshot: "测试项目",
         title: "真正重叠测试",
         startMs: Date.parse("2026-11-15T08:50:00.000Z"), // 16:50:00
         endMs: Date.parse("2026-11-15T08:55:00.000Z"), // 16:55:00

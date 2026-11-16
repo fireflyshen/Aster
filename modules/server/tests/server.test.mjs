@@ -872,6 +872,7 @@ process.exit(0);
     const estWinStartMs = windowStartMs - 3 * 3600_000;
     const estWinEndMs = windowStartMs - 1800_000;
     const estRes = await post("time/estimate", {
+      projectSnapshot: "Study",
       idempotencyKey: "http-est-1",
       title: "Morning reading",
       explicitCategoryId: "study",
