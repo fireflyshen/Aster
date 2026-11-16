@@ -544,63 +544,17 @@ export function TaskRow({
               )}
             </div>
 
-            {variant !== "card" &&
-              habit?.kind === "negative" &&
-              habitActions &&
-              habitTodayDate && (
-                <HabitNegativeRowControls
-                  habit={habit}
-                  date={habitTodayDate}
-                  disabled={disabled}
-                  onRecordNegative={habitActions.recordNegative}
-                  onUndoNegative={habitActions.undoNegative}
-                />
-              )}
-
-            {variant !== "card" &&
-              parentHabit &&
-              habitActions &&
-              habitTodayDate && (
-                <HabitSubtaskMetricsButton
-                  parentHabit={parentHabit}
-                  subtaskUuid={task.uuid}
-                  date={habitTodayDate}
-                  disabled={disabled}
-                  onSetChecklistItem={habitActions.setChecklistItem}
-                  onAssignSubtaskPlan={habitActions.assignSubtaskPlan}
-                />
-              )}
+            {variant !== "card" && negativeControls}
+            {variant !== "card" && subtaskMetricsControl}
           </div>
-          {variant === "card" &&
-            habit?.kind === "negative" &&
-            habitActions &&
-            habitTodayDate && (
-              <div className="mt-2.5 border-t border-border/45 pt-2">
-                <HabitNegativeRowControls
-                  habit={habit}
-                  date={habitTodayDate}
-                  disabled={disabled}
-                  stacked
-                  onRecordNegative={habitActions.recordNegative}
-                  onUndoNegative={habitActions.undoNegative}
-                />
-              </div>
-            )}
-          {variant === "card" &&
-            parentHabit &&
-            habitActions &&
-            habitTodayDate && (
-              <div className="mt-1 pl-7">
-                <HabitSubtaskMetricsButton
-                  parentHabit={parentHabit}
-                  subtaskUuid={task.uuid}
-                  date={habitTodayDate}
-                  disabled={disabled}
-                  onSetChecklistItem={habitActions.setChecklistItem}
-                  onAssignSubtaskPlan={habitActions.assignSubtaskPlan}
-                />
-              </div>
-            )}
+          {variant === "card" && negativeControls && (
+            <div className="mt-2.5 border-t border-border/45 pt-2">
+              {negativeControls}
+            </div>
+          )}
+          {variant === "card" && subtaskMetricsControl && (
+            <div className="mt-1 pl-7">{subtaskMetricsControl}</div>
+          )}
         </div>
         {subtreeNode}
       </div>
