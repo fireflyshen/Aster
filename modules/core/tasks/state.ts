@@ -20,7 +20,22 @@ export const STATE_LABELS: Record<EffectiveTaskState, string> = {
 };
 
 export const DOING_LIMIT = 5;
+export const MIN_DOING_LIMIT = 1;
+export const MAX_DOING_LIMIT = 20;
 export const PARK_DAYS = 30;
+
+/** Normalizes a configured `doing` limit (`1..20`), falling back to `DOING_LIMIT` (5). */
+export function normalizeDoingLimit(value: unknown): number {
+  if (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= MIN_DOING_LIMIT &&
+    value <= MAX_DOING_LIMIT
+  ) {
+    return value;
+  }
+  return DOING_LIMIT;
+}
 
 export const STATE_TRANSITIONS: Record<
   EffectiveTaskState,

@@ -118,6 +118,7 @@ func (m *model) openActions() {
 	m.openTimeActions(add)
 	add("task.new", "添加任务", "完整表单")
 	add("quick", "一句话捕捉", "中文日期 / #项目 / @标签 / p1")
+	add("now.limit", "设置「处理中」上限", fmt.Sprintf("当前 %d 条（可设 1–20，多端同步）", m.doingLimit()))
 	add("focus.choose", "选择 Focus 项目", "最多三个，可选择替换")
 	add("project.new", "新建项目", "无须创建占位任务")
 	if m.taskView() {
@@ -375,6 +376,13 @@ func (m *model) action(a string) tea.Cmd {
 			"原生筛选",
 			"仅支持 Taskwarrior 过滤条件，不执行操作命令。",
 			textField("筛选表达式", "status:pending", "例如 project:Work +READY"),
+		)
+	case "now.limit":
+		return m.openForm(
+			a,
+			"设置「处理中」数量上限",
+			"「现在能做」中同时处于处理中的任务数量上限（1–20），保存在服务端偏好。",
+			textField("处理中上限", fmt.Sprint(m.doingLimit()), "输入 1 到 20 之间的整数"),
 		)
 	case "task.state":
 		if r.kind != "task" {

@@ -710,3 +710,51 @@ test("state scheduler promotes waitingDue then planned due up to 5 and reports b
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("stateManager enforces configurable preferences.doingLimit dynamically", async () => {
+  const dir = await mkdtemp(tmpdir() + "/aster-limit-");
+  try {
+    const initial: TaskwarriorTask[] = [1, 2, 3, 4].map((i) => ({
+      uuid: uid(i),
+      description: `Task ${i}`,
+      status: "pending",
+      state: i === 1 ? ("doing" as const) : ("planned" as const),
+      tags: [],
+      urgency: i,
+      depends: [],
+      annotations: [],
+    }));
+    const { tasks, service } = makeFakeTaskEnv(initial);
+    const orgSvc = createOrganizationService(service, `${dir}/org.json`);
+    const history = createStateHistoryStore(`${dir}/state-history.jsonl`);
+    const stateManager = createTaskStateManager({
+      service,
+      organization: orgSvc,
+      history,
+      getTimezone: () => "Asia/Shanghai",
+      now: () => Date.parse("2026-11-16T12:00:00Z"),
+    });
+
+    await orgSvc.updatePreferences({ doingLimit: 2 });
+    let summary = await stateManager.getSummary();
+    assert.equal(summary.limit, 2);
+
+    await stateManager.setState({ uuid: uid(2), state: "doing" }, { source: "web" });
+    await assert.rejects(
+      stateManager.setState({ uuid: uid(3), state: "doing" }, { source: "web" }),
+      (err: unknown) =>
+        err instanceof TaskStateError &&
+        err.code === "STATE_DOING_LIMIT" &&
+        (err.details as { limit?: number } | undefined)?.limit === 2,
+    );
+
+    // Raising limit to 4 lets 3rd and 4th enter doing without replacement
+    await orgSvc.updatePreferences({ doingLimit: 4 });
+    summary = await stateManager.getSummary();
+    assert.equal(summary.limit, 4);
+    await stateManager.setState({ uuid: uid(3), state: "doing" }, { source: "web" });
+    assert.equal(tasks.get(uid(3))?.state, "doing");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

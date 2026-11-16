@@ -1,3 +1,5 @@
+import { MAX_DOING_LIMIT, MIN_DOING_LIMIT } from "../tasks/state.ts";
+
 export const THEME_MODES = ["light", "dark", "system"] as const;
 export type ThemeMode = (typeof THEME_MODES)[number];
 
@@ -71,6 +73,7 @@ export type WorkspacePreferences = {
   navOpen?: boolean;
   filterGroupBy?: Record<string, TaskGroupByValue>;
   nowSections?: NowSectionState;
+  doingLimit?: number;
 };
 
 export type PreferencesChange = {
@@ -207,6 +210,17 @@ export function normalizePreferencesPatch(
       }
     }
     patch.nowSections = cleanSections;
+  }
+  if (input.doingLimit !== undefined) {
+    if (
+      typeof input.doingLimit !== "number" ||
+      !Number.isInteger(input.doingLimit) ||
+      input.doingLimit < MIN_DOING_LIMIT ||
+      input.doingLimit > MAX_DOING_LIMIT
+    ) {
+      throw new Error("Invalid doing limit preference.");
+    }
+    patch.doingLimit = input.doingLimit;
   }
   return patch;
 }

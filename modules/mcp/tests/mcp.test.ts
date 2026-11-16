@@ -114,6 +114,13 @@ const cases: [string, any, string, string, any?][] = [
   ],
   ["state_summary", {}, "GET", "/api/state/summary"],
   [
+    "state_limit_set",
+    { doingLimit: 7 },
+    "POST",
+    "/api/preferences",
+    { doingLimit: 7 },
+  ],
+  [
     "state_history",
     { uuid, limit: 20 },
     "GET",

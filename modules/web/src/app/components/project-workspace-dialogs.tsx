@@ -51,6 +51,8 @@ export type ProjectWorkspaceDialogsProps = {
   onSidebarPreferencesChange: (next: SidebarPreferences) => void;
   completeBehavior: CompleteBehavior;
   onCompleteBehaviorChange: (next: CompleteBehavior) => void;
+  doingLimit?: number;
+  onDoingLimitChange?: (next: number) => void;
   isTimeMode: boolean;
   onTimeMutated: () => void;
   editingProject?: string;
@@ -108,6 +110,8 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
     onSidebarPreferencesChange,
     completeBehavior,
     onCompleteBehaviorChange,
+    doingLimit,
+    onDoingLimitChange,
     isTimeMode,
     onTimeMutated,
     editingProject,
@@ -354,6 +358,8 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
         onSidebarPreferencesChange={onSidebarPreferencesChange}
         completeBehavior={completeBehavior}
         onCompleteBehaviorChange={onCompleteBehaviorChange}
+        doingLimit={doingLimit}
+        onDoingLimitChange={onDoingLimitChange}
         disabled={busy}
         blocked={needsCheck}
         notice={notice}

@@ -5,7 +5,21 @@ import (
 	"time"
 )
 
-const doingLimit = 5
+const (
+	defaultDoingLimit = 5
+	minDoingLimit     = 1
+	maxDoingLimit     = 20
+)
+
+func (m model) doingLimit() int {
+	if m.stateSummary != nil && m.stateSummary.Limit >= minDoingLimit && m.stateSummary.Limit <= maxDoingLimit {
+		return m.stateSummary.Limit
+	}
+	if m.org.Preferences != nil && m.org.Preferences.DoingLimit >= minDoingLimit && m.org.Preferences.DoingLimit <= maxDoingLimit {
+		return m.org.Preferences.DoingLimit
+	}
+	return defaultDoingLimit
+}
 
 var stateLabels = map[string]string{
 	"planned":   "计划中",

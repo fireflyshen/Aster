@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestStateTransitionsWaitingScheduleDependsAndCompleteGuard(t *testing.T) {
@@ -168,5 +169,83 @@ func TestRequestErrorParsesStateDoingLimitDetails(t *testing.T) {
 	re, ok := err.(*requestError)
 	if !ok || re.code != 409 || re.errCode != "STATE_DOING_LIMIT" || len(re.doing) != 1 || re.doing[0].UUID != "u1" {
 		t.Fatalf("unexpected requestError parse: %+v", err)
+	}
+}
+
+func TestGroupHeaderLeftGutterAlignmentAndNowCollapseArrow(t *testing.T) {
+	m := sampleModel()
+	m.view = "now"
+	m.tasks = []Task{
+		{UUID: "d1", Description: "处理中任务", Status: "pending", State: "doing"},
+		{UUID: "p1", Description: "计划中任务", Status: "pending", State: "planned"},
+	}
+	m.width = 100
+	m.height = 30
+	f := renderFrame{
+		idx:     m.viewIdx(),
+		visible: m.visible(),
+		rows:    m.rows(),
+	}
+	rendered := stripANSI(m.list(64, 24, f))
+	lines := strings.Split(rendered, "\n")
+	var doingGroupLine, taskLine, plannedGroupLine string
+	for _, ln := range lines {
+		if strings.Contains(ln, "处理中 1/5") {
+			doingGroupLine = ln
+		}
+		if strings.Contains(ln, "处理中任务") {
+			taskLine = ln
+		}
+		if strings.Contains(ln, "计划中") {
+			plannedGroupLine = ln
+		}
+	}
+	if !strings.Contains(doingGroupLine, "▾ 处理中 1/5") {
+		t.Fatalf("expected expanded arrow in left gutter on doing header, got %q", doingGroupLine)
+	}
+	if !strings.Contains(plannedGroupLine, "▸ 计划中") {
+		t.Fatalf("expected collapsed arrow on planned header by default, got %q", plannedGroupLine)
+	}
+	// Group title ('处理中') and task checkbox ('○') align on the exact same terminal display column.
+	colGroup := lipgloss.Width(doingGroupLine[:strings.Index(doingGroupLine, "处理中")])
+	colTask := lipgloss.Width(taskLine[:strings.Index(taskLine, "○")])
+	if colGroup <= 0 || colGroup != colTask {
+		t.Fatalf("expected group title (%d) and task glyph (%d) aligned at same column:\n%q\n%q", colGroup, colTask, doingGroupLine, taskLine)
+	}
+}
+
+func TestConfigurableDoingLimitDisplayAndPreferencesSubmit(t *testing.T) {
+	c, log := validClient(t)
+	m := sampleModel()
+	m.client = c
+	m.org.Preferences = &struct {
+		DoingLimit int `json:"doingLimit,omitempty"`
+	}{DoingLimit: 8}
+	if m.doingLimit() != 8 {
+		t.Fatalf("expected doingLimit 8 from org.Preferences, got %d", m.doingLimit())
+	}
+
+	m.stateSummary = &StateSummary{Limit: 3}
+	if m.doingLimit() != 3 {
+		t.Fatalf("expected doingLimit 3 from stateSummary override, got %d", m.doingLimit())
+	}
+
+	m.action("now.limit")
+	if m.mode != "form" || m.formKind != "now.limit" {
+		t.Fatalf("expected now.limit form, got mode=%s kind=%s", m.mode, m.formKind)
+	}
+	m.fields[0].set("25")
+	if _, err := m.submit(); err == nil {
+		t.Fatal("expected range validation error for doingLimit=25")
+	}
+	m.fields[0].set("9")
+	cmd, err := m.submit()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd()
+	p := readPayload(t, log)
+	if p["route"] != "/api/preferences" || p["data"].(map[string]any)["doingLimit"] != float64(9) {
+		t.Fatalf("unexpected preferences payload: %+v", p)
 	}
 }

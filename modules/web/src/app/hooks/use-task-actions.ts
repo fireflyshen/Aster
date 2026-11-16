@@ -47,6 +47,7 @@ type TaskActionsDeps = {
     targetDescription: string,
     doing: DoingLimitCandidate[],
     retry: (replaceUuid: string) => Promise<void>,
+    limit?: number,
   ) => void;
 };
 
@@ -119,6 +120,10 @@ export function useTaskActions(deps: TaskActionsDeps) {
                 const payload = data as { uuid: string; action?: string };
                 const desc =
                   tasks.find((t) => t.uuid === payload.uuid)?.description || "";
+                const limit =
+                  typeof error.details.limit === "number"
+                    ? error.details.limit
+                    : undefined;
                 onDoingLimit(
                   desc,
                   error.details.doing as DoingLimitCandidate[],
@@ -134,6 +139,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
                     }
                     await reloadAll();
                   },
+                  limit,
                 );
                 return true;
               }

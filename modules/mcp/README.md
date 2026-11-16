@@ -231,10 +231,10 @@ Aster MCP 提供三组高内聚工具：
 - `task_create` / `task_patch` / `task_edit`：创建与更新任务（优先推荐
   `task_patch` 保留未传字段）。
 - `task_state_set` / `task_schedule` /
-  `task_depends`：流转任务执行状态（`planned` / `doing` 上限 5 条 / `waiting` /
+  `task_depends`：流转任务执行状态（`planned` / `doing` 上限可配，默认 5 条 / `waiting` /
   `parked`）、修改计划中排期与设置前置依赖。
-- `state_summary` /
-  `state_history`：查看各状态汇总、阻塞列表（`promotionBlocked`、`waitingDue`、`parkedReviewDue`、`anomalies`）及状态变更审计历史。
+- `state_summary` / `state_history` /
+  `state_limit_set`：查看各状态汇总与当前上限、阻塞列表（`promotionBlocked`、`waitingDue`、`parkedReviewDue`、`anomalies`）、状态变更审计历史，以及调整「处理中」数量上限（`1..20`）。
 - `task_complete` / `task_reopen`：标记任务完成或重新打开。
 - `subtask_link` / `subtask_unlink`：绑定或解绑父子任务关系。
 - `column_save` / `board_task_move`：管理看板列及在列间移动排序。

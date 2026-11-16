@@ -114,19 +114,24 @@ export function TodaySplitView({
           aria-label="逾期任务"
           className="min-w-0"
         >
-          <div className="mb-1 flex h-10 items-center justify-between gap-2 border-b border-border/80">
+          <div
+            data-list-section="true"
+            className="flex items-center justify-between gap-2 border-b border-border/80"
+          >
             <button
               type="button"
               aria-expanded={!overdueCollapsed}
               onClick={() => setOverdueCollapsed((prev) => !prev)}
-              className="-ml-2 flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
+              className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
             >
-              <ChevronRight
-                className={cn(
-                  "size-3.5 shrink-0 text-muted-foreground transition-transform duration-150",
-                  !overdueCollapsed && "rotate-90",
-                )}
-              />
+              <span className="task-section-chevron" aria-hidden="true">
+                <ChevronRight
+                  className={cn(
+                    "size-3.5 shrink-0 transition-transform duration-150",
+                    !overdueCollapsed && "rotate-90",
+                  )}
+                />
+              </span>
               <h2 className="text-sm font-semibold text-foreground">逾期</h2>
               <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
                 {overdueEntries.length}
@@ -150,7 +155,10 @@ export function TodaySplitView({
         className="min-w-0"
       >
         {overdueEntries.length > 0 && (
-          <div className="mb-1 flex h-10 items-center gap-2 border-b border-border/80">
+          <div
+            data-list-section="true"
+            className="flex items-center gap-2 border-b border-border/80"
+          >
             <h2 className="text-sm font-semibold">今日任务</h2>
             <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
               {todayEntries.length}

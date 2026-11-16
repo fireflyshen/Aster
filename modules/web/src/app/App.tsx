@@ -5,6 +5,7 @@ import { useHabitsWorkspace } from "@/features/habits/use-habits";
 import type { OrganizationEntry } from "@/features/organization/organization-types";
 import { useEffect, useMemo, useState } from "react";
 import { isCompletedFilterExpression } from "@core/tasks/filter";
+import { normalizeDoingLimit } from "@core/tasks/state";
 import { ProjectColorsProvider } from "@/features/projects/project-icon";
 import { WorkspaceContent } from "./components/workspace-content";
 import { WorkspaceToolbar } from "./components/workspace-header";
@@ -533,6 +534,14 @@ export function App() {
           onSidebarPreferencesChange={sidebar.update}
           completeBehavior={nav.completeBehavior}
           onCompleteBehaviorChange={nav.setCompleteBehavior}
+          doingLimit={normalizeDoingLimit(
+            data.organization.preferences?.doingLimit,
+          )}
+          onDoingLimitChange={(doingLimit) => {
+            void data
+              .updatePreferences({ doingLimit })
+              .then(() => stateActions.refreshSummary());
+          }}
           onTimeMutated={() => {
             void data.refreshTimerSnapshot();
             void data.reloadAll();
@@ -606,6 +615,11 @@ export function App() {
         <DoingLimitDialog
           open={Boolean(stateActions.doingLimitPrompt)}
           targetDescription={stateActions.doingLimitPrompt?.targetDescription}
+          limit={
+            stateActions.doingLimitPrompt?.limit ??
+            stateActions.summary?.limit ??
+            normalizeDoingLimit(data.organization.preferences?.doingLimit)
+          }
           doing={stateActions.doingLimitPrompt?.doing || []}
           busy={stateActions.stateBusy}
           error={stateActions.dialogError}

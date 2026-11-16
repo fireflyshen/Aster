@@ -818,8 +818,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						hint:  "将该任务退回「计划中」，腾出处理中名额",
 					})
 				}
+				limit := m.doingLimit()
+				if e.doing != nil && len(e.doing) > 0 && len(e.doing) != limit && m.stateSummary != nil && m.stateSummary.Limit > 0 {
+					limit = m.stateSummary.Limit
+				}
 				m.choose(opts, -1)
-				m.message = fmt.Sprintf("处理中已满 %d/%d 项，请选择要退回计划中的任务", doingLimit, doingLimit)
+				m.message = fmt.Sprintf("处理中已满 %d/%d 项，请选择要退回计划中的任务", limit, limit)
 				return m, nil
 			}
 			m.pendingWrite = nil

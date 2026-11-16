@@ -91,7 +91,7 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 			if m.stateSummary != nil {
 				doingCnt = m.stateSummary.Counts.Doing
 			}
-			countText = fmt.Sprintf(" %d/%d", doingCnt, doingLimit)
+			countText = fmt.Sprintf(" %d/%d", doingCnt, m.doingLimit())
 		} else if e.id == "focus" && rowW > 14 {
 			countText = fmt.Sprintf(" %d/3", len(f.idx.activeProjects))
 		} else if strings.HasPrefix(e.id, "filter:") {
@@ -543,30 +543,38 @@ func (m model) list(w, h int, f renderFrame) string {
 			if i > 0 && len(blocks) > 0 && rs[i-1].kind != "group" {
 				blocks = append(blocks, block{-1, []string{""}})
 			}
-			arrow := "▾"
-			if m.collapsed[r.id] && !m.board {
-				arrow = "▸"
+			collapsed := m.collapsed[r.id] && !m.board
+			if strings.HasPrefix(r.id, "now:") && r.id != "now:doing" {
+				collapsed = !(m.nowExpanded[r.id] || (m.query != "" && r.count > 0))
 			}
-			marker := "  "
-			markerStyle := dim
+			arrow := "▾ "
+			if collapsed {
+				arrow = "▸ "
+			}
+			arrowStyle := dim
 			titleStyle := softText.Bold(true)
 			cntStyle := dim
 			if selected {
-				marker = "▎ "
-				markerStyle = accent
+				arrowStyle = accent.Bold(true)
 				titleStyle = lipgloss.NewStyle().
 					Foreground(selectedFG).
 					Bold(true)
 				cntStyle = lipgloss.NewStyle().Foreground(brand).Bold(true)
 			}
 			countText := fmt.Sprintf(" %d", r.count)
+			if r.id == "now:doing" {
+				doingCnt := r.count
+				if m.query == "" && m.stateSummary != nil {
+					doingCnt = m.stateSummary.Counts.Doing
+				}
+				countText = fmt.Sprintf(" %d/%d", doingCnt, m.doingLimit())
+			}
 			spans := []styledSpan{
-				span(marker, markerStyle),
-				span(arrow+" ", titleStyle),
+				span(arrow, arrowStyle),
 				span(clean(r.title), titleStyle),
 				span(countText, cntStyle),
 			}
-			usedW := lipgloss.Width(marker) + lipgloss.Width(arrow+" ") +
+			usedW := lipgloss.Width(arrow) +
 				lipgloss.Width(clean(r.title)) + lipgloss.Width(countText)
 			if !selected && rowW-usedW >= 6 {
 				spans = append(

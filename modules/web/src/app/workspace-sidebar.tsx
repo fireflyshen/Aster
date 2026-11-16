@@ -26,6 +26,7 @@ import {
   projectStatus,
   type ProjectStatus,
 } from "@core/workspace/focus";
+import { normalizeDoingLimit } from "@core/tasks/state";
 import type {
   Organization,
   OrganizationChange,
@@ -190,6 +191,7 @@ export function WorkspaceSidebar({
   const visibleProjects = projects.filter(
     (name) => !isCompletedProject(name, organization.projects),
   );
+  const doingLimit = normalizeDoingLimit(organization.preferences?.doingLimit);
 
   return (
     <>
@@ -297,7 +299,7 @@ export function WorkspaceSidebar({
                         data-sidebar-count
                         className="ml-auto text-xs text-muted-foreground tabular-nums"
                       >
-                        {count ?? 0}/5
+                        {count ?? 0}/{doingLimit}
                       </span>
                     ) : value === "focus" ? (
                       <span

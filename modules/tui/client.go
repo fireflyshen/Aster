@@ -160,6 +160,9 @@ type Organization struct {
 	} `json:"timing"`
 	TimerSnapshot *TimerSnapshot `json:"timerSnapshot"`
 	Revision      int            `json:"revision"`
+	Preferences   *struct {
+		DoingLimit int `json:"doingLimit,omitempty"`
+	} `json:"preferences,omitempty"`
 	Projects      []Project      `json:"projects"`
 	Board         struct {
 		Columns    []Column    `json:"columns"`

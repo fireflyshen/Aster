@@ -389,8 +389,6 @@ export function TaskRow({
             "group/row",
             variant === "card" && "[&:has(:focus-visible)]:bg-(--row-hover)",
             variant === "card" && actionsVisible && "bg-(--row-hover)",
-            variant === "list" &&
-              "-mx-2.5 px-2.5 md:-mx-3 md:px-3 [.board-card_&]:mx-0 [.board-card_&]:px-0",
           )}
         >
           <div className="flex w-full min-w-0 items-start gap-2 md:gap-2.5">

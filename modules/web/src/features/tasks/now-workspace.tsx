@@ -8,7 +8,11 @@ import type { TaskRenderFn } from "@/app/hooks/use-task-renderer";
 import type { StateSummaryData } from "@/app/hooks/use-task-state-actions";
 import { sortUrgencyTasks } from "@/app/lib/task-view";
 import { dueLabel, toDueDay } from "@/features/tasks/task-date";
-import { DOING_LIMIT, isHabitTask, type TaskState } from "@core/tasks/state";
+import {
+  isHabitTask,
+  normalizeDoingLimit,
+  type TaskState,
+} from "@core/tasks/state";
 import type { Organization } from "@core/workspace/organization";
 import type { NowSectionState } from "@core/workspace/preferences";
 import type { Task } from "@shared/tasks";
@@ -16,6 +20,7 @@ import { addDays, format } from "date-fns";
 import {
   AlertTriangle,
   ChevronDown,
+  ChevronRight,
   Clock3,
   Hourglass,
   PauseCircle,
@@ -146,6 +151,9 @@ export function NowWorkspace({
     (summary?.waitingDue.length ?? 0) +
     (summary?.parkedReviewDue.length ?? 0) +
     (summary?.anomalies.length ?? 0);
+  const doingLimit =
+    summary?.limit ??
+    normalizeDoingLimit(organization.preferences?.doingLimit);
 
   const plannedOpen = Boolean(nowSections?.planned);
   const waitingOpen = Boolean(nowSections?.waiting);
@@ -312,15 +320,18 @@ export function NowWorkspace({
       )}
 
       <section aria-label="处理中" data-now-doing>
-        <div className="mb-2 flex h-9 items-center justify-between border-b border-border/80">
-          <div className="flex items-center gap-2">
+        <div
+          data-list-section="true"
+          className="flex items-center justify-between border-b border-border/80"
+        >
+          <div className="flex items-center gap-1.5">
             <PlayCircle className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold">
-              处理中{" "}
-              <span className="ml-1 font-normal tabular-nums text-muted-foreground">
-                {doing.length}/{DOING_LIMIT}
-              </span>
+            <h2 className="text-sm font-semibold tracking-tight text-foreground">
+              处理中
             </h2>
+            <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
+              {doing.length}/{doingLimit}
+            </span>
           </div>
           <Button
             type="button"
@@ -336,12 +347,12 @@ export function NowWorkspace({
         </div>
 
         {doing.length === 0 && !loading ? (
-          <div className="rounded-lg border border-dashed border-border/80 px-4 py-6 text-center text-sm text-muted-foreground">
-            当前「处理中」为空（0/{DOING_LIMIT}
+          <div className="mt-2 rounded-lg border border-dashed border-border/80 px-4 py-6 text-center text-sm text-muted-foreground">
+            当前「处理中」为空（0/{doingLimit}
             ）。可以从下方「计划中」挑一条移入处理中。
           </div>
         ) : (
-          <div className="divide-y divide-border/50">
+          <div>
             {doing.map((task) => {
               const active = Boolean(isTimingTask?.(task.uuid) || task.start);
               return (
@@ -350,7 +361,7 @@ export function NowWorkspace({
                   data-now-active-timer={active ? "true" : undefined}
                   className={
                     active
-                      ? "rounded-lg bg-primary/6 ring-1 ring-primary/25 px-1"
+                      ? "rounded-md bg-primary/6 ring-1 ring-inset ring-primary/25"
                       : undefined
                   }
                 >
@@ -367,37 +378,43 @@ export function NowWorkspace({
         onOpenChange={() => toggleSection("planned")}
         data-now-section="planned"
       >
-        <div className="flex h-9 items-center border-b border-border/70">
+        <div
+          data-list-section="true"
+          className="flex items-center border-b border-border/80"
+        >
           <CollapsibleTrigger asChild>
             <button
               type="button"
-              className="group -ml-1.5 flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm font-semibold hover:bg-(--row-hover)"
+              aria-expanded={plannedOpen}
+              className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
             >
-              <ChevronDown
-                className={`size-3.5 text-muted-foreground transition-transform ${
-                  plannedOpen ? "" : "-rotate-90"
-                }`}
-              />
+              <span className="task-section-chevron" aria-hidden="true">
+                <ChevronRight
+                  className={`size-3.5 transition-transform duration-150 ${
+                    plannedOpen ? "rotate-90" : ""
+                  }`}
+                />
+              </span>
               <Clock3 className="size-3.5 text-blue-600 dark:text-blue-400" />
-              <span>计划中</span>
-              <span className="text-xs font-normal tabular-nums text-muted-foreground">
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                计划中
+              </h2>
+              <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
                 {plannedGroups.reduce((acc, [, list]) => acc + list.length, 0)}
               </span>
             </button>
           </CollapsibleTrigger>
         </div>
-        <CollapsibleContent className="pt-2 space-y-4">
+        <CollapsibleContent className="space-y-4">
           {plannedGroups.length === 0 ? (
             <p className="py-3 text-xs text-muted-foreground">暂无计划中任务</p>
           ) : (
             plannedGroups.map(([label, list]) => (
-              <div key={label} className="space-y-1">
-                <div className="px-1 text-xs font-medium text-muted-foreground">
+              <div key={label}>
+                <div className="flex h-8 items-center border-b border-border/60 pt-1 text-xs font-semibold text-foreground/80">
                   {label}
                 </div>
-                <div className="divide-y divide-border/45">
-                  {list.map((task) => renderTask(task))}
-                </div>
+                <div>{list.map((task) => renderTask(task))}</div>
               </div>
             ))
           )}
@@ -409,35 +426,43 @@ export function NowWorkspace({
         onOpenChange={() => toggleSection("waiting")}
         data-now-section="waiting"
       >
-        <div className="flex h-9 items-center border-b border-border/70">
+        <div
+          data-list-section="true"
+          className="flex items-center border-b border-border/80"
+        >
           <CollapsibleTrigger asChild>
             <button
               type="button"
-              className="group -ml-1.5 flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm font-semibold hover:bg-(--row-hover)"
+              aria-expanded={waitingOpen}
+              className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
             >
-              <ChevronDown
-                className={`size-3.5 text-muted-foreground transition-transform ${
-                  waitingOpen ? "" : "-rotate-90"
-                }`}
-              />
+              <span className="task-section-chevron" aria-hidden="true">
+                <ChevronRight
+                  className={`size-3.5 transition-transform duration-150 ${
+                    waitingOpen ? "rotate-90" : ""
+                  }`}
+                />
+              </span>
               <Hourglass className="size-3.5 text-teal-600 dark:text-teal-400" />
-              <span>等待中</span>
-              <span className="text-xs font-normal tabular-nums text-muted-foreground">
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                等待中
+              </h2>
+              <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
                 {waiting.length}
               </span>
             </button>
           </CollapsibleTrigger>
         </div>
-        <CollapsibleContent className="pt-2">
+        <CollapsibleContent>
           {waiting.length === 0 ? (
             <p className="py-3 text-xs text-muted-foreground">暂无等待中任务</p>
           ) : (
-            <div className="divide-y divide-border/45">
+            <div>
               {waiting.map((task) => (
-                <div key={task.uuid} className="space-y-0.5 py-0.5">
+                <div key={task.uuid}>
                   {renderTask(task)}
                   {(task.waitReason || task.wait) && (
-                    <div className="pl-11 pb-1.5 text-xs text-muted-foreground">
+                    <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
                       {task.waitReason && (
                         <span className="mr-2">原因：{task.waitReason}</span>
                       )}
@@ -460,37 +485,45 @@ export function NowWorkspace({
         onOpenChange={() => toggleSection("parked")}
         data-now-section="parked"
       >
-        <div className="flex h-9 items-center border-b border-border/70">
+        <div
+          data-list-section="true"
+          className="flex items-center border-b border-border/80"
+        >
           <CollapsibleTrigger asChild>
             <button
               type="button"
-              className="group -ml-1.5 flex flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm font-semibold hover:bg-(--row-hover)"
+              aria-expanded={parkedOpen}
+              className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
             >
-              <ChevronDown
-                className={`size-3.5 text-muted-foreground transition-transform ${
-                  parkedOpen ? "" : "-rotate-90"
-                }`}
-              />
+              <span className="task-section-chevron" aria-hidden="true">
+                <ChevronRight
+                  className={`size-3.5 transition-transform duration-150 ${
+                    parkedOpen ? "rotate-90" : ""
+                  }`}
+                />
+              </span>
               <PauseCircle className="size-3.5 text-muted-foreground" />
-              <span>长期搁置</span>
-              <span className="text-xs font-normal tabular-nums text-muted-foreground">
+              <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                长期搁置
+              </h2>
+              <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
                 {parked.length}
               </span>
             </button>
           </CollapsibleTrigger>
         </div>
-        <CollapsibleContent className="pt-2">
+        <CollapsibleContent>
           {parked.length === 0 ? (
             <p className="py-3 text-xs text-muted-foreground">
               暂无长期搁置任务
             </p>
           ) : (
-            <div className="divide-y divide-border/45">
+            <div>
               {parked.map((task) => (
-                <div key={task.uuid} className="space-y-0.5 py-0.5">
+                <div key={task.uuid}>
                   {renderTask(task)}
                   {task.wait && (
-                    <div className="pl-11 pb-1.5 text-xs text-muted-foreground">
+                    <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
                       复查日：{toDueDay(task.wait) || dueLabel(task.wait)}
                     </div>
                   )}

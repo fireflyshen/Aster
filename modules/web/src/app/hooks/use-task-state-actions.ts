@@ -52,6 +52,7 @@ export interface StateHistoryEntryItem {
 
 type DoingLimitPrompt = {
   targetDescription?: string;
+  limit?: number;
   doing: DoingLimitCandidate[];
   retry: (replaceUuid: string) => Promise<void>;
 };
@@ -113,8 +114,13 @@ export function useTaskStateActions(deps: {
           Array.isArray(error.details?.doing)
         ) {
           const candidates = error.details.doing as DoingLimitCandidate[];
+          const limit =
+            typeof error.details.limit === "number"
+              ? error.details.limit
+              : undefined;
           setDoingLimitPrompt({
             targetDescription,
+            limit,
             doing: candidates,
             retry: async (replaceUuid: string) => {
               await api("action", {
@@ -203,9 +209,10 @@ export function useTaskStateActions(deps: {
       targetDescription: string,
       doing: DoingLimitCandidate[],
       retry: (replaceUuid: string) => Promise<void>,
+      limit?: number,
     ) => {
       setDialogError("");
-      setDoingLimitPrompt({ targetDescription, doing, retry });
+      setDoingLimitPrompt({ targetDescription, limit, doing, retry });
     },
     [],
   );

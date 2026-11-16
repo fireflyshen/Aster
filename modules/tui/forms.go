@@ -665,6 +665,12 @@ func (m *model) submit() (tea.Cmd, error) {
 		m.filterLoaded = false
 		m.query = ""
 		return m.read("filter", "/api/tasks?filter="+url.QueryEscape(v[0])), nil
+	case "now.limit":
+		var next int
+		if _, e := fmt.Sscan(strings.TrimSpace(v[0]), &next); e != nil || next < minDoingLimit || next > maxDoingLimit {
+			return nil, fmt.Errorf("请输入 %d 到 %d 之间的整数", minDoingLimit, maxDoingLimit)
+		}
+		return m.write("/api/preferences", map[string]any{"doingLimit": next}), nil
 	case "task.state.waiting":
 		reason := strings.TrimSpace(v[0])
 		if reason == "" {

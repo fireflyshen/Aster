@@ -23,7 +23,7 @@ export function registerStateTools({
 }: McpToolRegistrar): void {
   register(
     "task_state_set",
-    "Transition an open top-level non-habit task between planned, doing (max 5), waiting (requires waitReason + checkDate), and parked (default +30d checkDate). On 409 STATE_DOING_LIMIT, ask the user or Cadence which doing task to return to planned and retry with replaceUuid.",
+    "Transition an open top-level non-habit task between planned, doing (up to configured limit, default 5), waiting (requires waitReason + checkDate), and parked (default +30d checkDate). On 409 STATE_DOING_LIMIT, ask the user or Cadence which doing task to return to planned and retry with replaceUuid.",
     {
       uuid: uuidSchema,
       state: taskStateSchema,
@@ -61,10 +61,20 @@ export function registerStateTools({
 
   register(
     "state_summary",
-    "Read task state counts, doing list (max 5), upcoming scheduled tasks, waitingDue, parkedReviewDue, promotionBlocked, and anomalies.",
+    "Read task state counts, doing list and active doing limit, upcoming scheduled tasks, waitingDue, parkedReviewDue, promotionBlocked, and anomalies.",
     {},
     true,
     () => get("/api/state/summary"),
+  );
+
+  register(
+    "state_limit_set",
+    "Update the configurable max number of simultaneous doing tasks in the 'Now' view (1-20, default 5). Persisted in shared workspace preferences.",
+    {
+      doingLimit: z.number().int().min(1).max(20),
+    },
+    false,
+    (i) => post("/api/preferences", { doingLimit: i.doingLimit }),
   );
 
   register(

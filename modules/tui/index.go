@@ -701,10 +701,7 @@ func (idx viewIndex) nowRows(m model, now time.Time) []row {
 		tasks      []Task
 		openByDef  bool
 	}
-	doingTitle := fmt.Sprintf("处理中 · %d/%d", len(doing), doingLimit)
-	if m.query == "" && m.stateSummary != nil {
-		doingTitle = fmt.Sprintf("处理中 · %d/%d", m.stateSummary.Counts.Doing, doingLimit)
-	}
+	doingTitle := "处理中"
 	sections := []nowSection{
 		{id: "now:doing", title: doingTitle, tasks: doing, openByDef: true},
 		{id: "now:planned", title: "计划中", tasks: planned, openByDef: false},

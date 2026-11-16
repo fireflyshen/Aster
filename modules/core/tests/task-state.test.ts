@@ -13,11 +13,15 @@ import {
   DOING_LIMIT,
   effectiveState,
   isStateManaged,
+  MAX_DOING_LIMIT,
+  MIN_DOING_LIMIT,
+  normalizeDoingLimit,
   PARK_DAYS,
   STATE_LABELS,
   type StateLookupTask,
   TaskStateError,
 } from "../tasks/state.ts";
+import { normalizePreferencesPatch } from "../workspace/preferences.ts";
 
 test("task state constants and transitions enforce allowed state graph", () => {
   assert.equal(DOING_LIMIT, 5);
@@ -201,4 +205,18 @@ test("stateArguments, dependsArguments, STATE_SCHEMA, and TaskStateError", () =>
   });
   assert.equal(err.status, 409);
   assert.equal(err.code, "STATE_DOING_LIMIT");
+
+  assert.equal(normalizeDoingLimit(undefined), 5);
+  assert.equal(normalizeDoingLimit(2), 2);
+  assert.equal(normalizeDoingLimit(20), MAX_DOING_LIMIT);
+  assert.equal(normalizeDoingLimit(0), DOING_LIMIT);
+  assert.equal(normalizeDoingLimit(21), DOING_LIMIT);
+  assert.deepEqual(normalizePreferencesPatch({ doingLimit: 8 }), {
+    doingLimit: 8,
+  });
+  assert.throws(() => normalizePreferencesPatch({ doingLimit: 0 }));
+  assert.throws(() =>
+    normalizePreferencesPatch({ doingLimit: MAX_DOING_LIMIT + 1 }),
+  );
+  assert.equal(MIN_DOING_LIMIT, 1);
 });

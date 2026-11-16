@@ -15,9 +15,9 @@ import type { TaskService } from "../../../core/tasks/service.ts";
 import {
   allowedStateTargets,
   canTransition,
-  DOING_LIMIT,
   isHabitTask,
   isValidTaskState,
+  normalizeDoingLimit,
   PARK_DAYS,
   TaskStateError,
   type EffectiveTaskState,
@@ -421,6 +421,7 @@ export function createTaskStateManager(deps: {
     habitUuids: ReadonlySet<string>,
     taskMap: ReadonlyMap<string, TaskwarriorTask>,
     targetUuid: string,
+    limit: number,
     meta: StateActionMeta,
   ): Promise<void> {
     if (typeof replaceUuidRaw !== "string" || !replaceUuidRaw.trim()) {
@@ -428,9 +429,9 @@ export function createTaskStateManager(deps: {
       throw new TaskStateError(
         409,
         "STATE_DOING_LIMIT",
-        "处理中已满 5 条，请先放回一条",
+        `处理中已满 ${limit} 条，请先放回一条`,
         {
-          limit: DOING_LIMIT,
+          limit,
           doing: doing.map((item) => ({
             uuid: item.uuid,
             description: item.description,
@@ -526,8 +527,9 @@ export function createTaskStateManager(deps: {
       const built = buildTargetModifyArgs(to, input, tz);
 
       if (to === "doing") {
+        const limit = normalizeDoingLimit(org.preferences?.doingLimit);
         const doing = topLevelDoingTasks(tasks, org, habitUuids, uuid);
-        if (doing.length >= DOING_LIMIT) {
+        if (doing.length >= limit) {
           await replaceDoingTaskUnlocked(
             input.replaceUuid,
             tasks,
@@ -535,6 +537,7 @@ export function createTaskStateManager(deps: {
             habitUuids,
             taskMap,
             uuid,
+            limit,
             meta,
           );
         }
@@ -741,12 +744,13 @@ export function createTaskStateManager(deps: {
     );
 
     if (rawState === "doing") {
+      const limit = normalizeDoingLimit(org.preferences?.doingLimit);
       await service.withWriteLock(async () => {
         const tasks = await service.loadTasks("pending");
         const habitUuids = habitUuidsSet();
         const taskMap = new Map(tasks.map((t) => [t.uuid, t]));
         const doing = topLevelDoingTasks(tasks, org, habitUuids);
-        if (doing.length >= DOING_LIMIT) {
+        if (doing.length >= limit) {
           await replaceDoingTaskUnlocked(
             input.replaceUuid,
             tasks,
@@ -754,6 +758,7 @@ export function createTaskStateManager(deps: {
             habitUuids,
             taskMap,
             "new-task",
+            limit,
             meta,
           );
         }
@@ -1073,11 +1078,12 @@ export function createTaskStateManager(deps: {
       }
     }
 
+    const limit = normalizeDoingLimit(org.preferences?.doingLimit);
     doingTasks.sort(compareTasksByUrgency);
-    if (doingTasks.length > DOING_LIMIT) {
+    if (doingTasks.length > limit) {
       anomalies.push({
         uuid: doingTasks[0].uuid,
-        description: `当前处理中共有 ${doingTasks.length} 条（上限 ${DOING_LIMIT} 条）`,
+        description: `当前处理中共有 ${doingTasks.length} 条（上限 ${limit} 条）`,
         type: "doing_over_limit",
         detail: "可能通过 CLI 直接写入，请手动放回多余任务到计划中",
       });
@@ -1085,7 +1091,7 @@ export function createTaskStateManager(deps: {
 
     upcoming.sort((a, b) => a.scheduled.localeCompare(b.scheduled));
 
-    const remainingSlots = Math.max(0, DOING_LIMIT - doingTasks.length);
+    const remainingSlots = Math.max(0, limit - doingTasks.length);
     const waitingDueTasks = tasks
       .filter(
         (t) =>
@@ -1120,7 +1126,7 @@ export function createTaskStateManager(deps: {
     const blockedSlice = orderedDue.slice(remainingSlots);
 
     return {
-      limit: DOING_LIMIT,
+      limit,
       doing: doingTasks.map((t) => toSummaryItem(t, openUuids)),
       counts,
       upcoming,
@@ -1150,8 +1156,9 @@ export function createTaskStateManager(deps: {
       const taskMap = new Map(tasks.map((t) => [t.uuid, t]));
       const openUuids = new Set(tasks.filter(isTaskOpen).map((t) => t.uuid));
 
+      const limit = normalizeDoingLimit(org.preferences?.doingLimit);
       let doingCount = topLevelDoingTasks(tasks, org, habitUuids).length;
-      if (doingCount >= DOING_LIMIT) {
+      if (doingCount >= limit) {
         return { promoted: [] };
       }
 
@@ -1207,7 +1214,7 @@ export function createTaskStateManager(deps: {
       ];
 
       for (const item of promoteList) {
-        if (doingCount >= DOING_LIMIT) break;
+        if (doingCount >= limit) break;
         const dedupKey = `${item.task.uuid}:${today}`;
         if (dailyAutoPromoted.has(dedupKey)) continue;
 

@@ -90,14 +90,16 @@ export function BoardColumn({
                 aria-label={`${collapsed ? "展开" : "收起"}分组: ${title}`}
                 aria-expanded={!collapsed}
                 onClick={() => setCollapsed((prev) => !prev)}
-                className="task-section-toggle flex min-w-0 items-center gap-1.5 rounded-md py-1 text-left transition-colors select-none hover:bg-(--row-hover)"
+                className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
               >
-                <ChevronRight
-                  className={cn(
-                    "size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ease-out",
-                    !collapsed && "rotate-90",
-                  )}
-                />
+                <span className="task-section-chevron" aria-hidden="true">
+                  <ChevronRight
+                    className={cn(
+                      "size-3.5 shrink-0 transition-transform duration-200 ease-out",
+                      !collapsed && "rotate-90",
+                    )}
+                  />
+                </span>
                 <h2 className="min-w-0 truncate text-sm font-semibold tracking-tight text-foreground">
                   {title}
                 </h2>

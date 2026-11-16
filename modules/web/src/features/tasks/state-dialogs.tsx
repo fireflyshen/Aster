@@ -173,10 +173,11 @@ export function WaitingReasonDialog({
   );
 }
 
-/** Interactive replacement picker shown when promoting to `doing` hits the 5-task limit (`409 STATE_DOING_LIMIT`). */
+/** Interactive replacement picker shown when promoting to `doing` hits the configured limit (`409 STATE_DOING_LIMIT`). */
 export function DoingLimitDialog({
   open,
   targetDescription,
+  limit = 5,
   doing,
   busy,
   error,
@@ -185,6 +186,7 @@ export function DoingLimitDialog({
 }: {
   open: boolean;
   targetDescription?: string;
+  limit?: number;
   doing: DoingLimitCandidate[];
   busy: boolean;
   error: string;
@@ -203,11 +205,11 @@ export function DoingLimitDialog({
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-[460px]">
         <DialogHeader>
-          <DialogTitle>处理中已满 5 条</DialogTitle>
+          <DialogTitle>处理中已满 {limit} 条</DialogTitle>
           <DialogDescription>
             {targetDescription
               ? `要将「${targetDescription}」移入处理中，请先选一条现有任务放回「计划中」：`
-              : "处理中已达 5 条上限，请先选一条放回「计划中」："}
+              : `处理中已达 ${limit} 条上限，请先选一条放回「计划中」：`}
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-72 space-y-1.5 overflow-y-auto py-1">

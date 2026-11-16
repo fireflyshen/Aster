@@ -206,9 +206,10 @@
     margin-left: 18px;
   }
   .task-section-toggle {
-    padding-left: 24px;
+    padding-left: 28px;
   }
-  .task-section-toggle > svg {
+  .task-section-toggle .task-section-chevron,
+  .task-section-toggle > svg:first-child {
     left: 0;
   }
   [data-list-section="true"] {
