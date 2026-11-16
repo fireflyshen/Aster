@@ -361,12 +361,7 @@ export function TimeLogOrEstimateDialog({
           <div className="grid grid-cols-3 gap-2">
             <div className="space-y-1.5">
               <Label htmlFor="time-log-date">日期</Label>
-              <DateField
-                id="time-log-date"
-
-                value={date}
-                onChange={setDate}
-              />
+              <DateField id="time-log-date" value={date} onChange={setDate} />
             </div>
             {mode === "log" ? (
               <>
@@ -573,12 +568,7 @@ export function LocateEstimateDialog({
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="loc-date">日期</Label>
-            <DateField
-              id="loc-date"
-
-              value={date}
-              onChange={setDate}
-            />
+            <DateField id="loc-date" value={date} onChange={setDate} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">

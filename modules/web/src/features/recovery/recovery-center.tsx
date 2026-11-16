@@ -89,33 +89,28 @@ export function RecoveryPanel({
     return () => window.clearTimeout(timer);
   }, [queryInput]);
 
-  const loadPage = useCallback(
-    async (targetPage: number, q: string) => {
-      setLoading(true);
-      setError("");
-      try {
-        const params = new URLSearchParams();
-        params.set("limit", String(PAGE_SIZE));
-        params.set("offset", String(targetPage * PAGE_SIZE));
-        if (q) params.set("q", q);
-        const result = await api<RecoveryList>(
-          `recovery?${params.toString()}`,
-        );
-        const total = result.total ?? result.tasks.length;
-        if (targetPage > 0 && result.tasks.length === 0 && total > 0) {
-          const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
-          setPage(lastPage);
-          return;
-        }
-        setData(result);
-      } catch (err) {
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
+  const loadPage = useCallback(async (targetPage: number, q: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const params = new URLSearchParams();
+      params.set("limit", String(PAGE_SIZE));
+      params.set("offset", String(targetPage * PAGE_SIZE));
+      if (q) params.set("q", q);
+      const result = await api<RecoveryList>(`recovery?${params.toString()}`);
+      const total = result.total ?? result.tasks.length;
+      if (targetPage > 0 && result.tasks.length === 0 && total > 0) {
+        const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
+        setPage(lastPage);
+        return;
       }
-    },
-    [],
-  );
+      setData(result);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void loadPage(page, activeQuery);

@@ -298,7 +298,9 @@ export function BackupPanel({
         <section className="rounded-[10px] border border-border p-4">
           <div className="mb-3 flex items-baseline justify-between gap-2">
             <div>
-              <h3 className="text-sm font-medium text-foreground">自动还原点</h3>
+              <h3 className="text-sm font-medium text-foreground">
+                自动还原点
+              </h3>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 每次导入备份前，系统会自动保留一份当时的工作区快照。
               </p>

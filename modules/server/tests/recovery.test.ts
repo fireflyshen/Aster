@@ -265,7 +265,11 @@ test("recovery list supports server-side search and pagination while keeping ful
     assert.equal(page2.hasMore, false);
     assert.equal(page2.tasks[0].description, "Alpha task");
 
-    const searched = await recovery.list({ query: "work", limit: 10, offset: 0 });
+    const searched = await recovery.list({
+      query: "work",
+      limit: 10,
+      offset: 0,
+    });
     assert.equal(searched.total, 2);
     assert.deepEqual(
       searched.tasks.map((t) => t.description),

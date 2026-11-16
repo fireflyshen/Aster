@@ -378,165 +378,170 @@ export function HabitDetailDialog({
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
             {habit.description && (
-            <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
-              {habit.description}
-            </div>
-          )}
+              <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                {habit.description}
+              </div>
+            )}
 
-          {/* Streak & 30-day metrics */}
-          <div className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
-              <div className="text-[11px] text-muted-foreground">当前连续</div>
-              <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-                {streak.currentStreak}
-                <span className="ml-0.5 text-xs font-normal text-muted-foreground">
-                  {streak.unit}
-                </span>
-              </div>
-            </div>
-            <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
-              <div className="text-[11px] text-muted-foreground">最长连续</div>
-              <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-                {streak.longestStreak}
-                <span className="ml-0.5 text-xs font-normal text-muted-foreground">
-                  {streak.unit}
-                </span>
-              </div>
-            </div>
-            <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
-              <div className="text-[11px] text-muted-foreground">
-                近 30 天达成
-              </div>
-              <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-                {streak.recent30Achieved}
-                <span className="text-xs font-normal text-muted-foreground">
-                  /{streak.recent30Scheduled}
-                </span>
-              </div>
-            </div>
-            {habit.kind === "negative" && (
+            {/* Streak & 30-day metrics */}
+            <div className="grid min-w-0 grid-cols-2 gap-2.5 sm:grid-cols-4">
               <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
                 <div className="text-[11px] text-muted-foreground">
-                  近 30 天发生
+                  当前连续
                 </div>
                 <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
-                  {streak.recent30Events}
+                  {streak.currentStreak}
                   <span className="ml-0.5 text-xs font-normal text-muted-foreground">
-                    次
+                    {streak.unit}
                   </span>
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* Individual Heatmap */}
-          <div className="min-w-0 border-y border-border/60 py-3.5">
-            <div className="mb-2 text-xs font-medium text-foreground">
-              执行热力图
-            </div>
-            <HabitHeatmap
-              heatmap={heatmap}
-              selectedDate={selectedDay}
-              onSelectDate={setSelectedDay}
-              compact
-            />
-          </div>
-
-          {/* Selected date quick edit */}
-          {selectedItem && (
-            <div className="rounded-xl border border-border/80 bg-card p-3">
-              <div className="mb-1 text-xs font-medium text-muted-foreground">
-                {selectedItem.evaluation.date} 补记与修正
+              <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
+                <div className="text-[11px] text-muted-foreground">
+                  最长连续
+                </div>
+                <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+                  {streak.longestStreak}
+                  <span className="ml-0.5 text-xs font-normal text-muted-foreground">
+                    {streak.unit}
+                  </span>
+                </div>
               </div>
-              <HabitExecutionRow
-                habit={selectedItem.habit}
-                evaluation={selectedItem.evaluation}
-                availablePlans={selectedItem.availablePlans}
-                availableLabels={availableLabels}
-                date={selectedItem.evaluation.date}
-                isToday={selectedItem.evaluation.date === heatmap.todayDate}
-                disabled={disabled}
-                onTogglePositive={onTogglePositive}
-                onSetChecklistItem={onSetChecklistItem}
-                onSwitchPlan={onSwitchPlan}
-                onRecordNegative={onRecordNegative}
-                onUndoNegative={onUndoNegative}
-                onUpdateNegativeNote={onUpdateNegativeNote}
-                onSetDailyNote={onSetDailyNote}
+              <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
+                <div className="text-[11px] text-muted-foreground">
+                  近 30 天达成
+                </div>
+                <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+                  {streak.recent30Achieved}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    /{streak.recent30Scheduled}
+                  </span>
+                </div>
+              </div>
+              {habit.kind === "negative" && (
+                <div className="min-w-0 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
+                  <div className="text-[11px] text-muted-foreground">
+                    近 30 天发生
+                  </div>
+                  <div className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
+                    {streak.recent30Events}
+                    <span className="ml-0.5 text-xs font-normal text-muted-foreground">
+                      次
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Individual Heatmap */}
+            <div className="min-w-0 border-y border-border/60 py-3.5">
+              <div className="mb-2 text-xs font-medium text-foreground">
+                执行热力图
+              </div>
+              <HabitHeatmap
+                heatmap={heatmap}
+                selectedDate={selectedDay}
+                onSelectDate={setSelectedDay}
+                compact
               />
             </div>
-          )}
 
-          {/* Recent 30 days history */}
-          <div className="space-y-2">
-            <div className="text-xs font-medium text-foreground">
-              近期记录（最近 30 天）
-            </div>
-            {recentDays.length === 0 ? (
-              <p className="py-4 text-center text-xs text-muted-foreground">
-                暂无近期安排记录。
-              </p>
-            ) : (
-              <div className="divide-y divide-border/50 rounded-lg border border-border/70 bg-card/50">
-                {recentDays.map((entry) => {
-                  const badge = dayStatusBadge(
-                    entry.evaluation.status,
-                    habit.kind,
-                  );
-                  return (
-                    <button
-                      key={entry.evaluation.date}
-                      type="button"
-                      onClick={() =>
-                        setSelectedDay((prev) =>
-                          prev === entry.evaluation.date
-                            ? null
-                            : entry.evaluation.date,
-                        )
-                      }
-                      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-(--row-hover)"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium tabular-nums text-foreground">
-                            {entry.evaluation.date}
-                          </span>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.className}`}
-                          >
-                            {badge.label}
-                          </span>
-                          {entry.evaluation.completionMode === "checklist" && (
-                            <span className="text-[11px] text-muted-foreground tabular-nums">
-                              {entry.evaluation.requiredDoneCount}/
-                              {entry.evaluation.requiredTotalCount} 项
-                              {entry.evaluation.planName
-                                ? ` · ${entry.evaluation.planName}`
-                                : ""}
-                            </span>
-                          )}
-                          {habit.kind === "negative" &&
-                            entry.evaluation.events.length > 0 && (
-                              <span className="text-[11px] text-muted-foreground tabular-nums">
-                                发生 {entry.evaluation.events.length} 次
-                              </span>
-                            )}
-                        </div>
-                        {entry.evaluation.note && (
-                          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                            “{entry.evaluation.note}”
-                          </div>
-                        )}
-                      </div>
-                      <span className="shrink-0 text-[11px] text-muted-foreground">
-                        编辑
-                      </span>
-                    </button>
-                  );
-                })}
+            {/* Selected date quick edit */}
+            {selectedItem && (
+              <div className="rounded-xl border border-border/80 bg-card p-3">
+                <div className="mb-1 text-xs font-medium text-muted-foreground">
+                  {selectedItem.evaluation.date} 补记与修正
+                </div>
+                <HabitExecutionRow
+                  habit={selectedItem.habit}
+                  evaluation={selectedItem.evaluation}
+                  availablePlans={selectedItem.availablePlans}
+                  availableLabels={availableLabels}
+                  date={selectedItem.evaluation.date}
+                  isToday={selectedItem.evaluation.date === heatmap.todayDate}
+                  disabled={disabled}
+                  onTogglePositive={onTogglePositive}
+                  onSetChecklistItem={onSetChecklistItem}
+                  onSwitchPlan={onSwitchPlan}
+                  onRecordNegative={onRecordNegative}
+                  onUndoNegative={onUndoNegative}
+                  onUpdateNegativeNote={onUpdateNegativeNote}
+                  onSetDailyNote={onSetDailyNote}
+                />
               </div>
             )}
-          </div>
+
+            {/* Recent 30 days history */}
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-foreground">
+                近期记录（最近 30 天）
+              </div>
+              {recentDays.length === 0 ? (
+                <p className="py-4 text-center text-xs text-muted-foreground">
+                  暂无近期安排记录。
+                </p>
+              ) : (
+                <div className="divide-y divide-border/50 rounded-lg border border-border/70 bg-card/50">
+                  {recentDays.map((entry) => {
+                    const badge = dayStatusBadge(
+                      entry.evaluation.status,
+                      habit.kind,
+                    );
+                    return (
+                      <button
+                        key={entry.evaluation.date}
+                        type="button"
+                        onClick={() =>
+                          setSelectedDay((prev) =>
+                            prev === entry.evaluation.date
+                              ? null
+                              : entry.evaluation.date,
+                          )
+                        }
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-(--row-hover)"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium tabular-nums text-foreground">
+                              {entry.evaluation.date}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${badge.className}`}
+                            >
+                              {badge.label}
+                            </span>
+                            {entry.evaluation.completionMode ===
+                              "checklist" && (
+                              <span className="text-[11px] text-muted-foreground tabular-nums">
+                                {entry.evaluation.requiredDoneCount}/
+                                {entry.evaluation.requiredTotalCount} 项
+                                {entry.evaluation.planName
+                                  ? ` · ${entry.evaluation.planName}`
+                                  : ""}
+                              </span>
+                            )}
+                            {habit.kind === "negative" &&
+                              entry.evaluation.events.length > 0 && (
+                                <span className="text-[11px] text-muted-foreground tabular-nums">
+                                  发生 {entry.evaluation.events.length} 次
+                                </span>
+                              )}
+                          </div>
+                          {entry.evaluation.note && (
+                            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                              “{entry.evaluation.note}”
+                            </div>
+                          )}
+                        </div>
+                        <span className="shrink-0 text-[11px] text-muted-foreground">
+                          编辑
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

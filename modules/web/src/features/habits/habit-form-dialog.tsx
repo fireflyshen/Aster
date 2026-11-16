@@ -352,423 +352,429 @@ export function HabitFormDialog({
           className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 py-5">
-          {/* 1. 叫什么 */}
-          <div className="space-y-1.5">
-            <Label htmlFor="habit-title">1. 叫什么</Label>
-            <Input
-              id="habit-title"
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：阅读、力量训练、不喝含糖饮料"
-            />
-          </div>
-
-          {/* 2. 怎么记 */}
-          <div className="space-y-2">
-            <Label>2. 怎么记</Label>
-            <div
-              className="grid gap-2 sm:grid-cols-3"
-              role="group"
-              aria-label="习惯记录方式"
-            >
-              {(
-                [
-                  {
-                    kind: "positive",
-                    trackTime: false,
-                    label: "普通打卡",
-                    hint: "只勾选今天是否做到，不计时、不计数",
-                  },
-                  {
-                    kind: "positive",
-                    trackTime: true,
-                    label: "计时打卡",
-                    hint: "打卡之外，记录投入的时长与成本",
-                  },
-                  {
-                    kind: "negative",
-                    trackTime: false,
-                    label: "反向记次",
-                    hint: "只记破例，未发生则在当天结束后达成",
-                  },
-                ] as const
-              ).map((mode) => {
-                const selected =
-                  kind === mode.kind &&
-                  (kind === "negative" || trackTime === mode.trackTime);
-                const locked = Boolean(editing) && editing?.kind !== mode.kind;
-                return (
-                  <button
-                    key={mode.label}
-                    type="button"
-                    disabled={locked}
-                    aria-pressed={selected}
-                    onClick={() => {
-                      setKind(mode.kind);
-                      setTrackTime(mode.trackTime);
-                    }}
-                    className={cn(
-                      "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                      selected
-                        ? "border-(--habit-accent) bg-(--habit-accent)/8"
-                        : "border-border hover:bg-accent/50",
-                      locked && "cursor-not-allowed opacity-50",
-                    )}
-                  >
-                    <div className="text-sm font-medium text-foreground">
-                      {mode.label}
-                    </div>
-                    <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                      {mode.hint}
-                    </div>
-                  </button>
-                );
-              })}
+            {/* 1. 叫什么 */}
+            <div className="space-y-1.5">
+              <Label htmlFor="habit-title">1. 叫什么</Label>
+              <Input
+                id="habit-title"
+                autoFocus
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="例如：阅读、力量训练、不喝含糖饮料"
+              />
             </div>
 
-            {kind === "positive" && (
-              <div className="space-y-2 pt-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCompletionMode("simple")}
-                    className={cn(
-                      "rounded-md border px-2.5 py-1 text-xs transition-colors",
-                      completionMode === "simple"
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    一键完成
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCompletionMode("checklist")}
-                    className={cn(
-                      "rounded-md border px-2.5 py-1 text-xs transition-colors",
-                      completionMode === "checklist"
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    逐项完成清单
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Checklist / A-B Editor */}
-          {kind === "positive" && completionMode === "checklist" && (
-            <div className="space-y-3 rounded-lg border border-border/80 bg-muted/30 p-3">
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-xs font-medium text-foreground">
-                    动作清单
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    必做动作全部勾选后，整次训练自动完成
-                  </div>
-                </div>
-                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                  <span>A/B 双方案</span>
-                  <Switch checked={abEnabled} onCheckedChange={setAbEnabled} />
-                </label>
-              </div>
-
-              {abEnabled && (
-                <div className="flex items-center gap-1.5">
-                  {(["A", "B"] as const).map((id) => (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setActiveAbTab(id)}
-                      className={cn(
-                        "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                        activeAbTab === id
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-background text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      方案 {id}（
-                      {abPlans.find((p) => p.id === id)?.items.length ?? 0}）
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                {activeItems.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-1.5 rounded-md border border-border/60 bg-background px-2 py-1"
-                  >
-                    <Input
-                      value={item.title}
-                      onChange={(e) =>
-                        updateActiveItems((prev) =>
-                          prev.map((it, i) =>
-                            i === idx
-                              ? {
-                                  ...it,
-                                  title: e.target.value,
-                                }
-                              : it,
-                          ),
-                        )
-                      }
-                      className="h-7 flex-1 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        updateActiveItems((prev) =>
-                          prev.map((it, i) =>
-                            i === idx
-                              ? {
-                                  ...it,
-                                  required: !it.required,
-                                }
-                              : it,
-                          ),
-                        )
-                      }
-                      className={cn(
-                        "shrink-0 rounded px-1.5 py-0.5 text-[11px] transition-colors",
-                        item.required
-                          ? "bg-(--habit-accent)/14 text-(--habit-accent)"
-                          : "bg-secondary text-muted-foreground",
-                      )}
-                    >
-                      {item.required ? "必做" : "选做"}
-                    </button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      disabled={idx === 0}
-                      onClick={() => moveItem(idx, -1)}
-                      className="size-6 text-muted-foreground"
-                    >
-                      <ArrowUp className="size-3" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      disabled={idx === activeItems.length - 1}
-                      onClick={() => moveItem(idx, 1)}
-                      className="size-6 text-muted-foreground"
-                    >
-                      <ArrowDown className="size-3" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() =>
-                        updateActiveItems((prev) =>
-                          prev.filter((_, i) => i !== idx),
-                        )
-                      }
-                      className="size-6 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="size-3" />
-                    </Button>
-                  </div>
-                ))}
-
-                <div className="flex items-center gap-1.5 pt-0.5">
-                  <Input
-                    value={newItemTitle}
-                    onChange={(e) => setNewItemTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addChecklistItem();
-                      }
-                    }}
-                    placeholder="添加动作（如：俯卧撑、哑铃卧推）"
-                    className="h-8 flex-1 text-xs"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addChecklistItem}
-                    className="h-8 gap-1 px-2.5 text-xs"
-                  >
-                    <Plus className="size-3.5" />
-                    添加
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 3. 什么时候执行 */}
-          <div className="space-y-2">
-            <Label>3. 什么时候执行</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {(
-                [
-                  { id: "daily", label: "每天" },
-                  { id: "weekly", label: "每周指定几天" },
-                  { id: "interval", label: "每隔几天" },
-                ] as const
-              ).map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setScheduleType(opt.id)}
-                  className={cn(
-                    "rounded-md border px-2.5 py-1 text-xs transition-colors",
-                    scheduleType === opt.id
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-
-            {scheduleType === "weekly" && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {WEEKDAY_CHIPS.map((w) => {
-                  const active = weekdays.includes(w.day);
+            {/* 2. 怎么记 */}
+            <div className="space-y-2">
+              <Label>2. 怎么记</Label>
+              <div
+                className="grid gap-2 sm:grid-cols-3"
+                role="group"
+                aria-label="习惯记录方式"
+              >
+                {(
+                  [
+                    {
+                      kind: "positive",
+                      trackTime: false,
+                      label: "普通打卡",
+                      hint: "只勾选今天是否做到，不计时、不计数",
+                    },
+                    {
+                      kind: "positive",
+                      trackTime: true,
+                      label: "计时打卡",
+                      hint: "打卡之外，记录投入的时长与成本",
+                    },
+                    {
+                      kind: "negative",
+                      trackTime: false,
+                      label: "反向记次",
+                      hint: "只记破例，未发生则在当天结束后达成",
+                    },
+                  ] as const
+                ).map((mode) => {
+                  const selected =
+                    kind === mode.kind &&
+                    (kind === "negative" || trackTime === mode.trackTime);
+                  const locked =
+                    Boolean(editing) && editing?.kind !== mode.kind;
                   return (
                     <button
-                      key={w.day}
+                      key={mode.label}
                       type="button"
-                      onClick={() => toggleWeekday(w.day)}
+                      disabled={locked}
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setKind(mode.kind);
+                        setTrackTime(mode.trackTime);
+                      }}
                       className={cn(
-                        "flex size-8 items-center justify-center rounded-full border text-xs font-medium transition-colors",
-                        active
-                          ? "border-(--habit-accent) bg-(--habit-accent) text-white"
-                          : "border-border text-muted-foreground hover:text-foreground",
+                        "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                        selected
+                          ? "border-(--habit-accent) bg-(--habit-accent)/8"
+                          : "border-border hover:bg-accent/50",
+                        locked && "cursor-not-allowed opacity-50",
                       )}
                     >
-                      {w.label}
+                      <div className="text-sm font-medium text-foreground">
+                        {mode.label}
+                      </div>
+                      <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                        {mode.hint}
+                      </div>
                     </button>
                   );
                 })}
               </div>
-            )}
 
-            {scheduleType === "interval" && (
-              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
-                <span>每</span>
-                <Input
-                  type="number"
-                  min={2}
-                  max={365}
-                  value={intervalDays}
-                  onChange={(e) =>
-                    setIntervalDays(Math.max(2, Number(e.target.value) || 2))
-                  }
-                  className="h-8 w-20 text-xs tabular-nums"
-                />
-                <span>天执行一次，起始日</span>
-                <DateField
-                  aria-label="习惯起始日期"
-                  value={anchorDate}
-                  onChange={setAnchorDate}
-                  className="h-8 w-36 text-xs"
-                />
-              </div>
-            )}
-          </div>
-
-          {editing && (
-            <div className="rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
-              <div className="font-medium text-foreground">
-                频率或清单修改生效时间
-              </div>
-              <div className="mt-1 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEffectiveChoice("tomorrow")}
-                  className={cn(
-                    "rounded border px-2 py-0.5 text-[11px]",
-                    effectiveChoice === "tomorrow"
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background text-muted-foreground",
-                  )}
-                >
-                  从明天起（{tomorrowDate}，保留今日记录）
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEffectiveChoice("today")}
-                  className={cn(
-                    "rounded border px-2 py-0.5 text-[11px]",
-                    effectiveChoice === "today"
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-background text-muted-foreground",
-                  )}
-                >
-                  从今天起（{todayDate}）
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Optional extra fields: project, tags, description */}
-          <div className="border-t border-border/60 pt-3">
-            <button
-              type="button"
-              onClick={() => setExtraOpen((prev) => !prev)}
-              className="text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              {extraOpen
-                ? "收起补充信息（项目、标签、说明）"
-                : "+ 补充项目、标签或原则说明（可选）"}
-            </button>
-
-            {extraOpen && (
-              <div className="mt-3 space-y-3">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-xs">项目</Label>
-                    <ProjectPicker
-                      value={project}
-                      projects={projects}
-                      onChange={setProject}
-                      allowCreate
-                      emptyLabel="无项目"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">标签</Label>
-                    <LabelsPicker
-                      value={tags}
-                      choices={availableLabels}
-                      onChange={setTags}
-                    />
+              {kind === "positive" && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCompletionMode("simple")}
+                      className={cn(
+                        "rounded-md border px-2.5 py-1 text-xs transition-colors",
+                        completionMode === "simple"
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      一键完成
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompletionMode("checklist")}
+                      className={cn(
+                        "rounded-md border px-2.5 py-1 text-xs transition-colors",
+                        completionMode === "checklist"
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      逐项完成清单
+                    </button>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="habit-description" className="text-xs">
-                    说明 / 原则（例如 Thirteen 的品德原则）
-                  </Label>
-                  <Textarea
-                    id="habit-description"
-                    rows={2}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="例如：节制 — 少摄入添加糖，保持头脑清醒"
-                    className="text-xs"
+              )}
+            </div>
+
+            {/* Checklist / A-B Editor */}
+            {kind === "positive" && completionMode === "checklist" && (
+              <div className="space-y-3 rounded-lg border border-border/80 bg-muted/30 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-medium text-foreground">
+                      动作清单
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      必做动作全部勾选后，整次训练自动完成
+                    </div>
+                  </div>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                    <span>A/B 双方案</span>
+                    <Switch
+                      checked={abEnabled}
+                      onCheckedChange={setAbEnabled}
+                    />
+                  </label>
+                </div>
+
+                {abEnabled && (
+                  <div className="flex items-center gap-1.5">
+                    {(["A", "B"] as const).map((id) => (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setActiveAbTab(id)}
+                        className={cn(
+                          "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                          activeAbTab === id
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-background text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        方案 {id}（
+                        {abPlans.find((p) => p.id === id)?.items.length ?? 0}）
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  {activeItems.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-1.5 rounded-md border border-border/60 bg-background px-2 py-1"
+                    >
+                      <Input
+                        value={item.title}
+                        onChange={(e) =>
+                          updateActiveItems((prev) =>
+                            prev.map((it, i) =>
+                              i === idx
+                                ? {
+                                    ...it,
+                                    title: e.target.value,
+                                  }
+                                : it,
+                            ),
+                          )
+                        }
+                        className="h-7 flex-1 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-0"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateActiveItems((prev) =>
+                            prev.map((it, i) =>
+                              i === idx
+                                ? {
+                                    ...it,
+                                    required: !it.required,
+                                  }
+                                : it,
+                            ),
+                          )
+                        }
+                        className={cn(
+                          "shrink-0 rounded px-1.5 py-0.5 text-[11px] transition-colors",
+                          item.required
+                            ? "bg-(--habit-accent)/14 text-(--habit-accent)"
+                            : "bg-secondary text-muted-foreground",
+                        )}
+                      >
+                        {item.required ? "必做" : "选做"}
+                      </button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        disabled={idx === 0}
+                        onClick={() => moveItem(idx, -1)}
+                        className="size-6 text-muted-foreground"
+                      >
+                        <ArrowUp className="size-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        disabled={idx === activeItems.length - 1}
+                        onClick={() => moveItem(idx, 1)}
+                        className="size-6 text-muted-foreground"
+                      >
+                        <ArrowDown className="size-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() =>
+                          updateActiveItems((prev) =>
+                            prev.filter((_, i) => i !== idx),
+                          )
+                        }
+                        className="size-6 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="size-3" />
+                      </Button>
+                    </div>
+                  ))}
+
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <Input
+                      value={newItemTitle}
+                      onChange={(e) => setNewItemTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addChecklistItem();
+                        }
+                      }}
+                      placeholder="添加动作（如：俯卧撑、哑铃卧推）"
+                      className="h-8 flex-1 text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addChecklistItem}
+                      className="h-8 gap-1 px-2.5 text-xs"
+                    >
+                      <Plus className="size-3.5" />
+                      添加
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 3. 什么时候执行 */}
+            <div className="space-y-2">
+              <Label>3. 什么时候执行</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    { id: "daily", label: "每天" },
+                    { id: "weekly", label: "每周指定几天" },
+                    { id: "interval", label: "每隔几天" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setScheduleType(opt.id)}
+                    className={cn(
+                      "rounded-md border px-2.5 py-1 text-xs transition-colors",
+                      scheduleType === opt.id
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {scheduleType === "weekly" && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {WEEKDAY_CHIPS.map((w) => {
+                    const active = weekdays.includes(w.day);
+                    return (
+                      <button
+                        key={w.day}
+                        type="button"
+                        onClick={() => toggleWeekday(w.day)}
+                        className={cn(
+                          "flex size-8 items-center justify-center rounded-full border text-xs font-medium transition-colors",
+                          active
+                            ? "border-(--habit-accent) bg-(--habit-accent) text-white"
+                            : "border-border text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {w.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {scheduleType === "interval" && (
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
+                  <span>每</span>
+                  <Input
+                    type="number"
+                    min={2}
+                    max={365}
+                    value={intervalDays}
+                    onChange={(e) =>
+                      setIntervalDays(Math.max(2, Number(e.target.value) || 2))
+                    }
+                    className="h-8 w-20 text-xs tabular-nums"
+                  />
+                  <span>天执行一次，起始日</span>
+                  <DateField
+                    aria-label="习惯起始日期"
+                    value={anchorDate}
+                    onChange={setAnchorDate}
+                    className="h-8 w-36 text-xs"
                   />
                 </div>
+              )}
+            </div>
+
+            {editing && (
+              <div className="rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
+                <div className="font-medium text-foreground">
+                  频率或清单修改生效时间
+                </div>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEffectiveChoice("tomorrow")}
+                    className={cn(
+                      "rounded border px-2 py-0.5 text-[11px]",
+                      effectiveChoice === "tomorrow"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-muted-foreground",
+                    )}
+                  >
+                    从明天起（{tomorrowDate}，保留今日记录）
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEffectiveChoice("today")}
+                    className={cn(
+                      "rounded border px-2 py-0.5 text-[11px]",
+                      effectiveChoice === "today"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-muted-foreground",
+                    )}
+                  >
+                    从今天起（{todayDate}）
+                  </button>
+                </div>
               </div>
             )}
-          </div>
 
-          {formError && (
-            <p className="text-xs font-medium text-destructive">{formError}</p>
-          )}
+            {/* Optional extra fields: project, tags, description */}
+            <div className="border-t border-border/60 pt-3">
+              <button
+                type="button"
+                onClick={() => setExtraOpen((prev) => !prev)}
+                className="text-xs font-medium text-muted-foreground hover:text-foreground"
+              >
+                {extraOpen
+                  ? "收起补充信息（项目、标签、说明）"
+                  : "+ 补充项目、标签或原则说明（可选）"}
+              </button>
+
+              {extraOpen && (
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">项目</Label>
+                      <ProjectPicker
+                        value={project}
+                        projects={projects}
+                        onChange={setProject}
+                        allowCreate
+                        emptyLabel="无项目"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">标签</Label>
+                      <LabelsPicker
+                        value={tags}
+                        choices={availableLabels}
+                        onChange={setTags}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="habit-description" className="text-xs">
+                      说明 / 原则（例如 Thirteen 的品德原则）
+                    </Label>
+                    <Textarea
+                      id="habit-description"
+                      rows={2}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="例如：节制 — 少摄入添加糖，保持头脑清醒"
+                      className="text-xs"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {formError && (
+              <p className="text-xs font-medium text-destructive">
+                {formError}
+              </p>
+            )}
           </div>
 
           <DialogFooter className="shrink-0 border-t border-border bg-muted/20 px-6 py-3.5">

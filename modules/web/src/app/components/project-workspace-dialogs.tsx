@@ -356,7 +356,9 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
         isTimeMode={isTimeMode}
         onTimeMutated={onTimeMutated}
         onUnconfirmed={() => setNeedsCheck(true)}
-        onRestoreTask={(uuid) => onMutate("action", { uuid, action: "restore" })}
+        onRestoreTask={(uuid) =>
+          onMutate("action", { uuid, action: "restore" })
+        }
         onRefreshAll={onReloadAll}
       />
     </>

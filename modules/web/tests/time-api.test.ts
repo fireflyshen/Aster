@@ -414,7 +414,7 @@ test("time log snapping avoids sub-minute overlap and formats Chinese conflict d
     let capturedErr: unknown;
     try {
       await timeApi.logTimeActivity({
-      projectSnapshot: "测试项目",
+        projectSnapshot: "测试项目",
         title: "真正重叠测试",
         startMs: Date.parse("2026-11-15T08:50:00.000Z"), // 16:50:00
         endMs: Date.parse("2026-11-15T08:55:00.000Z"), // 16:55:00
