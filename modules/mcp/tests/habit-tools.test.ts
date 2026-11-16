@@ -13,7 +13,11 @@ import { createAiServer } from "../src/server.ts";
 test("habit MCP tools support end-to-end Habit-as-a-Todo creation with A/B subtasks, checklist metrics, negative tracking, heatmap, and unbind", async () => {
   const dir = await mkdtemp(join(tmpdir(), "aster-mcp-habits-"));
   try {
-    const fakeNow = zonedDateTimeToUtcMs("2026-11-15", "20:00", "Asia/Shanghai");
+    const fakeNow = zonedDateTimeToUtcMs(
+      "2026-11-15",
+      "20:00",
+      "Asia/Shanghai",
+    );
     const store = createHabitStore(join(dir, "habits.sqlite"), {
       now: () => fakeNow,
       getTimezone: () => "Asia/Shanghai",
@@ -176,7 +180,10 @@ test("habit MCP tools support end-to-end Habit-as-a-Todo creation with A/B subta
       assert.equal(undoJson.evaluation.events.length, 0);
 
       // 4. Query today habits + heatmap + day detail
-      const todayRes = await client.callTool({ name: "habit_today", arguments: {} });
+      const todayRes = await client.callTool({
+        name: "habit_today",
+        arguments: {},
+      });
       assert.ok(!todayRes.isError);
       const todayJson = JSON.parse(
         (todayRes.content as Array<{ text: string }>)[0].text,
@@ -188,7 +195,9 @@ test("habit MCP tools support end-to-end Habit-as-a-Todo creation with A/B subta
         arguments: { days: 7, project: "身体维护" },
       });
       assert.ok(!hmRes.isError);
-      const hmJson = JSON.parse((hmRes.content as Array<{ text: string }>)[0].text);
+      const hmJson = JSON.parse(
+        (hmRes.content as Array<{ text: string }>)[0].text,
+      );
       assert.equal(hmJson.cells.length, 7);
 
       // 5. Unbind habit keeps Taskwarrior Todo alive

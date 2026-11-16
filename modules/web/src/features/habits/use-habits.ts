@@ -45,11 +45,15 @@ export function useHabitsWorkspace(options: {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dayDetail, setDayDetail] = useState<DayDetailResponse | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [detailData, setDetailData] = useState<HabitDetailResponse | null>(null);
+  const [detailData, setDetailData] = useState<HabitDetailResponse | null>(
+    null,
+  );
 
   const [projectFilter, setProjectFilter] = useState<string>("");
   const [tagFilter, setTagFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<HabitStatus | "all">("active");
+  const [statusFilter, setStatusFilter] = useState<HabitStatus | "all">(
+    "active",
+  );
   const [rangeDays, setRangeDays] = useState<number>(365);
 
   const [loading, setLoading] = useState(false);
@@ -152,7 +156,13 @@ export function useHabitsWorkspace(options: {
     if (habitsPageActive) {
       void refreshWorkspace();
     }
-  }, [refreshToday, refreshWorkspace, habitsPageActive, isTodayView, workspaceSyncKey]);
+  }, [
+    refreshToday,
+    refreshWorkspace,
+    habitsPageActive,
+    isTodayView,
+    workspaceSyncKey,
+  ]);
 
   useEffect(() => {
     if (habitsPageActive) {
@@ -194,7 +204,10 @@ export function useHabitsWorkspace(options: {
   );
 
   const runAction = useCallback(
-    async <T>(fn: () => Promise<T>, affectedDate?: string): Promise<T | null> => {
+    async <T>(
+      fn: () => Promise<T>,
+      affectedDate?: string,
+    ): Promise<T | null> => {
       setBusy(true);
       setError("");
       try {
@@ -279,7 +292,10 @@ export function useHabitsWorkspace(options: {
 
   const updateNegativeNote = useCallback(
     (habitId: string, eventId: string, note: string, date?: string) =>
-      runAction(() => updateNegativeEventNoteApi({ habitId, eventId, note }), date),
+      runAction(
+        () => updateNegativeEventNoteApi({ habitId, eventId, note }),
+        date,
+      ),
     [runAction],
   );
 
@@ -290,8 +306,7 @@ export function useHabitsWorkspace(options: {
   );
 
   const bindTaskHabit = useCallback(
-    (input: BindTaskHabitInput) =>
-      runAction(() => bindTaskHabitApi(input)),
+    (input: BindTaskHabitInput) => runAction(() => bindTaskHabitApi(input)),
     [runAction],
   );
 
@@ -317,7 +332,9 @@ export function useHabitsWorkspace(options: {
   const todayScheduledHabitIds = useMemo(
     () =>
       new Set(
-        (todayData?.items ?? []).map((item) => item.habit.taskUuid || item.habit.id),
+        (todayData?.items ?? []).map(
+          (item) => item.habit.taskUuid || item.habit.id,
+        ),
       ),
     [todayData],
   );

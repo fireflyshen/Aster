@@ -1,8 +1,9 @@
 # Aster MCP
 
 为支持 MCP stdio 的 AI 客户端（如 Grok
-Bot、Claude、Cursor）提供 Aster 的全部共享业务功能：**任务规划与看板管理**、**习惯管理 (Habits as a Todo Field)**、**时间账本 (Time
-Ledger)** 与 **多端对账**。不需要模型 API Key，不依赖 AI 厂商 SDK。
+Bot、Claude、Cursor）提供 Aster 的全部共享业务功能：**任务规划与看板管理**、**习惯管理 (Habits
+as a Todo Field)**、**时间账本 (Time Ledger)** 与 **多端对账**。不需要模型 API
+Key，不依赖 AI 厂商 SDK。
 
 ---
 
@@ -146,25 +147,54 @@ Aster Time 直接使用 **Taskwarrior 的项目（`projectSnapshot`）与标签�
 
 ### 4. 习惯管理与待办联动规范（Habits as a Todo Field）
 
-Aster 中的**习惯**直接作为普通待办（Todo）的扩展字段存在（绑定 `taskUuid`，每日记录存储在独立 `habits.sqlite`），与普通待办共用 Taskwarrior 的**项目（`project`）、标签（`tags`）、说明与原生子任务（`subtasks`）**：
+Aster 中的**习惯**直接作为普通待办（Todo）的扩展字段存在（绑定
+`taskUuid`，每日记录存储在独立
+`habits.sqlite`），与普通待办共用 Taskwarrior 的**项目（`project`）、标签（`tags`）、说明与原生子任务（`subtasks`）**：
 
-- **正向·纯打卡（`kind: "positive", trackTime: false`）**：每日（`daily`）、每周指定几天（`weekly`，ISO 星期 `1`..`7`）或每隔几天（`interval`）执行；仅记录打卡/动作进度，**不开启任务计时器与投入成本面板**（大多数日常好习惯/十三美德类正向习惯默认使用此模式）。
+- **正向·纯打卡（`kind: "positive", trackTime: false`）**：每日（`daily`）、每周指定几天（`weekly`，ISO 星期
+  `1`..`7`）或每隔几天（`interval`）执行；仅记录打卡/动作进度，**不开启任务计时器与投入成本面板**（大多数日常好习惯/十三美德类正向习惯默认使用此模式）。
 - **正向·计时习惯（`kind: "positive", trackTime: true`）**：适合需要统计投入时长与成本的习惯（如力量训练、阅读 30 分钟、冥想等），既支持日常打卡/A-B 动作清单，也保留 Taskwarrior 计时与 Time 账本联动。
-- **反向习惯（`kind: "negative"`，`trackTime` 恒为 `false`）**：用来减少行为，仅在破例时记一次并可附备注；当天未发生即为达成（无须每日点“未发生”，且不展示计时）。
+- **反向习惯（`kind: "negative"`，`trackTime` 恒为
+  `false`）**：用来减少行为，仅在破例时记一次并可附备注；当天未发生即为达成（无须每日点“未发生”，且不展示计时）。
 
 **关键安全规则**：
-- **严禁误用 `task_complete` / `task_delete` 处理日常打卡**：无论是习惯本体还是其训练动作子任务，日常完成/打卡必须调用 `habit_toggle` 或 `habit_checklist_item`，**绝不可调用 `task_complete`（会把习惯或动作从待办视图永久完成隐藏）或 `task_delete`（会联动清除习惯配置）**。
+
+- **严禁误用 `task_complete` / `task_delete`
+  处理日常打卡**：无论是习惯本体还是其训练动作子任务，日常完成/打卡必须调用
+  `habit_toggle` 或 `habit_checklist_item`，**绝不可调用
+  `task_complete`（会把习惯或动作从待办视图永久完成隐藏）或
+  `task_delete`（会联动清除习惯配置）**。
 
 **日常习惯对话 → MCP 工具映射示例**：
 
-- “帮我新建一个每天晚上阅读的习惯，放在学习项目” → 调用 **`habit_todo_create`**（`title: "阅读"`，`kind: "positive"`，`schedule: { type: "daily" }`，`project: "学习"`，`tags: ["晚间"]`）；若要把已有待办设为习惯，调用 **`habit_bind`**。
-- “建一个周一三五的力量训练，A 方案做俯卧撑/哑铃卧推，B 方案做引体向上/划船” → 调用 **`habit_todo_create`**，`abEnabled: true`，`schedule: { type: "weekly", weekdays: [1, 3, 5] }`，`subtasks` 分别标记 `plan: "A"` / `plan: "B"`。
-- “今天有哪些习惯要做？/ 查看近期坚持情况” → 调用 **`habit_today`**（今日待办习惯、当前方案与连续记录）或 **`habit_heatmap`** / **`habit_day_detail`**（近 N 天热力图与指定日期明细，支持按 `project` / `tag` 筛选）。
-- “今天阅读读完了” / “昨天忘了打卡帮我补记上” → 调用 **`habit_toggle`**（补记传入 `date: "YYYY-MM-DD"`，`completed: true`）。
-- “今天俯卧撑做了 3 组 15 次，哑铃卧推 4 组 12 次 20kg” → 先从 `habit_today` / `habit_detail` 找到动作子任务 `itemId`，再调用 **`habit_checklist_item`**（`done: true`, `sets`, `reps`, `weight`）；若今日临时改练 B 方案，先调用 **`habit_switch_plan`**。
-- “刚才喝了一杯含糖饮料，备注聚餐” / “点错了撤销” → 调用 **`habit_negative_record`**（`note: "聚餐"`）；撤销调用 **`habit_negative_undo`**；补改备注调用 **`habit_negative_note`**；给当天写反思一句（如“今天很累但还是拉伸了”）调用 **`habit_daily_note`**。
-- “最近两周暂停训练” / “取消它的习惯标记但保留待办” → 暂停/恢复/归档调用 **`habit_status`**（`"paused" | "active" | "archived"`）；解绑保留原 Todo 调用 **`habit_unbind`**。
-- **与时间账本联动**：对正在阅读或训练的习惯 Todo 计时或补记时段时，直接使用其 `taskUuid`、`projectSnapshot` 和 `tags` 调用 `time_start`、`time_log` 或 `time_plan_create`。
+- “帮我新建一个每天晚上阅读的习惯，放在学习项目” → 调用
+  **`habit_todo_create`**（`title: "阅读"`，`kind: "positive"`，`schedule: { type: "daily" }`，`project: "学习"`，`tags: ["晚间"]`）；若要把已有待办设为习惯，调用
+  **`habit_bind`**。
+- “建一个周一三五的力量训练，A 方案做俯卧撑/哑铃卧推，B 方案做引体向上/划船”
+  → 调用
+  **`habit_todo_create`**，`abEnabled: true`，`schedule: { type: "weekly", weekdays: [1, 3, 5] }`，`subtasks`
+  分别标记 `plan: "A"` / `plan: "B"`。
+- “今天有哪些习惯要做？/ 查看近期坚持情况” → 调用
+  **`habit_today`**（今日待办习惯、当前方案与连续记录）或 **`habit_heatmap`** /
+  **`habit_day_detail`**（近 N 天热力图与指定日期明细，支持按 `project` / `tag`
+  筛选）。
+- “今天阅读读完了” / “昨天忘了打卡帮我补记上” → 调用
+  **`habit_toggle`**（补记传入 `date: "YYYY-MM-DD"`，`completed: true`）。
+- “今天俯卧撑做了 3 组 15 次，哑铃卧推 4 组 12 次 20kg” → 先从 `habit_today` /
+  `habit_detail` 找到动作子任务 `itemId`，再调用
+  **`habit_checklist_item`**（`done: true`, `sets`, `reps`,
+  `weight`）；若今日临时改练 B 方案，先调用 **`habit_switch_plan`**。
+- “刚才喝了一杯含糖饮料，备注聚餐” / “点错了撤销” → 调用
+  **`habit_negative_record`**（`note: "聚餐"`）；撤销调用
+  **`habit_negative_undo`**；补改备注调用
+  **`habit_negative_note`**；给当天写反思一句（如“今天很累但还是拉伸了”）调用
+  **`habit_daily_note`**。
+- “最近两周暂停训练” / “取消它的习惯标记但保留待办” → 暂停/恢复/归档调用
+  **`habit_status`**（`"paused" | "active" | "archived"`）；解绑保留原 Todo 调用
+  **`habit_unbind`**。
+- **与时间账本联动**：对正在阅读或训练的习惯 Todo 计时或补记时段时，直接使用其
+  `taskUuid`、`projectSnapshot` 和 `tags` 调用 `time_start`、`time_log` 或
+  `time_plan_create`。
 
 ### 5. 幂等性与冲突处理
 
@@ -193,18 +223,27 @@ Aster MCP 提供三组高内聚工具：
 - `task_complete` / `task_reopen`：标记任务完成或重新打开。
 - `subtask_link` / `subtask_unlink`：绑定或解绑父子任务关系。
 - `column_save` / `board_task_move`：管理看板列及在列间移动排序。
-- `project_save` / `project_status`：创建或编辑项目（可设 `category: "normal" | "habit"` 区分正常项目与习惯项目；习惯项目不能进入 Focus）与切换项目状态。
+- `project_save` / `project_status`：创建或编辑项目（可设
+  `category: "normal" | "habit"`
+  区分正常项目与习惯项目；习惯项目不能进入 Focus）与切换项目状态。
 - `recovery_list` / `recovery_restore`：查看误删任务快照与恢复。
 
 ### 习惯管理工具（Habits as a Todo Field）
 
-- `habit_today` / `habits_list` / `habit_detail`：查看今日待执行习惯、按状态/项目/标签筛选习惯清单，或读取单个习惯的连续记录与近期日志（`habitId` 支持习惯 ID 或绑定任务的 `taskUuid`）。
-- `habit_heatmap` / `habit_day_detail`：获取综合或按项目/标签/单个习惯筛选的热力图格子，以及指定日期的详细完成记录（用于复盘与补记）。
-- `habit_todo_create`：一步创建 `pending` 习惯本体 Todo、可选动作子任务（可带 `plan: "A" | "B"`）与说明，并直接绑定习惯配置。
-- `habit_bind` / `habit_unbind` / `habit_status`：为已有 Todo 绑定/更新习惯规则、取消习惯标记（保留原任务）或暂停/恢复/归档习惯。
+- `habit_today` / `habits_list` /
+  `habit_detail`：查看今日待执行习惯、按状态/项目/标签筛选习惯清单，或读取单个习惯的连续记录与近期日志（`habitId`
+  支持习惯 ID 或绑定任务的 `taskUuid`）。
+- `habit_heatmap` /
+  `habit_day_detail`：获取综合或按项目/标签/单个习惯筛选的热力图格子，以及指定日期的详细完成记录（用于复盘与补记）。
+- `habit_todo_create`：一步创建 `pending` 习惯本体 Todo、可选动作子任务（可带
+  `plan: "A" | "B"`）与说明，并直接绑定习惯配置。
+- `habit_bind` / `habit_unbind` /
+  `habit_status`：为已有 Todo 绑定/更新习惯规则、取消习惯标记（保留原任务）或暂停/恢复/归档习惯。
 - `habit_toggle`：对正向习惯在今日或指定历史日期打卡/撤销打卡。
-- `habit_checklist_item` / `habit_switch_plan`：勾选训练动作子任务（可选记录组数 `sets`、次数 `reps`、重量 `weight`），或切换当日 A/B 方案。
-- `habit_negative_record` / `habit_negative_undo` / `habit_negative_note`：记录反向习惯破例一次（可附备注）、撤销最近或指定破例记录，以及修改破例备注。
+- `habit_checklist_item` / `habit_switch_plan`：勾选训练动作子任务（可选记录组数
+  `sets`、次数 `reps`、重量 `weight`），或切换当日 A/B 方案。
+- `habit_negative_record` / `habit_negative_undo` /
+  `habit_negative_note`：记录反向习惯破例一次（可附备注）、撤销最近或指定破例记录，以及修改破例备注。
 - `habit_daily_note`：为某一天的习惯记录撰写或清空每日备注（不影响是否达成）。
 
 ### 时间账本工具（Time Ledger）

@@ -93,7 +93,15 @@ export function TimeLedgerWorkspace({
           </button>
         ))}
       </nav>
-      <p className="ledger-page-intro">{page === "today" ? "记录每一段投入，把注意力放回正在做的事。" : page === "weekly" ? "看看这一周，时间花在了哪里。" : page === "reports" ? "查看已确认的投入，按项目追溯明细。" : "管理时间单价与计时习惯。"}</p>
+      <p className="ledger-page-intro">
+        {page === "today"
+          ? "记录每一段投入，把注意力放回正在做的事。"
+          : page === "weekly"
+            ? "看看这一周，时间花在了哪里。"
+            : page === "reports"
+              ? "查看已确认的投入，按项目追溯明细。"
+              : "管理时间单价与计时习惯。"}
+      </p>
       {ledger.lastUndoable && (
         <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-2 text-xs text-muted-foreground">
           <span className="truncate">

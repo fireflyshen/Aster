@@ -7,7 +7,20 @@ import {
 } from "@/components/ui/select";
 import { colors, type Color } from "@core/workspace/organization";
 
-const colorNames: Record<string, string> = { berry: "莓红", red: "红色", orange: "橙色", yellow: "黄色", olive: "橄榄绿", lime: "青柠绿", green: "绿色", mint: "薄荷绿", teal: "青色", blue: "蓝色", purple: "紫色", gray: "灰色" };
+const colorNames: Record<string, string> = {
+  berry: "莓红",
+  red: "红色",
+  orange: "橙色",
+  yellow: "黄色",
+  olive: "橄榄绿",
+  lime: "青柠绿",
+  green: "绿色",
+  mint: "薄荷绿",
+  teal: "青色",
+  blue: "蓝色",
+  purple: "紫色",
+  gray: "灰色",
+};
 
 export function ColorPicker({
   id,

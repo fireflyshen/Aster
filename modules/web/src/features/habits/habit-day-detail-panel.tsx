@@ -37,7 +37,11 @@ export function HabitDayDetailPanel({
   disabled?: boolean;
   onSelectDate: (date: string) => void;
   onClose: () => void;
-  onTogglePositive: (habitId: string, date: string, completed?: boolean) => void;
+  onTogglePositive: (
+    habitId: string,
+    date: string,
+    completed?: boolean,
+  ) => void;
   onSetChecklistItem: (input: {
     habitId: string;
     itemId: string;

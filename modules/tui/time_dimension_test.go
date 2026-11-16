@@ -5,7 +5,14 @@ import "testing"
 func TestReportDimensionsClampLegacyState(t *testing.T) {
 	m := sampleModel()
 	m.view = "time.report"
-	m.timeState.Report = &CostReportSummary{ByTask: []CostReportTaskRow{{TaskUUID: "task", Title: "Must not be a report row"}}, ByProject: []CostReportProjectRow{{ProjectKey: "p", ProjectName: "P", PeriodSeconds: 3600}}}
+	m.timeState.Report = &CostReportSummary{
+		ByTask: []CostReportTaskRow{
+			{TaskUUID: "task", Title: "Must not be a report row"},
+		},
+		ByProject: []CostReportProjectRow{
+			{ProjectKey: "p", ProjectName: "P", PeriodSeconds: 3600},
+		},
+	}
 	for _, legacy := range []string{"", "task", "day", "project", "tag"} {
 		m.timeState.ReportGroupBy = legacy
 		_, _, dimension := m.timeReportDefaults()

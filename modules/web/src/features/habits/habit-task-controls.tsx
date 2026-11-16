@@ -67,10 +67,7 @@ export type HabitTaskActions = {
     note: string,
     date: string,
   ) => void | Promise<unknown>;
-  setStatus?: (
-    habitId: string,
-    status: HabitStatus,
-  ) => void | Promise<unknown>;
+  setStatus?: (habitId: string, status: HabitStatus) => void | Promise<unknown>;
   assignSubtaskPlan?: (
     parentHabit: HabitListItem,
     subtaskUuid: string,
@@ -94,11 +91,7 @@ function formatMetricSummary(entry?: HabitChecklistEntryProgress): string {
 }
 
 /** Left status indicator replacing the checkbox for negative ("avoid") habit Todos. */
-export function HabitNegativeStatusRing({
-  habit,
-}: {
-  habit: HabitListItem;
-}) {
+export function HabitNegativeStatusRing({ habit }: { habit: HabitListItem }) {
   const count = habit.todayEvaluation?.events.length ?? 0;
   const broken = count > 0;
   const paused = habit.status === "paused";
@@ -329,10 +322,11 @@ export function HabitMetaChip({
         <Repeat2 className="size-3 shrink-0" strokeWidth={1.6} />
         <span>
           {habit.kind === "negative"
-          ? "反向"
-          : habit.trackTime
-            ? "计时打卡"
-            : "打卡"} · {scheduleLabel}
+            ? "反向"
+            : habit.trackTime
+              ? "计时打卡"
+              : "打卡"}{" "}
+          · {scheduleLabel}
         </span>
         {currentStreak > 0 && (
           <span className="inline-flex items-center gap-0.5 font-medium tabular-nums">
@@ -599,7 +593,8 @@ export function TaskHabitExecutionCard({
       {isPausedOrArchived ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-background/60 px-3 py-2 text-xs">
           <span className="text-muted-foreground">
-            当前状态：{habit.status === "paused" ? "已暂停（不计入今日）" : "已归档"}
+            当前状态：
+            {habit.status === "paused" ? "已暂停（不计入今日）" : "已归档"}
           </span>
           {actions.setStatus && (
             <Button
@@ -711,7 +706,9 @@ export function TaskHabitExecutionCard({
                     {ev.note ? (
                       <span className="ml-2 text-foreground">{ev.note}</span>
                     ) : (
-                      <span className="ml-2 text-muted-foreground/70">无备注</span>
+                      <span className="ml-2 text-muted-foreground/70">
+                        无备注
+                      </span>
                     )}
                   </div>
                   <button

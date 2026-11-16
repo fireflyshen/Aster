@@ -93,7 +93,10 @@ export async function applyProjectSaveOrDeleteChange(
   }
   const branchRootIsHabit =
     next.category === "habit" ||
-    isHabitProject(name, [...records.values()].filter((p) => p.name !== original));
+    isHabitProject(
+      name,
+      [...records.values()].filter((p) => p.name !== original),
+    );
   if (branchRootIsHabit && projectStatus(next) === "active") {
     next.status = "later";
   }

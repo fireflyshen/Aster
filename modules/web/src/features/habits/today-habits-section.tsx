@@ -106,9 +106,7 @@ export function TodayHabitsSection({
               ? taskByUuid.get(item.habit.taskUuid)
               : undefined;
             if (linkedTask && renderTask) {
-              return (
-                <div key={linkedTask.uuid}>{renderTask(linkedTask)}</div>
-              );
+              return <div key={linkedTask.uuid}>{renderTask(linkedTask)}</div>;
             }
             return (
               <HabitExecutionRow

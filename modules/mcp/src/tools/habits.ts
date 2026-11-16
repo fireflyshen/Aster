@@ -41,7 +41,9 @@ const habitScheduleSchema = z.discriminatedUnion("type", [
 
 const habitSubtaskPlansSchema = z
   .record(z.string().min(1), z.enum(["A", "B"]))
-  .describe("Optional map of subtask UUID -> 'A' or 'B' when abEnabled is true.");
+  .describe(
+    "Optional map of subtask UUID -> 'A' or 'B' when abEnabled is true.",
+  );
 
 const habitTodoSubtaskSchema = z
   .object({
@@ -51,7 +53,9 @@ const habitTodoSubtaskSchema = z
   })
   .strict();
 
-function buildQuery(entries: Array<[string, string | number | undefined]>): string {
+function buildQuery(
+  entries: Array<[string, string | number | undefined]>,
+): string {
   const params = new URLSearchParams();
   for (const [key, value] of entries) {
     if (value !== undefined && value !== "") {
@@ -172,11 +176,15 @@ export function registerHabitTools({
         .string()
         .max(20000)
         .optional()
-        .describe("Optional principle or workout guide stored as Markdown description on the Todo."),
+        .describe(
+          "Optional principle or workout guide stored as Markdown description on the Todo.",
+        ),
       trackTime: z
         .boolean()
         .optional()
-        .describe("Set true only for timed positive habits (e.g. workouts/reading). Omit/false for pure check-in and negative habits so timing UI stays hidden."),
+        .describe(
+          "Set true only for timed positive habits (e.g. workouts/reading). Omit/false for pure check-in and negative habits so timing UI stays hidden.",
+        ),
       abEnabled: z.boolean().optional(),
       effectiveFromDate: localDateSchema.optional(),
       subtasks: z.array(habitTodoSubtaskSchema).max(50).optional(),
@@ -253,7 +261,9 @@ export function registerHabitTools({
       trackTime: z
         .boolean()
         .optional()
-        .describe("Set true only for timed positive habits; false/omitted disables task timing & cost panels."),
+        .describe(
+          "Set true only for timed positive habits; false/omitted disables task timing & cost panels.",
+        ),
       abEnabled: z.boolean().optional(),
       subtaskPlans: habitSubtaskPlansSchema.optional(),
       effectiveFromDate: localDateSchema.optional(),

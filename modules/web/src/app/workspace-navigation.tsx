@@ -6,10 +6,12 @@ export function WorkspaceNavigation({
   open,
   onOpenChange,
   children,
+  showCounts = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
+  showCounts?: boolean;
 }) {
   const desktop = useDesktop();
   const contentClass =
@@ -17,6 +19,7 @@ export function WorkspaceNavigation({
   if (desktop) {
     return (
       <aside
+        data-show-counts={showCounts}
         id="workspace-navigation"
         aria-label="Workspace navigation"
         data-state={open ? "open" : "closed"}
@@ -31,6 +34,7 @@ export function WorkspaceNavigation({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        data-show-counts={showCounts}
         id="workspace-navigation"
         side="left"
         aria-describedby={undefined}

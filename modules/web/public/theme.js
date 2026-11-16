@@ -5,7 +5,19 @@
   try {
     const saved = localStorage.getItem("aster.theme");
     const savedPalette = localStorage.getItem("aster.palette");
-    if (["aster", "todoist", "moonstone", "tangerine", "kale", "blueberry", "lavender", "raspberry"].includes(savedPalette)) palette = savedPalette;
+    if (
+      [
+        "aster",
+        "todoist",
+        "moonstone",
+        "tangerine",
+        "kale",
+        "blueberry",
+        "lavender",
+        "raspberry",
+      ].includes(savedPalette)
+    )
+      palette = savedPalette;
     if (["light", "dark", "system"].includes(saved)) theme = saved;
   } catch {
     /* System appearance still works when storage is unavailable. */

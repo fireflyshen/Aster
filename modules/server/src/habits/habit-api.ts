@@ -16,17 +16,10 @@ import {
   type HabitTaskCatalog,
 } from "./habit-store.ts";
 
-function requiredString(
-  body: Record<string, unknown>,
-  field: string,
-): string {
+function requiredString(body: Record<string, unknown>, field: string): string {
   const val = body[field];
   if (typeof val !== "string" || !val.trim()) {
-    throw new HabitStoreError(
-      400,
-      "INVALID_INPUT",
-      `缺少或无效字段: ${field}`,
-    );
+    throw new HabitStoreError(400, "INVALID_INPUT", `缺少或无效字段: ${field}`);
   }
   return val.trim();
 }
@@ -38,7 +31,11 @@ function optionalString(
   const val = body[field];
   if (val === undefined || val === null) return undefined;
   if (typeof val !== "string") {
-    throw new HabitStoreError(400, "INVALID_INPUT", `字段 ${field} 必须是字符串`);
+    throw new HabitStoreError(
+      400,
+      "INVALID_INPUT",
+      `字段 ${field} 必须是字符串`,
+    );
   }
   return val;
 }
@@ -203,10 +200,7 @@ export function createHabitHandlers(deps: {
         const days = daysRaw ? Number(daysRaw) : 365;
         return {
           status: 200,
-          body: store.getHabitDetail(
-            id,
-            Number.isFinite(days) ? days : 365,
-          ),
+          body: store.getHabitDetail(id, Number.isFinite(days) ? days : 365),
         };
       },
     },
@@ -292,10 +286,9 @@ export function createHabitHandlers(deps: {
           taskUuid: optionalString(body, "taskUuid"),
           title: requiredString(body, "title"),
           kind: requiredString(body, "kind") as HabitKind,
-          completionMode: optionalString(
-            body,
-            "completionMode",
-          ) as HabitCompletionMode | undefined,
+          completionMode: optionalString(body, "completionMode") as
+            | HabitCompletionMode
+            | undefined,
           description: optionalString(body, "description"),
           project: optionalString(body, "project"),
           tags: optionalStringArray(body, "tags"),
@@ -324,10 +317,9 @@ export function createHabitHandlers(deps: {
           description: optionalString(body, "description"),
           project: optionalNullableString(body, "project"),
           tags: optionalStringArray(body, "tags"),
-          completionMode: optionalString(
-            body,
-            "completionMode",
-          ) as HabitCompletionMode | undefined,
+          completionMode: optionalString(body, "completionMode") as
+            | HabitCompletionMode
+            | undefined,
           trackTime: optionalBoolean(body, "trackTime"),
           abEnabled: optionalBoolean(body, "abEnabled"),
           subtaskPlans: parseSubtaskPlans(body.subtaskPlans),
@@ -379,7 +371,9 @@ export function createHabitHandlers(deps: {
         const completed = optionalBoolean(body, "completed");
         return {
           status: 200,
-          body: { evaluation: store.togglePositiveHabit(habitId, date, completed) },
+          body: {
+            evaluation: store.togglePositiveHabit(habitId, date, completed),
+          },
         };
       },
     },

@@ -15,7 +15,11 @@ Aster 是一个基于 **Taskwarrior 3**
    - Node.js 22.16+ 原生实现（零第三方运行时依赖），通过 HTTP（Web
      / 本地客户端）与私有 Unix Socket IPC（SSH 远程客户端、MCP、Go
      TUI）对外提供同一套序列化事务与并发门控。
-   - 统一持久化 **Organization & Habits**：`organization.json` 队列管理项目树、最多 3 个 Active 的 Focus 目标、看板自定义分栏与排序、saved filters、项目与任务 Markdown 说明及颜色；`habits.sqlite` 存储习惯配置与每日记录，绑定到 Todo 的 `taskUuid`，并与 Taskwarrior 任务及子任务自动保持同步。
+   - 统一持久化 **Organization & Habits**：`organization.json`
+     队列管理项目树、最多 3 个 Active 的 Focus 目标、看板自定义分栏与排序、saved
+     filters、项目与任务 Markdown 说明及颜色；`habits.sqlite`
+     存储习惯配置与每日记录，绑定到 Todo 的
+     `taskUuid`，并与 Taskwarrior 任务及子任务自动保持同步。
    - **Time Ledger（SQLite WAL）**：独立
      `time.sqlite` + 恢复隔离屏障（`.barrier.json`）管理 24h 时间覆盖（`C + U = T`）、睡眠候选识别、待定位估记、跨小时检查点、两阶段 Taskwarrior 协调事务，以及**时间投入成本**（单一时薪单价、最初/追加预算快照、待核对金额隔离、周/月成本报告与只读 Bills 现金关联）。
    - **基于项目与标签统计**：直接关联 Taskwarrior 已有项目与标签（`projectSnapshot` +
@@ -33,7 +37,8 @@ Aster 是一个基于 **Taskwarrior 3**
    - 提供极简留白的 **Time
      Ledger（今日时间线 / 本周分布 / 成本报告 / 时间设置）**
      与顶部单行执行条、到限确认与修正弹窗。
-   - 新增 **习惯管理（Habits，Web 端）**：习惯直接作为 Todo 的扩展属性字段，与普通任务共享项目、标签、说明与原生子任务。支持正向打卡、反向习惯（不发生即达成、仅记破例与备注）、可展开动作清单（可选 A/B 训练方案与组/次/重成绩）及统一低饱和灰绿综合热力图。
+   - 新增
+     **习惯管理（Habits，Web 端）**：习惯直接作为 Todo 的扩展属性字段，与普通任务共享项目、标签、说明与原生子任务。支持正向打卡、反向习惯（不发生即达成、仅记破例与备注）、可展开动作清单（可选 A/B 训练方案与组/次/重成绩）及统一低饱和灰绿综合热力图。
 3. **AI / Grok Bot 接口（`modules/mcp`）**
    - 标准 MCP
      stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务规划、看板拆解、**习惯管理（`habit_*`：创建绑定习惯 Todo、日常打卡、动作清单组/次/重与 A/B 切换、反向破例、热力图与补录）**、Time 随手记账、TimingPlan 定时安排与对账摘要。

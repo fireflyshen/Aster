@@ -1,9 +1,10 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/NimbleMarkets/ntcharts/barchart"
 	"github.com/charmbracelet/lipgloss"
-	"strings"
 )
 
 // One chronological chart reveals daily variation; exact values remain selectable below.
@@ -29,9 +30,27 @@ func (m model) renderDailyColumns(rows []row, width int) []string {
 	} // Small monthly views retain the exact-value table.
 	chartWidth := len(days)*stride - 1
 	barWidth := min(2, stride-1)
-	chart := barchart.New(chartWidth, 4, barchart.WithNoAxis(), barchart.WithNoAutoMaxValue(), barchart.WithMaxValue(max(1, maximum)), barchart.WithNoAutoBarWidth(), barchart.WithBarWidth(barWidth), barchart.WithBarGap(stride-barWidth))
+	chart := barchart.New(
+		chartWidth,
+		4,
+		barchart.WithNoAxis(),
+		barchart.WithNoAutoMaxValue(),
+		barchart.WithMaxValue(max(1, maximum)),
+		barchart.WithNoAutoBarWidth(),
+		barchart.WithBarWidth(barWidth),
+		barchart.WithBarGap(stride-barWidth),
+	)
 	for _, day := range days {
-		chart.Push(barchart.BarData{Values: []barchart.BarValue{{Value: day.chartValue, Style: lipgloss.NewStyle().Foreground(muted)}}})
+		chart.Push(
+			barchart.BarData{
+				Values: []barchart.BarValue{
+					{
+						Value: day.chartValue,
+						Style: lipgloss.NewStyle().Foreground(muted),
+					},
+				},
+			},
+		)
 	}
 	chart.Draw()
 	label := "每日时长"

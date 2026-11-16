@@ -1,17 +1,26 @@
 package main
 
 import (
-	"github.com/charmbracelet/lipgloss"
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 func TestTimelineGutterAndLongTitles(t *testing.T) {
-	r := row{kind: "time.segment", title: "08:00–09:15  C++ 作用域、生命周期与 using，整理学习笔记", subtitle: "¥124.97 · 1h15m · 项目学习 · #阅读"}
+	r := row{
+		kind:     "time.segment",
+		title:    "08:00–09:15  C++ 作用域、生命周期与 using，整理学习笔记",
+		subtitle: "¥124.97 · 1h15m · 项目学习 · #阅读",
+	}
 	for _, width := range []int{24, 36, 65, 100} {
 		lines := renderTimelineLines(r, width, true, false)
 		text := stripANSI(strings.Join(lines, "\n"))
-		if !strings.Contains(text, "08:00") || !strings.Contains(text, "09:15") || !strings.Contains(text, "¥124.97") || !strings.Contains(text, "1h15m") || !strings.Contains(text, "╵") {
+		if !strings.Contains(text, "08:00") ||
+			!strings.Contains(text, "09:15") ||
+			!strings.Contains(text, "¥124.97") ||
+			!strings.Contains(text, "1h15m") ||
+			!strings.Contains(text, "╵") {
 			t.Fatalf("missing timeline facts: %s", text)
 		}
 		for _, line := range lines {
@@ -27,13 +36,22 @@ func TestTimelineGutterAndLongTitles(t *testing.T) {
 
 func TestStatisticsKeepAlignedValuesAndBothMetrics(t *testing.T) {
 	m := sampleModel()
-	r := row{kind: "time.statistic", title: "上位机学习.C++", chart: true, chartSeconds: 4500, chartCost: 12497, chartValue: 4500, chartMax: 7200}
+	r := row{
+		kind:         "time.statistic",
+		title:        "上位机学习.C++",
+		chart:        true,
+		chartSeconds: 4500,
+		chartCost:    12497,
+		chartValue:   4500,
+		chartMax:     7200,
+	}
 	for _, width := range []int{24, 40, 72} {
 		for _, metric := range []string{"seconds", "cost"} {
 			m.timeState.ChartMetric = metric
 			lines := m.renderStatisticLines(r, width, true)
 			text := stripANSI(strings.Join(lines, "\n"))
-			if !strings.Contains(text, "1h15m") || !strings.Contains(text, "¥124.97") {
+			if !strings.Contains(text, "1h15m") ||
+				!strings.Contains(text, "¥124.97") {
 				t.Fatalf("lost values: %q", text)
 			}
 			for _, line := range lines {
@@ -50,7 +68,15 @@ func TestStatisticsKeepAlignedValuesAndBothMetrics(t *testing.T) {
 
 func TestWideTerminalKeepsStatisticsTogether(t *testing.T) {
 	m := sampleModel()
-	r := row{kind: "time.statistic", title: "Work", chart: true, chartSeconds: 4500, chartCost: 12497, chartValue: 4500, chartMax: 7200}
+	r := row{
+		kind:         "time.statistic",
+		title:        "Work",
+		chart:        true,
+		chartSeconds: 4500,
+		chartCost:    12497,
+		chartValue:   4500,
+		chartMax:     7200,
+	}
 	lines := m.renderStatisticLines(r, 400, false)
 	if len(lines) != 1 {
 		t.Fatal("category should compare label, bar and values on one row")
@@ -69,11 +95,31 @@ func TestWideTerminalKeepsStatisticsTogether(t *testing.T) {
 func TestDailyTableAndColumnChart(t *testing.T) {
 	m := sampleModel()
 	m.view = "time.weekly"
-	rows := []row{{kind: "time.day", id: "2026-11-14", title: "2026-11-14", chart: true, chartSeconds: 1800, chartCost: 5000, chartValue: 1800}, {kind: "time.day", id: "2026-11-15", title: "2026-11-15", chart: true, chartSeconds: 3600, chartCost: 10000, chartValue: 3600}}
+	rows := []row{
+		{
+			kind:         "time.day",
+			id:           "2026-11-14",
+			title:        "2026-11-14",
+			chart:        true,
+			chartSeconds: 1800,
+			chartCost:    5000,
+			chartValue:   1800,
+		},
+		{
+			kind:         "time.day",
+			id:           "2026-11-15",
+			title:        "2026-11-15",
+			chart:        true,
+			chartSeconds: 3600,
+			chartCost:    10000,
+			chartValue:   3600,
+		},
+	}
 	for _, width := range []int{32, 65, 260} {
 		chart := m.renderDailyColumns(rows, width)
 		text := stripANSI(strings.Join(chart, "\n"))
-		if !strings.Contains(text, "最高 1h") || !strings.Contains(text, "14") || !strings.Contains(text, "15") {
+		if !strings.Contains(text, "最高 1h") || !strings.Contains(text, "14") ||
+			!strings.Contains(text, "15") {
 			t.Fatalf("missing daily scale: %s", text)
 		}
 		for _, line := range chart {
@@ -95,9 +141,20 @@ func TestBudgetRankingUsesOverrunAmounts(t *testing.T) {
 	m := sampleModel()
 	m.view = "time.report"
 	m.timeState.ReportSort = "highest_over_budget"
-	r := row{kind: "time.report_task", title: "C++", chart: true, chartSeconds: 3600, chartCost: 12500, chartValue: 3600, chartMax: 3600, chartOver: 2500, chartOverMax: 2500}
+	r := row{
+		kind:         "time.report_task",
+		title:        "C++",
+		chart:        true,
+		chartSeconds: 3600,
+		chartCost:    12500,
+		chartValue:   3600,
+		chartMax:     3600,
+		chartOver:    2500,
+		chartOverMax: 2500,
+	}
 	text := stripANSI(strings.Join(m.renderStatisticLines(r, 88, false), "\n"))
-	if !strings.Contains(text, "¥25") || !strings.Contains(text, "¥125") || strings.Contains(text, "1h") {
+	if !strings.Contains(text, "¥25") || !strings.Contains(text, "¥125") ||
+		strings.Contains(text, "1h") {
 		t.Fatalf("overrun view shows wrong metric: %q", text)
 	}
 }

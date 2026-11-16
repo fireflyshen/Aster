@@ -133,7 +133,10 @@ export function setChecklistItemApi(input: {
   weight?: string | null;
   planId?: string;
 }): Promise<{ evaluation: HabitDayEvaluation }> {
-  return api<{ evaluation: HabitDayEvaluation }>("habits/checklist-item", input);
+  return api<{ evaluation: HabitDayEvaluation }>(
+    "habits/checklist-item",
+    input,
+  );
 }
 
 export function switchDayPlanApi(input: {

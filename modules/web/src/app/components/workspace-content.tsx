@@ -359,7 +359,9 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           activeCount={topLevelVisible.length}
           groupBy={!isProjectOwned ? groupBy : undefined}
           groupOptions={!isProjectOwned ? groupOptions : undefined}
-          onGroupByChange={!isProjectOwned && view !== "upcoming" ? setGroupBy : undefined}
+          onGroupByChange={
+            !isProjectOwned && view !== "upcoming" ? setGroupBy : undefined
+          }
           onResetDisplay={() => {
             onLayoutChange("list");
             setGroupBy(defaultGroupBy);
@@ -478,8 +480,28 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
               void onReloadAll();
             }}
           />
-        ) : view === "upcoming" && !organizationPage && !activeEntry && !currentProject ? (
-          <UpcomingWorkspace tasks={tasks.filter(task => (completeBehavior === "strikethrough" || task.status !== "completed") && (!query.trim() || [task.description, task.project, ...task.tags].join(" ").toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())))} taskLinks={organization.subtasks} layout={layout} renderTask={renderTask} onAdd={draft => onOpenEditor(undefined, draft)} disabled={boardDisabled} loading={loading} />
+        ) : view === "upcoming" &&
+          !organizationPage &&
+          !activeEntry &&
+          !currentProject ? (
+          <UpcomingWorkspace
+            tasks={tasks.filter(
+              (task) =>
+                (completeBehavior === "strikethrough" ||
+                  task.status !== "completed") &&
+                (!query.trim() ||
+                  [task.description, task.project, ...task.tags]
+                    .join(" ")
+                    .toLocaleLowerCase()
+                    .includes(query.trim().toLocaleLowerCase())),
+            )}
+            taskLinks={organization.subtasks}
+            layout={layout}
+            renderTask={renderTask}
+            onAdd={(draft) => onOpenEditor(undefined, draft)}
+            disabled={boardDisabled}
+            loading={loading}
+          />
         ) : organizationPage ? (
           projectsPage ? (
             <ProjectManager

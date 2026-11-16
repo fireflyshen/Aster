@@ -192,5 +192,17 @@ export function OrganizationIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function UpcomingNavIcon(props: SVGProps<SVGSVGElement>) {
-  return <NavIcon {...props}><rect x="2.75" y="3.75" width="14.5" height="13.5" rx="1.5" /><path d="M2.75 7.75h14.5" /><g fill="currentColor" stroke="none"><circle cx="6.5" cy="11" r=".9"/><circle cx="10" cy="11" r=".9"/><circle cx="13.5" cy="11" r=".9"/><circle cx="6.5" cy="14" r=".9"/><circle cx="10" cy="14" r=".9"/></g></NavIcon>;
+  return (
+    <NavIcon {...props}>
+      <rect x="2.75" y="3.75" width="14.5" height="13.5" rx="1.5" />
+      <path d="M2.75 7.75h14.5" />
+      <g fill="currentColor" stroke="none">
+        <circle cx="6.5" cy="11" r=".9" />
+        <circle cx="10" cy="11" r=".9" />
+        <circle cx="13.5" cy="11" r=".9" />
+        <circle cx="6.5" cy="14" r=".9" />
+        <circle cx="10" cy="14" r=".9" />
+      </g>
+    </NavIcon>
+  );
 }

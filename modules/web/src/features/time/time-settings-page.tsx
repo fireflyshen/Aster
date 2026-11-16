@@ -187,7 +187,10 @@ export function TimeSettingsPage({
     <div className="ledger-page ledger-settings">
       <p className="ledger-intro">设置时间单价与计时偏好。</p>
       {/* Main Policy Form: Clean Linear-style setting rows */}
-      <form onSubmit={(e) => void handleSavePolicy(e)} className="ledger-settings-form">
+      <form
+        onSubmit={(e) => void handleSavePolicy(e)}
+        className="ledger-settings-form"
+      >
         <section className="ledger-settings-group">
           <div className="flex items-center justify-between border-b border-border/60 pb-2">
             <h2 className="text-xs font-medium text-muted-foreground">
@@ -247,7 +250,8 @@ export function TimeSettingsPage({
           </div>
         </section>
 
-        <details className="ledger-disclosure ledger-settings-advanced"><summary>时区、计时提醒与作息</summary>
+        <details className="ledger-disclosure ledger-settings-advanced">
+          <summary>时区、计时提醒与作息</summary>
           <div className="flex items-center justify-between border-b border-border/60 pb-2">
             <h2 className="text-xs font-medium text-muted-foreground">
               计时偏好
@@ -336,9 +340,12 @@ export function TimeSettingsPage({
               )}
             </div>
           </div>
-
         </details>
-        <div className="ledger-settings-save"><Button type="submit" size="sm" disabled={busy}>保存设置</Button></div>
+        <div className="ledger-settings-save">
+          <Button type="submit" size="sm" disabled={busy}>
+            保存设置
+          </Button>
+        </div>
       </form>
 
       {/* Progressive disclosure: Data & Recovery utilities tucked cleanly inside Collapsibles */}

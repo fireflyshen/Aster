@@ -52,7 +52,7 @@ const BLOCK_START = /^\s*(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|>\s?|`{3,}|~{3,})/;
 export function DescriptionReader({ text }: { text: string }) {
   const lines = normalizeDescriptionText(text).split("\n");
   const blocks: ReactNode[] = [];
-  for (let i = 0; i < lines.length;) {
+  for (let i = 0; i < lines.length; ) {
     const line = lines[i];
     if (!line.trim()) {
       i++;

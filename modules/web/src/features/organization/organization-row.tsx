@@ -84,7 +84,20 @@ export function OrganizationRow({
       >
         <Heart className={cn("size-3.5", item.favorite && "fill-current")} />
       </Button>
-      {onEdit && !isBuiltin && <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} aria-label={`编辑: ${item.name}`} title="编辑" onClick={() => onEdit(entry)} className="organization-row-quick-action ml-1 size-7 text-muted-foreground"><Pencil className="size-4" /></Button>}
+      {onEdit && !isBuiltin && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={disabled}
+          aria-label={`编辑: ${item.name}`}
+          title="编辑"
+          onClick={() => onEdit(entry)}
+          className="organization-row-quick-action ml-1 size-7 text-muted-foreground"
+        >
+          <Pencil className="size-4" />
+        </Button>
+      )}
       {onToggleHide && (
         <Button
           type="button"

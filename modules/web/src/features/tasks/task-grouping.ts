@@ -5,7 +5,13 @@ import { zhCN } from "date-fns/locale";
 import { toDueDay } from "./task-date";
 
 export type TaskGroupBy =
-  "none" | "today" | "completed" | "due" | "project" | "priority" | "label";
+  | "none"
+  | "today"
+  | "completed"
+  | "due"
+  | "project"
+  | "priority"
+  | "label";
 
 export type TaskGroupContext = "today" | "completed" | "default";
 

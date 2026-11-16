@@ -38,7 +38,8 @@ func TestStatisticsDeduplicateAndKeepSleep(t *testing.T) {
 	}
 	m.timeState.ReportGroupBy = "tag"
 	rows := m.statisticRows()
-	if len(rows) != 3 || rows[0].id != "__untagged__" || rows[0].chartSeconds != 28800 {
+	if len(rows) != 3 || rows[0].id != "__untagged__" ||
+		rows[0].chartSeconds != 28800 {
 		t.Fatalf("sleep and dedup: %+v", rows)
 	}
 	m.timeState.ChartMetric = "cost"
@@ -98,7 +99,12 @@ func TestWeeklyChartProjectTagSwitching(t *testing.T) {
 	m := makeTimeTestModel(time.Now(), true)
 	m.view = "time.weekly"
 	m.navFocus = false
-	m.timeState.Weekly = &WeeklyDistributionSummary{ByProjectSeconds: map[string]float64{"Work": 3600}, ByProjectCostCents: map[string]int64{"Work": 20000}, ByTagSeconds: map[string]float64{"dev": 3600}, ByTagCostCents: map[string]int64{"dev": 20000}}
+	m.timeState.Weekly = &WeeklyDistributionSummary{
+		ByProjectSeconds:   map[string]float64{"Work": 3600},
+		ByProjectCostCents: map[string]int64{"Work": 20000},
+		ByTagSeconds:       map[string]float64{"dev": 3600},
+		ByTagCostCents:     map[string]int64{"dev": 20000},
+	}
 	m.syncTimeExtraRows()
 	if len(m.extra) != 2 || m.extra[1].id != "Work" {
 		t.Fatalf("project should be default: %+v", m.extra)

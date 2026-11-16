@@ -258,7 +258,11 @@ export function isChecklistCompleted(
   items: readonly HabitChecklistItem[],
   progress: Record<string, HabitChecklistEntryProgress>,
   explicitCompleted = false,
-): { completed: boolean; requiredDoneCount: number; requiredTotalCount: number } {
+): {
+  completed: boolean;
+  requiredDoneCount: number;
+  requiredTotalCount: number;
+} {
   const requiredItems = items.filter((item) => item.required);
   if (requiredItems.length > 0) {
     const requiredDoneCount = requiredItems.filter(
@@ -294,7 +298,8 @@ export function evaluateHabitOnDate(params: {
   date: string;
   todayDate: string;
 }): HabitDayEvaluation {
-  const { habit, revisions, logsByDate, eventsByDate, date, todayDate } = params;
+  const { habit, revisions, logsByDate, eventsByDate, date, todayDate } =
+    params;
   const revision = resolveRevisionForDate(revisions, date);
   const log = logsByDate.get(date);
   const events = [...(eventsByDate.get(date) ?? [])].sort(
@@ -419,7 +424,11 @@ export function evaluateHabitOnDate(params: {
     const plan = resolvePlanForDate(revision, date, logsByDate);
     const items = log?.checklistSnapshot ?? plan?.items ?? [];
     const progress = log?.checklistProgress ?? {};
-    const check = isChecklistCompleted(items, progress, Boolean(log?.completed));
+    const check = isChecklistCompleted(
+      items,
+      progress,
+      Boolean(log?.completed),
+    );
     const anyDone = items.some((item) => progress[item.id]?.done);
     const planId = log?.planId ?? plan?.id;
     const planName =

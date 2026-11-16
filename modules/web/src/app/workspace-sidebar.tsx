@@ -1,3 +1,4 @@
+import { useSidebarPreferences } from "./sidebar-preferences";
 import {
   AsterMark,
   AddTaskIcon,
@@ -171,6 +172,7 @@ export function WorkspaceSidebar({
   habitsCount,
   onOpenHabitsPage,
 }: WorkspaceSidebarProps) {
+  const sidebar = useSidebarPreferences();
   const [laterCollapsed, setLaterCollapsed] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const disabled = busy || organizationSaving;
@@ -190,6 +192,8 @@ export function WorkspaceSidebar({
   return (
     <>
       <WorkspaceSettings
+        sidebarPreferences={sidebar.preferences}
+        onSidebarPreferencesChange={sidebar.update}
         open={prefsOpen}
         onOpenChange={setPrefsOpen}
         completeBehavior={completeBehavior}
@@ -208,7 +212,11 @@ export function WorkspaceSidebar({
           closeOnMobile();
         }}
       />
-      <WorkspaceNavigation open={navOpen} onOpenChange={onOpenChange}>
+      <WorkspaceNavigation
+        open={navOpen}
+        onOpenChange={onOpenChange}
+        showCounts={sidebar.preferences.showCounts}
+      >
         <div className="sidebar-account flex h-14 items-center justify-between px-1">
           <button
             type="button"
@@ -275,45 +283,53 @@ export function WorkspaceSidebar({
         </Button>
         <section className="mt-2" aria-label="核心视图">
           <nav aria-label="核心视图" className="space-y-0.5">
-            {viewOrder.map((value) => {
-              const label = views[value];
-              const { icon: Icon, colorClass } = viewMeta[value];
-              const count = viewCounts?.[value];
-              return (
-                <Button
-                  key={value}
-                  variant="navigation"
-                  disabled={disabled}
-                  aria-current={
-                    view === value &&
-                    !currentProject &&
-                    !organizationPage &&
-                    !hasActiveItem &&
-                    !timePage &&
-                    !habitsPage
-                      ? "page"
-                      : undefined
-                  }
-                  onClick={() => {
-                    onView(value);
-                    closeOnMobile();
-                  }}
-                >
-                  <Icon className={cn("size-5 shrink-0", colorClass)} />
-                  <span className="truncate">{label}</span>
-                  {value === "focus" ? (
-                    <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                      {activeRoots.length}/{FOCUS_LIMIT}
-                    </span>
-                  ) : count ? (
-                    <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                      {count}
-                    </span>
-                  ) : null}
-                </Button>
-              );
-            })}
-            {onOpenHabitsPage && (
+            {viewOrder
+              .filter((value) => sidebar.visible(value))
+              .map((value) => {
+                const label = views[value];
+                const { icon: Icon, colorClass } = viewMeta[value];
+                const count = viewCounts?.[value];
+                return (
+                  <Button
+                    key={value}
+                    variant="navigation"
+                    disabled={disabled}
+                    aria-current={
+                      view === value &&
+                      !currentProject &&
+                      !organizationPage &&
+                      !hasActiveItem &&
+                      !timePage &&
+                      !habitsPage
+                        ? "page"
+                        : undefined
+                    }
+                    onClick={() => {
+                      onView(value);
+                      closeOnMobile();
+                    }}
+                  >
+                    <Icon className={cn("size-5 shrink-0", colorClass)} />
+                    <span className="truncate">{label}</span>
+                    {value === "focus" ? (
+                      <span
+                        data-sidebar-count
+                        className="ml-auto text-xs text-muted-foreground tabular-nums"
+                      >
+                        {activeRoots.length}/{FOCUS_LIMIT}
+                      </span>
+                    ) : count ? (
+                      <span
+                        data-sidebar-count
+                        className="ml-auto text-xs text-muted-foreground tabular-nums"
+                      >
+                        {count}
+                      </span>
+                    ) : null}
+                  </Button>
+                );
+              })}
+            {onOpenHabitsPage && sidebar.visible("habits") && (
               <Button
                 variant="navigation"
                 disabled={disabled}
@@ -326,7 +342,10 @@ export function WorkspaceSidebar({
                 <HabitsNavIcon className="size-5 shrink-0 text-(--habit-accent)" />
                 <span className="truncate">习惯</span>
                 {habitsCount ? (
-                  <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                  <span
+                    data-sidebar-count
+                    className="ml-auto text-xs text-muted-foreground tabular-nums"
+                  >
                     {habitsCount}
                   </span>
                 ) : null}
@@ -334,7 +353,7 @@ export function WorkspaceSidebar({
             )}
           </nav>
         </section>
-        {onOpenTimePage && (
+        {onOpenTimePage && sidebar.visible("time") && (
           <Button
             variant="navigation"
             aria-current={
@@ -356,18 +375,22 @@ export function WorkspaceSidebar({
             )}
           </Button>
         )}
-        <Button
-          variant="navigation"
-          aria-current={organizationPage && !projectsPage ? "page" : undefined}
-          disabled={disabled}
-          onClick={() => {
-            onOrganization();
-            closeOnMobile();
-          }}
-        >
-          <OrganizationIcon className="size-5 text-(--priority-2)" />
-          过滤器 &amp; 标签
-        </Button>
+        {sidebar.visible("organization") && (
+          <Button
+            variant="navigation"
+            aria-current={
+              organizationPage && !projectsPage ? "page" : undefined
+            }
+            disabled={disabled}
+            onClick={() => {
+              onOrganization();
+              closeOnMobile();
+            }}
+          >
+            <OrganizationIcon className="size-5 text-(--priority-2)" />
+            过滤器 &amp; 标签
+          </Button>
+        )}
         <SidebarFavorites
           onEditEntry={(entry) => {
             closeOnMobile();
@@ -436,14 +459,14 @@ export function WorkspaceSidebar({
           onElixir={onElixir}
         />
         {connectionLabel !== "本地已连接" && (
-        <p
-          className={cn(
-            "px-2.5 pb-2 text-xs text-muted-foreground",
-            energy ? "mt-3" : "mt-6",
-          )}
-        >
-          {connectionLabel}
-        </p>
+          <p
+            className={cn(
+              "px-2.5 pb-2 text-xs text-muted-foreground",
+              energy ? "mt-3" : "mt-6",
+            )}
+          >
+            {connectionLabel}
+          </p>
         )}
       </WorkspaceNavigation>
     </>

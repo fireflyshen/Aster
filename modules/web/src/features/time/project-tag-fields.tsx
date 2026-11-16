@@ -1,4 +1,8 @@
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
 import { Check, Folder, Moon, Plus, Tag, X } from "lucide-react";
@@ -117,20 +121,126 @@ export function ProjectTagFields({
       <div className="time-meta-fields" data-time-meta>
         <div className="time-meta-project">
           <Folder className="size-3.5 shrink-0 text-muted-foreground" />
-          <Select value={project || UNASSIGNED_PROJECT_SELECT} onValueChange={v => onProjectChange(v === UNASSIGNED_PROJECT_SELECT ? "" : v)}>
-            <SelectTrigger id={`${idPrefix}-project`} aria-label="关联项目" className="h-8 min-w-0 max-w-40 gap-1 border-0 bg-transparent dark:bg-transparent px-1.5 text-xs text-muted-foreground shadow-none"><SelectValue placeholder="无项目" /></SelectTrigger>
-            <SelectContent><SelectItem value={UNASSIGNED_PROJECT_SELECT}>无项目</SelectItem>{projectOptions.map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+          <Select
+            value={project || UNASSIGNED_PROJECT_SELECT}
+            onValueChange={(v) =>
+              onProjectChange(v === UNASSIGNED_PROJECT_SELECT ? "" : v)
+            }
+          >
+            <SelectTrigger
+              id={`${idPrefix}-project`}
+              aria-label="关联项目"
+              className="h-8 min-w-0 max-w-40 gap-1 border-0 bg-transparent dark:bg-transparent px-1.5 text-xs text-muted-foreground shadow-none"
+            >
+              <SelectValue placeholder="无项目" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={UNASSIGNED_PROJECT_SELECT}>无项目</SelectItem>
+              {projectOptions.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {item}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
         <Popover>
-          <PopoverTrigger asChild><button type="button" aria-label="选择活动标签" className="time-meta-tag-trigger"><Tag className="size-3.5" />标签{tags.length > 0 && <span className="tabular-nums">{tags.length}</span>}</button></PopoverTrigger>
-          <PopoverContent align="start" className="w-64 max-w-[calc(100vw-24px)] p-2.5" aria-label="活动标签">
-            <div className="flex items-center gap-2 border-b border-border/60 pb-2"><input type="text" aria-label="搜索或新增标签" placeholder="搜索或新增标签" className="h-8 min-w-0 flex-1 bg-transparent text-base outline-none sm:text-xs" value={newTagInput} onChange={e => setNewTagInput(e.target.value)} onKeyDown={e => {if(e.key === "Enter") { e.preventDefault(); e.stopPropagation(); addCustomTag(); }}} />{query && !tagOptions.includes(query) && <button type="button" aria-label="添加标签" className="size-8 shrink-0 text-muted-foreground" onClick={addCustomTag}><Plus className="size-4" /></button>}</div>
-            <div className="max-h-52 space-y-0.5 overflow-y-auto pt-2">{tagOptions.filter(tag => tag.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map(tag => <button key={tag} type="button" aria-pressed={tags.includes(tag)} onClick={() => toggleTag(tag)} className="flex min-h-8 w-full items-center justify-between gap-2 rounded px-2 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"><span className="truncate">{tag}</span>{tags.includes(tag) && <Check className="size-3.5 shrink-0 text-foreground" />}</button>)}</div>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              aria-label="选择活动标签"
+              className="time-meta-tag-trigger"
+            >
+              <Tag className="size-3.5" />
+              标签
+              {tags.length > 0 && (
+                <span className="tabular-nums">{tags.length}</span>
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            className="w-64 max-w-[calc(100vw-24px)] p-2.5"
+            aria-label="活动标签"
+          >
+            <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+              <input
+                type="text"
+                aria-label="搜索或新增标签"
+                placeholder="搜索或新增标签"
+                className="h-8 min-w-0 flex-1 bg-transparent text-base outline-none sm:text-xs"
+                value={newTagInput}
+                onChange={(e) => setNewTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    addCustomTag();
+                  }
+                }}
+              />
+              {query && !tagOptions.includes(query) && (
+                <button
+                  type="button"
+                  aria-label="添加标签"
+                  className="size-8 shrink-0 text-muted-foreground"
+                  onClick={addCustomTag}
+                >
+                  <Plus className="size-4" />
+                </button>
+              )}
+            </div>
+            <div className="max-h-52 space-y-0.5 overflow-y-auto pt-2">
+              {tagOptions
+                .filter((tag) =>
+                  tag.toLocaleLowerCase().includes(query.toLocaleLowerCase()),
+                )
+                .map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    aria-pressed={tags.includes(tag)}
+                    onClick={() => toggleTag(tag)}
+                    className="flex min-h-8 w-full items-center justify-between gap-2 rounded px-2 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <span className="truncate">{tag}</span>
+                    {tags.includes(tag) && (
+                      <Check className="size-3.5 shrink-0 text-foreground" />
+                    )}
+                  </button>
+                ))}
+            </div>
           </PopoverContent>
         </Popover>
-        {onSleepChange && <label className="time-meta-sleep" title="睡眠时段不计入成本"><Checkbox aria-label="睡眠，不计成本" checked={Boolean(isSleep)} onCheckedChange={v => onSleepChange(Boolean(v))} className="size-3.5 shrink-0" /><Moon className="size-3.5 shrink-0" /><span>睡眠</span></label>}
-        {tags.length > 0 && <div className="time-meta-selected">{tags.slice(0,3).map(tag => <button key={tag} type="button" title={`移除标签 ${tag}`} aria-label={`移除标签 ${tag}`} onClick={() => toggleTag(tag)} className="inline-flex min-h-7 max-w-40 items-center gap-1 rounded px-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"><span className="truncate">#{tag}</span><X className="size-2.5 shrink-0" /></button>)}</div>}
+        {onSleepChange && (
+          <label className="time-meta-sleep" title="睡眠时段不计入成本">
+            <Checkbox
+              aria-label="睡眠，不计成本"
+              checked={Boolean(isSleep)}
+              onCheckedChange={(v) => onSleepChange(Boolean(v))}
+              className="size-3.5 shrink-0"
+            />
+            <Moon className="size-3.5 shrink-0" />
+            <span>睡眠</span>
+          </label>
+        )}
+        {tags.length > 0 && (
+          <div className="time-meta-selected">
+            {tags.slice(0, 3).map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                title={`移除标签 ${tag}`}
+                aria-label={`移除标签 ${tag}`}
+                onClick={() => toggleTag(tag)}
+                className="inline-flex min-h-7 max-w-40 items-center gap-1 rounded px-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <span className="truncate">#{tag}</span>
+                <X className="size-2.5 shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

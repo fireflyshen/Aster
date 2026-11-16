@@ -5,7 +5,10 @@ import { join } from "node:path";
 import test from "node:test";
 import { zonedDateTimeToUtcMs } from "../../core/time/zone.ts";
 import { createHabitHandlers } from "../src/habits/habit-api.ts";
-import { createHabitStore, HabitStoreError } from "../src/habits/habit-store.ts";
+import {
+  createHabitStore,
+  HabitStoreError,
+} from "../src/habits/habit-store.ts";
 
 test("habit store lifecycle: positive, negative, checklist with metrics, A/B rotation, revisions, and backup", async () => {
   const dir = await mkdtemp(join(tmpdir(), "aster-habits-"));
@@ -173,8 +176,10 @@ test("habit store lifecycle: positive, negative, checklist with metrics, A/B rot
     store2.restoreBackup(backup);
     assert.equal(store2.listHabits({ status: "all" }).length, 3);
     assert.equal(
-      store2.getDayDetail("2026-11-10").items.find((i) => i.habit.id === lift.id)
-        ?.evaluation.checklistProgress.press.weight,
+      store2
+        .getDayDetail("2026-11-10")
+        .items.find((i) => i.habit.id === lift.id)?.evaluation.checklistProgress
+        .press.weight,
       "20kg",
     );
 
@@ -188,7 +193,11 @@ test("habit store lifecycle: positive, negative, checklist with metrics, A/B rot
 test("habit API handlers validate and route GET/POST requests cleanly", async () => {
   const dir = await mkdtemp(join(tmpdir(), "aster-habit-api-"));
   try {
-    const fakeNow = zonedDateTimeToUtcMs("2026-11-15", "09:00", "Asia/Shanghai");
+    const fakeNow = zonedDateTimeToUtcMs(
+      "2026-11-15",
+      "09:00",
+      "Asia/Shanghai",
+    );
     const store = createHabitStore(join(dir, "habits.sqlite"), {
       now: () => fakeNow,
       getTimezone: () => "Asia/Shanghai",
@@ -214,10 +223,7 @@ test("habit API handlers validate and route GET/POST requests cleanly", async ()
       transport: "http",
     });
     assert.equal(todayRes.status, 200);
-    assert.equal(
-      (todayRes.body as { items: unknown[] }).items.length,
-      1,
-    );
+    assert.equal((todayRes.body as { items: unknown[] }).items.length, 1);
 
     const toggleRes = await map.get("POST api/habits/toggle")!.handle({
       searchParams: new URLSearchParams(),
@@ -241,7 +247,11 @@ test("task-bound habit syncs title, metadata, and real subtasks from catalog, un
   return (async () => {
     const dir = await mkdtemp(join(tmpdir(), "aster-habits-bind-"));
     try {
-      const fakeNow = zonedDateTimeToUtcMs("2026-11-15", "09:00", "Asia/Shanghai");
+      const fakeNow = zonedDateTimeToUtcMs(
+        "2026-11-15",
+        "09:00",
+        "Asia/Shanghai",
+      );
       const store = createHabitStore(join(dir, "habits.sqlite"), {
         now: () => fakeNow,
         getTimezone: () => "Asia/Shanghai",
@@ -311,7 +321,10 @@ test("task-bound habit syncs title, metadata, and real subtasks from catalog, un
 
       // Delete cleanup via deleteHabitIfExists(taskUuid)
       store.deleteHabitIfExists("task-train-1");
-      assert.throws(() => store.getHabitDetail("task-train-1"), HabitStoreError);
+      assert.throws(
+        () => store.getHabitDetail("task-train-1"),
+        HabitStoreError,
+      );
       // Calling deleteHabitIfExists again on missing id is a safe no-op
       store.deleteHabitIfExists("task-train-1");
 
@@ -329,7 +342,10 @@ test("task-bound habit syncs title, metadata, and real subtasks from catalog, un
       assert.equal(negHabit.kind, "negative");
       assert.equal(negHabit.trackTime, false);
       store.unbindTaskHabit("task-train-1");
-      assert.throws(() => store.getHabitDetail("task-train-1"), HabitStoreError);
+      assert.throws(
+        () => store.getHabitDetail("task-train-1"),
+        HabitStoreError,
+      );
 
       store.close();
     } finally {

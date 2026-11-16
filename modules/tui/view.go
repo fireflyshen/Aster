@@ -533,14 +533,27 @@ func (m model) list(w, h int, f renderFrame) string {
 			}
 			ls = []string{renderSpans(spans, rowW, rowW, selected)}
 		case "time.segment":
-			ls = renderTimelineLines(r, rowW, selected, i+1 < len(rs) && rs[i+1].kind == "time.segment")
+			ls = renderTimelineLines(
+				r,
+				rowW,
+				selected,
+				i+1 < len(rs) && rs[i+1].kind == "time.segment",
+			)
 		case "time.summary":
 			ls = renderTimeSummaryLines(r, rowW, selected)
 			if chart := m.renderDailyColumns(rs, rowW); len(chart) > 0 {
 				ls = append(ls, chart...)
 			}
 			if legend := m.statisticLegend(rs); legend != "" {
-				ls = append(ls, renderSpans([]styledSpan{span("  "+legend, dim)}, min(rowW, 88), min(rowW, 88), false))
+				ls = append(
+					ls,
+					renderSpans(
+						[]styledSpan{span("  "+legend, dim)},
+						min(rowW, 88),
+						min(rowW, 88),
+						false,
+					),
+				)
 			}
 		case "task":
 			ls = m.renderTaskLines(f, r, rowW, selected)
@@ -582,7 +595,10 @@ func (m model) list(w, h int, f renderFrame) string {
 			line1Spans = append(line1Spans, span(clean(r.title), titleStyle))
 			ls = []string{renderSpans(line1Spans, rowW, rowW, selected)}
 			if sub := clean(r.subtitle); sub != "" {
-				subSpans := []styledSpan{span(marker, markerStyle), span("  "+sub, subStyle)}
+				subSpans := []styledSpan{
+					span(marker, markerStyle),
+					span("  "+sub, subStyle),
+				}
 				ls = append(ls, renderSpans(subSpans, rowW, rowW, selected))
 			}
 		}

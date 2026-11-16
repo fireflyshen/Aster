@@ -9,10 +9,7 @@ import type {
   HabitPlan,
   HabitStreakSummary,
 } from "@core/habits/model";
-import {
-  itemColor,
-  type SavedTag,
-} from "@core/workspace/organization";
+import { itemColor, type SavedTag } from "@core/workspace/organization";
 import { cn } from "cn";
 import {
   Check,
@@ -38,7 +35,11 @@ type HabitExecutionRowProps = {
   date: string;
   isToday: boolean;
   disabled?: boolean;
-  onTogglePositive: (habitId: string, date: string, completed?: boolean) => void;
+  onTogglePositive: (
+    habitId: string,
+    date: string,
+    completed?: boolean,
+  ) => void;
   onSetChecklistItem: (input: {
     habitId: string;
     itemId: string;
@@ -287,7 +288,11 @@ export function HabitExecutionRow({
             <button
               type="button"
               disabled={disabled}
-              aria-label={expanded ? `收起动作清单：${habit.title}` : `展开动作清单：${habit.title}`}
+              aria-label={
+                expanded
+                  ? `收起动作清单：${habit.title}`
+                  : `展开动作清单：${habit.title}`
+              }
               onClick={() => setExpanded((prev) => !prev)}
               className={cn(
                 "mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.75px] transition-all",

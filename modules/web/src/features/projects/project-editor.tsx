@@ -122,7 +122,9 @@ export function ProjectEditor({
   const [localError, setLocalError] = useState("");
   const [draftRevision, setDraftRevision] = useState(revision);
   const [reloading, setReloading] = useState(false);
-  const parentIsHabit = Boolean(parent && isHabitProject(parent, projectRecords));
+  const parentIsHabit = Boolean(
+    parent && isHabitProject(parent, projectRecords),
+  );
   const effectiveCategory: ProjectCategory = parentIsHabit ? "habit" : category;
   // The editor mounts on open; refreshes keep this draft and its captured revision.
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -280,7 +282,10 @@ export function ProjectEditor({
                 )}
                 onChange={(nextParent) => {
                   setParent(nextParent);
-                  if (nextParent && isHabitProject(nextParent, projectRecords)) {
+                  if (
+                    nextParent &&
+                    isHabitProject(nextParent, projectRecords)
+                  ) {
                     setCategory("habit");
                   }
                 }}

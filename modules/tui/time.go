@@ -1183,7 +1183,8 @@ func (m *model) syncTimeExtraRows() {
 				}
 			}
 			for i := range out {
-				if out[i].kind == "time.report_task" || out[i].kind == "time.report_project" {
+				if out[i].kind == "time.report_task" ||
+					out[i].kind == "time.report_project" {
 					out[i].chartOver = over[out[i].id]
 					out[i].chartOverMax = maximum
 				}
@@ -1738,7 +1739,8 @@ func (m model) inspectTimeRow(
 				add("Enter 查看当日时间线")
 			}
 			_, _, dimension := m.timeReportDefaults()
-			if (m.view == "time.report" && dimension == "tag") || (m.view == "time.weekly" && m.timeState.WeeklyDimension == "tag") {
+			if (m.view == "time.report" && dimension == "tag") ||
+				(m.view == "time.weekly" && m.timeState.WeeklyDimension == "tag") {
 				add("多标签分别累计")
 			}
 		} else {

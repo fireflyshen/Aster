@@ -167,8 +167,7 @@ export function TaskForm({
   );
   const [habitDraft, setHabitDraft] = useState<TaskHabitDraft>(
     () =>
-      initialHabitDraft ??
-      createHabitDraftFromItem(habit, initialHabitPreset),
+      initialHabitDraft ?? createHabitDraftFromItem(habit, initialHabitPreset),
   );
   const descriptionLock = useRef(false);
   const initialDraft = useRef(JSON.stringify({ draft, due, tags }));
@@ -179,8 +178,7 @@ export function TaskForm({
 
   useEffect(() => {
     setHabitDraft(
-      initialHabitDraft ??
-        createHabitDraftFromItem(habit, initialHabitPreset),
+      initialHabitDraft ?? createHabitDraftFromItem(habit, initialHabitPreset),
     );
   }, [editing?.uuid, habit?.id, initialHabitPreset, initialHabitDraft]);
 
@@ -674,7 +672,8 @@ export function TaskForm({
                 onChange={setHabitDraft}
                 onStatusChange={
                   habit && habitActions?.setStatus
-                    ? (status) => void habitActions.setStatus?.(habit.id, status)
+                    ? (status) =>
+                        void habitActions.setStatus?.(habit.id, status)
                     : undefined
                 }
                 onOpenDetail={habitActions?.openDetail}

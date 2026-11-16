@@ -472,7 +472,11 @@ export function createHabitStore(
   }
 
   function listHabits(
-    filters: { status?: HabitStatus | "all"; project?: string; tag?: string } = {},
+    filters: {
+      status?: HabitStatus | "all";
+      project?: string;
+      tag?: string;
+    } = {},
   ): HabitListItem[] {
     const todayDate = currentTodayDate();
     const bundles = loadAllBundles();
@@ -616,7 +620,9 @@ export function createHabitStore(
 
     runTx(() => {
       const maxOrderRow = db
-        .prepare("SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM habits")
+        .prepare(
+          "SELECT COALESCE(MAX(sort_order), -1) AS max_order FROM habits",
+        )
         .get() as { max_order: number };
       const sortOrder = (maxOrderRow?.max_order ?? -1) + 1;
 
@@ -703,14 +709,14 @@ export function createHabitStore(
       input.kind === "positive"
         ? Boolean(
             input.trackTime ??
-              (existingRow ? Boolean(existingRow.track_time) : false),
+            (existingRow ? Boolean(existingRow.track_time) : false),
           )
         : false;
     const nextAbEnabled =
       input.kind === "positive"
         ? Boolean(
             input.abEnabled ??
-              (existingRow ? Boolean(existingRow.ab_enabled) : false),
+            (existingRow ? Boolean(existingRow.ab_enabled) : false),
           )
         : false;
     const nextSubtaskPlans =
@@ -749,8 +755,10 @@ export function createHabitStore(
     const resolvedTags = normalizeTags(
       taskFromCatalog
         ? taskFromCatalog.tags
-        : input.tags ??
-            (existingRow ? parseJson<string[]>(existingRow.tags_json, []) : []),
+        : (input.tags ??
+            (existingRow
+              ? parseJson<string[]>(existingRow.tags_json, [])
+              : [])),
     );
     const resolvedDescription = (
       (taskFromCatalog ? catalog?.descriptions[taskUuid] : undefined) ??
@@ -907,10 +915,7 @@ export function createHabitStore(
   function syncFromTaskCatalog(catalog: HabitTaskCatalog): void {
     const todayDate = currentTodayDate();
     const nowMs = nowFn();
-    const taskByUuid = new Map<
-      string,
-      HabitTaskCatalog["tasks"][number]
-    >();
+    const taskByUuid = new Map<string, HabitTaskCatalog["tasks"][number]>();
     const childrenByParent = new Map<
       string,
       Array<{ uuid: string; description: string }>
@@ -927,13 +932,12 @@ export function createHabitStore(
       }
     }
 
-    const rows = db
-      .prepare("SELECT * FROM habits")
-      .all() as HabitRow[];
+    const rows = db.prepare("SELECT * FROM habits").all() as HabitRow[];
 
     runTx(() => {
       for (const row of rows) {
-        const linkedUuid = row.task_uuid || (taskByUuid.has(row.id) ? row.id : undefined);
+        const linkedUuid =
+          row.task_uuid || (taskByUuid.has(row.id) ? row.id : undefined);
         if (!linkedUuid) continue;
         const task = taskByUuid.get(linkedUuid);
         if (!task) continue;
@@ -1019,7 +1023,10 @@ export function createHabitStore(
     });
   }
 
-  function updateHabit(habitId: string, patch: UpdateHabitInput): HabitListItem {
+  function updateHabit(
+    habitId: string,
+    patch: UpdateHabitInput,
+  ): HabitListItem {
     const todayDate = currentTodayDate();
     const tomorrowDate = addLocalDays(todayDate, 1);
 
@@ -1070,7 +1077,7 @@ export function createHabitStore(
       const nextSubtaskPlans =
         patch.subtaskPlans !== undefined
           ? patch.subtaskPlans
-          : current.subtaskPlans ?? {};
+          : (current.subtaskPlans ?? {});
 
       let nextSchedule = current.schedule;
       if (patch.schedule !== undefined) {
@@ -1396,7 +1403,11 @@ export function createHabitStore(
     return evaluateHabitOnDate({ ...updated, date, todayDate });
   }
 
-  function switchDayPlan(habitId: string, dateInput: string | undefined, planId: string) {
+  function switchDayPlan(
+    habitId: string,
+    dateInput: string | undefined,
+    planId: string,
+  ) {
     const todayDate = currentTodayDate();
     const date = ensureDateNotFutureOrDefault(dateInput, todayDate);
     const nowMs = nowFn();
@@ -1579,7 +1590,11 @@ export function createHabitStore(
     return evaluateHabitOnDate({ ...updated, date: eventDate, todayDate });
   }
 
-  function setDailyNote(habitId: string, dateInput: string | undefined, noteInput: string) {
+  function setDailyNote(
+    habitId: string,
+    dateInput: string | undefined,
+    noteInput: string,
+  ) {
     const todayDate = currentTodayDate();
     const date = ensureDateNotFutureOrDefault(dateInput, todayDate);
     const note = noteInput.trim().slice(0, 2000);
@@ -1624,7 +1639,9 @@ export function createHabitStore(
       ? requireValidDate(options.endDate)
       : todayDate;
     const days =
-      typeof options.days === "number" && options.days > 0 && options.days <= 370
+      typeof options.days === "number" &&
+      options.days > 0 &&
+      options.days <= 370
         ? Math.floor(options.days)
         : 365;
     const startDate = options.startDate
@@ -1652,7 +1669,9 @@ export function createHabitStore(
     const todayDate = currentTodayDate();
     const date = dateInput ? requireValidDate(dateInput) : todayDate;
     const bundles = loadAllBundles();
-    const matching = bundles.filter((b) => habitMatchesFilter(b.habit, filters));
+    const matching = bundles.filter((b) =>
+      habitMatchesFilter(b.habit, filters),
+    );
 
     const items: DayDetailItem[] = [];
     let scheduledCount = 0;
@@ -1688,11 +1707,17 @@ export function createHabitStore(
     };
   }
 
-  function getHabitDetail(habitId: string, rangeDays = 365): HabitDetailResponse {
+  function getHabitDetail(
+    habitId: string,
+    rangeDays = 365,
+  ): HabitDetailResponse {
     const todayDate = currentTodayDate();
     const bundle = loadHabitBundle(habitId);
     const streak = computeHabitStreak({ ...bundle, todayDate });
-    const startDate = addLocalDays(todayDate, -(Math.min(365, Math.max(30, rangeDays)) - 1));
+    const startDate = addLocalDays(
+      todayDate,
+      -(Math.min(365, Math.max(30, rangeDays)) - 1),
+    );
     const heatmap = computeHeatmap({
       habits: [bundle],
       startDate,
@@ -1730,7 +1755,9 @@ export function createHabitStore(
   function exportBackup(): HabitBackupPayload {
     const habits = (
       db
-        .prepare("SELECT * FROM habits ORDER BY sort_order ASC, created_at_ms ASC")
+        .prepare(
+          "SELECT * FROM habits ORDER BY sort_order ASC, created_at_ms ASC",
+        )
         .all() as HabitRow[]
     ).map(rowToHabit);
     const revisions = (
@@ -1745,7 +1772,9 @@ export function createHabitStore(
     ).map(rowToDailyLog);
     const negativeEvents = (
       db
-        .prepare("SELECT * FROM habit_negative_events ORDER BY occurred_at_ms ASC")
+        .prepare(
+          "SELECT * FROM habit_negative_events ORDER BY occurred_at_ms ASC",
+        )
         .all() as HabitNegativeEventRow[]
     ).map(rowToNegativeEvent);
 
