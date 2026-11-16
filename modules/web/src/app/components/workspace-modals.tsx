@@ -1,6 +1,10 @@
 import { projectNames } from "@core/workspace/projects";
 import { CommandPalette } from "../command-palette";
 import {
+  HabitWorkspaceDialogs,
+  type HabitWorkspaceDialogsProps,
+} from "./habit-workspace-dialogs";
+import {
   ProjectWorkspaceDialogs,
   type ProjectWorkspaceDialogsProps,
 } from "./project-workspace-dialogs";
@@ -12,7 +16,8 @@ import type { Task, View } from "@shared/tasks";
 import type { SavedFilter, SavedTag } from "@core/workspace/organization";
 
 export type WorkspaceModalsProps = TaskWorkspaceDialogsProps &
-  ProjectWorkspaceDialogsProps & {
+  ProjectWorkspaceDialogsProps &
+  Omit<HabitWorkspaceDialogsProps, "availableLabels"> & {
     commandOpen: boolean;
     setCommandOpen: (open: boolean) => void;
     layout: "list" | "board";
@@ -86,6 +91,10 @@ export function WorkspaceModals(props: WorkspaceModalsProps) {
       />
       <TaskWorkspaceDialogs {...props} />
       <ProjectWorkspaceDialogs {...props} />
+      <HabitWorkspaceDialogs
+        {...props}
+        availableLabels={organization.tags}
+      />
     </>
   );
 }

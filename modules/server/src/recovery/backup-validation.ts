@@ -1,4 +1,5 @@
 import { isCompactTaskDate } from "../../../core/tasks/model.ts";
+import { isValidWorkspacePreferences } from "../../../core/workspace/preferences.ts";
 import { requireUuid } from "../../../core/tasks/arguments.ts";
 import { tagName, filterArguments } from "../../../core/tasks/filter.ts";
 import { normalizeBuiltinFilterPrefs } from "../../../core/workspace/builtin-filters.ts";
@@ -273,8 +274,8 @@ export function validateBackup(value: unknown): AsterBackup {
       throw new Error("Invalid built-in filter setting.");
     }
   }
-  if (org.preferences !== undefined) {
-    record(org.preferences);
+  if (org.preferences !== undefined && !isValidWorkspacePreferences(org.preferences)) {
+    throw new Error("Invalid workspace preferences in backup.");
   }
   if (org.descriptions !== undefined) {
     record(org.descriptions);

@@ -1,17 +1,12 @@
-import type { WorkspacePreferences } from "@core/workspace/organization";
+import type { WorkspacePreferences } from "../../../core/workspace/organization.ts";
+import {
+  SIDEBAR_ITEMS,
+  type SidebarItemId,
+} from "../../../core/workspace/preferences.ts";
 import { useMemo } from "react";
 
-export const sidebarItems = [
-  { id: "focus", label: "Focus" },
-  { id: "pending", label: "收件箱" },
-  { id: "today", label: "今天" },
-  { id: "upcoming", label: "预览" },
-  { id: "habits", label: "习惯" },
-  { id: "time", label: "时间账本" },
-  { id: "organization", label: "过滤器与标签" },
-] as const;
-
-export type SidebarItemId = (typeof sidebarItems)[number]["id"];
+export const sidebarItems = SIDEBAR_ITEMS;
+export type { SidebarItemId };
 export type SidebarPreferences = {
   hidden: SidebarItemId[];
   showCounts: boolean;

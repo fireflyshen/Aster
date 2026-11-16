@@ -5,6 +5,7 @@ import type {
   Organization,
   WorkspacePreferences,
 } from "../../../core/workspace/organization.ts";
+import { renderThemeInitScript } from "../../../core/workspace/preferences.ts";
 import type { createBackupRestore } from "../recovery/backup-restore.ts";
 import type { createOrganizationService } from "../organization/organization-service.ts";
 import type { createRecoveryService } from "../recovery/recovery.ts";
@@ -310,39 +311,10 @@ export function createWorkspaceRoutes(
         const prefs = await handlers
           .loadPreferences()
           .catch(() => ({}) as WorkspacePreferences);
-        const theme =
-          prefs.theme === "light" || prefs.theme === "dark"
-            ? prefs.theme
-            : "system";
-        const palette =
-          typeof prefs.palette === "string" &&
-          [
-            "aster",
-            "todoist",
-            "moonstone",
-            "tangerine",
-            "kale",
-            "blueberry",
-            "lavender",
-            "raspberry",
-          ].includes(prefs.palette)
-            ? prefs.palette
-            : "aster";
-        const script = [
-          "(() => {",
-          `  const theme = ${JSON.stringify(theme)};`,
-          `  const palette = ${JSON.stringify(palette)};`,
-          '  const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);',
-          "  document.documentElement.dataset.theme = theme;",
-          "  document.documentElement.dataset.palette = palette;",
-          '  document.documentElement.classList.toggle("dark", dark);',
-          '  document.querySelector(\'meta[name="theme-color"]\')?.setAttribute("content", dark ? "#1c1c1d" : "#faf9f7");',
-          "})();",
-        ].join("\n");
         return {
           status: 200,
           body: undefined,
-          rawBody: script,
+          rawBody: renderThemeInitScript(prefs),
           headers: {
             "Content-Type": "text/javascript; charset=utf-8",
             "Cache-Control": "no-store",

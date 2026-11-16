@@ -1,4 +1,5 @@
 import type { Organization } from "../../../core/workspace/organization.ts";
+import { isValidWorkspacePreferences } from "../../../core/workspace/preferences.ts";
 
 /** Validates an already-parsed organization JSON payload and normalizes column projects. */
 export function validateOrganizationData(raw: unknown): Organization {
@@ -70,44 +71,7 @@ export function validateOrganizationData(raw: unknown): Organization {
       (data.builtinFilterPrefs.sectionHidden !== undefined &&
         typeof data.builtinFilterPrefs.sectionHidden !== "boolean"));
 
-  const prefs = data.preferences as Record<string, unknown> | undefined;
-  const preferencesInvalid =
-    prefs !== undefined &&
-    (!prefs ||
-      typeof prefs !== "object" ||
-      Array.isArray(prefs) ||
-      (prefs.theme !== undefined &&
-        !["light", "dark", "system"].includes(String(prefs.theme))) ||
-      (prefs.palette !== undefined &&
-        ![
-          "aster",
-          "todoist",
-          "moonstone",
-          "tangerine",
-          "kale",
-          "blueberry",
-          "lavender",
-          "raspberry",
-        ].includes(String(prefs.palette))) ||
-      (prefs.sidebarHidden !== undefined && !stringList(prefs.sidebarHidden)) ||
-      (prefs.sidebarShowCounts !== undefined &&
-        typeof prefs.sidebarShowCounts !== "boolean") ||
-      (prefs.completeBehavior !== undefined &&
-        !["hide", "strikethrough"].includes(String(prefs.completeBehavior))) ||
-      (prefs.layout !== undefined &&
-        !["list", "board"].includes(String(prefs.layout))) ||
-      (prefs.view !== undefined &&
-        !["today", "pending", "focus", "upcoming"].includes(
-          String(prefs.view),
-        )) ||
-      (prefs.navOpen !== undefined && typeof prefs.navOpen !== "boolean") ||
-      (prefs.filterGroupBy !== undefined &&
-        (!prefs.filterGroupBy ||
-          typeof prefs.filterGroupBy !== "object" ||
-          Array.isArray(prefs.filterGroupBy) ||
-          Object.entries(prefs.filterGroupBy).some(
-            ([k, v]) => typeof k !== "string" || typeof v !== "string",
-          ))));
+  const preferencesInvalid = !isValidWorkspacePreferences(data.preferences);
 
   if (
     !data ||

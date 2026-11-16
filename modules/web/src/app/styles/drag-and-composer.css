@@ -4,9 +4,6 @@
   border-radius: 0;
   background: transparent;
 }
-.board-card[data-compact="true"]::after {
-  display: none;
-}
 [data-task-surface][data-variant="list"] {
   position: relative;
 }
@@ -20,15 +17,6 @@
   background: var(--border);
   opacity: 1;
   pointer-events: none;
-}
-.board-card[data-compact="true"]:hover,
-.board-card[data-compact="true"]:focus-within,
-[data-task-surface][data-variant="list"]:hover,
-[data-task-surface][data-variant="list"]:focus-within {
-  background: transparent;
-}
-[data-task-surface][data-variant="list"]:hover::after {
-  opacity: 1;
 }
 [data-task-surface][data-variant="list"] > div {
   position: relative;

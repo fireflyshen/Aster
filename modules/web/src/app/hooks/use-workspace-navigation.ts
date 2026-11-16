@@ -3,6 +3,10 @@ import type {
   SavedTag,
   WorkspacePreferences,
 } from "@core/workspace/organization";
+import {
+  WORKSPACE_VIEWS,
+  type CompleteBehavior,
+} from "@core/workspace/preferences";
 import type { View } from "@shared/tasks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SettingsSection } from "../workspace-settings";
@@ -13,11 +17,9 @@ export type ActiveEntry = {
   item: SavedFilter | SavedTag;
 };
 
-export type CompleteBehavior = "hide" | "strikethrough";
+export type { CompleteBehavior };
 
 export type TimePage = "today" | "weekly" | "reports" | "settings";
-
-const VALID_VIEWS: readonly View[] = ["today", "pending", "focus", "upcoming"];
 
 function validCompleteBehavior(
   value: string | null | undefined,
@@ -60,7 +62,10 @@ export function useWorkspaceNavigation() {
   const syncFromPreferences = useCallback((prefs?: WorkspacePreferences) => {
     if (!prefs) return;
     if (prefs.navOpen !== undefined) setNavOpen(prefs.navOpen);
-    if (prefs.view && VALID_VIEWS.includes(prefs.view)) {
+    if (
+      prefs.view &&
+      (WORKSPACE_VIEWS as readonly string[]).includes(prefs.view)
+    ) {
       setViewState(prefs.view);
     }
     if (prefs.layout === "list" || prefs.layout === "board") {

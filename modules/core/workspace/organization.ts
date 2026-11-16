@@ -88,33 +88,18 @@ export type BuiltinFilterChange = {
   value?: boolean;
 };
 
-export type ThemeMode = "light" | "dark" | "system";
-export type ThemePalette =
-  | "aster"
-  | "todoist"
-  | "moonstone"
-  | "tangerine"
-  | "kale"
-  | "blueberry"
-  | "lavender"
-  | "raspberry";
+import type {
+  PreferencesChange,
+  ThemeMode,
+  ThemePalette,
+  WorkspacePreferences,
+} from "./preferences.ts";
 
-export type WorkspacePreferences = {
-  theme?: ThemeMode;
-  palette?: ThemePalette;
-  sidebarHidden?: string[];
-  sidebarShowCounts?: boolean;
-  completeBehavior?: "hide" | "strikethrough";
-  layout?: "list" | "board";
-  view?: "today" | "pending" | "focus" | "upcoming";
-  navOpen?: boolean;
-  filterGroupBy?: Record<string, string>;
-};
-
-export type PreferencesChange = {
-  revision: number;
-  kind: "preferences";
-  patch: WorkspacePreferences;
+export type {
+  PreferencesChange,
+  ThemeMode,
+  ThemePalette,
+  WorkspacePreferences,
 };
 
 export type Organization = {

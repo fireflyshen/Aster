@@ -1,6 +1,10 @@
 import type { TaskGroupBy } from "@/features/tasks/task-grouping";
 import type { WorkspacePreferences } from "@core/workspace/organization";
 import {
+  TASK_GROUP_BYS,
+  type TaskGroupByValue,
+} from "@core/workspace/preferences";
+import {
   createContext,
   createElement,
   useCallback,
@@ -17,16 +21,10 @@ type FilterGroupByContextValue = {
   ) => void;
 };
 
+const GROUP_BY_SET = new Set<string>(TASK_GROUP_BYS);
+
 function isTaskGroupBy(value: unknown): value is TaskGroupBy {
-  return (
-    value === "none" ||
-    value === "today" ||
-    value === "completed" ||
-    value === "due" ||
-    value === "project" ||
-    value === "priority" ||
-    value === "label"
-  );
+  return typeof value === "string" && GROUP_BY_SET.has(value);
 }
 
 function normalizeGroupMap(
@@ -59,7 +57,7 @@ export function FilterGroupByProvider({
 
   const setEntryGroupBy = useCallback(
     (entryKey: string, value: TaskGroupBy, defaultGroupBy: TaskGroupBy) => {
-      const next = { ...groupMap };
+      const next: Record<string, TaskGroupByValue> = { ...groupMap };
       if (value === defaultGroupBy) delete next[entryKey];
       else next[entryKey] = value;
       onUpdatePreferences?.({ filterGroupBy: next });

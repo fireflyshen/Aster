@@ -19,10 +19,8 @@ import {
   type OrganizationChange,
   type SavedFilter,
   type SavedTag,
-  type ThemeMode,
-  type ThemePalette,
-  type WorkspacePreferences,
 } from "../../../core/workspace/organization.ts";
+import { normalizePreferencesPatch } from "../../../core/workspace/preferences.ts";
 import { changeBoardState } from "../tasks/board-changes.ts";
 
 /** Validates and applies board column/task placement changes onto `data`. */
@@ -287,130 +285,6 @@ export function applyBuiltinFilterChange(
     ...prefs,
     [key]: nextIds,
   });
-}
-
-const VALID_THEMES: readonly ThemeMode[] = ["light", "dark", "system"];
-const VALID_PALETTES: readonly ThemePalette[] = [
-  "aster",
-  "todoist",
-  "moonstone",
-  "tangerine",
-  "kale",
-  "blueberry",
-  "lavender",
-  "raspberry",
-];
-const VALID_SIDEBAR_IDS = new Set([
-  "focus",
-  "pending",
-  "today",
-  "upcoming",
-  "habits",
-  "time",
-  "organization",
-]);
-const VALID_GROUP_BY = new Set([
-  "none",
-  "today",
-  "completed",
-  "due",
-  "project",
-  "priority",
-  "label",
-]);
-
-/** Validates and normalizes a workspace preferences patch before persisting to organization.json. */
-export function normalizePreferencesPatch(raw: unknown): WorkspacePreferences {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new Error("Invalid preferences patch.");
-  }
-  const input = raw as Record<string, unknown>;
-  const patch: WorkspacePreferences = {};
-  if (input.theme !== undefined) {
-    if (!VALID_THEMES.includes(input.theme as ThemeMode)) {
-      throw new Error("Invalid theme mode.");
-    }
-    patch.theme = input.theme as ThemeMode;
-  }
-  if (input.palette !== undefined) {
-    if (!VALID_PALETTES.includes(input.palette as ThemePalette)) {
-      throw new Error("Invalid theme palette.");
-    }
-    patch.palette = input.palette as ThemePalette;
-  }
-  if (input.sidebarHidden !== undefined) {
-    if (!Array.isArray(input.sidebarHidden)) {
-      throw new Error("Invalid sidebar hidden items.");
-    }
-    patch.sidebarHidden = [
-      ...new Set(
-        input.sidebarHidden.filter(
-          (id): id is string =>
-            typeof id === "string" && VALID_SIDEBAR_IDS.has(id),
-        ),
-      ),
-    ];
-  }
-  if (input.sidebarShowCounts !== undefined) {
-    if (typeof input.sidebarShowCounts !== "boolean") {
-      throw new Error("Invalid sidebar count preference.");
-    }
-    patch.sidebarShowCounts = input.sidebarShowCounts;
-  }
-  if (input.completeBehavior !== undefined) {
-    if (
-      input.completeBehavior !== "hide" &&
-      input.completeBehavior !== "strikethrough"
-    ) {
-      throw new Error("Invalid completion behavior preference.");
-    }
-    patch.completeBehavior = input.completeBehavior;
-  }
-  if (input.layout !== undefined) {
-    if (input.layout !== "list" && input.layout !== "board") {
-      throw new Error("Invalid layout preference.");
-    }
-    patch.layout = input.layout;
-  }
-  if (input.view !== undefined) {
-    if (
-      !["today", "pending", "focus", "upcoming"].includes(String(input.view))
-    ) {
-      throw new Error("Invalid default view preference.");
-    }
-    patch.view = input.view as WorkspacePreferences["view"];
-  }
-  if (input.navOpen !== undefined) {
-    if (typeof input.navOpen !== "boolean") {
-      throw new Error("Invalid navigation open preference.");
-    }
-    patch.navOpen = input.navOpen;
-  }
-  if (input.filterGroupBy !== undefined) {
-    if (
-      !input.filterGroupBy ||
-      typeof input.filterGroupBy !== "object" ||
-      Array.isArray(input.filterGroupBy)
-    ) {
-      throw new Error("Invalid filter grouping preferences.");
-    }
-    const clean: Record<string, string> = {};
-    for (const [key, value] of Object.entries(
-      input.filterGroupBy as Record<string, unknown>,
-    )) {
-      if (
-        typeof key === "string" &&
-        key.length > 0 &&
-        key.length <= 160 &&
-        typeof value === "string" &&
-        VALID_GROUP_BY.has(value)
-      ) {
-        clean[key] = value;
-      }
-    }
-    patch.filterGroupBy = clean;
-  }
-  return patch;
 }
 
 /** Merges validated workspace UI preferences onto `data.preferences`. */

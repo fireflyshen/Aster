@@ -3,24 +3,15 @@ import type {
   ThemePalette,
   WorkspacePreferences,
 } from "@core/workspace/organization";
+import {
+  normalizeThemeMode,
+  normalizeThemePalette,
+  THEME_PALETTES,
+} from "@core/workspace/preferences";
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
 
-const validTheme = (value: string | null | undefined): ThemeMode =>
-  value === "light" || value === "dark" ? value : "system";
-
-export const themePresets = [
-  { id: "aster", name: "Aster", light: "#2d2e32", dark: "#e5e3de" },
-  { id: "todoist", name: "Todoist 红", light: "#c3392c", dark: "#ef7167" },
-  { id: "moonstone", name: "月光石", light: "#52657d", dark: "#99abc3" },
-  { id: "tangerine", name: "橙红", light: "#a6600a", dark: "#e7a443" },
-  { id: "kale", name: "甘蓝", light: "#487541", dark: "#8db983" },
-  { id: "blueberry", name: "蓝莓", light: "#246fa8", dark: "#73b3e4" },
-  { id: "lavender", name: "薰衣草", light: "#7358aa", dark: "#b49bdc" },
-  { id: "raspberry", name: "玫红", light: "#ab3c68", dark: "#e78fb1" },
-] as const;
-const validPalette = (value: string | null | undefined): ThemePalette =>
-  themePresets.find((item) => item.id === value)?.id || "aster";
+export const themePresets = THEME_PALETTES;
 
 /** Syncs appearance mode and palette with backend-persisted workspace preferences. */
 export function useThemePreference(
@@ -28,10 +19,12 @@ export function useThemePreference(
   onUpdatePreferences?: (patch: WorkspacePreferences) => void,
 ) {
   const [theme, setTheme] = useState<ThemeMode>(() =>
-    validTheme(preferences?.theme ?? document.documentElement.dataset.theme),
+    normalizeThemeMode(
+      preferences?.theme ?? document.documentElement.dataset.theme,
+    ),
   );
   const [palette, setPalette] = useState<ThemePalette>(() =>
-    validPalette(
+    normalizeThemePalette(
       preferences?.palette ?? document.documentElement.dataset.palette,
     ),
   );
@@ -41,13 +34,13 @@ export function useThemePreference(
 
   useEffect(() => {
     if (preferences?.theme !== undefined) {
-      setTheme(validTheme(preferences.theme));
+      setTheme(normalizeThemeMode(preferences.theme));
     }
   }, [preferences?.theme]);
 
   useEffect(() => {
     if (preferences?.palette !== undefined) {
-      setPalette(validPalette(preferences.palette));
+      setPalette(normalizeThemePalette(preferences.palette));
     }
   }, [preferences?.palette]);
 
