@@ -1,3 +1,4 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { ProjectIcon } from "@/features/projects/project-icon";
 import { formatScheduleLabel } from "@core/habits/logic";
 import type {
@@ -75,6 +77,9 @@ export function HabitDetailDialog({
   open,
   onOpenChange,
   detail,
+  fallbackHabit,
+  error,
+  onRetry,
   availableLabels,
   disabled,
   onEdit,
@@ -91,6 +96,9 @@ export function HabitDetailDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   detail: HabitDetailResponse | null;
+  fallbackHabit?: HabitListItem | null;
+  error?: string;
+  onRetry?: () => void;
   availableLabels: readonly SavedTag[];
   disabled?: boolean;
   onEdit: (habit: HabitListItem) => void;
@@ -125,12 +133,107 @@ export function HabitDetailDialog({
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  if (!detail) return null;
+  if (!open && !detail) return null;
 
-  const { habit, streak, heatmap, recentDays } = detail;
   const labelColorMap = new Map(
     availableLabels.map((tag) => [tag.name, itemColor(tag.color)]),
   );
+
+  if (!detail) {
+    const preview = fallbackHabit ?? null;
+    return (
+      <Dialog
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) setSelectedDay(null);
+          onOpenChange(next);
+        }}
+      >
+        <DialogContent className="habit-detail-dialog flex min-w-0 max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[680px]">
+          <DialogHeader className="shrink-0 border-b border-border px-6 py-4 pr-12">
+            <DialogTitle className="flex flex-wrap items-center gap-2 pr-6 text-lg">
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">
+                {preview?.title || "习惯详情"}
+              </span>
+              {preview && (
+                <>
+                  <span className="rounded-full whitespace-nowrap bg-secondary px-2 py-0.5 text-[11px] font-normal text-secondary-foreground">
+                    {preview.kind === "positive"
+                      ? preview.completionMode === "checklist"
+                        ? preview.abEnabled
+                          ? "A/B 训练清单"
+                          : "动作清单"
+                        : preview.trackTime
+                          ? "计时打卡"
+                          : "普通打卡"
+                      : "反向 · 记破例"}
+                  </span>
+                  <span className="rounded-full whitespace-nowrap border border-border px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
+                    {statusLabel(preview.status)}
+                  </span>
+                </>
+              )}
+            </DialogTitle>
+            {preview ? (
+              <DialogDescription className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                <span>{formatScheduleLabel(preview.schedule)}</span>
+                {preview.project && (
+                  <span className="inline-flex items-center gap-1 text-foreground/85">
+                    <ProjectIcon name={preview.project} className="size-3" />
+                    {preview.project}
+                  </span>
+                )}
+                {preview.tags.map((tag) => (
+                  <span key={tag} className="inline-flex items-center gap-1">
+                    <span
+                      className="size-1.5 rounded-full"
+                      style={{
+                        backgroundColor: labelColorMap.get(tag) || "#7d7b76",
+                      }}
+                    />
+                    @{tag}
+                  </span>
+                ))}
+              </DialogDescription>
+            ) : (
+              <DialogDescription className="sr-only">
+                正在加载习惯热力图与历史记录
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span>{error}</span>
+                  {onRetry && (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      onClick={onRetry}
+                    >
+                      重试
+                    </Button>
+                  )}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div
+                role="status"
+                className="flex items-center justify-center gap-2 py-14 text-xs text-muted-foreground"
+              >
+                <Spinner className="size-4" />
+                正在加载热力图与历史记录…
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  const { habit, streak, heatmap, recentDays } = detail;
 
   const selectedItem = selectedDay
     ? recentDays.find((d) => d.evaluation.date === selectedDay)
@@ -150,8 +253,8 @@ export function HabitDetailDialog({
           onOpenChange(next);
         }}
       >
-        <DialogContent className="habit-detail-dialog min-w-0 max-h-[90dvh] overflow-y-auto sm:max-w-[680px]">
-          <DialogHeader>
+        <DialogContent className="habit-detail-dialog flex min-w-0 max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[680px]">
+          <DialogHeader className="shrink-0 border-b border-border px-6 py-4 pr-12">
             <div className="habit-detail-heading flex flex-wrap items-start justify-between gap-3 pr-6">
               <div className="min-w-0 flex-1">
                 <DialogTitle className="flex flex-wrap items-center gap-2 text-lg">
@@ -273,7 +376,8 @@ export function HabitDetailDialog({
             </div>
           </DialogHeader>
 
-          {habit.description && (
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-5">
+            {habit.description && (
             <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
               {habit.description}
             </div>
@@ -432,6 +536,7 @@ export function HabitDetailDialog({
                 })}
               </div>
             )}
+          </div>
           </div>
         </DialogContent>
       </Dialog>

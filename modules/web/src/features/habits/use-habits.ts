@@ -48,6 +48,7 @@ export function useHabitsWorkspace(options: {
   const [detailData, setDetailData] = useState<HabitDetailResponse | null>(
     null,
   );
+  const [detailError, setDetailError] = useState("");
 
   const [projectFilter, setProjectFilter] = useState<string>("");
   const [tagFilter, setTagFilter] = useState<string>("");
@@ -137,15 +138,20 @@ export function useHabitsWorkspace(options: {
     async (id: string | null) => {
       if (!id) {
         setDetailData(null);
+        setDetailError("");
         return;
       }
       const ticket = ++detailGen.current;
+      setDetailError("");
+      setDetailData((prev) => (prev?.habit.id === id ? prev : null));
       try {
         const res = await fetchHabitDetail(id, rangeDays);
         if (ticket !== detailGen.current) return;
         setDetailData(res);
       } catch (err) {
-        if (ticket === detailGen.current) setError((err as Error).message);
+        if (ticket === detailGen.current) {
+          setDetailError((err as Error).message);
+        }
       }
     },
     [rangeDays],
@@ -352,6 +358,8 @@ export function useHabitsWorkspace(options: {
     detailId,
     setDetailId,
     detailData,
+    detailError,
+    refreshDetail,
     projectFilter,
     setProjectFilter,
     tagFilter,

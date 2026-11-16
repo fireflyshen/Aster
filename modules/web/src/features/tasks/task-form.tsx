@@ -367,7 +367,7 @@ export function TaskForm({
     >
       <div
         data-editor-body
-        className="task-detail-layout min-h-0 flex-1 overflow-y-auto overscroll-contain"
+        className="task-detail-layout min-h-0 flex-1 overflow-y-auto overscroll-contain md:overflow-hidden"
       >
         <div className="task-detail-main">
           {parentTask && onNavigateToParent && (

@@ -14,7 +14,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { FocusPicker } from "@/features/projects/focus-picker";
 import { ProjectEditor } from "@/features/projects/project-editor";
 import { ProjectTransition } from "@/features/projects/project-transition";
-import { RecoveryCenter } from "@/features/recovery/recovery-center";
+import type { CompleteBehavior } from "@/app/hooks/use-workspace-navigation";
+import type { SidebarPreferences } from "@/app/sidebar-preferences";
+import {
+  WorkspaceSettings,
+  type SettingsSection,
+} from "@/app/workspace-settings";
 import { api } from "@/lib/api";
 import type { ProjectStatus } from "@core/workspace/focus";
 import type {
@@ -38,8 +43,14 @@ export type ProjectWorkspaceDialogsProps = {
   notice: string;
   setNeedsCheck: (value: boolean) => void;
   writeLock: MutableRefObject<boolean>;
-  recoveryOpen: boolean;
-  setRecoveryOpen: (open: boolean) => void;
+  settingsSection: SettingsSection | null;
+  setSettingsSection: (section: SettingsSection | null) => void;
+  sidebarPreferences: SidebarPreferences;
+  onSidebarPreferencesChange: (next: SidebarPreferences) => void;
+  completeBehavior: CompleteBehavior;
+  onCompleteBehaviorChange: (next: CompleteBehavior) => void;
+  isTimeMode: boolean;
+  onTimeMutated: () => void;
   editingProject?: string;
   setEditingProject: (name: string | undefined) => void;
   newProjectParent: string;
@@ -88,8 +99,14 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
     notice,
     setNeedsCheck,
     writeLock,
-    recoveryOpen,
-    setRecoveryOpen,
+    settingsSection,
+    setSettingsSection,
+    sidebarPreferences,
+    onSidebarPreferencesChange,
+    completeBehavior,
+    onCompleteBehaviorChange,
+    isTimeMode,
+    onTimeMutated,
     editingProject,
     setEditingProject,
     newProjectParent,
@@ -322,17 +339,26 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {recoveryOpen && (
-        <RecoveryCenter
-          onClose={() => setRecoveryOpen(false)}
-          onUnconfirmed={() => setNeedsCheck(true)}
-          busy={busy}
-          blocked={needsCheck}
-          notice={notice}
-          onRestore={(uuid) => onMutate("action", { uuid, action: "restore" })}
-          onRefresh={onReloadAll}
-        />
-      )}
+      <WorkspaceSettings
+        open={Boolean(settingsSection)}
+        section={settingsSection ?? "theme"}
+        onSectionChange={(next) => setSettingsSection(next)}
+        onOpenChange={(open) => {
+          if (!open) setSettingsSection(null);
+        }}
+        sidebarPreferences={sidebarPreferences}
+        onSidebarPreferencesChange={onSidebarPreferencesChange}
+        completeBehavior={completeBehavior}
+        onCompleteBehaviorChange={onCompleteBehaviorChange}
+        disabled={busy}
+        blocked={needsCheck}
+        notice={notice}
+        isTimeMode={isTimeMode}
+        onTimeMutated={onTimeMutated}
+        onUnconfirmed={() => setNeedsCheck(true)}
+        onRestoreTask={(uuid) => onMutate("action", { uuid, action: "restore" })}
+        onRefreshAll={onReloadAll}
+      />
     </>
   );
 }

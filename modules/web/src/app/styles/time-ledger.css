@@ -301,6 +301,13 @@
 .ledger-settings {
   max-width: 720px;
 }
+.settings-body .ledger-settings {
+  max-width: none;
+  gap: 20px;
+}
+.settings-body .ledger-intro {
+  margin-bottom: -4px;
+}
 .ledger-settings-form {
   display: grid;
   gap: 24px;

@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
-import { RotateCcw, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -16,49 +16,125 @@ import { BackupPanel } from "./backup-panel";
 import { api } from "@/lib/api";
 import type { RecoveryList } from "@shared/recovery";
 
-export function RecoveryCenter({
-  onClose,
+const PAGE_SIZE = 12;
+
+function formatRestoreStatus(status: string): string {
+  switch (status) {
+    case "pending":
+      return "待办";
+    case "completed":
+      return "已完成";
+    case "recurring":
+      return "重复任务";
+    case "waiting":
+      return "等待中";
+    default:
+      return status;
+  }
+}
+
+function formatDeletedAt(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  const iso = /^\d{8}T\d{6}Z$/.test(raw)
+    ? `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}T${raw.slice(9, 11)}:${raw.slice(11, 13)}:${raw.slice(13, 15)}Z`
+    : raw;
+  const parsed = Date.parse(iso);
+  if (!Number.isFinite(parsed)) return undefined;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(parsed));
+}
+
+/** Unified Data & Recovery panel rendered inside Settings, with server-paginated deleted tasks and backups. */
+export function RecoveryPanel({
   onRestore,
   onRefresh,
   onUnconfirmed,
+  onWorkingChange,
   busy,
   blocked,
   notice,
 }: {
-  onClose: () => void;
   onUnconfirmed: () => void;
   onRestore: (uuid: string) => Promise<boolean>;
   onRefresh: () => Promise<unknown>;
+  onWorkingChange?: (working: boolean) => void;
   busy: boolean;
   blocked: boolean;
   notice: string;
 }) {
   const [data, setData] = useState<RecoveryList>();
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
+  const [queryInput, setQueryInput] = useState("");
+  const [activeQuery, setActiveQuery] = useState("");
+  const [page, setPage] = useState(0);
   const [working, setWorking] = useState("");
   const [exportMessage, setExportMessage] = useState("");
-  async function reload() {
-    setError("");
-    try {
-      setData(await api<RecoveryList>("recovery"));
-    } catch (error) {
-      setError((error as Error).message);
-    }
-  }
+
   useEffect(() => {
-    void reload();
-  }, []);
+    onWorkingChange?.(Boolean(working));
+  }, [working, onWorkingChange]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const next = queryInput.trim();
+      setPage(0);
+      setActiveQuery(next);
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [queryInput]);
+
+  const loadPage = useCallback(
+    async (targetPage: number, q: string) => {
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams();
+        params.set("limit", String(PAGE_SIZE));
+        params.set("offset", String(targetPage * PAGE_SIZE));
+        if (q) params.set("q", q);
+        const result = await api<RecoveryList>(
+          `recovery?${params.toString()}`,
+        );
+        const total = result.total ?? result.tasks.length;
+        if (targetPage > 0 && result.tasks.length === 0 && total > 0) {
+          const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
+          setPage(lastPage);
+          return;
+        }
+        setData(result);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    void loadPage(page, activeQuery);
+  }, [loadPage, page, activeQuery]);
+
   async function restore(uuid: string) {
     setWorking(uuid);
     setError("");
     try {
-      if (await onRestore(uuid)) await reload();
-      else setError("Recovery did not finish. Refresh to check the result.");
+      if (await onRestore(uuid)) {
+        await loadPage(page, activeQuery);
+      } else {
+        setError("恢复未完成，请刷新后检查结果。");
+      }
     } finally {
       setWorking("");
     }
   }
+
   async function download() {
     setWorking("export");
     setError("");
@@ -80,183 +156,200 @@ export function RecoveryCenter({
       setExportMessage(
         backup.warnings.length
           ? backup.warnings.join(" ")
-          : "Backup downloaded, including timer history.",
+          : "已下载完整工作区备份（包含计时历史）。",
       );
-    } catch (error) {
-      setError((error as Error).message);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setWorking("");
     }
   }
-  const visible =
-    data?.tasks.filter((task) =>
-      `${task.description} ${task.project || ""}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
-    ) || [];
-  const disabled = busy || !!working;
+
+  const disabled = busy || Boolean(working);
+  const total = data?.total ?? data?.tasks.length ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const tasks = data?.tasks ?? [];
+
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open && !disabled) onClose();
-      }}
-    >
-      <DialogContent
-        showCloseButton={!disabled}
-        className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[560px]"
-        onEscapeKeyDown={(e) => {
-          if (disabled) e.preventDefault();
-        }}
-        onPointerDownOutside={(e) => {
-          if (disabled) e.preventDefault();
-        }}
+    <Tabs defaultValue="deleted" className="flex flex-col gap-4">
+      <TabsList
+        aria-label="数据与恢复分类"
+        className="grid h-9 w-full grid-cols-2"
       >
-        <DialogHeader className="shrink-0 border-b px-5 py-4 pr-14 text-left">
-          <DialogTitle className="text-base font-medium">
-            Data & recovery
-          </DialogTitle>
-          <DialogDescription className="text-xs leading-5">
-            Restore deleted tasks and manage workspace backups.
-          </DialogDescription>
-        </DialogHeader>
-        <Tabs
-          defaultValue="deleted"
-          className="flex min-h-0 flex-1 flex-col gap-0"
-        >
-          <TabsList
-            aria-label="Data and recovery pages"
-            className="mx-5 mt-4 mb-4 grid h-11 shrink-0 grid-cols-2 md:h-9"
+        <TabsTrigger value="deleted" disabled={disabled}>
+          已删除任务
+        </TabsTrigger>
+        <TabsTrigger value="backups" disabled={disabled}>
+          备份与还原
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="deleted" className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              aria-label="搜索已删除任务"
+              placeholder="搜索已删除任务（名称或项目）…"
+              className="h-8 pr-7 pl-8 text-xs"
+              value={queryInput}
+              onChange={(e) => setQueryInput(e.target.value)}
+            />
+            {queryInput && (
+              <button
+                type="button"
+                aria-label="清空搜索"
+                onClick={() => setQueryInput("")}
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            共 {total} 条
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            className="h-8 gap-1 px-2.5 text-xs"
+            disabled={disabled || loading}
+            onClick={() => void loadPage(page, activeQuery)}
           >
-            <TabsTrigger value="deleted" disabled={disabled}>
-              Deleted tasks
-            </TabsTrigger>
-            <TabsTrigger value="backups" disabled={disabled}>
-              Backups
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="deleted" className="flex min-h-0 flex-col">
-            <div className="relative mx-5 mb-3 shrink-0">
-              <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                aria-label="Search deleted tasks"
-                placeholder="Search deleted tasks"
-                className="h-10 pl-9 md:h-9"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </div>
-            <div className="min-h-24 overflow-y-auto overscroll-contain px-5 pb-5">
-              {(error || notice || blocked) && (
-                <Alert variant="destructive" className="mb-3">
-                  <AlertDescription>
-                    {notice || error || "Refresh before continuing."}
-                  </AlertDescription>
-                </Alert>
-              )}
+            <RefreshCw className="size-3" />
+            刷新
+          </Button>
+        </div>
+
+        {(error || notice || blocked) && (
+          <Alert variant="destructive">
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span>{notice || error || "请先刷新后再试。"}</span>
               {(error || blocked) && (
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="mb-3"
+                  size="xs"
                   disabled={disabled}
                   onClick={async () => {
                     setWorking("refresh");
                     try {
                       await onRefresh();
-                      await reload();
+                      await loadPage(page, activeQuery);
                     } finally {
                       setWorking("");
                     }
                   }}
                 >
-                  Refresh
+                  刷新工作区
                 </Button>
               )}
-              {exportMessage && (
-                <p
-                  role="status"
-                  className="mb-3 text-xs leading-5 text-muted-foreground"
-                >
-                  {exportMessage}
-                </p>
-              )}
-              {!data ? (
-                !error && (
-                  <div role="status" className="flex justify-center py-8">
-                    <Spinner />
-                  </div>
-                )
-              ) : !data.tasks.length ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  No deleted tasks
-                </p>
-              ) : (
-                <div className="divide-y">
-                  {!visible.length && (
-                    <p className="py-8 text-center text-sm text-muted-foreground">
-                      No matching tasks
-                    </p>
-                  )}
-                  {visible.map((task) => (
-                    <div
-                      key={task.uuid}
-                      className="-mx-2.5 flex items-center gap-4 rounded-lg px-2.5 py-3 transition-colors hover:bg-(--row-hover)"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm leading-5 [overflow-wrap:anywhere]">
-                          {task.description}
-                        </p>
-                        <p className="mt-1 text-xs leading-4 text-muted-foreground">
-                          {task.project && `${task.project} · `}
-                          {task.finishing
-                            ? "Finish restoring placement"
-                            : `Restores as ${task.restoreStatus}`}
-                          {!task.tracked && " · original status unavailable"}
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Restore: ${task.description}`}
-                        disabled={disabled || blocked}
-                        onClick={() => void restore(task.uuid)}
-                      >
-                        {working === task.uuid ? (
-                          <Spinner />
-                        ) : (
-                          <RotateCcw className="size-3.5" />
-                        )}
-                        Restore
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="rounded-[10px] border border-border">
+          {loading && !data ? (
+            <div role="status" className="flex justify-center py-10">
+              <Spinner className="size-4" />
             </div>
-          </TabsContent>
-          <TabsContent
-            value="backups"
-            className="flex min-h-0 flex-col overflow-hidden"
-          >
-            <BackupPanel
-              busy={busy || !!working}
-              blocked={blocked}
-              onWorking={(busy) => setWorking(busy ? "restore" : "")}
-              onExport={() => void download()}
-              onUnconfirmed={onUnconfirmed}
-            />
-            {(error || exportMessage) && (
-              <p
-                role="status"
-                className="shrink-0 px-5 pb-3 text-xs text-muted-foreground"
-              >
-                {error || exportMessage}
-              </p>
-            )}
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
+          ) : !tasks.length ? (
+            <p className="py-10 text-center text-xs text-muted-foreground">
+              {activeQuery ? "没有匹配的已删除任务" : "暂无已删除任务"}
+            </p>
+          ) : (
+            <div className="divide-y divide-border/50">
+              {tasks.map((task) => {
+                const deletedLabel = formatDeletedAt(task.deletedAt);
+                return (
+                  <div
+                    key={task.uuid}
+                    className="flex items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-(--row-hover)"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 text-[13px] leading-5 text-foreground [overflow-wrap:anywhere]">
+                        {task.description}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] leading-4 text-muted-foreground">
+                        {task.project ? `${task.project} · ` : ""}
+                        {task.finishing
+                          ? "正在补全恢复位置"
+                          : `恢复为${formatRestoreStatus(task.restoreStatus)}`}
+                        {!task.tracked && " · 原状态未知"}
+                        {deletedLabel && ` · 删除于 ${deletedLabel}`}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="h-7 shrink-0 gap-1 px-2.5 text-xs"
+                      aria-label={`恢复：${task.description}`}
+                      disabled={disabled || blocked}
+                      onClick={() => void restore(task.uuid)}
+                    >
+                      {working === task.uuid ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <RotateCcw className="size-3.5" />
+                      )}
+                      恢复
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {total > PAGE_SIZE && (
+            <div className="flex items-center justify-between border-t border-border/60 bg-muted/25 px-3.5 py-2 text-xs text-muted-foreground">
+              <span className="tabular-nums">
+                第 {page + 1} / {totalPages} 页 · 共 {total} 条
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="h-7 gap-1 px-2 text-xs"
+                  disabled={disabled || loading || page <= 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  <ChevronLeft className="size-3.5" />
+                  上一页
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="h-7 gap-1 px-2 text-xs"
+                  disabled={disabled || loading || page + 1 >= totalPages}
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages - 1, p + 1))
+                  }
+                >
+                  下一页
+                  <ChevronRight className="size-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </TabsContent>
+
+      <TabsContent value="backups" className="space-y-3">
+        <BackupPanel
+          busy={disabled}
+          blocked={blocked}
+          onWorking={(busyState) => setWorking(busyState ? "restore" : "")}
+          onExport={() => void download()}
+          onUnconfirmed={onUnconfirmed}
+        />
+        {(error || exportMessage) && (
+          <p role="status" className="text-xs text-muted-foreground">
+            {error || exportMessage}
+          </p>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }

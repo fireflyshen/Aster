@@ -50,7 +50,11 @@ export interface WorkspaceHandlers {
   ) => Promise<{ ok: true; uuid: string | undefined } | unknown>;
   action: (input: Record<string, unknown>) => Promise<unknown>;
   parseQuickTask: (input: unknown) => unknown;
-  deleted: () => Promise<unknown>;
+  deleted: (options?: {
+    query?: string;
+    limit?: number;
+    offset?: number;
+  }) => Promise<unknown>;
   series: (uuid: string) => Promise<unknown>;
   exportBackup: () => Promise<unknown>;
   points: () => Promise<unknown>;
@@ -319,10 +323,25 @@ export function createWorkspaceRoutes(
     {
       method: "GET",
       route: "api/recovery",
-      handle: async () => ({
-        status: 200,
-        body: await handlers.deleted(),
-      }),
+      handle: async ({ searchParams }) => {
+        const q = searchParams.get("q") ?? undefined;
+        const limitRaw = searchParams.get("limit");
+        const offsetRaw = searchParams.get("offset");
+        const limit =
+          limitRaw !== null && limitRaw !== "" ? Number(limitRaw) : undefined;
+        const offset =
+          offsetRaw !== null && offsetRaw !== ""
+            ? Number(offsetRaw)
+            : undefined;
+        return {
+          status: 200,
+          body: await handlers.deleted(
+            q !== undefined || limit !== undefined || offset !== undefined
+              ? { query: q, limit, offset }
+              : undefined,
+          ),
+        };
+      },
     },
     {
       method: "GET",

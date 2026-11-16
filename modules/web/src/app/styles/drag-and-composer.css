@@ -36,20 +36,20 @@
 }
 [data-variant="list"] .task-row-gutter {
   position: absolute;
-  left: -48px;
-  width: 44px;
+  left: -46px;
+  width: 42px;
   height: 20px;
   top: 0;
-  margin-top: 9px;
+  margin-top: 6px;
 }
 [data-variant="list"] .task-row-gutter [data-drag-handle] {
   position: absolute;
-  right: 24px;
+  left: 0;
   touch-action: none;
 }
 [data-variant="list"] .task-row-gutter button {
   position: absolute;
-  right: 0;
+  right: 2px;
 }
 .task-drop-indicator {
   position: fixed;

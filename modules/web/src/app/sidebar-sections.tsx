@@ -17,7 +17,7 @@ import {
   type WorkspaceTiming,
 } from "@core/workspace/organization";
 import { cn } from "cn";
-import { ChevronRight, Clock3, Plus, RefreshCw, Zap } from "lucide-react";
+import { Clock3, Plus, RefreshCw, Zap } from "lucide-react";
 
 function formatClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -125,18 +125,15 @@ export function SidebarFavorites({
   );
 }
 
-/** Renders Active Focus projects and collapsible Later projects inside the sidebar. */
+/** Renders all active and later projects uniformly inside the sidebar. */
 export function SidebarProjectsSection({
   organization,
   organizationPage,
   projectsPage,
   hasActiveItem,
   currentProject,
-  activeRoots,
-  laterProjects,
-  laterCollapsed,
+  projects,
   disabled,
-  onToggleLater,
   onProjects,
   onAddProject,
   onAddSubproject,
@@ -150,11 +147,8 @@ export function SidebarProjectsSection({
   projectsPage: boolean;
   hasActiveItem: boolean;
   currentProject: string;
-  activeRoots: string[];
-  laterProjects: string[];
-  laterCollapsed: boolean;
+  projects: string[];
   disabled: boolean;
-  onToggleLater: () => void;
   onProjects: () => void;
   onAddProject: () => void;
   onAddSubproject: (name: string) => void;
@@ -191,11 +185,10 @@ export function SidebarProjectsSection({
         </Button>
       </div>
       <nav aria-label="项目" className="flex-1 space-y-0.5">
-        {activeRoots.length > 0 && (
+        {projects.length > 0 ? (
           <ProjectTree
-            names={activeRoots}
+            names={projects}
             data={organization}
-            roots={activeRoots}
             compact
             current={current}
             disabled={disabled}
@@ -205,42 +198,7 @@ export function SidebarProjectsSection({
             onEdit={onEditProject}
             onDelete={onDeleteProject}
           />
-        )}
-        {laterProjects.length > 0 && (
-          <div className={activeRoots.length > 0 ? "pt-2" : ""}>
-            {activeRoots.length > 0 && (
-              <button
-                type="button"
-                aria-expanded={!laterCollapsed}
-                onClick={onToggleLater}
-                className="mb-0.5 flex h-6 w-full items-center gap-1 rounded-md px-2 text-[11px] font-medium text-muted-foreground transition-colors select-none hover:bg-navigation-hover hover:text-foreground"
-              >
-                <ChevronRight
-                  className={cn(
-                    "size-3 transition-transform duration-150",
-                    !laterCollapsed && "rotate-90",
-                  )}
-                />
-                稍后 · {laterProjects.length}
-              </button>
-            )}
-            {(!laterCollapsed || activeRoots.length === 0) && (
-              <ProjectTree
-                names={laterProjects}
-                data={organization}
-                compact
-                current={current}
-                disabled={disabled}
-                onOpen={onSelectProject}
-                onAddChild={onAddSubproject}
-                onStatus={onProjectStatus}
-                onEdit={onEditProject}
-                onDelete={onDeleteProject}
-              />
-            )}
-          </div>
-        )}
-        {activeRoots.length === 0 && laterProjects.length === 0 && (
+        ) : (
           <Button
             variant="navigation"
             disabled={disabled}

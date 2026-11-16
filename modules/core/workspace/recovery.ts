@@ -8,7 +8,11 @@ export type DeletedTask = {
   tracked: boolean;
   finishing: boolean;
 };
-export type RecoveryList = { tasks: DeletedTask[] };
+export type RecoveryList = {
+  tasks: DeletedTask[];
+  total?: number;
+  hasMore?: boolean;
+};
 export type SeriesSnapshot = {
   uuid: string;
   description: string;

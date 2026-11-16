@@ -19,6 +19,7 @@ import {
 } from "@/features/tasks/task-grouping";
 import { useFilterGroupBy } from "../hooks/use-filter-group-by";
 import { views } from "../workspace-sidebar";
+import type { HabitListItem } from "@core/habits/model";
 import { taskDate } from "@core/tasks/quick-task";
 import {
   isCompletedFilterExpression,
@@ -152,8 +153,7 @@ type WorkspaceContentProps = {
   onOpenTimePage: (page: TimePage) => void;
   onRefreshTimerSnapshot: () => Promise<unknown>;
   habitsPage: boolean;
-  habitFormOpen: boolean;
-  setHabitFormOpen: (open: boolean) => void;
+  onEditHabit: (habit: HabitListItem) => void;
   habitsController: HabitsWorkspaceController;
   todayHabitsActions: TodayHabitsActions;
 };
@@ -235,8 +235,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     onOpenTimePage,
     onRefreshTimerSnapshot,
     habitsPage,
-    habitFormOpen,
-    setHabitFormOpen,
+    onEditHabit,
     habitsController,
     todayHabitsActions,
   } = props;
@@ -453,8 +452,6 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
             tasks={tasks}
             projects={filterProjects}
             availableLabels={organization.tags}
-            formOpen={habitFormOpen}
-            onFormOpenChange={setHabitFormOpen}
             onOpenNewHabit={() =>
               onOpenEditor(undefined, {
                 description: "",
@@ -462,6 +459,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                 habitPreset: true,
               })
             }
+            onEditHabit={onEditHabit}
             onOpenEditTask={(task) => onOpenEditor(task)}
           />
         ) : timePage ? (

@@ -1,4 +1,7 @@
+import { HabitDetailDialog } from "@/features/habits/habit-detail-sheet";
+import { HabitFormDialog } from "@/features/habits/habit-form-dialog";
 import type { HabitTaskActions } from "@/features/habits/habit-task-controls";
+import type { HabitListItem } from "@core/habits/model";
 import { currentLocalTodayDate } from "@/features/habits/task-habit-field";
 import { useHabitsWorkspace } from "@/features/habits/use-habits";
 import type { TodayHabitsActions } from "@/features/habits/today-habits-section";
@@ -21,6 +24,7 @@ import { useWorkspaceData } from "./hooks/use-workspace-data";
 import { useWorkspaceNavigation } from "./hooks/use-workspace-navigation";
 import { useWorkspaceShortcuts } from "./hooks/use-workspace-shortcuts";
 import { WorkspaceSidebar } from "./workspace-sidebar";
+import { useSidebarPreferences } from "./sidebar-preferences";
 import { MobileNavigation } from "./components/mobile-navigation";
 import { useVisualViewport } from "./hooks/use-visual-viewport";
 
@@ -30,9 +34,11 @@ export function App() {
   const [organizationEditRequest, setOrganizationEditRequest] =
     useState<OrganizationEntry>();
   const nav = useWorkspaceNavigation();
+  const sidebar = useSidebarPreferences();
   const data = useWorkspaceData({
     scope: nav.scope,
-    isModalOpen: nav.commandOpen || nav.recoveryOpen || nav.subModalOpen,
+    isModalOpen:
+      nav.commandOpen || Boolean(nav.settingsSection) || nav.subModalOpen,
     onProjectRemap: nav.onProjectRemap,
   });
 
@@ -104,12 +110,25 @@ export function App() {
     [data.organization.revision, data.tasks],
   );
   const [habitFormOpen, setHabitFormOpen] = useState(false);
+  const [editingHabit, setEditingHabit] = useState<HabitListItem | null>(null);
   const habits = useHabitsWorkspace({
     habitsPageActive: nav.habitsPage,
     isTodayView:
       nav.view === "today" && !nav.currentProject && !nav.specialPage,
     workspaceSyncKey,
   });
+
+  const openEditHabit = (habit: HabitListItem) => {
+    if (habit.taskUuid) {
+      const linkedTask = data.tasks.find((t) => t.uuid === habit.taskUuid);
+      if (linkedTask) {
+        taskActions.openEditor(linkedTask);
+        return;
+      }
+    }
+    setEditingHabit(habit);
+    setHabitFormOpen(true);
+  };
 
   const habitTaskActions = useMemo<HabitTaskActions>(
     () => ({
@@ -133,11 +152,10 @@ export function App() {
           },
         }),
       openDetail: (habitId) => {
-        nav.openHabitsPage();
         habits.setDetailId(habitId);
       },
     }),
-    [habits, nav],
+    [habits],
   );
 
   const todayHabitsActions = useMemo<TodayHabitsActions>(
@@ -158,7 +176,6 @@ export function App() {
         void habits.setDailyNote(habitId, note, date),
       onOpenHabitsPage: nav.openHabitsPage,
       onOpenHabitDetail: (habitId) => {
-        nav.openHabitsPage();
         habits.setDetailId(habitId);
       },
     }),
@@ -302,7 +319,8 @@ export function App() {
           data.organizationBlocked ||
           data.needsCheck
         }
-        onRecovery={() => nav.setRecoveryOpen(true)}
+        onOpenSettings={nav.openSettings}
+        sidebarPreferences={sidebar.preferences}
         onAddSubproject={projectActions.addSubproject}
         onAddProject={() => projectActions.editProject("")}
         onEditProject={projectActions.editProject}
@@ -334,8 +352,6 @@ export function App() {
         onView={nav.selectView}
         onProject={nav.selectProject}
         onOrganization={() => nav.openManagementPage("organization")}
-        completeBehavior={nav.completeBehavior}
-        onCompleteBehaviorChange={nav.setCompleteBehavior}
       />
 
       <div className="workspace-main min-h-dvh" data-sidebar-open={nav.navOpen}>
@@ -439,8 +455,7 @@ export function App() {
           onOpenTimePage={nav.openTimePage}
           onRefreshTimerSnapshot={data.refreshTimerSnapshot}
           habitsPage={nav.habitsPage}
-          habitFormOpen={habitFormOpen}
-          setHabitFormOpen={setHabitFormOpen}
+          onEditHabit={openEditHabit}
           habitsController={habits}
           todayHabitsActions={todayHabitsActions}
         />
@@ -479,8 +494,16 @@ export function App() {
         notice={data.notice}
         setNeedsCheck={data.setNeedsCheck}
         writeLock={data.writeLock}
-        recoveryOpen={nav.recoveryOpen}
-        setRecoveryOpen={nav.setRecoveryOpen}
+        settingsSection={nav.settingsSection}
+        setSettingsSection={nav.setSettingsSection}
+        sidebarPreferences={sidebar.preferences}
+        onSidebarPreferencesChange={sidebar.update}
+        completeBehavior={nav.completeBehavior}
+        onCompleteBehaviorChange={nav.setCompleteBehavior}
+        onTimeMutated={() => {
+          void data.refreshTimerSnapshot();
+          void data.reloadAll();
+        }}
         editingParent={editingParent}
         subtasksMap={subtasksMap}
         onToastAction={() => taskActions.handleToastAction(nav.selectProject)}
@@ -528,6 +551,67 @@ export function App() {
         onSetOrganizationSaving={data.setOrganizationSaving}
         onLoadOrganization={data.loadOrganization}
         onReloadAll={data.reloadAll}
+      />
+
+      <HabitFormDialog
+        open={habitFormOpen}
+        onOpenChange={(next) => {
+          setHabitFormOpen(next);
+          if (!next) setEditingHabit(null);
+        }}
+        editing={editingHabit}
+        todayDate={habits.todayData?.todayDate || currentLocalTodayDate()}
+        projects={filterProjects}
+        availableLabels={data.organization.tags}
+        busy={habits.busy}
+        onCreate={habits.createHabit}
+        onUpdate={habits.updateHabit}
+      />
+
+      <HabitDetailDialog
+        open={Boolean(habits.detailId)}
+        onOpenChange={(open) => {
+          if (!open) habits.setDetailId(null);
+        }}
+        detail={habits.detailData}
+        fallbackHabit={
+          habits.detailId
+            ? (habits.allHabits.find((h) => h.id === habits.detailId) ??
+              habits.habits.find((h) => h.id === habits.detailId) ??
+              null)
+            : null
+        }
+        error={habits.detailError}
+        onRetry={() => {
+          if (habits.detailId) void habits.refreshDetail(habits.detailId);
+        }}
+        availableLabels={data.organization.tags}
+        disabled={habits.busy}
+        onEdit={(habit) => {
+          habits.setDetailId(null);
+          openEditHabit(habit);
+        }}
+        onSetStatus={(id, status) => void habits.setHabitStatus(id, status)}
+        onDelete={habits.deleteHabit}
+        onTogglePositive={(habitId, date, completed) =>
+          void habits.togglePositive(habitId, date, completed)
+        }
+        onSetChecklistItem={(input) => void habits.setChecklistItem(input)}
+        onSwitchPlan={(habitId, planId, date) =>
+          void habits.switchPlan(habitId, planId, date)
+        }
+        onRecordNegative={(habitId, date, note) =>
+          void habits.recordNegative(habitId, date, note)
+        }
+        onUndoNegative={(habitId, date, eventId) =>
+          void habits.undoNegative(habitId, date, eventId)
+        }
+        onUpdateNegativeNote={(habitId, eventId, note, date) =>
+          void habits.updateNegativeNote(habitId, eventId, note, date)
+        }
+        onSetDailyNote={(habitId, note, date) =>
+          void habits.setDailyNote(habitId, note, date)
+        }
       />
     </ProjectColorsProvider>
   );

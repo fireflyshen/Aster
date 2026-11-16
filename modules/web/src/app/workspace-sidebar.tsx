@@ -1,4 +1,8 @@
-import { useSidebarPreferences } from "./sidebar-preferences";
+import {
+  type SidebarItemId,
+  type SidebarPreferences,
+} from "./sidebar-preferences";
+import type { SettingsSection } from "./workspace-settings";
 import {
   AsterMark,
   AddTaskIcon,
@@ -12,14 +16,13 @@ import {
   OrganizationIcon,
 } from "@/components/icons";
 import type { OrganizationEntry } from "@/features/organization/organization-types";
-import { WorkspaceSettings } from "./workspace-settings";
 import { Button } from "@/components/ui/button";
 import type { EnergySummary } from "@core/workspace/energy";
 import type { TimerSnapshot } from "@core/time/model";
 import type { snapshotLiveStatus } from "@core/time/snapshot";
 import {
   FOCUS_LIMIT,
-  focusProject,
+  isCompletedProject,
   projectStatus,
   type ProjectStatus,
 } from "@core/workspace/focus";
@@ -32,7 +35,6 @@ import type {
 import type { View } from "@shared/tasks";
 import { cn } from "cn";
 import { Search } from "lucide-react";
-import { useState } from "react";
 import type {
   CompleteBehavior,
   TimePage,
@@ -115,9 +117,8 @@ type WorkspaceSidebarProps = {
   onView: (view: View) => void;
   onProject: (project: string) => void;
   onOrganization: () => void;
-  onRecovery: () => void;
-  completeBehavior?: CompleteBehavior;
-  onCompleteBehaviorChange?: (next: CompleteBehavior) => void;
+  onOpenSettings: (section?: SettingsSection) => void;
+  sidebarPreferences: SidebarPreferences;
   timePage?: TimePage | null;
   onOpenTimePage?: (page: TimePage) => void;
   habitsPage?: boolean;
@@ -163,19 +164,17 @@ export function WorkspaceSidebar({
   onView,
   onProject,
   onOrganization,
-  onRecovery,
-  completeBehavior = "hide",
-  onCompleteBehaviorChange,
+  onOpenSettings,
+  sidebarPreferences,
   timePage = null,
   onOpenTimePage,
   habitsPage = false,
   habitsCount,
   onOpenHabitsPage,
 }: WorkspaceSidebarProps) {
-  const sidebar = useSidebarPreferences();
-  const [laterCollapsed, setLaterCollapsed] = useState(false);
-  const [prefsOpen, setPrefsOpen] = useState(false);
   const disabled = busy || organizationSaving;
+  const isSidebarVisible = (id: SidebarItemId) =>
+    !sidebarPreferences.hidden.includes(id);
   const closeOnMobile = () => {
     if (innerWidth < 768) onOpenChange(false);
   };
@@ -183,39 +182,16 @@ export function WorkspaceSidebar({
   const activeRoots = (organization.projects || [])
     .filter((p) => projectStatus(p) === "active")
     .map((p) => p.name);
-  const laterProjects = projects.filter((name) => {
-    const record = organization.projects?.find((p) => p.name === name);
-    const status = projectStatus(record);
-    return !focusProject(name, organization.projects) && status !== "completed";
-  });
+  const visibleProjects = projects.filter(
+    (name) => !isCompletedProject(name, organization.projects),
+  );
 
   return (
     <>
-      <WorkspaceSettings
-        sidebarPreferences={sidebar.preferences}
-        onSidebarPreferencesChange={sidebar.update}
-        open={prefsOpen}
-        onOpenChange={setPrefsOpen}
-        completeBehavior={completeBehavior}
-        onCompleteBehaviorChange={onCompleteBehaviorChange}
-        disabled={disabled}
-        onTimeSettings={
-          onOpenTimePage
-            ? () => {
-                onOpenTimePage("settings");
-                closeOnMobile();
-              }
-            : undefined
-        }
-        onRecovery={() => {
-          onRecovery();
-          closeOnMobile();
-        }}
-      />
       <WorkspaceNavigation
         open={navOpen}
         onOpenChange={onOpenChange}
-        showCounts={sidebar.preferences.showCounts}
+        showCounts={sidebarPreferences.showCounts}
       >
         <div className="sidebar-account flex h-14 items-center justify-between px-1">
           <button
@@ -223,7 +199,7 @@ export function WorkspaceSidebar({
             aria-label="打开设置"
             onClick={() => {
               closeOnMobile();
-              setPrefsOpen(true);
+              onOpenSettings("theme");
             }}
             className="sidebar-brand"
           >
@@ -284,7 +260,7 @@ export function WorkspaceSidebar({
         <section className="mt-2" aria-label="核心视图">
           <nav aria-label="核心视图" className="space-y-0.5">
             {viewOrder
-              .filter((value) => sidebar.visible(value))
+              .filter((value) => isSidebarVisible(value))
               .map((value) => {
                 const label = views[value];
                 const { icon: Icon, colorClass } = viewMeta[value];
@@ -329,7 +305,7 @@ export function WorkspaceSidebar({
                   </Button>
                 );
               })}
-            {onOpenHabitsPage && sidebar.visible("habits") && (
+            {onOpenHabitsPage && isSidebarVisible("habits") && (
               <Button
                 variant="navigation"
                 disabled={disabled}
@@ -353,7 +329,7 @@ export function WorkspaceSidebar({
             )}
           </nav>
         </section>
-        {onOpenTimePage && sidebar.visible("time") && (
+        {onOpenTimePage && isSidebarVisible("time") && (
           <Button
             variant="navigation"
             aria-current={
@@ -375,7 +351,7 @@ export function WorkspaceSidebar({
             )}
           </Button>
         )}
-        {sidebar.visible("organization") && (
+        {isSidebarVisible("organization") && (
           <Button
             variant="navigation"
             aria-current={
@@ -412,11 +388,8 @@ export function WorkspaceSidebar({
           projectsPage={projectsPage}
           hasActiveItem={hasActiveItem}
           currentProject={currentProject}
-          activeRoots={activeRoots}
-          laterProjects={laterProjects}
-          laterCollapsed={laterCollapsed}
+          projects={visibleProjects}
           disabled={disabled}
-          onToggleLater={() => setLaterCollapsed((prev) => !prev)}
           onProjects={() => {
             onProjects();
             closeOnMobile();

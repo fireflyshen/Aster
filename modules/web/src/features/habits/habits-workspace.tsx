@@ -26,10 +26,8 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { HabitDayDetailPanel } from "./habit-day-detail-panel";
-import { HabitDetailDialog } from "./habit-detail-sheet";
-import { HabitFormDialog } from "./habit-form-dialog";
 import { HabitHeatmap } from "./habit-heatmap";
 import type { useHabitsWorkspace } from "./use-habits";
 
@@ -43,21 +41,18 @@ export function HabitsWorkspace({
   tasks = [],
   projects,
   availableLabels,
-  formOpen,
-  onFormOpenChange,
   onOpenNewHabit,
+  onEditHabit,
   onOpenEditTask,
 }: {
   controller: HabitsWorkspaceController;
   tasks?: Task[];
   projects: string[];
   availableLabels: SavedTag[];
-  formOpen: boolean;
-  onFormOpenChange: (open: boolean) => void;
   onOpenNewHabit?: () => void;
+  onEditHabit?: (habit: HabitListItem) => void;
   onOpenEditTask?: (task: Task) => void;
 }) {
-  const [editingHabit, setEditingHabit] = useState<HabitListItem | null>(null);
   const taskByUuid = useMemo(
     () => new Map(tasks.map((item) => [item.uuid, item])),
     [tasks],
@@ -85,18 +80,8 @@ export function HabitsWorkspace({
     return [...set].sort((a, b) => a.localeCompare(b, "zh-Hans-CN"));
   }, [availableLabels, controller.habits]);
 
-  const todayDate =
-    controller.heatmap?.todayDate ||
-    controller.todayData?.todayDate ||
-    new Date().toISOString().slice(0, 10);
-
   function openCreate() {
-    if (onOpenNewHabit) {
-      onOpenNewHabit();
-      return;
-    }
-    setEditingHabit(null);
-    onFormOpenChange(true);
+    onOpenNewHabit?.();
   }
 
   function openEdit(habit: HabitListItem) {
@@ -107,8 +92,7 @@ export function HabitsWorkspace({
         return;
       }
     }
-    setEditingHabit(habit);
-    onFormOpenChange(true);
+    onEditHabit?.(habit);
   }
 
   return (
@@ -368,7 +352,7 @@ export function HabitsWorkspace({
             {controller.habits.map((habit) => (
               <div
                 key={habit.id}
-                className="habit-review-row group relative min-w-0 py-2.5 transition-colors"
+                className="habit-review-row group relative -mx-3 min-w-0 rounded-lg px-3 py-2.5 transition-colors"
               >
                 <div className="habit-review-main min-w-0">
                   <button
@@ -516,53 +500,6 @@ export function HabitsWorkspace({
           </div>
         )}
       </section>
-
-      <HabitFormDialog
-        open={formOpen}
-        onOpenChange={onFormOpenChange}
-        editing={editingHabit}
-        todayDate={todayDate}
-        projects={projectChoices}
-        availableLabels={availableLabels}
-        busy={controller.busy}
-        onCreate={controller.createHabit}
-        onUpdate={controller.updateHabit}
-      />
-
-      <HabitDetailDialog
-        open={Boolean(controller.detailId && controller.detailData)}
-        onOpenChange={(open) => {
-          if (!open) controller.setDetailId(null);
-        }}
-        detail={controller.detailData}
-        availableLabels={availableLabels}
-        disabled={controller.busy}
-        onEdit={(habit) => {
-          controller.setDetailId(null);
-          openEdit(habit);
-        }}
-        onSetStatus={(id, status) => void controller.setHabitStatus(id, status)}
-        onDelete={controller.deleteHabit}
-        onTogglePositive={(habitId, date, completed) =>
-          void controller.togglePositive(habitId, date, completed)
-        }
-        onSetChecklistItem={(input) => void controller.setChecklistItem(input)}
-        onSwitchPlan={(habitId, planId, date) =>
-          void controller.switchPlan(habitId, planId, date)
-        }
-        onRecordNegative={(habitId, date, note) =>
-          void controller.recordNegative(habitId, date, note)
-        }
-        onUndoNegative={(habitId, date, eventId) =>
-          void controller.undoNegative(habitId, date, eventId)
-        }
-        onUpdateNegativeNote={(habitId, eventId, note, date) =>
-          void controller.updateNegativeNote(habitId, eventId, note, date)
-        }
-        onSetDailyNote={(habitId, note, date) =>
-          void controller.setDailyNote(habitId, note, date)
-        }
-      />
     </div>
   );
 }

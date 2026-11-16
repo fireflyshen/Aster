@@ -43,6 +43,7 @@ export function createTaskService(
       runner.run(["_get", "rc.data.location", ...READ_OVERRIDES]),
     loadTasks: runner.loadTasks,
     exportTasks: () => runner.rawTasks(),
+    exportDeletedTasks: () => runner.rawTasks(["status:deleted"]),
     exportTimerHistory: () => exportTimewarrior(connection, executor),
     async exportSchema() {
       const output = await runner.run(["_show", ...READ_OVERRIDES]);

@@ -198,3 +198,80 @@ test("partial exports explicitly report missing timers and omit credentials from
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("recovery list supports server-side search and pagination while keeping full default list", async () => {
+  const dir = await mkdtemp(tmpdir() + "/aster-recovery-page-");
+  const deletedTasks: RawTask[] = [
+    {
+      uuid: "00000000-0000-4000-8000-000000000001",
+      status: "deleted",
+      description: "Alpha task",
+      project: "Work",
+      end: "20261101T100000Z",
+    },
+    {
+      uuid: "00000000-0000-4000-8000-000000000002",
+      status: "deleted",
+      description: "Beta note",
+      project: "Home",
+      end: "20261102T100000Z",
+    },
+    {
+      uuid: "00000000-0000-4000-8000-000000000003",
+      status: "deleted",
+      description: "Gamma work",
+      project: "Work",
+      end: "20261103T100000Z",
+    },
+  ];
+  const service = createTaskService(
+    resolveConnection({ connectionMode: "local" }, "darwin"),
+    async ({ args }) => {
+      if (args[0] === "--version") return { stdout: "3.5.0", stderr: "" };
+      if (args.includes("export")) {
+        assert.ok(args.includes("status:deleted"));
+        return { stdout: JSON.stringify(deletedTasks), stderr: "" };
+      }
+      return { stdout: "OK", stderr: "" };
+    },
+  );
+  try {
+    const organization = createOrganizationService(
+      service,
+      dir + "/organization.json",
+    );
+    const recovery = createRecoveryService(
+      service,
+      organization,
+      dir + "/recovery.json",
+    );
+    const full = await recovery.list();
+    assert.equal(full.tasks.length, 3);
+    assert.equal(full.total, 3);
+    assert.equal(full.hasMore, false);
+    assert.equal(full.tasks[0].description, "Gamma work");
+
+    const page1 = await recovery.list({ limit: 2, offset: 0 });
+    assert.equal(page1.tasks.length, 2);
+    assert.equal(page1.total, 3);
+    assert.equal(page1.hasMore, true);
+    assert.deepEqual(
+      page1.tasks.map((t) => t.description),
+      ["Gamma work", "Beta note"],
+    );
+
+    const page2 = await recovery.list({ limit: 2, offset: 2 });
+    assert.equal(page2.tasks.length, 1);
+    assert.equal(page2.hasMore, false);
+    assert.equal(page2.tasks[0].description, "Alpha task");
+
+    const searched = await recovery.list({ query: "work", limit: 10, offset: 0 });
+    assert.equal(searched.total, 2);
+    assert.deepEqual(
+      searched.tasks.map((t) => t.description),
+      ["Gamma work", "Alpha task"],
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

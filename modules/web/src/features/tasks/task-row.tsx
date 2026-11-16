@@ -372,10 +372,11 @@ export function TaskRow({
           data-task-surface
           data-variant={variant}
           className={cn(
-            "group/row [&:has(:focus-visible)]:bg-(--row-hover)",
+            "group/row",
+            variant === "card" && "[&:has(:focus-visible)]:bg-(--row-hover)",
+            variant === "card" && actionsVisible && "bg-(--row-hover)",
             variant === "list" &&
               "-mx-2.5 px-2.5 md:-mx-3 md:px-3 [.board-card_&]:mx-0 [.board-card_&]:px-0",
-            actionsVisible && "bg-(--row-hover)",
           )}
         >
           <div className="flex w-full min-w-0 items-start gap-2 md:gap-2.5">
@@ -399,7 +400,7 @@ export function TaskRow({
                       e.stopPropagation();
                       setSubtasksExpanded((expanded) => !expanded);
                     }}
-                    className="size-4.5 flex cursor-pointer items-center justify-center rounded-sm text-muted-foreground/65 transition-colors hover:bg-muted/80 hover:text-foreground"
+                    className="flex size-5 cursor-pointer items-center justify-center rounded-[4px] text-muted-foreground/70 transition-colors hover:bg-accent/70 hover:text-foreground"
                   >
                     <ChevronRight
                       className={cn(

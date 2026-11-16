@@ -58,11 +58,19 @@ export function createRecoveryService(
     });
     await rename(temporary, path);
   }
-  async function listing() {
-    const [journal, native] = await Promise.all([
-      read(),
-      service.exportTasks(),
-    ]);
+  async function listing(options?: {
+    query?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const journal = await read();
+    const hasRestoring = journal.entries.some(
+      (entry) => entry.phase === "restoring",
+    );
+    const native =
+      !hasRestoring && service.exportDeletedTasks
+        ? await service.exportDeletedTasks()
+        : await service.exportTasks();
     const current = new Map(native.map((task) => [task.uuid, task]));
     const saved = new Map(
       journal.entries.map((entry) => [entry.task.uuid, entry]),
@@ -92,14 +100,39 @@ export function createRecoveryService(
       )
         add(task || entry.task, entry);
     }
+    const sorted = rows.sort((a, b) =>
+      (b.deletedAt || "").localeCompare(a.deletedAt || ""),
+    );
+    const q = options?.query?.trim().toLowerCase();
+    const filtered = q
+      ? sorted.filter((task) =>
+          `${task.description} ${task.project || ""}`.toLowerCase().includes(q),
+        )
+      : sorted;
+    const total = filtered.length;
+    const limit =
+      options?.limit !== undefined &&
+      Number.isFinite(options.limit) &&
+      options.limit > 0
+        ? Math.min(200, Math.floor(options.limit))
+        : undefined;
+    const offset =
+      options?.offset !== undefined &&
+      Number.isFinite(options.offset) &&
+      options.offset >= 0
+        ? Math.floor(options.offset)
+        : 0;
+    const tasks =
+      limit !== undefined ? filtered.slice(offset, offset + limit) : filtered;
     return {
-      tasks: rows.sort((a, b) =>
-        (b.deletedAt || "").localeCompare(a.deletedAt || ""),
-      ),
+      tasks,
+      total,
+      hasMore: limit !== undefined ? offset + tasks.length < total : false,
     };
   }
   return {
-    list: () => serial(listing),
+    list: (options?: { query?: string; limit?: number; offset?: number }) =>
+      serial(() => listing(options)),
     delete: (uuid: string) =>
       serial(async () => {
         const journal = await read();

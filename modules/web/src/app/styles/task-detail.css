@@ -17,10 +17,14 @@
 .task-detail-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
 }
 .task-detail-main {
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px 32px 36px;
 }
 .task-detail-title {
@@ -51,7 +55,10 @@
 }
 .task-detail-aside {
   min-width: 0;
+  min-height: 0;
   width: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px 20px;
   background: var(--sidebar);
   border-left: 1px solid var(--border);
@@ -164,9 +171,9 @@
     z-index: 10;
     margin: 0;
     padding-left: 10px;
-    background: var(--row-hover);
+    background: var(--background);
     border-radius: 6px;
-    box-shadow: -8px 0 8px var(--row-hover);
+    box-shadow: -8px 0 8px var(--background);
   }
 }
 @media (max-width: 767px) {
@@ -178,11 +185,14 @@
   }
   .task-detail-layout {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
   }
   .task-detail-main {
+    overflow: visible;
     padding: 20px;
   }
   .task-detail-aside {
+    overflow: visible;
     padding: 16px 20px;
   }
   .task-detail-properties {
@@ -601,8 +611,8 @@
 }
 .habit-review-actions {
   position: absolute;
-  right: 0;
-  top: 6px;
+  right: 8px;
+  top: 8px;
   padding-left: 12px;
   background: var(--row-hover);
 }

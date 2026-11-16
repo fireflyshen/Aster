@@ -50,16 +50,12 @@
 [data-project-nav] > button:hover {
   background-color: transparent;
 }
-[data-task-surface]:not(.board-card *):not([data-variant="card"]),
-.board-card[data-compact="true"],
 .project-manager-row,
 [data-organization-row] {
   position: relative;
   border-radius: var(--radius-lg);
   transition: background-color 140ms ease;
 }
-[data-task-surface]:not(.board-card *):not([data-variant="card"])::after,
-.board-card[data-compact="true"]::after,
 .project-manager-row::after,
 [data-organization-row]::after {
   content: "";
@@ -72,8 +68,6 @@
   transition: opacity 140ms ease;
 }
 @media (min-width: 768px) {
-  [data-task-surface]:not(.board-card *):not([data-variant="card"])::after,
-  .board-card[data-compact="true"]::after,
   .project-manager-row::after,
   [data-organization-row]::after {
     inset-inline: 0.75rem;
@@ -83,27 +77,15 @@
   [data-project-nav]:not([data-selected="true"]):hover {
     background-color: var(--navigation-hover);
   }
-  [data-task-surface]:not(.board-card *):not([data-variant="card"]):hover,
-  .board-card[data-compact="true"]:hover,
   .project-manager-row:hover,
   [data-organization-row]:hover {
     background-color: var(--row-hover);
   }
-  [data-task-surface]:not(.board-card *):not(
-      [data-variant="card"]
-    ):hover::after,
-  .board-card[data-compact="true"]:hover::after,
-  .board-card[data-compact="true"]:has(
-      + .board-card[data-compact="true"]:hover
-    )::after,
   .project-manager-row:hover::after,
   .project-manager-row:has(+ .project-manager-row:hover)::after,
   [data-organization-row]:hover::after,
   [data-organization-row]:has(+ [data-organization-row]:hover)::after {
     opacity: 0;
-  }
-  .board-card[data-compact="true"] [data-task-surface]:hover {
-    background-color: transparent;
   }
 }
 .board-card[data-compact="true"] [data-task-surface] {

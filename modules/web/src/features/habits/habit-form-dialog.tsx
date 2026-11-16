@@ -337,8 +337,8 @@ export function HabitFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-[520px]">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-3rem)] flex-col gap-0 overflow-hidden rounded-xl p-0 sm:max-w-[540px]">
+        <DialogHeader className="shrink-0 border-b border-border px-6 py-4 pr-12">
           <DialogTitle>{editing ? "编辑习惯" : "新建习惯"}</DialogTitle>
           <DialogDescription>
             {editing
@@ -347,7 +347,11 @@ export function HabitFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
+        <form
+          onSubmit={(e) => void handleSubmit(e)}
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 py-5">
           {/* 1. 叫什么 */}
           <div className="space-y-1.5">
             <Label htmlFor="habit-title">1. 叫什么</Label>
@@ -765,8 +769,9 @@ export function HabitFormDialog({
           {formError && (
             <p className="text-xs font-medium text-destructive">{formError}</p>
           )}
+          </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t border-border bg-muted/20 px-6 py-3.5">
             <Button
               type="button"
               variant="outline"

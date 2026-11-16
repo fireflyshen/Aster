@@ -1,6 +1,7 @@
 import type { SavedFilter, SavedTag } from "@core/workspace/organization";
 import type { View } from "@shared/tasks";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { SettingsSection } from "../workspace-settings";
 import { isDesktop, useDesktop } from "@/lib/use-desktop";
 
 export type ActiveEntry = {
@@ -85,7 +86,8 @@ export function useWorkspaceNavigation() {
   const [habitsPage, setHabitsPage] = useState(false);
   const [activeEntry, setActiveEntry] = useState<ActiveEntry | undefined>();
   const [commandOpen, setCommandOpen] = useState(false);
-  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
@@ -272,8 +274,11 @@ export function useWorkspaceNavigation() {
     setActiveEntry,
     commandOpen,
     setCommandOpen,
-    recoveryOpen,
-    setRecoveryOpen,
+    settingsSection,
+    setSettingsSection,
+    openSettings: (section: SettingsSection = "theme") =>
+      setSettingsSection(section),
+    closeSettings: () => setSettingsSection(null),
     searchOpen,
     setSearchOpen,
     query,

@@ -69,6 +69,42 @@ export function ProjectTree({
     const depth = row.depth - (root ? root.split(".").length - 1 : 0);
     const count = projectTaskCount(row.name, data.projectCounts);
     const isCollapsed = collapsed.has(row.name) && !matches;
+    const toggleButton = row.hasChildren ? (
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className={
+          compact
+            ? "project-tree-toggle shrink-0 text-muted-foreground/75 hover:bg-navigation-hover hover:text-foreground"
+            : "size-6 shrink-0 text-muted-foreground"
+        }
+        aria-label={`${isCollapsed ? "展开" : "收起"} ${row.name}`}
+        aria-expanded={!isCollapsed}
+        disabled={!!matches}
+        title={matches ? "搜索时会展开匹配分支" : undefined}
+        onClick={() =>
+          setCollapsed((previous) => {
+            const next = new Set(previous);
+            if (next.has(row.name)) next.delete(row.name);
+            else next.add(row.name);
+            return next;
+          })
+        }
+      >
+        {compact ? (
+          <ChevronDown
+            className={`size-3.5 transition-transform duration-150 ${
+              isCollapsed ? "-rotate-90" : ""
+            }`}
+          />
+        ) : isCollapsed ? (
+          <ChevronRight className="size-3.5" />
+        ) : (
+          <ChevronDown className="size-3.5" />
+        )}
+      </Button>
+    ) : null;
+
     return (
       <div
         key={row.name}
@@ -82,38 +118,13 @@ export function ProjectTree({
         }`}
         style={{
           paddingInlineStart:
-            (compact ? (anyHasChildren ? 4 : 0) : 10) +
-            Math.min(depth, compact ? 4 : 6) * (compact ? 12 : 16),
+            (compact ? 0 : 10) +
+            Math.min(depth, compact ? 4 : 6) * (compact ? 16 : 16),
         }}
       >
-        {anyHasChildren &&
-          (row.hasChildren ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="size-6 shrink-0 text-muted-foreground"
-              aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${row.name}`}
-              aria-expanded={!isCollapsed}
-              disabled={!!matches}
-              title={matches ? "Search expands matching branches" : undefined}
-              onClick={() =>
-                setCollapsed((previous) => {
-                  const next = new Set(previous);
-                  if (next.has(row.name)) next.delete(row.name);
-                  else next.add(row.name);
-                  return next;
-                })
-              }
-            >
-              {isCollapsed ? (
-                <ChevronRight className="size-3.5" />
-              ) : (
-                <ChevronDown className="size-3.5" />
-              )}
-            </Button>
-          ) : (
-            <span className="w-6 shrink-0" />
-          ))}
+        {!compact &&
+          anyHasChildren &&
+          (toggleButton ?? <span className="w-6 shrink-0" />)}
         <Button
           variant={compact ? "navigation" : "ghost"}
           disabled={disabled}
@@ -122,7 +133,7 @@ export function ProjectTree({
           onClick={() => onOpen(row.name)}
           className={
             compact
-              ? `min-w-0 flex-1 gap-2.5 text-left ${anyHasChildren ? "px-1.5 has-[>svg]:px-1.5" : "px-2.5 has-[>svg]:px-2.5"}`
+              ? "min-w-0 flex-1 gap-2.5 text-left"
               : "h-auto min-h-14 min-w-0 flex-1 justify-start gap-2.5 px-1.5 py-2 text-left font-normal has-[>svg]:px-1.5"
           }
         >
@@ -188,6 +199,7 @@ export function ProjectTree({
             </span>
           </div>
         )}
+        {compact && toggleButton}
         <ProjectActions
           compact={compact}
           count={count}

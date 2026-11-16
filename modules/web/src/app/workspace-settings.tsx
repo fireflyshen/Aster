@@ -1,110 +1,132 @@
-import { sidebarItems, type SidebarPreferences } from "./sidebar-preferences";
-import { Switch } from "@/components/ui/switch";
-import { PanelLeft } from "lucide-react";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   DatabaseBackup,
-  SlidersHorizontal,
   Palette,
+  PanelLeft,
   Settings2,
+  SlidersHorizontal,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { RecoveryPanel } from "@/features/recovery/recovery-center";
+import { TimeSettingsPanel } from "@/features/time/time-settings-panel";
 import type { CompleteBehavior } from "./hooks/use-workspace-navigation";
+import { sidebarItems, type SidebarPreferences } from "./sidebar-preferences";
 import { ThemePanel, useThemePreference } from "./theme-switcher";
 
+export type SettingsSection =
+  | "general"
+  | "theme"
+  | "sidebar"
+  | "time"
+  | "recovery";
+
+const SECTION_TITLES: Record<SettingsSection, string> = {
+  general: "常规",
+  theme: "主题",
+  sidebar: "侧栏",
+  time: "时间与预算",
+  recovery: "数据与恢复",
+};
+
+/** Unified workspace Settings dialog hosting General, Theme, Sidebar, Time & Budget, and Data & Recovery panels. */
 export function WorkspaceSettings({
   open,
   onOpenChange,
+  section: controlledSection,
+  onSectionChange,
   completeBehavior,
   onCompleteBehaviorChange,
   disabled,
-  onTimeSettings,
-  onRecovery,
+  blocked = false,
+  notice = "",
+  isTimeMode = true,
+  onTimeMutated,
+  onRestoreTask,
+  onRefreshAll,
+  onUnconfirmed,
   sidebarPreferences,
   onSidebarPreferencesChange,
 }: {
-  sidebarPreferences: SidebarPreferences;
-  onSidebarPreferencesChange: (next: SidebarPreferences) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  section?: SettingsSection;
+  onSectionChange?: (section: SettingsSection) => void;
+  sidebarPreferences: SidebarPreferences;
+  onSidebarPreferencesChange: (next: SidebarPreferences) => void;
   completeBehavior: CompleteBehavior;
   onCompleteBehaviorChange?: (next: CompleteBehavior) => void;
   disabled: boolean;
-  onTimeSettings?: () => void;
-  onRecovery: () => void;
+  blocked?: boolean;
+  notice?: string;
+  isTimeMode?: boolean;
+  onTimeMutated?: () => void;
+  onRestoreTask?: (uuid: string) => Promise<boolean>;
+  onRefreshAll?: () => Promise<unknown>;
+  onUnconfirmed?: () => void;
 }) {
   const preference = useThemePreference();
-  const [section, setSection] = useState<"theme" | "general" | "sidebar">(
-    "theme",
-  );
+  const [internalSection, setInternalSection] =
+    useState<SettingsSection>("theme");
+  const [recoveryWorking, setRecoveryWorking] = useState(false);
+
+  const section = controlledSection ?? internalSection;
+  const selectSection = onSectionChange ?? setInternalSection;
+  const preventClose = recoveryWorking;
+
+  const navItems: Array<{
+    id: SettingsSection;
+    label: string;
+    Icon: typeof Settings2;
+  }> = [
+    { id: "general", label: "常规", Icon: Settings2 },
+    { id: "theme", label: "主题", Icon: Palette },
+    { id: "sidebar", label: "侧栏", Icon: PanelLeft },
+    { id: "time", label: "时间与预算", Icon: SlidersHorizontal },
+    { id: "recovery", label: "数据与恢复", Icon: DatabaseBackup },
+  ];
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && preventClose) return;
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent
+        showCloseButton={!preventClose}
         className="workspace-settings gap-0 p-0"
         aria-describedby={undefined}
+        onEscapeKeyDown={(e) => {
+          if (preventClose) e.preventDefault();
+        }}
+        onPointerDownOutside={(e) => {
+          if (preventClose) e.preventDefault();
+        }}
       >
         <aside className="settings-sidebar">
           <h2>设置</h2>
           <nav aria-label="设置分类">
-            <button
-              type="button"
-              aria-current={section === "general" ? "page" : undefined}
-              onClick={() => setSection("general")}
-            >
-              <Settings2 className="size-5" />
-              常规
-            </button>
-            <button
-              type="button"
-              aria-current={section === "theme" ? "page" : undefined}
-              onClick={() => setSection("theme")}
-            >
-              <Palette className="size-5" />
-              主题
-            </button>
-            <button
-              type="button"
-              aria-current={section === "sidebar" ? "page" : undefined}
-              onClick={() => setSection("sidebar")}
-            >
-              <PanelLeft className="size-5" />
-              侧栏
-            </button>
-            {onTimeSettings && (
+            {navItems.map(({ id, label, Icon }) => (
               <button
+                key={id}
                 type="button"
-                disabled={disabled}
-                onClick={() => {
-                  onOpenChange(false);
-                  onTimeSettings();
-                }}
+                disabled={preventClose}
+                aria-current={section === id ? "page" : undefined}
+                onClick={() => selectSection(id)}
               >
-                <SlidersHorizontal className="size-5" />
-                时间与预算
+                <Icon className="size-5" />
+                {label}
               </button>
-            )}
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                onOpenChange(false);
-                onRecovery();
-              }}
-            >
-              <DatabaseBackup className="size-5" />
-              数据与恢复
-            </button>
+            ))}
           </nav>
         </aside>
         <div className="settings-main">
           <header className="settings-header">
             <DialogTitle>
               <span className="sr-only">设置：</span>
-              {section === "theme"
-                ? "主题"
-                : section === "sidebar"
-                  ? "侧栏"
-                  : "常规"}
+              {SECTION_TITLES[section]}
             </DialogTitle>
           </header>
           <div className="settings-body">
@@ -154,36 +176,53 @@ export function WorkspaceSettings({
                   隐藏的视图仍可通过搜索打开。设置自动保存在此浏览器。
                 </p>
               </div>
+            ) : section === "time" ? (
+              <TimeSettingsPanel
+                isTimeMode={isTimeMode}
+                onTimeMutated={() => onTimeMutated?.()}
+              />
+            ) : section === "recovery" ? (
+              <RecoveryPanel
+                busy={disabled}
+                blocked={blocked}
+                notice={notice}
+                onWorkingChange={setRecoveryWorking}
+                onUnconfirmed={() => onUnconfirmed?.()}
+                onRestore={(uuid) =>
+                  onRestoreTask ? onRestoreTask(uuid) : Promise.resolve(false)
+                }
+                onRefresh={() =>
+                  onRefreshAll ? onRefreshAll() : Promise.resolve()
+                }
+              />
             ) : (
-              <>
-                <fieldset className="space-y-2.5">
-                  <legend className="mb-2.5 text-sm font-medium">
-                    完成任务后
-                  </legend>
-                  {(
-                    [
-                      ["hide", "收起已完成任务"],
-                      ["strikethrough", "保留任务并显示删除线"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <label
-                      key={value}
-                      className="flex min-h-9 cursor-pointer items-center gap-3 text-sm text-muted-foreground"
-                    >
-                      <input
-                        type="radio"
-                        name="complete-behavior"
-                        value={value}
-                        checked={completeBehavior === value}
-                        disabled={disabled}
-                        onChange={() => onCompleteBehaviorChange?.(value)}
-                        className="size-4 accent-(--primary)"
-                      />
-                      {label}
-                    </label>
-                  ))}
-                </fieldset>
-              </>
+              <fieldset className="space-y-2.5">
+                <legend className="mb-2.5 text-sm font-medium">
+                  完成任务后
+                </legend>
+                {(
+                  [
+                    ["hide", "收起已完成任务"],
+                    ["strikethrough", "保留任务并显示删除线"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <label
+                    key={value}
+                    className="flex min-h-9 cursor-pointer items-center gap-3 text-sm text-muted-foreground"
+                  >
+                    <input
+                      type="radio"
+                      name="complete-behavior"
+                      value={value}
+                      checked={completeBehavior === value}
+                      disabled={disabled}
+                      onChange={() => onCompleteBehaviorChange?.(value)}
+                      className="size-4 accent-(--primary)"
+                    />
+                    {label}
+                  </label>
+                ))}
+              </fieldset>
             )}
           </div>
         </div>

@@ -54,7 +54,7 @@ export function WorkspaceModals(props: WorkspaceModalsProps) {
     onOpenOrganization,
     onOpenHabits,
     onAddHabit,
-    setRecoveryOpen,
+    setSettingsSection,
     onOpenEditor,
   } = props;
 
@@ -81,7 +81,7 @@ export function WorkspaceModals(props: WorkspaceModalsProps) {
         onHabits={onOpenHabits}
         onTime={props.onOpenTime}
         onAddHabit={onAddHabit}
-        onRecovery={() => setRecoveryOpen(true)}
+        onRecovery={() => setSettingsSection("recovery")}
         onEditTask={(task) => onOpenEditor(task)}
       />
       <TaskWorkspaceDialogs {...props} />

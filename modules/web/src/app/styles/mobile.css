@@ -125,7 +125,7 @@
     overscroll-behavior: contain;
   }
   #workspace-navigation [data-variant="navigation"],
-  #workspace-navigation [data-project-nav] > button {
+  #workspace-navigation [data-project-nav] > [data-variant="navigation"] {
     min-height: 44px;
   }
   #workspace-navigation kbd,

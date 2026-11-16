@@ -77,12 +77,12 @@ export function BoardCard({
         }
       }}
       className={cn(
-        "board-card group/card relative [&:has(:focus-visible)]:bg-(--row-hover)",
+        "board-card group/card relative",
         compact
           ? isSubtask
             ? "flex min-w-0 items-start shadow-none"
             : "-mx-2.5 flex min-w-0 items-start px-2.5 shadow-none md:-mx-3 md:px-3"
-          : "task-board-card cursor-grab bg-card transition-[box-shadow,border-color,background-color] duration-150 active:cursor-grabbing",
+          : "task-board-card cursor-grab bg-card transition-[box-shadow,border-color,background-color] duration-150 active:cursor-grabbing [&:has(:focus-visible)]:bg-(--row-hover)",
         isDragging &&
           (compact
             ? "rounded-md bg-(--drag-cavity-compact) [&>*]:opacity-0"
