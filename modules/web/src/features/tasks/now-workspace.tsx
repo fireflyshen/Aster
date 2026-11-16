@@ -1,13 +1,13 @@
 import { Button } from "@/components/ui/button";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import type { TaskRenderFn } from "@/app/hooks/use-task-renderer";
 import type { StateSummaryData } from "@/app/hooks/use-task-state-actions";
 import { sortUrgencyTasks } from "@/app/lib/task-view";
+import { BoardCard } from "@/features/tasks/board-card";
+import type { DropPosition } from "@/features/tasks/drag-model";
+import { TaskDragLayer } from "@/features/tasks/task-drag-layer";
 import { dueLabel, toDueDay } from "@/features/tasks/task-date";
+import { useBoardDnd } from "@/features/tasks/use-board-dnd";
+import type { BoardColumn as Column } from "@core/workspace/board";
 import {
   isHabitTask,
   normalizeDoingLimit,
@@ -15,6 +15,7 @@ import {
 } from "@core/tasks/state";
 import type { Organization } from "@core/workspace/organization";
 import type { NowSectionState } from "@core/workspace/preferences";
+import { closestCenter, DndContext, useDroppable } from "@dnd-kit/core";
 import type { Task } from "@shared/tasks";
 import { addDays, format } from "date-fns";
 import {
@@ -27,7 +28,43 @@ import {
   PlayCircle,
   Plus,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
+
+const NOW_COLUMNS: Record<TaskState, Column> = {
+  doing: { id: "doing", name: "处理中" },
+  planned: { id: "planned", name: "计划中" },
+  waiting: { id: "waiting", name: "等待中" },
+  parked: { id: "parked", name: "长期搁置" },
+};
+const NOW_COLUMN_LIST: Column[] = [
+  NOW_COLUMNS.doing,
+  NOW_COLUMNS.planned,
+  NOW_COLUMNS.waiting,
+  NOW_COLUMNS.parked,
+];
+
+function NowDropSection({
+  state,
+  label,
+  disabled,
+  children,
+}: {
+  state: TaskState;
+  label: string;
+  disabled: boolean;
+  children: ReactNode;
+}) {
+  const { setNodeRef } = useDroppable({
+    id: state,
+    data: { kind: "column", columnId: state },
+    disabled,
+  });
+  return (
+    <section ref={setNodeRef} data-board-column={state} aria-label={label}>
+      {children}
+    </section>
+  );
+}
 
 function scheduledGroupLabel(scheduled: string | undefined, now: Date): string {
   if (!scheduled) return "未排期";
@@ -74,6 +111,8 @@ export function NowWorkspace({
   onAddTask: () => void;
 }) {
   const [alertsExpanded, setAlertsExpanded] = useState(false);
+  const scrollArea = useRef<HTMLDivElement>(null);
+  const { sensors, accessibility } = useBoardDnd("list", NOW_COLUMN_LIST);
   const needle = query.trim().toLocaleLowerCase();
 
   const { doing, plannedGroups, waiting, parked } = useMemo(() => {
@@ -164,6 +203,15 @@ export function NowWorkspace({
       ...(nowSections || {}),
       [key]: !nowSections?.[key],
     });
+  };
+
+  const handleDrop = (task: Task, target: DropPosition) => {
+    if (disabled) return;
+    const nextState = target.columnId as TaskState;
+    if (!NOW_COLUMNS[nextState]) return;
+    const currentState: TaskState = task.state ?? "planned";
+    if (nextState === currentState) return;
+    void onChangeState(task, nextState);
   };
 
   return (
@@ -319,220 +367,270 @@ export function NowWorkspace({
         </section>
       )}
 
-      <section aria-label="处理中" data-now-doing>
-        <div
-          data-list-section="true"
-          className="flex items-center justify-between border-b border-border/80"
-        >
-          <div className="flex items-center gap-1.5">
-            <PlayCircle className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold tracking-tight text-foreground">
-              处理中
-            </h2>
-            <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
-              {doing.length}/{doingLimit}
-            </span>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={onAddTask}
-            className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <Plus className="size-3.5" />
-            添加任务
-          </Button>
-        </div>
-
-        {doing.length === 0 && !loading ? (
-          <div className="mt-2 rounded-lg border border-dashed border-border/80 px-4 py-6 text-center text-sm text-muted-foreground">
-            当前「处理中」为空（0/{doingLimit}
-            ）。可以从下方「计划中」挑一条移入处理中。
-          </div>
-        ) : (
-          <div>
-            {doing.map((task) => {
-              const active = Boolean(isTimingTask?.(task.uuid) || task.start);
-              return (
-                <div
-                  key={task.uuid}
-                  data-now-active-timer={active ? "true" : undefined}
-                  className={
-                    active
-                      ? "rounded-md bg-primary/6 ring-1 ring-inset ring-primary/25"
-                      : undefined
-                  }
-                >
-                  {renderTask(task)}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-
-      <Collapsible
-        open={plannedOpen}
-        onOpenChange={() => toggleSection("planned")}
-        data-now-section="planned"
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        accessibility={accessibility}
       >
         <div
-          data-list-section="true"
-          className="flex items-center border-b border-border/80"
+          ref={scrollArea}
+          data-board-scroll
+          role="region"
+          aria-label="现在能做状态分组"
+          className="space-y-6"
         >
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              aria-expanded={plannedOpen}
-              className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
+          <NowDropSection state="doing" label="处理中" disabled={disabled}>
+            <div
+              data-list-section="true"
+              className="flex items-center justify-between border-b border-border/80"
             >
-              <span className="task-section-chevron" aria-hidden="true">
-                <ChevronRight
-                  className={`size-3.5 transition-transform duration-150 ${
-                    plannedOpen ? "rotate-90" : ""
-                  }`}
-                />
-              </span>
-              <Clock3 className="size-3.5 text-blue-600 dark:text-blue-400" />
-              <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                计划中
-              </h2>
-              <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
-                {plannedGroups.reduce((acc, [, list]) => acc + list.length, 0)}
-              </span>
-            </button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent className="space-y-4">
-          {plannedGroups.length === 0 ? (
-            <p className="py-3 text-xs text-muted-foreground">暂无计划中任务</p>
-          ) : (
-            plannedGroups.map(([label, list]) => (
-              <div key={label}>
-                <div className="flex h-8 items-center border-b border-border/60 pt-1 text-xs font-semibold text-foreground/80">
-                  {label}
-                </div>
-                <div>{list.map((task) => renderTask(task))}</div>
+              <div className="flex items-center gap-1.5">
+                <PlayCircle className="size-4 text-primary" />
+                <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                  处理中
+                </h2>
+                <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
+                  {doing.length}/{doingLimit}
+                </span>
               </div>
-            ))
-          )}
-        </CollapsibleContent>
-      </Collapsible>
-
-      <Collapsible
-        open={waitingOpen}
-        onOpenChange={() => toggleSection("waiting")}
-        data-now-section="waiting"
-      >
-        <div
-          data-list-section="true"
-          className="flex items-center border-b border-border/80"
-        >
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              aria-expanded={waitingOpen}
-              className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
-            >
-              <span className="task-section-chevron" aria-hidden="true">
-                <ChevronRight
-                  className={`size-3.5 transition-transform duration-150 ${
-                    waitingOpen ? "rotate-90" : ""
-                  }`}
-                />
-              </span>
-              <Hourglass className="size-3.5 text-teal-600 dark:text-teal-400" />
-              <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                等待中
-              </h2>
-              <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
-                {waiting.length}
-              </span>
-            </button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent>
-          {waiting.length === 0 ? (
-            <p className="py-3 text-xs text-muted-foreground">暂无等待中任务</p>
-          ) : (
-            <div>
-              {waiting.map((task) => (
-                <div key={task.uuid}>
-                  {renderTask(task)}
-                  {(task.waitReason || task.wait) && (
-                    <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
-                      {task.waitReason && (
-                        <span className="mr-2">原因：{task.waitReason}</span>
-                      )}
-                      {task.wait && (
-                        <span>
-                          核对日：{toDueDay(task.wait) || dueLabel(task.wait)}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={disabled}
+                onClick={onAddTask}
+                className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Plus className="size-3.5" />
+                添加任务
+              </Button>
             </div>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
 
-      <Collapsible
-        open={parkedOpen}
-        onOpenChange={() => toggleSection("parked")}
-        data-now-section="parked"
-      >
-        <div
-          data-list-section="true"
-          className="flex items-center border-b border-border/80"
-        >
-          <CollapsibleTrigger asChild>
-            <button
-              type="button"
-              aria-expanded={parkedOpen}
-              className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
-            >
-              <span className="task-section-chevron" aria-hidden="true">
-                <ChevronRight
-                  className={`size-3.5 transition-transform duration-150 ${
-                    parkedOpen ? "rotate-90" : ""
-                  }`}
-                />
-              </span>
-              <PauseCircle className="size-3.5 text-muted-foreground" />
-              <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                长期搁置
-              </h2>
-              <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
-                {parked.length}
-              </span>
-            </button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent>
-          {parked.length === 0 ? (
-            <p className="py-3 text-xs text-muted-foreground">
-              暂无长期搁置任务
-            </p>
-          ) : (
-            <div>
-              {parked.map((task) => (
-                <div key={task.uuid}>
-                  {renderTask(task)}
-                  {task.wait && (
-                    <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
-                      复查日：{toDueDay(task.wait) || dueLabel(task.wait)}
-                    </div>
-                  )}
+            <div data-drop-content className="min-h-7">
+              {doing.length === 0 && !loading ? (
+                <div className="mt-2 rounded-lg border border-dashed border-border/80 px-4 py-6 text-center text-sm text-muted-foreground">
+                  当前「处理中」为空（0/{doingLimit}
+                  ）。可以从下方「计划中」拖入或切换至此。
                 </div>
-              ))}
+              ) : (
+                doing.map((task) => {
+                  const active = Boolean(
+                    isTimingTask?.(task.uuid) || task.start,
+                  );
+                  return (
+                    <div
+                      key={task.uuid}
+                      data-now-active-timer={active ? "true" : undefined}
+                      className={
+                        active
+                          ? "rounded-md bg-primary/6 ring-1 ring-inset ring-primary/25"
+                          : undefined
+                      }
+                    >
+                      <BoardCard
+                        compact
+                        interactive={!disabled}
+                        task={task}
+                        column={NOW_COLUMNS.doing}
+                        disabled={disabled}
+                      >
+                        {renderTask(task)}
+                      </BoardCard>
+                    </div>
+                  );
+                })
+              )}
             </div>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
+          </NowDropSection>
+
+          <NowDropSection state="planned" label="计划中" disabled={disabled}>
+            <div
+              data-list-section="true"
+              className="flex items-center border-b border-border/80"
+            >
+              <button
+                type="button"
+                aria-expanded={plannedOpen}
+                onClick={() => toggleSection("planned")}
+                className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
+              >
+                <span className="task-section-chevron" aria-hidden="true">
+                  <ChevronRight
+                    className={`size-3.5 transition-transform duration-150 ${
+                      plannedOpen ? "rotate-90" : ""
+                    }`}
+                  />
+                </span>
+                <Clock3 className="size-3.5 text-blue-600 dark:text-blue-400" />
+                <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                  计划中
+                </h2>
+                <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
+                  {plannedGroups.reduce((acc, [, list]) => acc + list.length, 0)}
+                </span>
+              </button>
+            </div>
+            <div
+              data-drop-content
+              hidden={!plannedOpen}
+              className="min-h-7 space-y-4"
+            >
+              {plannedGroups.length === 0 ? (
+                <p className="py-3 text-xs text-muted-foreground">
+                  暂无计划中任务
+                </p>
+              ) : (
+                plannedGroups.map(([label, list]) => (
+                  <div key={label}>
+                    <div className="flex h-8 items-center border-b border-border/60 pt-1 text-xs font-semibold text-foreground/80">
+                      {label}
+                    </div>
+                    <div>
+                      {list.map((task) => (
+                        <BoardCard
+                          key={task.uuid}
+                          compact
+                          interactive={!disabled}
+                          task={task}
+                          column={NOW_COLUMNS.planned}
+                          disabled={disabled}
+                        >
+                          {renderTask(task)}
+                        </BoardCard>
+                      ))}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </NowDropSection>
+
+          <NowDropSection state="waiting" label="等待中" disabled={disabled}>
+            <div
+              data-list-section="true"
+              className="flex items-center border-b border-border/80"
+            >
+              <button
+                type="button"
+                aria-expanded={waitingOpen}
+                onClick={() => toggleSection("waiting")}
+                className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
+              >
+                <span className="task-section-chevron" aria-hidden="true">
+                  <ChevronRight
+                    className={`size-3.5 transition-transform duration-150 ${
+                      waitingOpen ? "rotate-90" : ""
+                    }`}
+                  />
+                </span>
+                <Hourglass className="size-3.5 text-teal-600 dark:text-teal-400" />
+                <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                  等待中
+                </h2>
+                <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
+                  {waiting.length}
+                </span>
+              </button>
+            </div>
+            <div data-drop-content hidden={!waitingOpen} className="min-h-7">
+              {waiting.length === 0 ? (
+                <p className="py-3 text-xs text-muted-foreground">
+                  暂无等待中任务
+                </p>
+              ) : (
+                waiting.map((task) => (
+                  <div key={task.uuid}>
+                    <BoardCard
+                      compact
+                      interactive={!disabled}
+                      task={task}
+                      column={NOW_COLUMNS.waiting}
+                      disabled={disabled}
+                    >
+                      {renderTask(task)}
+                    </BoardCard>
+                    {(task.waitReason || task.wait) && (
+                      <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
+                        {task.waitReason && (
+                          <span className="mr-2">原因：{task.waitReason}</span>
+                        )}
+                        {task.wait && (
+                          <span>
+                            核对日：
+                            {toDueDay(task.wait) || dueLabel(task.wait)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </NowDropSection>
+
+          <NowDropSection state="parked" label="长期搁置" disabled={disabled}>
+            <div
+              data-list-section="true"
+              className="flex items-center border-b border-border/80"
+            >
+              <button
+                type="button"
+                aria-expanded={parkedOpen}
+                onClick={() => toggleSection("parked")}
+                className="task-section-toggle flex min-w-0 cursor-pointer items-center gap-1.5 py-1 text-left transition-colors select-none"
+              >
+                <span className="task-section-chevron" aria-hidden="true">
+                  <ChevronRight
+                    className={`size-3.5 transition-transform duration-150 ${
+                      parkedOpen ? "rotate-90" : ""
+                    }`}
+                  />
+                </span>
+                <PauseCircle className="size-3.5 text-muted-foreground" />
+                <h2 className="text-sm font-semibold tracking-tight text-foreground">
+                  长期搁置
+                </h2>
+                <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
+                  {parked.length}
+                </span>
+              </button>
+            </div>
+            <div data-drop-content hidden={!parkedOpen} className="min-h-7">
+              {parked.length === 0 ? (
+                <p className="py-3 text-xs text-muted-foreground">
+                  暂无长期搁置任务
+                </p>
+              ) : (
+                parked.map((task) => (
+                  <div key={task.uuid}>
+                    <BoardCard
+                      compact
+                      interactive={!disabled}
+                      task={task}
+                      column={NOW_COLUMNS.parked}
+                      disabled={disabled}
+                    >
+                      {renderTask(task)}
+                    </BoardCard>
+                    {task.wait && (
+                      <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
+                        复查日：{toDueDay(task.wait) || dueLabel(task.wait)}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </NowDropSection>
+        </div>
+        <TaskDragLayer
+          area={scrollArea}
+          tasks={taskByUuid}
+          layout="list"
+          enableNesting={false}
+          onDrop={handleDrop}
+        />
+      </DndContext>
     </div>
   );
 }

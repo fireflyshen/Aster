@@ -178,3 +178,63 @@ test("the add-section/footer area is a valid append target, not a disappearing m
     undefined,
   );
 });
+
+test("now workspace drag resolves target doing and collapsed parked sections without nesting", () => {
+  const doing: DragSection = {
+    columnId: "doing",
+    left: 100,
+    right: 600,
+    top: 40,
+    bottom: 140,
+    contentTop: 76,
+    rows: [
+      {
+        uuid: "d1",
+        parentUuid: null,
+        depth: 0,
+        top: 80,
+        bottom: 120,
+        project: "",
+        canParent: false,
+      },
+    ],
+  };
+  const planned: DragSection = {
+    columnId: "planned",
+    left: 100,
+    right: 600,
+    top: 164,
+    bottom: 280,
+    contentTop: 200,
+    rows: [],
+  };
+  const parkedCollapsed: DragSection = {
+    columnId: "parked",
+    left: 100,
+    right: 600,
+    top: 304,
+    bottom: 340,
+    contentTop: 340,
+    rows: [],
+  };
+  const dropToDoing = projectDrop(
+    [doing, planned, parkedCollapsed],
+    { x: 180, y: 110 },
+    "list",
+    0,
+    "",
+  )!;
+  assert.equal(dropToDoing.columnId, "doing");
+  assert.equal(dropToDoing.depth, 0);
+
+  const dropToParked = projectDrop(
+    [doing, planned, parkedCollapsed],
+    { x: 180, y: 320 },
+    "list",
+    0,
+    "",
+  )!;
+  assert.equal(dropToParked.columnId, "parked");
+  assert.equal(dropToParked.top, 340);
+  assert.equal(dropToParked.depth, 0);
+});

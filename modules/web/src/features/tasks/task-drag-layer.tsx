@@ -98,11 +98,13 @@ export function TaskDragLayer({
   area,
   tasks,
   layout,
+  enableNesting = true,
   onDrop,
 }: {
   area: RefObject<HTMLDivElement | null>;
   tasks: Map<string, Task>;
   layout: "list" | "board";
+  enableNesting?: boolean;
   onDrop: (task: Task, position: DropPosition) => void;
 }) {
   const session = useRef<Session | null>(null);
@@ -158,7 +160,7 @@ export function TaskDragLayer({
           top: row.top,
           bottom: row.bottom,
           project: task?.project || "",
-          canParent: task?.status !== "completed",
+          canParent: enableNesting && task?.status !== "completed",
         });
       }
       sections.push({
@@ -180,7 +182,9 @@ export function TaskDragLayer({
       current.sections,
       current.point,
       layout,
-      current.depth + (current.point.x - current.origin.x) / TASK_INDENT,
+      enableNesting
+        ? current.depth + (current.point.x - current.origin.x) / TASK_INDENT
+        : 0,
       current.task.project || "",
       current.target,
       current.bounds,

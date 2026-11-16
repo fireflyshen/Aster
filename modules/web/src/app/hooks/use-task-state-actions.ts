@@ -1,6 +1,6 @@
 import { api, RequestError } from "@/lib/api";
 import type { DoingLimitCandidate } from "@/features/tasks/state-dialogs";
-import type { TaskState } from "@core/tasks/state";
+import { canTransition, type TaskState } from "@core/tasks/state";
 import type { Task } from "@shared/tasks";
 import { useCallback, useEffect, useState, type MutableRefObject } from "react";
 
@@ -148,6 +148,13 @@ export function useTaskStateActions(deps: {
   const changeTaskState = useCallback(
     async (task: Task, targetState: TaskState): Promise<boolean> => {
       if (targetState === "waiting") {
+        const current = task.state ?? "planned";
+        if (current !== "waiting" && !canTransition(current, "waiting")) {
+          return executeStateSet(
+            { uuid: task.uuid, state: "waiting", waitReason: "-" },
+            task.description,
+          );
+        }
         setDialogError("");
         setWaitingTask(task);
         return false;
