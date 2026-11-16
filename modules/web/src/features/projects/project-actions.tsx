@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { CountMenuTrigger } from "@/components/count-menu-trigger";
 import {
   Popover,
   PopoverContent,
@@ -24,8 +25,12 @@ export function ProjectActions({
   onStatus,
   canFocus = true,
   onAddChild,
+  compact = false,
+  count,
 }: {
   name: string;
+  compact?: boolean;
+  count?: number;
   onAddChild?: (name: string) => void;
   status?: import("@core/workspace/focus").ProjectStatus;
   onStatus?: (
@@ -41,15 +46,24 @@ export function ProjectActions({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={disabled}
-          aria-label={`Project options: ${name}`}
-          className="shrink-0 text-muted-foreground md:opacity-0 md:transition-opacity md:group-hover/project:opacity-100 md:group-focus-within/project:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
-        >
-          <Ellipsis className="size-4" />
-        </Button>
+        {compact ? (
+          <CountMenuTrigger
+            count={count}
+            disabled={disabled}
+            aria-label={`Project options: ${name}`}
+            title={name}
+          />
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={disabled}
+            aria-label={`Project options: ${name}`}
+            className="shrink-0 text-muted-foreground md:opacity-0 md:transition-opacity md:group-hover/project:opacity-100 md:group-focus-within/project:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
+          >
+            <Ellipsis className="size-4" />
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="end"
@@ -75,7 +89,7 @@ export function ProjectActions({
                 ) : (
                   <Play className="size-4" />
                 )}
-                {status === "active" ? "Pause project" : "Activate project"}
+                {status === "active" ? "移至稍后" : "设为焦点"}
               </Button>
             )}
             {status !== "completed" && (
@@ -88,7 +102,7 @@ export function ProjectActions({
                 }}
               >
                 <Check className="size-4" />
-                Complete project
+                完成项目
               </Button>
             )}
           </>
@@ -103,7 +117,7 @@ export function ProjectActions({
             }}
           >
             <Plus className="size-4" />
-            Add subproject
+            添加子项目
           </Button>
         )}
         <Button
@@ -115,7 +129,7 @@ export function ProjectActions({
           }}
         >
           <Pencil className="size-4" />
-          Edit project
+          编辑项目
         </Button>
         <Button
           variant="ghost"
@@ -126,7 +140,7 @@ export function ProjectActions({
           }}
         >
           <Trash2 className="size-4" />
-          Delete project
+          删除项目
         </Button>
       </PopoverContent>
     </Popover>

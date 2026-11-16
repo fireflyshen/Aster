@@ -13,7 +13,7 @@ import type {
   SavedFilter,
 } from "@core/workspace/organization";
 import { ChevronDown, Eye, EyeOff, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useBuiltinFilterPrefs } from "./builtin-filter-prefs";
 import {
   FilterEditorDialog,
@@ -46,8 +46,12 @@ export function OrganizationManager({
   onChange,
   onOpen,
   onReload,
+  editRequest,
+  onEditRequestConsumed,
 }: {
   data: Organization;
+  editRequest?: OrganizationEntry;
+  onEditRequestConsumed?: () => void;
   error: string;
   busy: boolean;
   loading: boolean;
@@ -71,6 +75,12 @@ export function OrganizationManager({
     toggleSectionHidden,
   } = useBuiltinFilterPrefs(data, onChange);
   const locked = busy || blocked;
+  useEffect(() => {
+    if (editRequest) {
+      edit(editRequest);
+      onEditRequestConsumed?.();
+    }
+  }, [editRequest, onEditRequestConsumed]);
 
   function edit(entry: OrganizationEntry) {
     setLocalError("");

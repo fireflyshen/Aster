@@ -3,8 +3,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @import "./styles/tokens.css";
+@import "./styles/settings.css";
 @import "./styles/board-and-motion.css";
 @import "./styles/workspace-and-list.css";
 @import "./styles/drag-and-composer.css";
 @import "./styles/task-detail.css";
 @import "./styles/mobile.css";
+@import "./styles/time-ledger.css";

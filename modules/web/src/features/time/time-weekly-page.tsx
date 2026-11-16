@@ -1,3 +1,4 @@
+import { LedgerPeriodPicker, LedgerSummary } from "./ledger-ui";
 import { useState } from "react";
 import { TimeStatisticChart } from "./time-statistic-chart";
 import type { StatisticDimension } from "./time-statistics";
@@ -41,97 +42,22 @@ export function TimeWeeklyPage({
         .sort((a, b) => b[1] - a[1]);
 
     return (
-        <div className="space-y-10">
-            {/* Minimal week switcher & single-line coverage summary */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-1">
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="上一周"
-                        className="text-muted-foreground"
-                        onClick={() =>
-                            onSelectDate(addLocalDays(selectedDate, -7))
-                        }
-                    >
-                        <ChevronLeft className="size-3.5" />
-                    </Button>
-                    <Input
-                        type="date"
-                        aria-label="选择所在周日期"
-                        className="h-7 w-[124px] border-0 bg-transparent px-1 text-xs font-medium shadow-none focus-visible:ring-0"
-                        value={selectedDate}
-                        onChange={(e) => {
-                            if (e.target.value) onSelectDate(e.target.value);
-                        }}
-                    />
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="下一周"
-                        className="text-muted-foreground"
-                        onClick={() =>
-                            onSelectDate(addLocalDays(selectedDate, 7))
-                        }
-                    >
-                        <ChevronRight className="size-3.5" />
-                    </Button>
-                    <span className="ml-1 text-xs text-muted-foreground/75 tabular-nums">
-                        {weekly.weekStartDate.slice(5)} –{" "}
-                        {weekly.weekEndDate.slice(5)}
-                        {weekly.isPartialWeek ? " · 进行中" : ""}
-                    </span>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        className="ml-1 h-6 px-2 text-xs text-muted-foreground"
-                        onClick={() => onSelectDate(todayStr)}
-                    >
-                        本周
-                    </Button>
-                </div>
-
-                <div
-                    className="text-xs text-muted-foreground tabular-nums"
-                    title={`已定位 ${formatDurationChinese(weekly.coveredSeconds)} · 空白 ${formatDurationChinese(weekly.unrecordedSeconds)} · 周容量 ${formatDurationChinese(weekly.pastCapacitySeconds)}`}
-                >
-                    已记{" "}
-                    <span className="text-foreground">
-                        {formatDurationCompact(weekly.coveredSeconds)}
-                    </span>
-                    {weekly.confirmedCostCents > 0 && (
-                        <span className="ml-1.5 font-medium text-foreground">
-                            {formatCurrencyCny(weekly.confirmedCostCents)}
-                        </span>
-                    )}
-                    {(weekly.provisionalSeconds ?? 0) > 0 && (
-                        <>
-                            <span className="mx-1.5 opacity-40">·</span>
-                            <span className="text-amber-600 dark:text-amber-400">
-                                待核对{" "}
-                                {formatDurationCompact(
-                                    weekly.provisionalSeconds ?? 0,
-                                )}
-                                {weekly.provisionalCostCents > 0
-                                    ? ` (${formatCurrencyCny(weekly.provisionalCostCents)})`
-                                    : ""}
-                            </span>
-                        </>
-                    )}
-                    <span className="mx-1.5 opacity-40">·</span>
-                    空白 {formatDurationCompact(weekly.unrecordedSeconds)}
-                    {weekly.unlocatedEstimates.length > 0 && (
-                        <>
-                            <span className="mx-1.5 opacity-40">·</span>
-                            待定位 {weekly.unlocatedEstimates.length}
-                        </>
-                    )}
-                </div>
-            </div>
-
+        <div className="ledger-page ledger-weekly">
+            <LedgerPeriodPicker date={selectedDate} label="选择所在周日期" onDate={onSelectDate} onPrevious={() => onSelectDate(addLocalDays(selectedDate, -7))} onNext={() => onSelectDate(addLocalDays(selectedDate, 7))} onToday={() => onSelectDate(todayStr)} todayLabel="本周"><span className="ledger-range">{weekly.weekStartDate} — {weekly.weekEndDate}{weekly.isPartialWeek ? " · 进行中" : ""}</span></LedgerPeriodPicker>
+            <LedgerSummary items={[
+              { label: "本周已记录", value: formatDurationCompact(weekly.coveredSeconds), hint: `${weekly.daily.filter(day => day.coveredSeconds > 0).length} 天有活动记录` },
+              { label: "已确认时间成本", value: formatCurrencyCny(weekly.confirmedCostCents), hint: "按记录时的单价折算" },
+              { label: "待核对", value: formatDurationCompact(weekly.provisionalSeconds ?? 0), hint: "未计入已确认成本", attention: (weekly.provisionalSeconds ?? 0) > 0 }
+            ]} />
+            <section className="ledger-week-overview" aria-label="每日投入">
+              <div className="ledger-section-heading"><h2>每日投入</h2><span>点击日期查看时间线</span></div>
+              <div className="ledger-week-bars">{weekly.daily.map(day => <button key={day.date} type="button" aria-label={`${day.date} ${formatDurationChinese(day.coveredSeconds)}，查看时间线`} onClick={() => onOpenDay(day.date)} data-today={day.date === todayStr || undefined}>
+                <strong>{formatDurationCompact(day.coveredSeconds)}</strong>
+                <span className="ledger-week-track"><i style={{ height: `${Math.max(2, day.coveredSeconds / Math.max(1, ...weekly.daily.map(item => item.coveredSeconds)) * 100)}%` }} /></span>
+                <span>{new Intl.DateTimeFormat("zh-CN", { weekday: "short", timeZone: "UTC" }).format(new Date(day.date+"T12:00:00Z"))}</span><small>{day.date.slice(5)}</small>
+              </button>)}</div>
+            </section>
+            <div className="ledger-section-heading"><h2>时间花在哪里</h2><span>按项目或标签查看投入</span></div>
             <TimeStatisticChart
                 dimension={dimension}
                 onDimension={setDimension}
@@ -166,7 +92,7 @@ export function TimeWeeklyPage({
 
             {/* Weekly Unlocated Estimates */}
             {weekly.unlocatedEstimates.length > 0 && (
-                <section>
+                <details className="ledger-disclosure"><summary>本周待定位估记 <span>{weekly.unlocatedEstimates.length}</span></summary>
                     <div className="flex items-center justify-between border-b border-border/60 pb-2">
                         <h2 className="text-xs font-medium text-muted-foreground">
                             本周待定位估记
@@ -228,7 +154,7 @@ export function TimeWeeklyPage({
                             );
                         })}
                     </div>
-                </section>
+                </details>
             )}
         </div>
     );

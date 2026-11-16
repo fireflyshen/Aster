@@ -184,13 +184,14 @@ export function TimeSettingsPage({
   }
 
   return (
-    <div className="max-w-2xl space-y-10">
+    <div className="ledger-page ledger-settings">
+      <p className="ledger-intro">设置时间单价与计时偏好。</p>
       {/* Main Policy Form: Clean Linear-style setting rows */}
-      <form onSubmit={(e) => void handleSavePolicy(e)} className="space-y-10">
-        <section>
+      <form onSubmit={(e) => void handleSavePolicy(e)} className="ledger-settings-form">
+        <section className="ledger-settings-group">
           <div className="flex items-center justify-between border-b border-border/60 pb-2">
             <h2 className="text-xs font-medium text-muted-foreground">
-              时间单价与成本展示
+              时间与成本
             </h2>
             <span className="text-xs text-muted-foreground/70">
               按后续新增记录生效
@@ -246,10 +247,10 @@ export function TimeSettingsPage({
           </div>
         </section>
 
-        <section>
+        <details className="ledger-disclosure ledger-settings-advanced"><summary>时区、计时提醒与作息</summary>
           <div className="flex items-center justify-between border-b border-border/60 pb-2">
             <h2 className="text-xs font-medium text-muted-foreground">
-              基础偏好
+              计时偏好
             </h2>
             <span className="text-xs text-muted-foreground/70">
               v{policy.policyVersion}
@@ -259,7 +260,7 @@ export function TimeSettingsPage({
           <div className="divide-y divide-border/35">
             <div className="flex flex-wrap items-center justify-between gap-4 py-3.5">
               <div>
-                <div className="text-sm text-foreground">IANA 时区</div>
+                <div className="text-sm text-foreground">时区</div>
                 <div className="text-xs text-muted-foreground">
                   按该时区切分日/周时间线与精力重置点
                 </div>
@@ -336,20 +337,12 @@ export function TimeSettingsPage({
             </div>
           </div>
 
-          <div className="mt-5 flex items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              活动归类直接使用 Taskwarrior 的「项目 +
-              标签」统计，不再单独维护预制分类。
-            </p>
-            <Button type="submit" size="sm" disabled={busy}>
-              保存设置
-            </Button>
-          </div>
-        </section>
+        </details>
+        <div className="ledger-settings-save"><Button type="submit" size="sm" disabled={busy}>保存设置</Button></div>
       </form>
 
       {/* Progressive disclosure: Data & Recovery utilities tucked cleanly inside Collapsibles */}
-      <section className="space-y-1">
+      <section className="ledger-settings-tools space-y-1">
         <div className="border-b border-border/60 pb-2">
           <h2 className="text-xs font-medium text-muted-foreground">
             数据工具

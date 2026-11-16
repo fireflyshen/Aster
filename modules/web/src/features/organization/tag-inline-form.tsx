@@ -1,11 +1,6 @@
 import { LabelIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Spinner } from "@/components/ui/spinner";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
 import { cn } from "cn";
@@ -48,35 +43,10 @@ export function TagInlineForm({
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              disabled={locked}
-              aria-label="选择标签颜色"
-              title="选择颜色"
-              className="size-8 shrink-0 rounded-md"
-            >
-              <LabelIcon
-                className="size-4"
-                style={{ color: itemColor(item.color) }}
-              />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 p-3">
-            <p className="mb-2 text-xs font-medium text-muted-foreground">
-              标签颜色
-            </p>
-            <ColorPicker
-              id="inline-label-color"
-              value={item.color}
-              disabled={locked}
-              onChange={(color) => onChange({ ...item, color })}
-            />
-          </PopoverContent>
-        </Popover>
+        <LabelIcon
+          className="size-5 shrink-0"
+          style={{ color: itemColor(item.color) }}
+        />
         <Input
           id="organization-name"
           autoFocus
@@ -88,6 +58,22 @@ export function TagInlineForm({
           onChange={(e) => onChange({ ...item, name: e.target.value })}
           className="h-8 min-w-[160px] flex-1 bg-background text-sm shadow-none"
         />
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor="inline-label-color"
+            className="text-xs text-muted-foreground"
+          >
+            颜色
+          </label>
+          <div className="w-36">
+            <ColorPicker
+              id="inline-label-color"
+              value={item.color}
+              disabled={locked}
+              onChange={(color) => onChange({ ...item, color })}
+            />
+          </div>
+        </div>
         <Button
           type="button"
           variant="ghost"
@@ -113,10 +99,10 @@ export function TagInlineForm({
             disabled={busy}
             onClick={onCancel}
           >
-            Cancel
+            取消
           </Button>
           <Button type="submit" size="xs" disabled={locked}>
-            {busy ? <Spinner className="size-3.5" /> : "Save"}
+            {busy ? <Spinner className="size-3.5" /> : "保存"}
           </Button>
         </div>
       </div>

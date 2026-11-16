@@ -2,6 +2,7 @@ import type { HabitTaskActions } from "@/features/habits/habit-task-controls";
 import { currentLocalTodayDate } from "@/features/habits/task-habit-field";
 import { useHabitsWorkspace } from "@/features/habits/use-habits";
 import type { TodayHabitsActions } from "@/features/habits/today-habits-section";
+import type { OrganizationEntry } from "@/features/organization/organization-types";
 import { useMemo, useState } from "react";
 import { isCompletedFilterExpression } from "@core/workspace/builtin-filters";
 import { ProjectColorsProvider } from "@/features/projects/project-icon";
@@ -26,6 +27,8 @@ import { useVisualViewport } from "./hooks/use-visual-viewport";
 /** Root workspace application coordinating navigation, data hooks, main canvas, and dialogs. */
 export function App() {
   useVisualViewport();
+  const [organizationEditRequest, setOrganizationEditRequest] =
+    useState<OrganizationEntry>();
   const nav = useWorkspaceNavigation();
   const data = useWorkspaceData({
     scope: nav.scope,
@@ -103,7 +106,8 @@ export function App() {
   const [habitFormOpen, setHabitFormOpen] = useState(false);
   const habits = useHabitsWorkspace({
     habitsPageActive: nav.habitsPage,
-    isTodayView: nav.view === "today" && !nav.currentProject && !nav.specialPage,
+    isTodayView:
+      nav.view === "today" && !nav.currentProject && !nav.specialPage,
     workspaceSyncKey,
   });
 
@@ -321,6 +325,11 @@ export function App() {
         }
         onElixir={() => void data.restoreEnergy()}
         onAdd={taskActions.openQuickAdd}
+        onChangeOrganization={data.changeOrganization}
+        onEditEntry={(entry) => {
+          setOrganizationEditRequest({ ...entry });
+          nav.openManagementPage("organization");
+        }}
         onEntry={nav.openEntry}
         onView={nav.selectView}
         onProject={nav.selectProject}
@@ -348,6 +357,10 @@ export function App() {
         />
 
         <WorkspaceContent
+          organizationEditRequest={organizationEditRequest}
+          onOrganizationEditConsumed={() =>
+            setOrganizationEditRequest(undefined)
+          }
           searchOpen={nav.searchOpen}
           query={nav.query}
           onQueryChange={nav.setQuery}
@@ -487,9 +500,7 @@ export function App() {
           } as never);
         }}
         habitByTaskUuid={habits.habitByTaskUuid}
-        habitTodayDate={
-          habits.todayData?.todayDate || currentLocalTodayDate()
-        }
+        habitTodayDate={habits.todayData?.todayDate || currentLocalTodayDate()}
         habitActions={habitTaskActions}
         onBindTaskHabit={habits.bindTaskHabit}
         onUnbindTaskHabit={habits.unbindTaskHabit}

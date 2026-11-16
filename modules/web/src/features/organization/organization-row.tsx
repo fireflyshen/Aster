@@ -1,5 +1,6 @@
 import { FilterIcon, LabelIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { CountMenuTrigger } from "@/components/count-menu-trigger";
 import {
   Popover,
   PopoverContent,
@@ -45,7 +46,7 @@ export function OrganizationRow({
   return (
     <div
       data-organization-row
-      className="group -mx-2.5 flex min-h-10 items-center px-2.5 md:-mx-3 md:px-3"
+      className="organization-list-row group -mx-2.5 flex min-h-10 items-center px-2.5 md:-mx-3 md:px-3"
     >
       <Button
         variant="ghost"
@@ -64,11 +65,6 @@ export function OrganizationRow({
           </span>
         )}
       </Button>
-      {kind === "tag" && (
-        <span className="ml-3 text-xs tabular-nums text-muted-foreground">
-          {(item as SavedTag).count || ""}
-        </span>
-      )}
       <Button
         type="button"
         variant="ghost"
@@ -80,7 +76,7 @@ export function OrganizationRow({
         title={item.favorite ? "取消收藏" : "添加到收藏"}
         onClick={() => onFavorite(entry)}
         className={cn(
-          "ml-1 size-7 transition-opacity",
+          "organization-row-quick-action ml-1 size-7 transition-opacity",
           item.favorite
             ? "text-primary opacity-100"
             : "text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
@@ -88,6 +84,7 @@ export function OrganizationRow({
       >
         <Heart className={cn("size-3.5", item.favorite && "fill-current")} />
       </Button>
+      {onEdit && !isBuiltin && <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} aria-label={`编辑: ${item.name}`} title="编辑" onClick={() => onEdit(entry)} className="organization-row-quick-action ml-1 size-7 text-muted-foreground"><Pencil className="size-4" /></Button>}
       {onToggleHide && (
         <Button
           type="button"
@@ -114,6 +111,8 @@ export function OrganizationRow({
         </Button>
       )}
       <RowMenu
+        compact
+        count={kind === "tag" ? (item as SavedTag).count : undefined}
         entry={entry}
         disabled={disabled}
         isBuiltin={isBuiltin}
@@ -127,7 +126,7 @@ export function OrganizationRow({
   );
 }
 
-function RowMenu({
+export function RowMenu({
   entry,
   disabled,
   isBuiltin,
@@ -136,8 +135,12 @@ function RowMenu({
   onFavorite,
   onToggleHide,
   onDelete,
+  compact = false,
+  count,
 }: {
   entry: OrganizationEntry;
+  compact?: boolean;
+  count?: number;
   disabled: boolean;
   isBuiltin: boolean;
   isHidden: boolean;
@@ -172,18 +175,27 @@ function RowMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={disabled}
-          aria-label={`操作选项: ${entry.item.name}`}
-          className={cn(
-            "ml-2 text-muted-foreground md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 data-[state=open]:opacity-100",
-            open && "bg-accent",
-          )}
-        >
-          <Ellipsis className="size-4" />
-        </Button>
+        {compact ? (
+          <CountMenuTrigger
+            count={count}
+            disabled={disabled}
+            aria-label={`操作选项: ${entry.item.name}`}
+            title={entry.item.name}
+          />
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            disabled={disabled}
+            aria-label={`操作选项: ${entry.item.name}`}
+            className={cn(
+              "ml-2 text-muted-foreground md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100 data-[state=open]:opacity-100",
+              open && "bg-accent",
+            )}
+          >
+            <Ellipsis className="size-4" />
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent
         align="end"

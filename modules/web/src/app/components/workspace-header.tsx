@@ -21,7 +21,6 @@ import { cn } from "cn";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { PanelLeft, RotateCw, Search, Target } from "lucide-react";
-import { ThemeSwitcher } from "../theme-switcher";
 import type {
   CompleteBehavior,
   TimePage,
@@ -83,7 +82,6 @@ export function WorkspaceToolbar({
               <Search className="size-[18px]" strokeWidth={1.5} />
             </Button>
           )}
-          <ThemeSwitcher />
           <Button
             variant="ghost"
             size="icon-sm"
@@ -156,10 +154,10 @@ type WorkspaceHeadingProps = {
 };
 
 const TIME_PAGE_TITLES: Record<TimePage, string> = {
-  today: "今日时间线",
+  today: "时间账本",
   weekly: "本周分布",
   reports: "成本报告",
-  settings: "时间设置",
+  settings: "时间与预算",
 };
 
 /** View heading bar with breadcrumbs, Todoist count/subtitle, Focus toggle, and layout/options controls. */

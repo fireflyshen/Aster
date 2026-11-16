@@ -8,14 +8,16 @@ export function TimeStatisticChart({
     onDimension,
     dimensions,
     onOpenDay,
+    initialMetric = "seconds",
 }: {
     rows: StatisticRow[];
+    initialMetric?: "seconds" | "cost";
     dimension: StatisticDimension;
     onDimension: (dimension: StatisticDimension) => void;
     dimensions: StatisticDimension[];
     onOpenDay: (date: string) => void;
 }) {
-    const [metric, setMetric] = useState<"seconds" | "cost">("seconds");
+    const [metric, setMetric] = useState<"seconds" | "cost">(initialMetric);
     const labels = { day: "每日", project: "项目", tag: "标签" };
     const ordered =
         dimension === "day"
@@ -27,7 +29,7 @@ export function TimeStatisticChart({
             ? formatDurationCompact(value)
             : formatCurrencyCny(value);
     return (
-        <section aria-label="投入统计" className="space-y-4">
+        <section aria-label="投入统计" className="ledger-statistic space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-2 text-xs">
                 <div className="flex gap-4" role="group" aria-label="统计维度">
                     {dimensions.map((value) => (
@@ -89,7 +91,7 @@ export function TimeStatisticChart({
                                     aria-hidden="true"
                                 >
                                     <span
-                                        className="absolute inset-y-0 left-0 bg-foreground/50"
+                                        className="ledger-statistic-bar absolute inset-y-0 left-0"
                                         style={{
                                             width: `${(Math.max(0, row[metric]) / maximum) * 100}%`,
                                         }}

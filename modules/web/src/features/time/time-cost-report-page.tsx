@@ -1,3 +1,4 @@
+import { LedgerPeriodPicker, LedgerSummary } from "./ledger-ui";
 import { TimeStatisticChart } from "./time-statistic-chart";
 import {
     costStatisticRows,
@@ -167,118 +168,10 @@ export function TimeCostReportPage({
     }
 
     return (
-        <div className="space-y-8">
-            {/* Period & Sort Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-1.5">
-                    <div className="inline-flex rounded-md bg-muted/60 p-0.5 text-xs">
-                        <button
-                            type="button"
-                            onClick={() => setGranularity("week")}
-                            className={
-                                granularity === "week"
-                                    ? "rounded px-2.5 py-1 font-medium text-foreground bg-background shadow-xs"
-                                    : "px-2.5 py-1 text-muted-foreground hover:text-foreground"
-                            }
-                        >
-                            按周
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setGranularity("month")}
-                            className={
-                                granularity === "month"
-                                    ? "rounded px-2.5 py-1 font-medium text-foreground bg-background shadow-xs"
-                                    : "px-2.5 py-1 text-muted-foreground hover:text-foreground"
-                            }
-                        >
-                            按月
-                        </button>
-                    </div>
-
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="上一周期"
-                        className="text-muted-foreground"
-                        onClick={() =>
-                            onSelectDate(
-                                shiftPeriodDate(selectedDate, granularity, -1),
-                            )
-                        }
-                    >
-                        <ChevronLeft className="size-3.5" />
-                    </Button>
-                    <Input
-                        type="date"
-                        aria-label="选择统计周期日期"
-                        className="h-7 w-[124px] border-0 bg-transparent px-1 text-xs font-medium shadow-none focus-visible:ring-0"
-                        value={selectedDate}
-                        onChange={(e) => {
-                            if (e.target.value) onSelectDate(e.target.value);
-                        }}
-                    />
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="下一周期"
-                        className="text-muted-foreground"
-                        onClick={() =>
-                            onSelectDate(
-                                shiftPeriodDate(selectedDate, granularity, 1),
-                            )
-                        }
-                    >
-                        <ChevronRight className="size-3.5" />
-                    </Button>
-                    {report && (
-                        <span className="text-xs text-muted-foreground/80 tabular-nums">
-                            {report.periodStartDate.slice(5)} –{" "}
-                            {report.periodEndDate.slice(5)}
-                        </span>
-                    )}
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="xs"
-                        className="h-6 px-2 text-xs text-muted-foreground"
-                        onClick={() => onSelectDate(todayStr)}
-                    >
-                        {granularity === "week" ? "本周" : "本月"}
-                    </Button>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <div className="inline-flex rounded-md bg-muted/60 p-0.5">
-                        <button
-                            type="button"
-                            onClick={() => setSortBy("highest_cost")}
-                            className={
-                                sortBy === "highest_cost"
-                                    ? "rounded px-2.5 py-1 font-medium text-foreground bg-background shadow-xs"
-                                    : "px-2.5 py-1 text-muted-foreground hover:text-foreground"
-                            }
-                        >
-                            时间成本最高
-                        </button>
-                        <button
-                            type="button"
-                            disabled={groupBy === "tag"}
-                            onClick={() => setSortBy("highest_over_budget")}
-                            className={
-                                sortBy === "highest_over_budget"
-                                    ? "rounded px-2.5 py-1 font-medium text-foreground bg-background shadow-xs"
-                                    : "px-2.5 py-1 text-muted-foreground hover:text-foreground"
-                            }
-                        >
-                            超出预估最多
-                        </button>
-                    </div>
-                </div>
-            </div>
-
+        <div className="ledger-page ledger-report">
+            <LedgerPeriodPicker date={selectedDate} label="选择统计周期日期" onDate={onSelectDate} onPrevious={() => onSelectDate(shiftPeriodDate(selectedDate, granularity, -1))} onNext={() => onSelectDate(shiftPeriodDate(selectedDate, granularity, 1))} onToday={() => onSelectDate(todayStr)} todayLabel={granularity === "week" ? "本周" : "本月"}>
+              <div className="ledger-segments" role="group" aria-label="报告周期">{([ ["week", "按周"], ["month", "按月"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={granularity===value} onClick={() => setGranularity(value)}>{label}</button>)}</div>
+            </LedgerPeriodPicker>
             {error && <p className="text-xs text-destructive">{error}</p>}
 
             {loading && !report ? (
@@ -288,75 +181,18 @@ export function TimeCostReportPage({
                 </div>
             ) : report ? (
                 <>
-                    {/* Summary Strip */}
-                    <div className="grid grid-cols-1 gap-3 border-y border-border/60 py-4 sm:grid-cols-3">
-                        <div>
-                            <div className="text-xs text-muted-foreground">
-                                期间时间成本（已确认）
-                            </div>
-                            <div className="mt-1 flex items-baseline gap-2 tabular-nums">
-                                <span className="text-xl font-semibold text-foreground">
-                                    {formatCurrencyCny(
-                                        report.totalPeriodConfirmedCostCents,
-                                    )}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    {formatDurationChinese(
-                                        report.totalPeriodConfirmedSeconds,
-                                    )}
-                                </span>
-                            </div>
-                            {report.totalPeriodProvisionalCostCents > 0 && (
-                                <div className="mt-1 text-[11px] text-amber-600 dark:text-amber-400 tabular-nums">
-                                    另含待核对{" "}
-                                    {formatCurrencyCny(
-                                        report.totalPeriodProvisionalCostCents,
-                                    )}
-                                    （
-                                    {formatDurationCompact(
-                                        report.totalPeriodProvisionalSeconds,
-                                    )}
-                                    ，未计入合计）
-                                </div>
-                            )}
-                        </div>
-
-                        <div>
-                            <div className="text-xs text-muted-foreground">
-                                关联现金支出（Bills 只读）
-                            </div>
-                            <div className="mt-1 flex items-baseline gap-2 tabular-nums">
-                                <span className="text-xl font-semibold text-foreground">
-                                    {formatCurrencyCny(
-                                        report.totalCashExpenseCents,
-                                    )}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    实付现金单独列示
-                                </span>
-                            </div>
-                        </div>
-
-                        <div>
-                            <div className="text-xs text-muted-foreground">
-                                综合投入（含时间折算）
-                            </div>
-                            <div className="mt-1 flex items-baseline gap-2 tabular-nums">
-                                <span className="text-xl font-semibold text-foreground">
-                                    {formatCurrencyCny(
-                                        report.totalCombinedCostCents,
-                                    )}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                    当前单价{" "}
-                                    {formatCurrencyCny(report.hourlyRateCents)}
-                                    /h
-                                </span>
-                            </div>
-                        </div>
+                    <LedgerSummary items={[
+                      { label: "综合投入", value: formatCurrencyCny(report.totalCombinedCostCents), hint: "已确认时间成本 + 关联现金支出" },
+                      { label: "时间成本", value: formatCurrencyCny(report.totalPeriodConfirmedCostCents), hint: `${formatDurationChinese(report.totalPeriodConfirmedSeconds)} · 已确认` },
+                      { label: "关联现金支出", value: formatCurrencyCny(report.totalCashExpenseCents), hint: "Bills 账单" }
+                    ]} />
+                    {report.totalPeriodProvisionalCostCents > 0 && <p className="ledger-review-note">另有 {formatCurrencyCny(report.totalPeriodProvisionalCostCents)} 待核对，未计入合计。</p>}
+                    <div className="ledger-report-controls">
+                      <div className="ledger-segments" role="group" aria-label="成本分组">{([ ["project", "项目"], ["tag", "标签"] ] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={groupBy===value} onClick={() => { setGroupBy(value); setExpandedKey(null); if(value === "tag") setSortBy("highest_cost"); }}>{label}</button>)}</div>
+                      <label className="ledger-sort">排序<select aria-label="成本排序" value={sortBy} onChange={event => setSortBy(event.target.value as CostReportSortBy)}><option value="highest_cost">时间成本最高</option><option value="highest_over_budget" disabled={groupBy === "tag"}>超出预估最多</option></select></label>
                     </div>
-
-                    <TimeStatisticChart
+                    <details className="ledger-disclosure ledger-report-chart"><summary>查看成本分布图</summary>
+                    <TimeStatisticChart initialMetric="cost"
                         rows={costStatisticRows(report, groupBy)}
                         dimension={groupBy}
                         onDimension={(value: StatisticDimension) => {
@@ -370,6 +206,7 @@ export function TimeCostReportPage({
                         onOpenDay={onOpenDay}
                     />
 
+                    </details>
                     {
                         <section className="space-y-2">
                             <div className="flex items-center justify-between border-b border-border/60 pb-2 text-xs text-muted-foreground">
@@ -378,7 +215,7 @@ export function TimeCostReportPage({
                                         ? "项目成本汇总"
                                         : "标签成本汇总"}
                                 </span>
-                                <span>点击展开时间记录</span>
+                                <span>点击项目查看明细</span>
                             </div>
 
                             {(groupBy === "project"
@@ -405,7 +242,8 @@ export function TimeCostReportPage({
                                                             open ? null : key,
                                                         )
                                                     }
-                                                    className="flex w-full items-start justify-between gap-4 text-left"
+                                                    className="ledger-cost-row flex w-full items-start justify-between gap-4 text-left"
+                                                    aria-expanded={open}
                                                 >
                                                     <div className="min-w-0 space-y-1">
                                                         <div className="flex items-center gap-2">

@@ -1,3 +1,4 @@
+import { LedgerPeriodPicker, LedgerSummary } from "./ledger-ui";
 import type {
     Activity,
     DailyLedgerSummary,
@@ -178,6 +179,7 @@ export function TimeTodayPage({
         (c) => c.status === "pending",
     );
 
+    const [showGaps, setShowGaps] = useState(false);
     const [quickTitle, setQuickTitle] = useState("");
     const [quickProject, setQuickProject] = useState("");
     const [quickTags, setQuickTags] = useState<string[]>([]);
@@ -252,6 +254,7 @@ export function TimeTodayPage({
         return items;
     }, [daily.locatedSegments, daily.gaps]);
 
+    const displayedTimelineItems = showGaps ? timelineItems : timelineItems.filter(item => item.kind === "segment");
     const planDate = selectedDate > todayStr ? selectedDate : todayStr;
     const draftPlanEvaluation = useMemo(() => {
         if (!showPlanLimit) return { hasLimit: false as const };
@@ -528,355 +531,18 @@ export function TimeTodayPage({
     }
 
     return (
-        <div className="space-y-9">
-            {/* Top quiet date & coverage bar */}
-            <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-1">
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="前一天"
-                        className="text-muted-foreground"
-                        onClick={() =>
-                            onSelectDate(addLocalDays(selectedDate, -1))
-                        }
-                    >
-                        <ChevronLeft className="size-3.5" />
-                    </Button>
-                    <Input
-                        type="date"
-                        aria-label="选择日期"
-                        className="h-7 w-[124px] border-0 bg-transparent px-1 text-xs font-medium shadow-none focus-visible:ring-0"
-                        value={selectedDate}
-                        onChange={(e) => {
-                            if (e.target.value) onSelectDate(e.target.value);
-                        }}
-                    />
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="后一天"
-                        className="text-muted-foreground"
-                        onClick={() =>
-                            onSelectDate(addLocalDays(selectedDate, 1))
-                        }
-                    >
-                        <ChevronRight className="size-3.5" />
-                    </Button>
-                    {selectedDate !== todayStr && (
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="xs"
-                            className="ml-1 h-6 px-2 text-xs text-muted-foreground"
-                            onClick={() => onSelectDate(todayStr)}
-                        >
-                            回到今天
-                        </Button>
-                    )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                    <span
-                        className="tabular-nums"
-                        title={`已定位 ${formatDurationChinese(daily.coveredSeconds)}${(daily.provisionalSeconds ?? 0) > 0 ? ` · 待核对 ${formatDurationChinese(daily.provisionalSeconds ?? 0)}` : ""} · 空白 ${formatDurationChinese(daily.unrecordedSeconds)} · 容量 ${formatDurationChinese(daily.pastCapacitySeconds)}`}
-                    >
-                        已记{" "}
-                        <span className="text-foreground">
-                            {formatDurationCompact(daily.coveredSeconds)}
-                        </span>
-                        {daily.confirmedCostCents > 0 && (
-                            <span className="ml-1.5 text-foreground font-medium">
-                                {formatCurrencyCny(daily.confirmedCostCents)}
-                            </span>
-                        )}
-                        {(daily.provisionalSeconds ?? 0) > 0 && (
-                            <>
-                                <span className="mx-1.5 opacity-40">·</span>
-                                <span className="text-amber-600 dark:text-amber-400">
-                                    待核对{" "}
-                                    {formatDurationCompact(
-                                        daily.provisionalSeconds ?? 0,
-                                    )}
-                                    {daily.provisionalCostCents > 0
-                                        ? ` (${formatCurrencyCny(daily.provisionalCostCents)})`
-                                        : ""}
-                                </span>
-                            </>
-                        )}
-                        <span className="mx-1.5 opacity-40">·</span>
-                        空白 {formatDurationCompact(daily.unrecordedSeconds)}
-                        {daily.unlocatedEstimates.length > 0 && (
-                            <>
-                                <span className="mx-1.5 opacity-40">·</span>
-                                待定位 {daily.unlocatedEstimates.length}
-                            </>
-                        )}
-                    </span>
-
-                    <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        disabled={busy}
-                        onClick={() =>
-                            setLogDialogSeed({
-                                mode: "log",
-                                date: selectedDate,
-                                startTime: "19:00",
-                                endTime: "20:00",
-                                estimatedMinutes: "60",
-                            })
-                        }
-                    >
-                        <Plus className="size-3.5" />
-                        补记
-                    </Button>
-                </div>
-            </div>
-
-            {/* Pending reconcile notice (quiet left rule, shown only when needed) */}
-            {pendingDetails.length > 0 && (
-                <section className="space-y-3 border-l-2 border-amber-500/70 pl-4 py-0.5">
-                    <div className="text-xs font-medium text-foreground">
-                        {pendingDetails.length} 笔跨系统计时操作待确认
-                    </div>
-                    <div className="space-y-2">
-                        {pendingDetails.map((op) => (
-                            <div
-                                key={op.operationId}
-                                className="flex flex-wrap items-center justify-between gap-2 text-xs"
-                            >
-                                <span className="text-muted-foreground">
-                                    {op.kind} · {op.operationId.slice(0, 8)}
-                                    {op.suggestionHint
-                                        ? ` — ${op.suggestionHint}`
-                                        : ""}
-                                </span>
-                                <div className="flex items-center gap-1.5">
-                                    {op.kind === "task_start" ? (
-                                        <Button
-                                            type="button"
-                                            size="xs"
-                                            disabled={busy}
-                                            onClick={() =>
-                                                void runMutation(
-                                                    "确认任务已开始并补记计时",
-                                                    () =>
-                                                        resolveTimeOperation({
-                                                            operationId:
-                                                                op.operationId,
-                                                            action: "accept_started",
-                                                        }),
-                                                )
-                                            }
-                                        >
-                                            按已开始确认
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            type="button"
-                                            size="xs"
-                                            disabled={busy}
-                                            onClick={() =>
-                                                void runMutation(
-                                                    "确认结束关联活动计时",
-                                                    () =>
-                                                        resolveTimeOperation({
-                                                            operationId:
-                                                                op.operationId,
-                                                            action: "stop_active",
-                                                        }),
-                                                )
-                                            }
-                                        >
-                                            停止关联计时
-                                        </Button>
-                                    )}
-                                    <Button
-                                        type="button"
-                                        size="xs"
-                                        variant="ghost"
-                                        disabled={busy}
-                                        onClick={() =>
-                                            void runMutation(
-                                                "已按放弃处理",
-                                                () =>
-                                                    resolveTimeOperation({
-                                                        operationId:
-                                                            op.operationId,
-                                                        action: "dismiss",
-                                                    }),
-                                            )
-                                        }
-                                    >
-                                        忽略
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {/* Unacknowledged Auto-stop / Checkpoint Events */}
-            {events.length > 0 && (
-                <section className="space-y-2.5 border-l-2 border-foreground/30 pl-4 py-0.5">
-                    {events.map((ev) => {
-                        const seg = ev.activityId
-                            ? daily.locatedSegments.find(
-                                  (s) => s.activityId === ev.activityId,
-                              )
-                            : undefined;
-                        const linkedPlan =
-                            plans.find(
-                                (p) =>
-                                    p.id === (ev.planId ?? seg?.timingPlanId),
-                            ) ?? undefined;
-                        const isAutoStopped = ev.kind === "auto_stopped";
-                        const isCheckpointDue = ev.kind === "checkpoint_due";
-
-                        return (
-                            <div
-                                key={ev.id}
-                                className="flex flex-wrap items-center justify-between gap-3 text-xs"
-                            >
-                                <div className="min-w-0 space-y-0.5">
-                                    <p className="text-foreground">
-                                        {isAutoStopped && seg
-                                            ? `已自动停止 · ${ev.title} · 本段记录 ${formatDurationChinese(seg.durationSeconds)}，暂计 ${formatCurrencyCny(
-                                                  seg.provisionalCostCents > 0
-                                                      ? seg.provisionalCostCents
-                                                      : computeDurationCostCents(
-                                                            seg.durationSeconds,
-                                                            seg.hourlyRateCents ??
-                                                                policyRateCents,
-                                                        ),
-                                              )}`
-                                            : ev.message || ev.title}
-                                    </p>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                    {isAutoStopped &&
-                                        seg &&
-                                        seg.reviewState ===
-                                            "review_required" && (
-                                            <>
-                                                <Button
-                                                    type="button"
-                                                    size="xs"
-                                                    variant="outline"
-                                                    disabled={busy}
-                                                    onClick={() =>
-                                                        void runMutation(
-                                                            `已确认：${seg.title}`,
-                                                            async () => {
-                                                                const receipt =
-                                                                    await confirmTimeActivity(
-                                                                        {
-                                                                            activityId:
-                                                                                seg.activityId,
-                                                                            expectedVersion:
-                                                                                seg.version,
-                                                                        },
-                                                                    );
-                                                                await onAckEvents(
-                                                                    [ev.id],
-                                                                );
-                                                                return receipt;
-                                                            },
-                                                            { undoable: true },
-                                                        )
-                                                    }
-                                                >
-                                                    <Check className="size-3" />
-                                                    确认时间
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    size="xs"
-                                                    variant="ghost"
-                                                    disabled={busy}
-                                                    onClick={() =>
-                                                        setEditingSegment(seg)
-                                                    }
-                                                >
-                                                    修正时间
-                                                </Button>
-                                            </>
-                                        )}
-                                    {isAutoStopped && linkedPlan && (
-                                        <Button
-                                            type="button"
-                                            size="xs"
-                                            variant="ghost"
-                                            disabled={busy}
-                                            onClick={() =>
-                                                openPlanExtend(linkedPlan)
-                                            }
-                                        >
-                                            增加时间并继续
-                                        </Button>
-                                    )}
-                                    {isCheckpointDue &&
-                                        active &&
-                                        active.id === ev.activityId && (
-                                            <Button
-                                                type="button"
-                                                size="xs"
-                                                variant="outline"
-                                                disabled={busy}
-                                                onClick={() =>
-                                                    void runMutation(
-                                                        `已确认此刻：${active.title}`,
-                                                        async () => {
-                                                            const receipt =
-                                                                await confirmTimeActivity(
-                                                                    {
-                                                                        activityId:
-                                                                            active.id,
-                                                                        expectedVersion:
-                                                                            active.version,
-                                                                        throughMs:
-                                                                            Date.now(),
-                                                                    },
-                                                                );
-                                                            await onAckEvents([
-                                                                ev.id,
-                                                            ]);
-                                                            return receipt;
-                                                        },
-                                                    )
-                                                }
-                                            >
-                                                <Check className="size-3" />
-                                                确认这段
-                                            </Button>
-                                        )}
-                                    <Button
-                                        type="button"
-                                        size="xs"
-                                        variant="ghost"
-                                        className="text-muted-foreground"
-                                        disabled={busy}
-                                        onClick={() =>
-                                            void onAckEvents([ev.id])
-                                        }
-                                    >
-                                        知道了
-                                    </Button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </section>
-            )}
-
+        <div className="ledger-page ledger-today">
+            <LedgerPeriodPicker date={selectedDate} label="选择日期" onDate={onSelectDate} onPrevious={() => onSelectDate(addLocalDays(selectedDate, -1))} onNext={() => onSelectDate(addLocalDays(selectedDate, 1))} onToday={() => onSelectDate(todayStr)}>
+              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => setLogDialogSeed({ mode: "log", date: selectedDate, startTime: "19:00", endTime: "20:00", estimatedMinutes: "60" })}><Plus className="size-4" />补记时间</Button>
+            </LedgerPeriodPicker>
+            <LedgerSummary items={[
+              { label: "已记录", value: formatDurationCompact(daily.coveredSeconds), hint: `${daily.locatedSegments.length} 段活动` },
+              { label: "已确认时间成本", value: formatCurrencyCny(daily.confirmedCostCents), hint: "按记录时的单价折算" },
+              { label: "待核对", value: formatDurationCompact(daily.provisionalSeconds ?? 0), hint: (daily.provisionalCostCents ?? 0) > 0 ? `${formatCurrencyCny(daily.provisionalCostCents)} · 未计入已确认成本` : "未计入已确认成本", attention: (daily.provisionalSeconds ?? 0) > 0 }
+            ]} />
             {/* Now: Active Timer & Single-line Quick Capture */}
-            <section className="space-y-5">
+            <section className="ledger-capture space-y-4" aria-label="开始计时">
+                <h2 className="ledger-section-title">{active ? "正在进行" : "开始一段专注"}</h2>
                 {active && (
                     <div className="space-y-2 border-l-2 border-primary/80 pl-4 py-1">
                         <div className="flex items-center justify-between gap-4">
@@ -1067,6 +733,7 @@ export function TimeTodayPage({
                             <Play className="size-3.5" />{active ? "切换" : "开始"}
                         </Button>
                     </div>
+                    <details className="ledger-capture-options"><summary>{quickProject || quickTaskUuid !== "none" || quickTags.length ? `已选：${[quickTaskUuid !== "none" ? "关联任务" : "", quickProject, ...quickTags].filter(Boolean).join(" · ")}` : "关联任务、项目与标签"}{showPlanLimit ? " · 已设定时" : ""}</summary>
                     <div className="time-quick-options">
                     <div className="time-quick-controls">
                             <Select
@@ -1230,11 +897,12 @@ export function TimeTodayPage({
                                 ) : null)}
                         </div>
                     )}
+                    </details>
                 </form>
 
                 {/* Quiet Timing Plans (Manual Start -> Auto-stop) */}
                 {visiblePlans.length > 0 && (
-                    <div className="space-y-1">
+                    <details className="ledger-disclosure ledger-plans"><summary>计时安排 <span>{visiblePlans.length}</span></summary>
                         {visiblePlans.map((plan) => {
                             const predictedStop = computePredictedStopMs(
                                 nowMs,
@@ -1579,13 +1247,250 @@ export function TimeTodayPage({
                                 </div>
                             );
                         })}
-                    </div>
+                    </details>
                 )}
             </section>
 
+            {/* Pending reconcile notice (quiet left rule, shown only when needed) */}
+            {pendingDetails.length > 0 && (
+                <section className="space-y-3 border-l-2 border-amber-500/70 pl-4 py-0.5">
+                    <div className="text-xs font-medium text-foreground">
+                        {pendingDetails.length} 笔跨系统计时操作待确认
+                    </div>
+                    <div className="space-y-2">
+                        {pendingDetails.map((op) => (
+                            <div
+                                key={op.operationId}
+                                className="flex flex-wrap items-center justify-between gap-2 text-xs"
+                            >
+                                <span className="text-muted-foreground">
+                                    {op.kind} · {op.operationId.slice(0, 8)}
+                                    {op.suggestionHint
+                                        ? ` — ${op.suggestionHint}`
+                                        : ""}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                    {op.kind === "task_start" ? (
+                                        <Button
+                                            type="button"
+                                            size="xs"
+                                            disabled={busy}
+                                            onClick={() =>
+                                                void runMutation(
+                                                    "确认任务已开始并补记计时",
+                                                    () =>
+                                                        resolveTimeOperation({
+                                                            operationId:
+                                                                op.operationId,
+                                                            action: "accept_started",
+                                                        }),
+                                                )
+                                            }
+                                        >
+                                            按已开始确认
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            type="button"
+                                            size="xs"
+                                            disabled={busy}
+                                            onClick={() =>
+                                                void runMutation(
+                                                    "确认结束关联活动计时",
+                                                    () =>
+                                                        resolveTimeOperation({
+                                                            operationId:
+                                                                op.operationId,
+                                                            action: "stop_active",
+                                                        }),
+                                                )
+                                            }
+                                        >
+                                            停止关联计时
+                                        </Button>
+                                    )}
+                                    <Button
+                                        type="button"
+                                        size="xs"
+                                        variant="ghost"
+                                        disabled={busy}
+                                        onClick={() =>
+                                            void runMutation(
+                                                "已按放弃处理",
+                                                () =>
+                                                    resolveTimeOperation({
+                                                        operationId:
+                                                            op.operationId,
+                                                        action: "dismiss",
+                                                    }),
+                                            )
+                                        }
+                                    >
+                                        忽略
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {/* Unacknowledged Auto-stop / Checkpoint Events */}
+            {events.length > 0 && (
+                <details className="ledger-disclosure"><summary>计时提醒</summary>
+                    {events.map((ev) => {
+                        const seg = ev.activityId
+                            ? daily.locatedSegments.find(
+                                  (s) => s.activityId === ev.activityId,
+                              )
+                            : undefined;
+                        const linkedPlan =
+                            plans.find(
+                                (p) =>
+                                    p.id === (ev.planId ?? seg?.timingPlanId),
+                            ) ?? undefined;
+                        const isAutoStopped = ev.kind === "auto_stopped";
+                        const isCheckpointDue = ev.kind === "checkpoint_due";
+
+                        return (
+                            <div
+                                key={ev.id}
+                                className="flex flex-wrap items-center justify-between gap-3 text-xs"
+                            >
+                                <div className="min-w-0 space-y-0.5">
+                                    <p className="text-foreground">
+                                        {isAutoStopped && seg
+                                            ? `已自动停止 · ${ev.title} · 本段记录 ${formatDurationChinese(seg.durationSeconds)}，暂计 ${formatCurrencyCny(
+                                                  seg.provisionalCostCents > 0
+                                                      ? seg.provisionalCostCents
+                                                      : computeDurationCostCents(
+                                                            seg.durationSeconds,
+                                                            seg.hourlyRateCents ??
+                                                                policyRateCents,
+                                                        ),
+                                              )}`
+                                            : ev.message || ev.title}
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    {isAutoStopped &&
+                                        seg &&
+                                        seg.reviewState ===
+                                            "review_required" && (
+                                            <>
+                                                <Button
+                                                    type="button"
+                                                    size="xs"
+                                                    variant="outline"
+                                                    disabled={busy}
+                                                    onClick={() =>
+                                                        void runMutation(
+                                                            `已确认：${seg.title}`,
+                                                            async () => {
+                                                                const receipt =
+                                                                    await confirmTimeActivity(
+                                                                        {
+                                                                            activityId:
+                                                                                seg.activityId,
+                                                                            expectedVersion:
+                                                                                seg.version,
+                                                                        },
+                                                                    );
+                                                                await onAckEvents(
+                                                                    [ev.id],
+                                                                );
+                                                                return receipt;
+                                                            },
+                                                            { undoable: true },
+                                                        )
+                                                    }
+                                                >
+                                                    <Check className="size-3" />
+                                                    确认时间
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    size="xs"
+                                                    variant="ghost"
+                                                    disabled={busy}
+                                                    onClick={() =>
+                                                        setEditingSegment(seg)
+                                                    }
+                                                >
+                                                    修正时间
+                                                </Button>
+                                            </>
+                                        )}
+                                    {isAutoStopped && linkedPlan && (
+                                        <Button
+                                            type="button"
+                                            size="xs"
+                                            variant="ghost"
+                                            disabled={busy}
+                                            onClick={() =>
+                                                openPlanExtend(linkedPlan)
+                                            }
+                                        >
+                                            增加时间并继续
+                                        </Button>
+                                    )}
+                                    {isCheckpointDue &&
+                                        active &&
+                                        active.id === ev.activityId && (
+                                            <Button
+                                                type="button"
+                                                size="xs"
+                                                variant="outline"
+                                                disabled={busy}
+                                                onClick={() =>
+                                                    void runMutation(
+                                                        `已确认此刻：${active.title}`,
+                                                        async () => {
+                                                            const receipt =
+                                                                await confirmTimeActivity(
+                                                                    {
+                                                                        activityId:
+                                                                            active.id,
+                                                                        expectedVersion:
+                                                                            active.version,
+                                                                        throughMs:
+                                                                            Date.now(),
+                                                                    },
+                                                                );
+                                                            await onAckEvents([
+                                                                ev.id,
+                                                            ]);
+                                                            return receipt;
+                                                        },
+                                                    )
+                                                }
+                                            >
+                                                <Check className="size-3" />
+                                                确认这段
+                                            </Button>
+                                        )}
+                                    <Button
+                                        type="button"
+                                        size="xs"
+                                        variant="ghost"
+                                        className="text-muted-foreground"
+                                        disabled={busy}
+                                        onClick={() =>
+                                            void onAckEvents([ev.id])
+                                        }
+                                    >
+                                        知道了
+                                    </Button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </details>
+            )}
+
             {/* Quiet Sleep Candidate Prompt */}
             {pendingSleepCandidates.length > 0 && (
-                <section className="space-y-2">
+                <details className="ledger-disclosure"><summary>作息确认</summary>
                     {pendingSleepCandidates.map((cand) => (
                         <div
                             key={cand.key}
@@ -1649,27 +1554,25 @@ export function TimeTodayPage({
                             </div>
                         </div>
                     ))}
-                </section>
+                </details>
             )}
 
             {/* Chronological Minimal Timeline */}
-            <section>
+            <section className="ledger-timeline">
                 <div className="flex items-center justify-between border-b border-border/60 pb-2">
                     <h2 className="text-xs font-medium text-muted-foreground">
                         时间线
                     </h2>
-                    <span className="text-xs text-muted-foreground/70 tabular-nums">
-                        {daily.locatedSegments.length} 段记录
-                    </span>
+                    <label className="ledger-gap-toggle"><input type="checkbox" checked={showGaps} onChange={event => setShowGaps(event.target.checked)} />显示未记录时段</label>
                 </div>
 
-                {timelineItems.length === 0 ? (
+                {displayedTimelineItems.length === 0 ? (
                     <p className="py-10 text-xs text-muted-foreground/65">
-                        这一天还没有已定位记录。可以直接在上方开始计时，或点右上角补记。
+                        这一天还没有时间记录。开始计时，或补记已经完成的活动。
                     </p>
                 ) : (
                     <div className="relative mt-4 before:absolute before:inset-y-0 before:left-[104px] before:border-l before:border-border/70 max-sm:before:left-1">
-                        {timelineItems.map((item) =>
+                        {displayedTimelineItems.map((item) =>
                             item.kind === "gap" ? (
                                 <div
                                     key={`gap-${item.gap.startMs}`}
@@ -1916,7 +1819,7 @@ export function TimeTodayPage({
 
             {/* Unlocated Estimates (Quiet Footer List, only when present) */}
             {daily.unlocatedEstimates.length > 0 && (
-                <section>
+                <details className="ledger-disclosure"><summary>待定位的估记</summary>
                     <div className="flex items-center justify-between border-b border-border/60 pb-2">
                         <h2 className="text-xs font-medium text-muted-foreground">
                             待定位估记
@@ -1990,7 +1893,7 @@ export function TimeTodayPage({
                             );
                         })}
                     </div>
-                </section>
+                </details>
             )}
 
             <TimeLogOrEstimateDialog

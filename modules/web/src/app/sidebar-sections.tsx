@@ -1,6 +1,8 @@
 import { FilterIcon, LabelIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { useBuiltinFilterPrefs } from "@/features/organization/builtin-filter-prefs";
+import { RowMenu } from "@/features/organization/organization-row";
+import type { OrganizationEntry } from "@/features/organization/organization-types";
 import { ProjectTree } from "@/features/projects/project-tree";
 import { formatDuration, type EnergySummary } from "@core/workspace/energy";
 import type { TimerSnapshot } from "@core/time/model";
@@ -9,6 +11,7 @@ import type { ProjectStatus } from "@core/workspace/focus";
 import {
   itemColor,
   type Organization,
+  type OrganizationChange,
   type SavedFilter,
   type SavedTag,
   type WorkspaceTiming,
@@ -34,71 +37,89 @@ export function SidebarFavorites({
   activeEntry,
   disabled,
   onEntry,
+  onEditEntry,
+  onChange,
 }: {
   organization: Organization;
   organizationPage: boolean;
   activeEntry?: { kind: "filter" | "tag"; id: string };
   disabled: boolean;
-  onEntry: (entry: {
-    kind: "filter" | "tag";
-    item: SavedFilter | SavedTag;
-  }) => void;
+  onEntry: (entry: OrganizationEntry) => void;
+  onEditEntry: (entry: OrganizationEntry) => void;
+  onChange: (change: OrganizationChange) => Promise<boolean>;
 }) {
-  const { builtinFilters } = useBuiltinFilterPrefs(organization);
-  const favoriteFilters = [
-    ...organization.filters.filter((item) => item.favorite),
-    ...builtinFilters.filter((item) => item.favorite),
+  const { builtinFilters, toggleFavorite } = useBuiltinFilterPrefs(
+    organization,
+    onChange,
+  );
+  const entries: OrganizationEntry[] = [
+    ...[...organization.filters, ...builtinFilters]
+      .filter((item) => item.favorite)
+      .map((item) => ({ kind: "filter" as const, item })),
+    ...organization.tags
+      .filter((item) => item.favorite)
+      .map((item) => ({ kind: "tag" as const, item })),
   ];
-  const favoriteTags = organization.tags.filter((item) => item.favorite);
-  if (!favoriteFilters.length && !favoriteTags.length) return null;
-
+  if (!entries.length) return null;
   return (
     <>
       <p className="mt-6 mb-1.5 px-2.5 text-xs font-medium text-muted-foreground">
         收藏
       </p>
       <nav aria-label="收藏" className="space-y-0.5">
-        {favoriteFilters.map((item) => (
-          <Button
-            key={item.id}
-            variant="navigation"
-            disabled={disabled}
-            aria-current={
-              !organizationPage && activeEntry?.id === item.id
-                ? "page"
-                : undefined
-            }
-            onClick={() => onEntry({ kind: "filter", item })}
-          >
-            <FilterIcon
-              className="size-[18px]"
-              style={{ color: itemColor(item.color) }}
-            />
-            <span className="truncate">{item.name}</span>
-          </Button>
-        ))}
-        {favoriteTags.map((item) => (
-          <Button
-            key={item.id}
-            variant="navigation"
-            disabled={disabled}
-            aria-current={
-              !organizationPage && activeEntry?.id === item.id
-                ? "page"
-                : undefined
-            }
-            onClick={() => onEntry({ kind: "tag", item })}
-          >
-            <LabelIcon
-              className="size-[18px]"
-              style={{ color: itemColor(item.color) }}
-            />
-            <span className="truncate">{item.name}</span>
-            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-              {item.count || ""}
-            </span>
-          </Button>
-        ))}
+        {entries.map((entry) => {
+          const { item, kind } = entry;
+          const Icon = kind === "filter" ? FilterIcon : LabelIcon;
+          const isBuiltin = kind === "filter" && item.id.startsWith("builtin:");
+          return (
+            <div
+              key={`${kind}:${item.id}`}
+              className="sidebar-favorite-row"
+              data-selected={
+                !organizationPage && activeEntry?.id === item.id
+                  ? "true"
+                  : undefined
+              }
+            >
+              <Button
+                variant="navigation"
+                disabled={disabled}
+                aria-current={
+                  !organizationPage && activeEntry?.id === item.id
+                    ? "page"
+                    : undefined
+                }
+                onClick={() => onEntry(entry)}
+                className="min-w-0 flex-1"
+              >
+                <Icon
+                  className="size-5"
+                  style={{ color: itemColor(item.color) }}
+                />
+                <span className="truncate">{item.name}</span>
+              </Button>
+              <RowMenu
+                entry={entry}
+                disabled={disabled}
+                isBuiltin={isBuiltin}
+                isHidden={false}
+                compact
+                count={kind === "tag" ? (item as SavedTag).count : undefined}
+                onEdit={isBuiltin ? undefined : () => onEditEntry(entry)}
+                onFavorite={() => {
+                  void (isBuiltin
+                    ? toggleFavorite(item.id)
+                    : onChange({
+                        revision: organization.revision,
+                        action: "save",
+                        kind,
+                        item: { ...item, favorite: false },
+                      } as OrganizationChange));
+                }}
+              />
+            </div>
+          );
+        })}
       </nav>
     </>
   );

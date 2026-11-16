@@ -3,6 +3,11 @@ import { snapshotLiveStatus } from "@core/time/snapshot";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
 import { RotateCcw, X } from "lucide-react";
+import {
+  LedgerNavIcon,
+  WeeklyNavIcon,
+  CostReportNavIcon,
+} from "@/components/icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -53,7 +58,42 @@ export function TimeLedgerWorkspace({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="ledger-workspace space-y-6">
+      <nav aria-label="时间账本视图" className="ledger-view-nav">
+        {(
+          [
+            {
+              value: "today",
+              label: "时间线",
+              Icon: LedgerNavIcon,
+              color: "var(--due-upcoming)",
+            },
+            {
+              value: "weekly",
+              label: "本周分布",
+              Icon: WeeklyNavIcon,
+              color: "var(--priority-3)",
+            },
+            {
+              value: "reports",
+              label: "成本报告",
+              Icon: CostReportNavIcon,
+              color: "var(--due-tomorrow)",
+            },
+          ] as const
+        ).map(({ value, label, Icon, color }) => (
+          <button
+            key={value}
+            type="button"
+            aria-current={page === value ? "page" : undefined}
+            onClick={() => onOpenPage(value)}
+          >
+            <Icon className="size-5" style={{ color }} />
+            {label}
+          </button>
+        ))}
+      </nav>
+      <p className="ledger-page-intro">{page === "today" ? "记录每一段投入，把注意力放回正在做的事。" : page === "weekly" ? "看看这一周，时间花在了哪里。" : page === "reports" ? "查看已确认的投入，按项目追溯明细。" : "管理时间单价与计时习惯。"}</p>
       {ledger.lastUndoable && (
         <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-2 text-xs text-muted-foreground">
           <span className="truncate">

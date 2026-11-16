@@ -14,7 +14,7 @@ export type TimePage = "today" | "weekly" | "reports" | "settings";
 
 const COMPLETE_BEHAVIOR_KEY = "aster:completeBehavior";
 
-const VALID_VIEWS: readonly View[] = ["today", "pending", "focus"];
+const VALID_VIEWS: readonly View[] = ["today", "pending", "focus", "upcoming"];
 
 function validCompleteBehavior(
   value: string | null | undefined,

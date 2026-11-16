@@ -45,6 +45,7 @@ const viewIcons: Record<View, React.ComponentType<{ className?: string }>> = {
   focus: Target,
   pending: Inbox,
   today: CalendarDays,
+  upcoming: CalendarDays,
 };
 
 export function CommandPalette({

@@ -1,0 +1,348 @@
+/* Each palette is an accent family; task dates and priorities keep their meaning. */
+:root[data-palette="todoist"] {
+  --theme-accent: #c3392c;
+}
+:root[data-palette="moonstone"] {
+  --theme-accent: #52657d;
+}
+:root[data-palette="tangerine"] {
+  --theme-accent: #a6600a;
+}
+:root[data-palette="kale"] {
+  --theme-accent: #487541;
+}
+:root[data-palette="blueberry"] {
+  --theme-accent: #246fa8;
+}
+:root[data-palette="lavender"] {
+  --theme-accent: #7358aa;
+}
+:root[data-palette="raspberry"] {
+  --theme-accent: #ab3c68;
+}
+:root.dark[data-palette="todoist"] {
+  --theme-accent: #ef7167;
+}
+:root.dark[data-palette="moonstone"] {
+  --theme-accent: #99abc3;
+}
+:root.dark[data-palette="tangerine"] {
+  --theme-accent: #e7a443;
+}
+:root.dark[data-palette="kale"] {
+  --theme-accent: #8db983;
+}
+:root.dark[data-palette="blueberry"] {
+  --theme-accent: #73b3e4;
+}
+:root.dark[data-palette="lavender"] {
+  --theme-accent: #b49bdc;
+}
+:root.dark[data-palette="raspberry"] {
+  --theme-accent: #e78fb1;
+}
+:root[data-palette]:not([data-palette="aster"]) {
+  --primary: var(--theme-accent);
+  --primary-foreground: #fff;
+  --ring: var(--theme-accent);
+  --sidebar: color-mix(in srgb, var(--theme-accent) 3%, var(--background));
+  --navigation-hover: color-mix(
+    in srgb,
+    var(--theme-accent) 8%,
+    var(--sidebar)
+  );
+  --navigation-selected: color-mix(
+    in srgb,
+    var(--theme-accent) 13%,
+    var(--sidebar)
+  );
+  --navigation-selected-ink: var(--theme-accent);
+}
+:root.dark[data-palette]:not([data-palette="aster"]) {
+  --primary-foreground: #1c1c1d;
+}
+.sidebar-brand > svg:first-child {
+  color: var(--primary);
+}
+
+.workspace-settings {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  width: min(900px, calc(100vw - 48px));
+  max-width: 900px;
+  height: min(620px, calc(100dvh - 64px));
+  max-height: calc(100dvh - 64px);
+  overflow: hidden;
+  border-radius: 12px;
+}
+.settings-sidebar {
+  min-width: 0;
+  padding: 20px 12px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+}
+.settings-sidebar h2 {
+  margin: 0 12px 24px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.settings-sidebar nav {
+  display: grid;
+  gap: 4px;
+}
+.settings-sidebar button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.settings-sidebar button:hover {
+  background: var(--navigation-hover);
+  color: var(--foreground);
+}
+.settings-sidebar button[aria-current="page"] {
+  background: var(--navigation-selected);
+  color: var(--primary);
+}
+.settings-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.settings-header {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 64px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
+}
+.settings-intro {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.settings-theme-panel {
+  display: grid;
+  gap: 24px;
+}
+.settings-body fieldset {
+  min-width: 0;
+}
+.settings-body legend {
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.appearance-segments {
+  display: inline-flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 20px;
+  background: var(--muted);
+}
+.appearance-segments button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 80px;
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.appearance-segments button[aria-pressed="true"] {
+  color: var(--foreground);
+  background: var(--background);
+  box-shadow: 0 1px 4px #00000015;
+}
+.theme-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.theme-preset {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  min-width: 0;
+  height: 100px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+  text-align: left;
+  cursor: pointer;
+}
+.theme-preset:hover {
+  border-color: var(--preview-accent);
+}
+.theme-preset[aria-pressed="true"] {
+  border-color: var(--preview-accent);
+  box-shadow: 0 0 0 1px var(--preview-accent);
+}
+.theme-preview-nav {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 12px 6px;
+  background: color-mix(in srgb, var(--preview-accent) 5%, var(--sidebar));
+}
+.theme-preview-nav i {
+  height: 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+.theme-preview-nav i:first-child {
+  background: var(--preview-accent);
+}
+.theme-preview-nav i:nth-child(2) {
+  background: color-mix(in srgb, var(--preview-accent) 20%, transparent);
+}
+.theme-preview-main {
+  min-width: 0;
+  padding: 10px 9px;
+}
+.theme-preview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 20px;
+  color: var(--preview-accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.theme-preview-heading svg {
+  flex-shrink: 0;
+}
+.theme-preview-task {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 13px;
+}
+.theme-preview-task i {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border: 1px solid var(--muted-foreground);
+  border-radius: 50%;
+}
+.theme-preview-task b,
+.theme-preview-line {
+  display: block;
+  height: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+.theme-preview-task b {
+  width: 100%;
+}
+.theme-preview-line {
+  margin: 9px 10px 0 17px;
+}
+.settings-theme-hint {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.settings-sidebar button:focus-visible,
+.theme-preset:focus-visible,
+.appearance-segments button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.settings-sidebar button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+@media (max-width: 767px) {
+  .workspace-settings {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    width: calc(100vw - 24px);
+    height: min(720px, calc(100dvh - 32px));
+    max-height: calc(100dvh - 32px);
+  }
+  .settings-sidebar {
+    padding: 14px 12px 8px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-sidebar h2 {
+    margin: 0 8px 10px;
+    font-size: 16px;
+  }
+  .settings-sidebar nav {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+  }
+  .settings-sidebar button {
+    flex-shrink: 0;
+    gap: 6px;
+    padding: 8px;
+    min-height: 40px;
+    font-size: 12px;
+  }
+  .settings-sidebar button svg {
+    width: 16px;
+    height: 16px;
+  }
+  .settings-header {
+    height: 52px;
+    padding-inline: 20px;
+  }
+  .settings-body {
+    padding: 20px;
+  }
+  .theme-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .theme-preset {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+  .theme-preview-main {
+    padding-inline: 8px;
+  }
+}
+@media (max-width: 359px) {
+  .theme-presets {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .appearance-segments button {
+    min-width: 68px;
+    padding-inline: 8px;
+  }
+}
+
+/* Heatmaps use the selected palette for every intensity and legend swatch. */
+:root[data-palette] {
+  --habit-accent: var(--primary);
+  --habit-unscheduled-border: color-mix(in srgb, var(--primary) 18%, var(--background));
+  --habit-zero: color-mix(in srgb, var(--foreground) 7%, var(--background));
+  --habit-level-1: color-mix(in srgb, var(--primary) 16%, var(--background));
+  --habit-level-2: color-mix(in srgb, var(--primary) 32%, var(--background));
+  --habit-level-3: color-mix(in srgb, var(--primary) 56%, var(--background));
+  --habit-level-4: color-mix(in srgb, var(--primary) 86%, var(--background));
+  --habit-in-progress-bg: color-mix(in srgb, var(--primary) 9%, var(--background));
+  --habit-in-progress-ring: var(--primary);
+}

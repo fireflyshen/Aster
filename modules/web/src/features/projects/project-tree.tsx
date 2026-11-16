@@ -157,11 +157,6 @@ export function ProjectTree({
               </span>
             )}
           </span>
-          {compact && !!count && (
-            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-              {count}
-            </span>
-          )}
         </Button>
         {!compact && (
           <div className="flex shrink-0 items-center gap-2">
@@ -194,6 +189,8 @@ export function ProjectTree({
           </div>
         )}
         <ProjectActions
+          compact={compact}
+          count={count}
           name={row.name}
           status={projectStatus(record)}
           canFocus={!isHabit}

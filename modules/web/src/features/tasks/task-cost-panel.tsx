@@ -292,12 +292,9 @@ export function TaskCostDetailSection({
   );
 
   return (
-    <div className="mt-5 space-y-3 rounded-lg border border-border/55 bg-muted/20 p-3.5 text-xs">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 font-medium text-foreground">
-          <Clock className="size-3.5 text-muted-foreground" />
-          <span>投入成本与计时明细</span>
-        </div>
+    <section className="task-detail-cost text-xs" aria-label="时间与成本">
+      <div className="task-cost-heading">
+        <h3 className="text-xs font-semibold text-foreground">时间与成本</h3>
         <div className="flex items-center gap-1.5">
           {summary?.hasBudget ? (
             <>
@@ -358,10 +355,10 @@ export function TaskCostDetailSection({
       </div>
 
       {summary ? (
-        <div className="space-y-2 tabular-nums">
+        <div className="task-cost-summary space-y-2 tabular-nums">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <div>
-              <span className="text-lg font-semibold text-foreground">
+              <span className="text-base font-medium text-foreground">
                 {formatCurrencyCny(summary.confirmedCostCents)}
               </span>
               <span className="ml-2 text-muted-foreground">
@@ -400,7 +397,7 @@ export function TaskCostDetailSection({
               )}
               {summary.currentBudgetCents !== undefined && (
                 <span>
-                  = 当前预算 {formatCurrencyCny(summary.currentBudgetCents)}（
+                  当前预算 {formatCurrencyCny(summary.currentBudgetCents)}（
                   {formatDurationCompact(summary.currentAllowanceSeconds ?? 0)}
                   ）
                 </span>
@@ -611,23 +608,28 @@ export function TaskCostDetailSection({
 
       {/* Continuation decision preview */}
       {task.status === "pending" && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-2.5">
-          <div className="flex flex-wrap items-center gap-2 tabular-nums">
-            <span className="text-muted-foreground">继续投入</span>
-            {[15, 30, 60].map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setContinueMin(String(m))}
-                className={
-                  continueMin === String(m)
-                    ? "rounded bg-foreground px-1.5 py-0.5 text-[11px] text-background"
-                    : "rounded border border-border/60 px-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
-                }
-              >
-                {m}m
-              </button>
-            ))}
+        <div className="task-cost-timer">
+          <div
+            className="task-cost-duration"
+            role="group"
+            aria-label="本次计时时长"
+          >
+            <span className="text-muted-foreground">本次计时</span>
+            <div className="task-cost-presets">
+              {[15, 30, 60].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  aria-pressed={continueMin === String(m)}
+                  disabled={busy || disabled}
+                  onClick={() => setContinueMin(String(m))}
+                >
+                  {m} 分钟
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="task-cost-start">
             {continuationPreview && (
               <span className="text-[11px] text-muted-foreground">
                 {continuationPreview.expired ? (
@@ -643,11 +645,7 @@ export function TaskCostDetailSection({
                   </span>
                 ) : (
                   <span>
-                    再投入{" "}
-                    {formatDurationChinese(
-                      continuationPreview.effectiveSeconds,
-                    )}
-                    ，预计增加{" "}
+                    预计增加{" "}
                     <strong className="font-medium text-foreground">
                       {formatCurrencyCny(
                         continuationPreview.additionalCostCents,
@@ -657,26 +655,26 @@ export function TaskCostDetailSection({
                 )}
               </span>
             )}
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              disabled={
+                busy ||
+                disabled ||
+                !continuationPreview ||
+                continuationPreview.expired ||
+                continuationPreview.effectiveSeconds <= 0
+              }
+              onClick={() =>
+                continuationPreview &&
+                void handleContinueTimer(continuationPreview.effectiveSeconds)
+              }
+            >
+              <Play className="size-3" />
+              开始计时
+            </Button>
           </div>
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            disabled={
-              busy ||
-              disabled ||
-              !continuationPreview ||
-              continuationPreview.expired ||
-              continuationPreview.effectiveSeconds <= 0
-            }
-            onClick={() =>
-              continuationPreview &&
-              void handleContinueTimer(continuationPreview.effectiveSeconds)
-            }
-          >
-            <Play className="size-3" />
-            开始这段
-          </Button>
         </div>
       )}
 
@@ -731,14 +729,23 @@ export function TaskCostDetailSection({
             </div>
           )}
 
-          <div className="border-t border-border/40 pt-2.5">
+          <details
+            className="task-cost-records"
+            open={detail.billLinks.length > 0 || undefined}
+          >
+            <summary>
+              关联支出
+              {detail.billLinks.length > 0
+                ? ` · ${detail.billLinks.length}`
+                : ""}
+            </summary>
             <LinkedBillsList
               links={detail.billLinks}
               busy={busy || disabled}
               onUnlink={(linkId) => runAction(() => unlinkBillLink(linkId))}
               onOpenPicker={() => setBillOpen(true)}
             />
-          </div>
+          </details>
 
           <BillLinkDialog
             open={billOpen}
@@ -753,6 +760,6 @@ export function TaskCostDetailSection({
           />
         </>
       ) : null}
-    </div>
+    </section>
   );
 }

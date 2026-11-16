@@ -625,3 +625,111 @@
     background: transparent;
   }
 }
+
+/* Cost is part of the task's reading column, alongside subtasks and comments. */
+.task-detail-cost {
+  min-width: 0;
+  margin: 32px 0 0 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.task-detail-cost > * + * {
+  margin-top: 16px;
+}
+.task-cost-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.task-cost-heading button {
+  min-height: 28px;
+}
+.task-cost-summary {
+  line-height: 1.7;
+}
+.task-cost-timer {
+  display: grid;
+  gap: 12px;
+  padding-block: 16px;
+  border-block: 1px solid var(--border);
+}
+.task-cost-duration,
+.task-cost-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 20px;
+}
+.task-cost-presets {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--muted);
+}
+.task-cost-presets button {
+  min-width: 54px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.task-cost-presets button[aria-pressed="true"] {
+  background: var(--background);
+  color: var(--foreground);
+  box-shadow: 0 1px 3px #00000012;
+}
+.task-cost-presets button:hover {
+  color: var(--foreground);
+}
+.task-cost-start > button {
+  min-height: 30px;
+  padding-inline: 12px;
+  margin-left: auto;
+}
+.task-cost-records {
+  color: var(--muted-foreground);
+}
+.task-cost-records > summary {
+  min-height: 28px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.task-cost-records[open] > summary {
+  margin-bottom: 12px;
+}
+.task-detail-cost + .task-detail-subtasks {
+  margin-top: 36px;
+}
+.task-cost-presets button:focus-visible,
+.task-cost-records > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.task-cost-presets button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+@media (max-width: 767px) {
+  .task-detail-aside {
+    width: auto;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+  .task-detail-cost {
+    margin-left: 0;
+  }
+  .task-cost-presets button {
+    min-height: 36px;
+  }
+  .task-cost-start > button {
+    min-height: 36px;
+  }
+  .task-cost-records > summary {
+    min-height: 36px;
+  }
+}

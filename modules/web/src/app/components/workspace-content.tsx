@@ -1,3 +1,5 @@
+import { UpcomingWorkspace } from "@/features/tasks/upcoming-workspace";
+import type { OrganizationEntry } from "@/features/organization/organization-types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +60,8 @@ const TaskBoard = lazy(() =>
 );
 
 type WorkspaceContentProps = {
+  organizationEditRequest?: OrganizationEntry;
+  onOrganizationEditConsumed: () => void;
   searchOpen: boolean;
   query: string;
   onQueryChange: (value: string) => void;
@@ -355,7 +359,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           activeCount={topLevelVisible.length}
           groupBy={!isProjectOwned ? groupBy : undefined}
           groupOptions={!isProjectOwned ? groupOptions : undefined}
-          onGroupByChange={!isProjectOwned ? setGroupBy : undefined}
+          onGroupByChange={!isProjectOwned && view !== "upcoming" ? setGroupBy : undefined}
           onResetDisplay={() => {
             onLayoutChange("list");
             setGroupBy(defaultGroupBy);
@@ -474,6 +478,8 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
               void onReloadAll();
             }}
           />
+        ) : view === "upcoming" && !organizationPage && !activeEntry && !currentProject ? (
+          <UpcomingWorkspace tasks={tasks.filter(task => (completeBehavior === "strikethrough" || task.status !== "completed") && (!query.trim() || [task.description, task.project, ...task.tags].join(" ").toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())))} taskLinks={organization.subtasks} layout={layout} renderTask={renderTask} onAdd={draft => onOpenEditor(undefined, draft)} disabled={boardDisabled} loading={loading} />
         ) : organizationPage ? (
           projectsPage ? (
             <ProjectManager
@@ -492,6 +498,8 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
             />
           ) : (
             <OrganizationManager
+              editRequest={props.organizationEditRequest}
+              onEditRequestConsumed={props.onOrganizationEditConsumed}
               data={organization}
               error={organizationError}
               busy={organizationSaving}
