@@ -47,6 +47,8 @@ function normalizeIpcHandlers(
     workspace: target.load,
     loadOrganization: target.load,
     changeOrganization: target.change,
+    loadPreferences: () => target.load().then((data) => data.preferences ?? {}),
+    updatePreferences: unsupported,
     tasks: (parameters) =>
       target.tasks
         ? target.tasks(parameters.get("filter") ?? undefined)

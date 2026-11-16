@@ -1,8 +1,21 @@
 import type { TaskGroupBy } from "@/features/tasks/task-grouping";
-import { useCallback, useEffect, useState } from "react";
+import type { WorkspacePreferences } from "@core/workspace/organization";
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  type ReactNode,
+} from "react";
 
-const STORAGE_KEY = "aster:filter-group-by:v1";
-const CHANGE_EVENT = "aster:filter-group-by-changed";
+type FilterGroupByContextValue = {
+  groupMap: Record<string, TaskGroupBy>;
+  setEntryGroupBy: (
+    entryKey: string,
+    value: TaskGroupBy,
+    defaultGroupBy: TaskGroupBy,
+  ) => void;
+};
 
 function isTaskGroupBy(value: unknown): value is TaskGroupBy {
   return (
@@ -16,86 +29,74 @@ function isTaskGroupBy(value: unknown): value is TaskGroupBy {
   );
 }
 
-function readGroupMap(): Record<string, TaskGroupBy> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const clean: Record<string, TaskGroupBy> = {};
-    for (const [key, val] of Object.entries(parsed)) {
-      if (isTaskGroupBy(val)) clean[key] = val;
-    }
-    return clean;
-  } catch {
-    return {};
+function normalizeGroupMap(
+  raw?: Record<string, string>,
+): Record<string, TaskGroupBy> {
+  if (!raw) return {};
+  const clean: Record<string, TaskGroupBy> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (isTaskGroupBy(value)) clean[key] = value;
   }
+  return clean;
 }
 
-function writeGroupBy(
-  entryKey: string,
-  value: TaskGroupBy,
-  defaultGroupBy: TaskGroupBy,
-): void {
-  if (typeof window === "undefined") return;
-  try {
-    const current = readGroupMap();
-    if (value === defaultGroupBy) delete current[entryKey];
-    else current[entryKey] = value;
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-    window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
-  } catch {
-    /* Ignore storage quota/privacy errors */
-  }
+const FilterGroupByContext = createContext<FilterGroupByContextValue>({
+  groupMap: {},
+  setEntryGroupBy: () => {},
+});
+
+/** Provides backend-persisted per-view task grouping preferences without localStorage. */
+export function FilterGroupByProvider({
+  preferences,
+  onUpdatePreferences,
+  children,
+}: {
+  preferences?: WorkspacePreferences;
+  onUpdatePreferences?: (patch: WorkspacePreferences) => void;
+  children: ReactNode;
+}) {
+  const groupMap = normalizeGroupMap(preferences?.filterGroupBy);
+
+  const setEntryGroupBy = useCallback(
+    (entryKey: string, value: TaskGroupBy, defaultGroupBy: TaskGroupBy) => {
+      const next = { ...groupMap };
+      if (value === defaultGroupBy) delete next[entryKey];
+      else next[entryKey] = value;
+      onUpdatePreferences?.({ filterGroupBy: next });
+    },
+    [groupMap, onUpdatePreferences],
+  );
+
+  return createElement(
+    FilterGroupByContext.Provider,
+    { value: { groupMap, setEntryGroupBy } },
+    children,
+  );
 }
 
-function resolveGroupBy(
-  entryKey: string | undefined,
-  defaultGroupBy: TaskGroupBy,
-  allowed?: readonly { value: TaskGroupBy }[],
-): TaskGroupBy {
-  if (!entryKey) return defaultGroupBy;
-  const stored = readGroupMap()[entryKey];
-  if (!stored) return defaultGroupBy;
-  if (allowed && !allowed.some((option) => option.value === stored)) {
-    return defaultGroupBy;
-  }
-  return stored;
-}
-
-/** Persists per-entry grouping preference (with customizable default). */
+/** Reads and updates per-entry grouping preference via backend workspace preferences. */
 export function useFilterGroupBy(
   entryKey: string | undefined,
   defaultGroupBy: TaskGroupBy = "none",
   allowedOptions?: readonly { value: TaskGroupBy }[],
 ): [TaskGroupBy, (next: TaskGroupBy) => void] {
-  const allowedKey = allowedOptions?.map((o) => o.value).join(",");
-  const [groupBy, setGroupByState] = useState<TaskGroupBy>(() =>
-    resolveGroupBy(entryKey, defaultGroupBy, allowedOptions),
-  );
+  const { groupMap, setEntryGroupBy } = useContext(FilterGroupByContext);
 
-  useEffect(() => {
-    const sync = () => {
-      setGroupByState(resolveGroupBy(entryKey, defaultGroupBy, allowedOptions));
-    };
-    sync();
-    window.addEventListener(CHANGE_EVENT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(CHANGE_EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entryKey, defaultGroupBy, allowedKey]);
+  const stored = entryKey ? groupMap[entryKey] : undefined;
+  const resolved =
+    stored &&
+    (!allowedOptions ||
+      allowedOptions.some((option) => option.value === stored))
+      ? stored
+      : defaultGroupBy;
 
   const setGroupBy = useCallback(
     (next: TaskGroupBy) => {
       if (!entryKey) return;
-      writeGroupBy(entryKey, next, defaultGroupBy);
-      setGroupByState(next);
+      setEntryGroupBy(entryKey, next, defaultGroupBy);
     },
-    [entryKey, defaultGroupBy],
+    [entryKey, defaultGroupBy, setEntryGroupBy],
   );
 
-  return [groupBy, setGroupBy];
+  return [resolved, setGroupBy];
 }

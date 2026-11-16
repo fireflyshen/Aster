@@ -61,6 +61,11 @@ export function createApiHandler(deps: ApiRouterDeps) {
           res.setHeader(name, value);
         }
       }
+      if (result.rawBody !== undefined) {
+        res.statusCode = result.status;
+        res.end(result.rawBody);
+        return;
+      }
       send(result.status, result.body);
     } finally {
       release?.();

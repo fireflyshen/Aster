@@ -1,7 +1,10 @@
 import { parseQuickTask } from "../../../core/tasks/quick-task.ts";
 import type { TaskService } from "../../../core/tasks/service.ts";
 import type { TimerSnapshot } from "../../../core/time/model.ts";
-import type { Organization } from "../../../core/workspace/organization.ts";
+import type {
+  Organization,
+  WorkspacePreferences,
+} from "../../../core/workspace/organization.ts";
 import type { createBackupRestore } from "../recovery/backup-restore.ts";
 import type { createOrganizationService } from "../organization/organization-service.ts";
 import type { createRecoveryService } from "../recovery/recovery.ts";
@@ -18,6 +21,7 @@ export type TaskScopeDefault = "pending" | "all";
 export type WorkspaceRouteResponse = {
   status: number;
   body: unknown;
+  rawBody?: string;
   headers?: Record<string, string>;
 };
 
@@ -41,6 +45,8 @@ export interface WorkspaceHandlers {
   workspace: () => Promise<Organization>;
   loadOrganization: () => Promise<Organization>;
   changeOrganization: (input: unknown) => Promise<Organization>;
+  loadPreferences: () => Promise<WorkspacePreferences>;
+  updatePreferences: (input: unknown) => Promise<WorkspacePreferences>;
   tasks: (
     parameters: URLSearchParams,
     defaultScope: TaskScopeDefault,
@@ -230,6 +236,8 @@ export function createWorkspaceHandlers(deps: {
     workspace: organization.workspace,
     loadOrganization: organization.load,
     changeOrganization: organization.change,
+    loadPreferences: organization.loadPreferences,
+    updatePreferences: organization.updatePreferences,
     tasks: (parameters, defaultScope) =>
       loadScopedTasks(
         service,
@@ -284,6 +292,63 @@ export function createWorkspaceRoutes(
         status: 200,
         body: await handlers.changeOrganization(await readBody()),
       }),
+    },
+    {
+      method: "POST",
+      route: "api/preferences",
+      handle: async ({ readBody }) => ({
+        status: 200,
+        body: await handlers.updatePreferences(await readBody()),
+      }),
+    },
+    {
+      method: "GET",
+      route: "api/theme.js",
+      skipGate: true,
+      publicWorkspace: true,
+      handle: async () => {
+        const prefs = await handlers
+          .loadPreferences()
+          .catch(() => ({}) as WorkspacePreferences);
+        const theme =
+          prefs.theme === "light" || prefs.theme === "dark"
+            ? prefs.theme
+            : "system";
+        const palette =
+          typeof prefs.palette === "string" &&
+          [
+            "aster",
+            "todoist",
+            "moonstone",
+            "tangerine",
+            "kale",
+            "blueberry",
+            "lavender",
+            "raspberry",
+          ].includes(prefs.palette)
+            ? prefs.palette
+            : "aster";
+        const script = [
+          "(() => {",
+          `  const theme = ${JSON.stringify(theme)};`,
+          `  const palette = ${JSON.stringify(palette)};`,
+          '  const dark = theme === "dark" || (theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches);',
+          "  document.documentElement.dataset.theme = theme;",
+          "  document.documentElement.dataset.palette = palette;",
+          '  document.documentElement.classList.toggle("dark", dark);',
+          '  document.querySelector(\'meta[name="theme-color"]\')?.setAttribute("content", dark ? "#1c1c1d" : "#faf9f7");',
+          "})();",
+        ].join("\n");
+        return {
+          status: 200,
+          body: undefined,
+          rawBody: script,
+          headers: {
+            "Content-Type": "text/javascript; charset=utf-8",
+            "Cache-Control": "no-store",
+          },
+        };
+      },
     },
     {
       method: "GET",

@@ -17,10 +17,12 @@
 .task-detail-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   align-items: stretch;
 }
 .task-detail-main {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -54,6 +56,8 @@
   outline: none !important;
 }
 .task-detail-aside {
+  grid-column: 2;
+  grid-row: 1 / -1;
   min-width: 0;
   min-height: 0;
   width: 280px;
@@ -149,6 +153,8 @@
   font-size: 12px;
 }
 [data-editor-actions] {
+  grid-column: 1;
+  grid-row: 2;
   gap: 8px;
   padding: 12px 20px;
 }
@@ -188,12 +194,20 @@
     grid-template-rows: auto;
   }
   .task-detail-main {
+    grid-column: 1;
+    grid-row: 1;
     overflow: visible;
     padding: 20px;
   }
   .task-detail-aside {
+    grid-column: 1;
+    grid-row: 2;
     overflow: visible;
     padding: 16px 20px;
+  }
+  [data-editor-actions] {
+    grid-column: 1;
+    grid-row: 3;
   }
   .task-detail-properties {
     display: grid;

@@ -6,12 +6,13 @@ import { currentLocalTodayDate } from "@/features/habits/task-habit-field";
 import { useHabitsWorkspace } from "@/features/habits/use-habits";
 import type { TodayHabitsActions } from "@/features/habits/today-habits-section";
 import type { OrganizationEntry } from "@/features/organization/organization-types";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isCompletedFilterExpression } from "@core/workspace/builtin-filters";
 import { ProjectColorsProvider } from "@/features/projects/project-icon";
 import { WorkspaceContent } from "./components/workspace-content";
 import { WorkspaceToolbar } from "./components/workspace-header";
 import { WorkspaceModals } from "./components/workspace-modals";
+import { FilterGroupByProvider } from "./hooks/use-filter-group-by";
 import { useProjectActions } from "./hooks/use-project-actions";
 import { useTaskActions } from "./hooks/use-task-actions";
 import { useTaskRenderer } from "./hooks/use-task-renderer";
@@ -25,6 +26,7 @@ import { useWorkspaceNavigation } from "./hooks/use-workspace-navigation";
 import { useWorkspaceShortcuts } from "./hooks/use-workspace-shortcuts";
 import { WorkspaceSidebar } from "./workspace-sidebar";
 import { useSidebarPreferences } from "./sidebar-preferences";
+import { useThemePreference } from "./theme-switcher";
 import { MobileNavigation } from "./components/mobile-navigation";
 import { useVisualViewport } from "./hooks/use-visual-viewport";
 
@@ -34,13 +36,27 @@ export function App() {
   const [organizationEditRequest, setOrganizationEditRequest] =
     useState<OrganizationEntry>();
   const nav = useWorkspaceNavigation();
-  const sidebar = useSidebarPreferences();
   const data = useWorkspaceData({
     scope: nav.scope,
     isModalOpen:
       nav.commandOpen || Boolean(nav.settingsSection) || nav.subModalOpen,
     onProjectRemap: nav.onProjectRemap,
   });
+  const sidebar = useSidebarPreferences(
+    data.organization.preferences,
+    data.updatePreferences,
+  );
+  const themePreference = useThemePreference(
+    data.organization.preferences,
+    data.updatePreferences,
+  );
+  useEffect(() => {
+    nav.bindPreferences(data.organization.preferences, data.updatePreferences);
+  }, [
+    nav.bindPreferences,
+    data.organization.preferences,
+    data.updatePreferences,
+  ]);
 
   const {
     activeItem,
@@ -285,335 +301,346 @@ export function App() {
   const projectDescription = projectActions.currentProjectRecord?.description;
 
   return (
-    <ProjectColorsProvider projects={data.organization.projects || []}>
-      <WorkspaceSidebar
-        onSearch={() => nav.setCommandOpen(true)}
-        navOpen={nav.navOpen}
-        onOpenChange={nav.setNavigation}
-        view={nav.view}
-        currentProject={nav.currentProject}
-        organizationPage={nav.organizationPage}
-        projectsPage={nav.projectsPage}
-        habitsPage={nav.habitsPage}
-        habitsCount={habits.todayData?.summary.total}
-        onOpenHabitsPage={nav.openHabitsPage}
-        timePage={nav.timePage}
-        onOpenTimePage={nav.openTimePage}
-        organization={data.organization}
-        activeEntry={
-          nav.activeEntry
-            ? {
-                kind: nav.activeEntry.kind,
-                id: nav.activeEntry.item.id,
-              }
-            : undefined
-        }
-        hasActiveItem={Boolean(activeItem)}
-        projects={filterProjects}
-        viewCounts={viewCounts}
-        busy={data.busy}
-        needsCheck={data.needsCheck}
-        organizationSaving={
-          data.organizationSaving ||
-          !data.organizationReady ||
-          data.organizationBlocked ||
-          data.needsCheck
-        }
-        onOpenSettings={nav.openSettings}
-        sidebarPreferences={sidebar.preferences}
-        onAddSubproject={projectActions.addSubproject}
-        onAddProject={() => projectActions.editProject("")}
-        onEditProject={projectActions.editProject}
-        onDeleteProject={projectActions.deleteProject}
-        onProjectStatus={projectActions.transition}
-        onProjects={() => nav.openManagementPage("projects")}
-        connectionLabel={data.connectionLabel}
-        energy={data.energy}
-        timerSnapshot={data.timerSnapshot}
-        timerLiveStatus={data.timerLiveStatus}
-        activeActivitySeconds={data.activeActivitySeconds}
-        timingUnavailable={data.organization.timing?.available === false}
-        onRetryTiming={() =>
-          void (data.isTimeMode
-            ? Promise.all([
-                data.refreshTimerSnapshot(),
-                data.loadOrganization(),
-              ])
-            : data.loadOrganization())
-        }
-        onElixir={() => void data.restoreEnergy()}
-        onAdd={taskActions.openQuickAdd}
-        onChangeOrganization={data.changeOrganization}
-        onEditEntry={(entry) => {
-          setOrganizationEditRequest({ ...entry });
-          nav.openManagementPage("organization");
-        }}
-        onEntry={nav.openEntry}
-        onView={nav.selectView}
-        onProject={nav.selectProject}
-        onOrganization={() => nav.openManagementPage("organization")}
-      />
-
-      <div className="workspace-main min-h-dvh" data-sidebar-open={nav.navOpen}>
-        <WorkspaceToolbar
+    <FilterGroupByProvider
+      preferences={data.organization.preferences}
+      onUpdatePreferences={data.updatePreferences}
+    >
+      <ProjectColorsProvider projects={data.organization.projects || []}>
+        <WorkspaceSidebar
+          onSearch={() => nav.setCommandOpen(true)}
           navOpen={nav.navOpen}
-          searchOpen={nav.searchOpen}
-          query={nav.query}
-          loading={data.loading}
-          busy={data.busy}
-          onOpenNav={() => nav.setNavigation(true)}
-          onOpenCommand={() => nav.setCommandOpen(true)}
-          onToggleSearch={() => {
-            if (nav.searchOpen || nav.query) {
-              nav.setSearchOpen(false);
-              nav.setQuery("");
-            } else nav.setSearchOpen(true);
-          }}
-          onRefresh={() => void data.reloadAll()}
-        />
-
-        <WorkspaceContent
-          organizationEditRequest={organizationEditRequest}
-          onOrganizationEditConsumed={() =>
-            setOrganizationEditRequest(undefined)
-          }
-          searchOpen={nav.searchOpen}
-          query={nav.query}
-          onQueryChange={nav.setQuery}
-          layout={nav.layout}
-          onLayoutChange={nav.setLayout}
-          completeBehavior={nav.completeBehavior}
-          onCompleteBehaviorChange={nav.setCompleteBehavior}
-          boardScroll={nav.boardScroll}
+          onOpenChange={nav.setNavigation}
           view={nav.view}
-          now={data.now}
           currentProject={nav.currentProject}
           organizationPage={nav.organizationPage}
           projectsPage={nav.projectsPage}
-          specialPage={nav.specialPage}
+          habitsPage={nav.habitsPage}
+          habitsCount={habits.todayData?.summary.total}
+          onOpenHabitsPage={nav.openHabitsPage}
+          timePage={nav.timePage}
+          onOpenTimePage={nav.openTimePage}
+          organization={data.organization}
+          activeEntry={
+            nav.activeEntry
+              ? {
+                  kind: nav.activeEntry.kind,
+                  id: nav.activeEntry.item.id,
+                }
+              : undefined
+          }
+          hasActiveItem={Boolean(activeItem)}
+          projects={filterProjects}
+          viewCounts={viewCounts}
+          busy={data.busy}
+          needsCheck={data.needsCheck}
+          organizationSaving={
+            data.organizationSaving ||
+            !data.organizationReady ||
+            data.organizationBlocked ||
+            data.needsCheck
+          }
+          onOpenSettings={nav.openSettings}
+          sidebarPreferences={sidebar.preferences}
+          onAddSubproject={projectActions.addSubproject}
+          onAddProject={() => projectActions.editProject("")}
+          onEditProject={projectActions.editProject}
+          onDeleteProject={projectActions.deleteProject}
+          onProjectStatus={projectActions.transition}
+          onProjects={() => nav.openManagementPage("projects")}
+          connectionLabel={data.connectionLabel}
+          energy={data.energy}
+          timerSnapshot={data.timerSnapshot}
+          timerLiveStatus={data.timerLiveStatus}
+          activeActivitySeconds={data.activeActivitySeconds}
+          timingUnavailable={data.organization.timing?.available === false}
+          onRetryTiming={() =>
+            void (data.isTimeMode
+              ? Promise.all([
+                  data.refreshTimerSnapshot(),
+                  data.loadOrganization(),
+                ])
+              : data.loadOrganization())
+          }
+          onElixir={() => void data.restoreEnergy()}
+          onAdd={taskActions.openQuickAdd}
+          onChangeOrganization={data.changeOrganization}
+          onEditEntry={(entry) => {
+            setOrganizationEditRequest({ ...entry });
+            nav.openManagementPage("organization");
+          }}
+          onEntry={nav.openEntry}
+          onView={nav.selectView}
+          onProject={nav.selectProject}
+          onOrganization={() => nav.openManagementPage("organization")}
+        />
+
+        <div
+          className="workspace-main min-h-dvh"
+          data-sidebar-open={nav.navOpen}
+        >
+          <WorkspaceToolbar
+            navOpen={nav.navOpen}
+            searchOpen={nav.searchOpen}
+            query={nav.query}
+            loading={data.loading}
+            busy={data.busy}
+            onOpenNav={() => nav.setNavigation(true)}
+            onOpenCommand={() => nav.setCommandOpen(true)}
+            onToggleSearch={() => {
+              if (nav.searchOpen || nav.query) {
+                nav.setSearchOpen(false);
+                nav.setQuery("");
+              } else nav.setSearchOpen(true);
+            }}
+            onRefresh={() => void data.reloadAll()}
+          />
+
+          <WorkspaceContent
+            organizationEditRequest={organizationEditRequest}
+            onOrganizationEditConsumed={() =>
+              setOrganizationEditRequest(undefined)
+            }
+            searchOpen={nav.searchOpen}
+            query={nav.query}
+            onQueryChange={nav.setQuery}
+            layout={nav.layout}
+            onLayoutChange={nav.setLayout}
+            completeBehavior={nav.completeBehavior}
+            onCompleteBehaviorChange={nav.setCompleteBehavior}
+            boardScroll={nav.boardScroll}
+            view={nav.view}
+            now={data.now}
+            currentProject={nav.currentProject}
+            organizationPage={nav.organizationPage}
+            projectsPage={nav.projectsPage}
+            specialPage={nav.specialPage}
+            organization={data.organization}
+            organizationError={data.organizationError}
+            organizationReady={data.organizationReady}
+            organizationSaving={data.organizationSaving}
+            organizationBlocked={data.organizationBlocked}
+            busy={data.busy}
+            loading={data.loading}
+            loaded={data.loaded}
+            needsCheck={data.needsCheck}
+            notice={data.notice}
+            boardDisabled={workspaceLocked}
+            tasks={data.tasks}
+            topLevelVisible={topLevelVisible}
+            filterProjects={filterProjects}
+            activeEntry={nav.activeEntry}
+            activeItem={activeItem}
+            currentProjectRecord={projectActions.currentProjectRecord}
+            currentProjectFocus={projectActions.currentProjectFocus}
+            projectOutcome={projectOutcome}
+            projectDescription={projectDescription}
+            viewCounts={viewCounts}
+            viewMenuOpen={nav.viewMenuOpen}
+            setViewMenuOpen={nav.setViewMenuOpen}
+            editingHeaderOutcome={projectActions.editingHeaderOutcome}
+            setEditingHeaderOutcome={projectActions.setEditingHeaderOutcome}
+            headerOutcomeDraft={projectActions.headerOutcomeDraft}
+            setHeaderOutcomeDraft={projectActions.setHeaderOutcomeDraft}
+            editingHeaderDesc={projectActions.editingHeaderDesc}
+            setEditingHeaderDesc={projectActions.setEditingHeaderDesc}
+            headerDescDraft={projectActions.headerDescDraft}
+            setHeaderDescDraft={projectActions.setHeaderDescDraft}
+            onSelectProject={nav.selectProject}
+            onSelectView={nav.selectView}
+            onOpenEntry={nav.openEntry}
+            onOpenOrganization={() =>
+              nav.openManagementPage("organization", false)
+            }
+            onTransitionProject={projectActions.transition}
+            onAddSubproject={projectActions.addSubproject}
+            onEditProject={projectActions.editProject}
+            onDeleteProject={projectActions.deleteProject}
+            onChangeOrganization={data.changeOrganization}
+            onSaveProjectField={saveProjectField}
+            onLoadOrganization={data.loadOrganization}
+            onClearOrganizationError={() => data.setOrganizationError("")}
+            onChangeBoard={taskActions.changeBoard}
+            onReloadBoard={taskActions.reloadBoard}
+            onReloadAll={data.reloadAll}
+            onRestoreEnergy={data.restoreEnergy}
+            onRescheduleOverdue={data.rescheduleOverdue}
+            onOpenEditor={taskActions.openEditor}
+            onMoveTask={(task, columnId, beforeUuid, parentUuid) =>
+              taskActions.moveTask(task, columnId, beforeUuid, true, parentUuid)
+            }
+            onCreateTaskInView={taskActions.createTaskInView}
+            renderTask={renderTask}
+            timePage={nav.timePage}
+            isTimeMode={data.isTimeMode}
+            timerSnapshot={data.timerSnapshot}
+            timerLiveStatus={data.timerLiveStatus}
+            activeActivitySeconds={data.activeActivitySeconds}
+            onOpenTimePage={nav.openTimePage}
+            onRefreshTimerSnapshot={data.refreshTimerSnapshot}
+            habitsPage={nav.habitsPage}
+            onEditHabit={openEditHabit}
+            habitsController={habits}
+            todayHabitsActions={todayHabitsActions}
+          />
+        </div>
+
+        <MobileNavigation
+          view={!nav.currentProject && !nav.specialPage ? nav.view : undefined}
+          projectsPage={nav.projectsPage}
+          disabled={workspaceLocked}
+          navigationDisabled={data.busy || data.organizationSaving}
+          onView={nav.selectView}
+          onProjects={() => nav.openManagementPage("projects")}
+          onMenu={() => nav.setNavigation(true)}
+          onAdd={taskActions.openQuickAdd}
+        />
+
+        <WorkspaceModals
+          {...taskActions}
+          {...projectActions}
+          commandOpen={nav.commandOpen}
+          setCommandOpen={nav.setCommandOpen}
+          layout={nav.layout}
+          currentProject={nav.currentProject}
+          organizationPage={nav.organizationPage}
           organization={data.organization}
           organizationError={data.organizationError}
           organizationReady={data.organizationReady}
           organizationSaving={data.organizationSaving}
           organizationBlocked={data.organizationBlocked}
+          organizationGeneration={data.organizationGeneration}
+          filterProjects={filterProjects}
+          tasks={data.tasks}
           busy={data.busy}
           loading={data.loading}
-          loaded={data.loaded}
           needsCheck={data.needsCheck}
           notice={data.notice}
-          boardDisabled={workspaceLocked}
-          tasks={data.tasks}
-          topLevelVisible={topLevelVisible}
-          filterProjects={filterProjects}
-          activeEntry={nav.activeEntry}
-          activeItem={activeItem}
-          currentProjectRecord={projectActions.currentProjectRecord}
-          currentProjectFocus={projectActions.currentProjectFocus}
-          projectOutcome={projectOutcome}
-          projectDescription={projectDescription}
-          viewCounts={viewCounts}
-          viewMenuOpen={nav.viewMenuOpen}
-          setViewMenuOpen={nav.setViewMenuOpen}
-          editingHeaderOutcome={projectActions.editingHeaderOutcome}
-          setEditingHeaderOutcome={projectActions.setEditingHeaderOutcome}
-          headerOutcomeDraft={projectActions.headerOutcomeDraft}
-          setHeaderOutcomeDraft={projectActions.setHeaderOutcomeDraft}
-          editingHeaderDesc={projectActions.editingHeaderDesc}
-          setEditingHeaderDesc={projectActions.setEditingHeaderDesc}
-          headerDescDraft={projectActions.headerDescDraft}
-          setHeaderDescDraft={projectActions.setHeaderDescDraft}
-          onSelectProject={nav.selectProject}
+          setNeedsCheck={data.setNeedsCheck}
+          writeLock={data.writeLock}
+          settingsSection={nav.settingsSection}
+          setSettingsSection={nav.setSettingsSection}
+          themePreference={themePreference}
+          sidebarPreferences={sidebar.preferences}
+          onSidebarPreferencesChange={sidebar.update}
+          completeBehavior={nav.completeBehavior}
+          onCompleteBehaviorChange={nav.setCompleteBehavior}
+          onTimeMutated={() => {
+            void data.refreshTimerSnapshot();
+            void data.reloadAll();
+          }}
+          editingParent={editingParent}
+          subtasksMap={subtasksMap}
+          onToastAction={() => taskActions.handleToastAction(nav.selectProject)}
+          onToggleLayout={() =>
+            nav.setLayout((prev) => (prev === "list" ? "board" : "list"))
+          }
           onSelectView={nav.selectView}
-          onOpenEntry={nav.openEntry}
-          onOpenOrganization={() =>
-            nav.openManagementPage("organization", false)
+          onSelectProject={nav.selectProject}
+          onSelectEntry={nav.openEntry}
+          onOpenOrganization={() => nav.openManagementPage("organization")}
+          onOpenHabits={nav.openHabitsPage}
+          onOpenTime={() => nav.openTimePage("today")}
+          onAddHabit={() => {
+            taskActions.openEditor(undefined, {
+              description: "",
+              tags: [],
+              habitPreset: true,
+            } as never);
+          }}
+          habitByTaskUuid={habits.habitByTaskUuid}
+          habitTodayDate={
+            habits.todayData?.todayDate || currentLocalTodayDate()
           }
-          onTransitionProject={projectActions.transition}
-          onAddSubproject={projectActions.addSubproject}
+          habitActions={habitTaskActions}
+          onBindTaskHabit={habits.bindTaskHabit}
+          onUnbindTaskHabit={habits.unbindTaskHabit}
           onEditProject={projectActions.editProject}
-          onDeleteProject={projectActions.deleteProject}
-          onChangeOrganization={data.changeOrganization}
-          onSaveProjectField={saveProjectField}
-          onLoadOrganization={data.loadOrganization}
-          onClearOrganizationError={() => data.setOrganizationError("")}
-          onChangeBoard={taskActions.changeBoard}
-          onReloadBoard={taskActions.reloadBoard}
-          onReloadAll={data.reloadAll}
-          onRestoreEnergy={data.restoreEnergy}
-          onRescheduleOverdue={data.rescheduleOverdue}
+          onTransitionProject={projectActions.transition}
           onOpenEditor={taskActions.openEditor}
-          onMoveTask={(task, columnId, beforeUuid, parentUuid) =>
-            taskActions.moveTask(task, columnId, beforeUuid, true, parentUuid)
-          }
           onCreateTaskInView={taskActions.createTaskInView}
-          renderTask={renderTask}
-          timePage={nav.timePage}
+          onCreateSubtask={taskActions.createSubtask}
+          onToggleTask={taskActions.toggleTask}
+          onToggleStart={taskActions.toggleStartTask}
+          onClearStartMark={taskActions.clearStartMark}
+          isTimingTask={data.isTimingTask}
+          onUnlinkSubtask={taskActions.unlinkSubtask}
+          onDeleteTask={taskActions.deleteTask}
+          onSubmitTaskForm={taskActions.submitTaskForm}
           isTimeMode={data.isTimeMode}
-          timerSnapshot={data.timerSnapshot}
-          timerLiveStatus={data.timerLiveStatus}
-          activeActivitySeconds={data.activeActivitySeconds}
-          onOpenTimePage={nav.openTimePage}
-          onRefreshTimerSnapshot={data.refreshTimerSnapshot}
-          habitsPage={nav.habitsPage}
-          onEditHabit={openEditHabit}
-          habitsController={habits}
-          todayHabitsActions={todayHabitsActions}
+          hourlyRateCents={data.hourlyRateCents}
+          taskCostSummary={data.taskCostSummary}
+          onRefreshTimeSnapshot={data.refreshTimerSnapshot}
+          onMutate={taskActions.mutateWithOrigin}
+          onChangeOrganization={data.changeOrganization}
+          onSetOrganization={data.setOrganization}
+          onSetOrganizationError={data.setOrganizationError}
+          onSetOrganizationSaving={data.setOrganizationSaving}
+          onLoadOrganization={data.loadOrganization}
+          onReloadAll={data.reloadAll}
         />
-      </div>
 
-      <MobileNavigation
-        view={!nav.currentProject && !nav.specialPage ? nav.view : undefined}
-        projectsPage={nav.projectsPage}
-        disabled={workspaceLocked}
-        navigationDisabled={data.busy || data.organizationSaving}
-        onView={nav.selectView}
-        onProjects={() => nav.openManagementPage("projects")}
-        onMenu={() => nav.setNavigation(true)}
-        onAdd={taskActions.openQuickAdd}
-      />
+        <HabitFormDialog
+          open={habitFormOpen}
+          onOpenChange={(next) => {
+            setHabitFormOpen(next);
+            if (!next) setEditingHabit(null);
+          }}
+          editing={editingHabit}
+          todayDate={habits.todayData?.todayDate || currentLocalTodayDate()}
+          projects={filterProjects}
+          availableLabels={data.organization.tags}
+          busy={habits.busy}
+          onCreate={habits.createHabit}
+          onUpdate={habits.updateHabit}
+        />
 
-      <WorkspaceModals
-        {...taskActions}
-        {...projectActions}
-        commandOpen={nav.commandOpen}
-        setCommandOpen={nav.setCommandOpen}
-        layout={nav.layout}
-        currentProject={nav.currentProject}
-        organizationPage={nav.organizationPage}
-        organization={data.organization}
-        organizationError={data.organizationError}
-        organizationReady={data.organizationReady}
-        organizationSaving={data.organizationSaving}
-        organizationBlocked={data.organizationBlocked}
-        organizationGeneration={data.organizationGeneration}
-        filterProjects={filterProjects}
-        tasks={data.tasks}
-        busy={data.busy}
-        loading={data.loading}
-        needsCheck={data.needsCheck}
-        notice={data.notice}
-        setNeedsCheck={data.setNeedsCheck}
-        writeLock={data.writeLock}
-        settingsSection={nav.settingsSection}
-        setSettingsSection={nav.setSettingsSection}
-        sidebarPreferences={sidebar.preferences}
-        onSidebarPreferencesChange={sidebar.update}
-        completeBehavior={nav.completeBehavior}
-        onCompleteBehaviorChange={nav.setCompleteBehavior}
-        onTimeMutated={() => {
-          void data.refreshTimerSnapshot();
-          void data.reloadAll();
-        }}
-        editingParent={editingParent}
-        subtasksMap={subtasksMap}
-        onToastAction={() => taskActions.handleToastAction(nav.selectProject)}
-        onToggleLayout={() =>
-          nav.setLayout((prev) => (prev === "list" ? "board" : "list"))
-        }
-        onSelectView={nav.selectView}
-        onSelectProject={nav.selectProject}
-        onSelectEntry={nav.openEntry}
-        onOpenOrganization={() => nav.openManagementPage("organization")}
-        onOpenHabits={nav.openHabitsPage}
-        onOpenTime={() => nav.openTimePage("today")}
-        onAddHabit={() => {
-          taskActions.openEditor(undefined, {
-            description: "",
-            tags: [],
-            habitPreset: true,
-          } as never);
-        }}
-        habitByTaskUuid={habits.habitByTaskUuid}
-        habitTodayDate={habits.todayData?.todayDate || currentLocalTodayDate()}
-        habitActions={habitTaskActions}
-        onBindTaskHabit={habits.bindTaskHabit}
-        onUnbindTaskHabit={habits.unbindTaskHabit}
-        onEditProject={projectActions.editProject}
-        onTransitionProject={projectActions.transition}
-        onOpenEditor={taskActions.openEditor}
-        onCreateTaskInView={taskActions.createTaskInView}
-        onCreateSubtask={taskActions.createSubtask}
-        onToggleTask={taskActions.toggleTask}
-        onToggleStart={taskActions.toggleStartTask}
-        onClearStartMark={taskActions.clearStartMark}
-        isTimingTask={data.isTimingTask}
-        onUnlinkSubtask={taskActions.unlinkSubtask}
-        onDeleteTask={taskActions.deleteTask}
-        onSubmitTaskForm={taskActions.submitTaskForm}
-        isTimeMode={data.isTimeMode}
-        hourlyRateCents={data.hourlyRateCents}
-        taskCostSummary={data.taskCostSummary}
-        onRefreshTimeSnapshot={data.refreshTimerSnapshot}
-        onMutate={taskActions.mutateWithOrigin}
-        onChangeOrganization={data.changeOrganization}
-        onSetOrganization={data.setOrganization}
-        onSetOrganizationError={data.setOrganizationError}
-        onSetOrganizationSaving={data.setOrganizationSaving}
-        onLoadOrganization={data.loadOrganization}
-        onReloadAll={data.reloadAll}
-      />
-
-      <HabitFormDialog
-        open={habitFormOpen}
-        onOpenChange={(next) => {
-          setHabitFormOpen(next);
-          if (!next) setEditingHabit(null);
-        }}
-        editing={editingHabit}
-        todayDate={habits.todayData?.todayDate || currentLocalTodayDate()}
-        projects={filterProjects}
-        availableLabels={data.organization.tags}
-        busy={habits.busy}
-        onCreate={habits.createHabit}
-        onUpdate={habits.updateHabit}
-      />
-
-      <HabitDetailDialog
-        open={Boolean(habits.detailId)}
-        onOpenChange={(open) => {
-          if (!open) habits.setDetailId(null);
-        }}
-        detail={habits.detailData}
-        fallbackHabit={
-          habits.detailId
-            ? (habits.allHabits.find((h) => h.id === habits.detailId) ??
-              habits.habits.find((h) => h.id === habits.detailId) ??
-              null)
-            : null
-        }
-        error={habits.detailError}
-        onRetry={() => {
-          if (habits.detailId) void habits.refreshDetail(habits.detailId);
-        }}
-        availableLabels={data.organization.tags}
-        disabled={habits.busy}
-        onEdit={(habit) => {
-          habits.setDetailId(null);
-          openEditHabit(habit);
-        }}
-        onSetStatus={(id, status) => void habits.setHabitStatus(id, status)}
-        onDelete={habits.deleteHabit}
-        onTogglePositive={(habitId, date, completed) =>
-          void habits.togglePositive(habitId, date, completed)
-        }
-        onSetChecklistItem={(input) => void habits.setChecklistItem(input)}
-        onSwitchPlan={(habitId, planId, date) =>
-          void habits.switchPlan(habitId, planId, date)
-        }
-        onRecordNegative={(habitId, date, note) =>
-          void habits.recordNegative(habitId, date, note)
-        }
-        onUndoNegative={(habitId, date, eventId) =>
-          void habits.undoNegative(habitId, date, eventId)
-        }
-        onUpdateNegativeNote={(habitId, eventId, note, date) =>
-          void habits.updateNegativeNote(habitId, eventId, note, date)
-        }
-        onSetDailyNote={(habitId, note, date) =>
-          void habits.setDailyNote(habitId, note, date)
-        }
-      />
-    </ProjectColorsProvider>
+        <HabitDetailDialog
+          open={Boolean(habits.detailId)}
+          onOpenChange={(open) => {
+            if (!open) habits.setDetailId(null);
+          }}
+          detail={habits.detailData}
+          fallbackHabit={
+            habits.detailId
+              ? (habits.allHabits.find((h) => h.id === habits.detailId) ??
+                habits.habits.find((h) => h.id === habits.detailId) ??
+                null)
+              : null
+          }
+          error={habits.detailError}
+          onRetry={() => {
+            if (habits.detailId) void habits.refreshDetail(habits.detailId);
+          }}
+          availableLabels={data.organization.tags}
+          disabled={habits.busy}
+          onEdit={(habit) => {
+            habits.setDetailId(null);
+            openEditHabit(habit);
+          }}
+          onSetStatus={(id, status) => void habits.setHabitStatus(id, status)}
+          onDelete={habits.deleteHabit}
+          onTogglePositive={(habitId, date, completed) =>
+            void habits.togglePositive(habitId, date, completed)
+          }
+          onSetChecklistItem={(input) => void habits.setChecklistItem(input)}
+          onSwitchPlan={(habitId, planId, date) =>
+            void habits.switchPlan(habitId, planId, date)
+          }
+          onRecordNegative={(habitId, date, note) =>
+            void habits.recordNegative(habitId, date, note)
+          }
+          onUndoNegative={(habitId, date, eventId) =>
+            void habits.undoNegative(habitId, date, eventId)
+          }
+          onUpdateNegativeNote={(habitId, eventId, note, date) =>
+            void habits.updateNegativeNote(habitId, eventId, note, date)
+          }
+          onSetDailyNote={(habitId, note, date) =>
+            void habits.setDailyNote(habitId, note, date)
+          }
+        />
+      </ProjectColorsProvider>
+    </FilterGroupByProvider>
   );
 }
 

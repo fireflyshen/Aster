@@ -88,11 +88,41 @@ export type BuiltinFilterChange = {
   value?: boolean;
 };
 
+export type ThemeMode = "light" | "dark" | "system";
+export type ThemePalette =
+  | "aster"
+  | "todoist"
+  | "moonstone"
+  | "tangerine"
+  | "kale"
+  | "blueberry"
+  | "lavender"
+  | "raspberry";
+
+export type WorkspacePreferences = {
+  theme?: ThemeMode;
+  palette?: ThemePalette;
+  sidebarHidden?: string[];
+  sidebarShowCounts?: boolean;
+  completeBehavior?: "hide" | "strikethrough";
+  layout?: "list" | "board";
+  view?: "today" | "pending" | "focus" | "upcoming";
+  navOpen?: boolean;
+  filterGroupBy?: Record<string, string>;
+};
+
+export type PreferencesChange = {
+  revision: number;
+  kind: "preferences";
+  patch: WorkspacePreferences;
+};
+
 export type Organization = {
   revision: number;
   filters: SavedFilter[];
   tags: SavedTag[];
   builtinFilterPrefs?: BuiltinFilterPrefs;
+  preferences?: WorkspacePreferences;
   projectCounts?: Record<string, number>;
   projects?: SavedProject[];
   board?: BoardState;
@@ -110,6 +140,7 @@ export type OrganizationChange =
   | SubtaskChange
   | DescriptionChange
   | BuiltinFilterChange
+  | PreferencesChange
   | {
       revision: number;
       kind: "project";

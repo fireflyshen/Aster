@@ -660,3 +660,49 @@ test("builtinFilter preferences persist favorites, hidden ids, and section toggl
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("workspace preferences persist theme, palette, sidebar, and layout settings on the server", async () => {
+  const directory = await mkdtemp(tmpdir() + "/aster-prefs-");
+  try {
+    const file = directory + "/organization.json";
+    const store = createOrganizationStore(file);
+
+    const first = await store.updatePreferences({
+      theme: "dark",
+      palette: "todoist",
+      sidebarHidden: ["upcoming", "unknown-item"],
+      sidebarShowCounts: false,
+      completeBehavior: "strikethrough",
+      layout: "board",
+      view: "focus",
+      navOpen: false,
+      filterGroupBy: { "view:today": "priority", invalid: "bogus" },
+    });
+    assert.deepEqual(first, {
+      theme: "dark",
+      palette: "todoist",
+      sidebarHidden: ["upcoming"],
+      sidebarShowCounts: false,
+      completeBehavior: "strikethrough",
+      layout: "board",
+      view: "focus",
+      navOpen: false,
+      filterGroupBy: { "view:today": "priority" },
+    });
+
+    const second = await store.updatePreferences({ palette: "kale" });
+    assert.equal(second.theme, "dark");
+    assert.equal(second.palette, "kale");
+    assert.deepEqual(second.sidebarHidden, ["upcoming"]);
+
+    await assert.rejects(
+      store.updatePreferences({ palette: "invalid-palette" }),
+      /Invalid theme palette/,
+    );
+
+    const reloaded = await createOrganizationStore(file).read();
+    assert.deepEqual(reloaded.preferences, second);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

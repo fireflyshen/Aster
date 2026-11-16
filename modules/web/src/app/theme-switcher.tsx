@@ -1,8 +1,12 @@
+import type {
+  ThemeMode,
+  ThemePalette,
+  WorkspacePreferences,
+} from "@core/workspace/organization";
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
 
-type Theme = "light" | "dark" | "system";
-const validTheme = (value: string | null | undefined): Theme =>
+const validTheme = (value: string | null | undefined): ThemeMode =>
   value === "light" || value === "dark" ? value : "system";
 
 export const themePresets = [
@@ -15,29 +19,38 @@ export const themePresets = [
   { id: "lavender", name: "薰衣草", light: "#7358aa", dark: "#b49bdc" },
   { id: "raspberry", name: "玫红", light: "#ab3c68", dark: "#e78fb1" },
 ] as const;
-type Palette = (typeof themePresets)[number]["id"];
-const validPalette = (value: string | null | undefined): Palette =>
+const validPalette = (value: string | null | undefined): ThemePalette =>
   themePresets.find((item) => item.id === value)?.id || "aster";
 
-function storePreference(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* Keep the session preference. */
-  }
-}
-
-/** Mounted outside the settings portal so system appearance stays live when closed. */
-export function useThemePreference() {
-  const [theme, setTheme] = useState<Theme>(() =>
-    validTheme(document.documentElement.dataset.theme),
+/** Syncs appearance mode and palette with backend-persisted workspace preferences. */
+export function useThemePreference(
+  preferences?: WorkspacePreferences,
+  onUpdatePreferences?: (patch: WorkspacePreferences) => void,
+) {
+  const [theme, setTheme] = useState<ThemeMode>(() =>
+    validTheme(preferences?.theme ?? document.documentElement.dataset.theme),
   );
-  const [palette, setPalette] = useState<Palette>(() =>
-    validPalette(document.documentElement.dataset.palette),
+  const [palette, setPalette] = useState<ThemePalette>(() =>
+    validPalette(
+      preferences?.palette ?? document.documentElement.dataset.palette,
+    ),
   );
   const [resolvedDark, setResolvedDark] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );
+
+  useEffect(() => {
+    if (preferences?.theme !== undefined) {
+      setTheme(validTheme(preferences.theme));
+    }
+  }, [preferences?.theme]);
+
+  useEffect(() => {
+    if (preferences?.palette !== undefined) {
+      setPalette(validPalette(preferences.palette));
+    }
+  }, [preferences?.palette]);
+
   useEffect(() => {
     const system = matchMedia("(prefers-color-scheme: dark)");
     const apply = () => {
@@ -53,30 +66,22 @@ export function useThemePreference() {
     system.addEventListener("change", apply);
     return () => system.removeEventListener("change", apply);
   }, [theme]);
+
   useEffect(() => {
     document.documentElement.dataset.palette = palette;
   }, [palette]);
-  useEffect(() => {
-    const sync = (event: StorageEvent) => {
-      if (event.key === "aster.theme" || event.key === null)
-        setTheme(validTheme(event.newValue));
-      if (event.key === "aster.palette" || event.key === null)
-        setPalette(validPalette(event.newValue));
-    };
-    addEventListener("storage", sync);
-    return () => removeEventListener("storage", sync);
-  }, []);
+
   return {
     theme,
     palette,
     resolvedDark,
-    changeTheme: (next: Theme) => {
+    changeTheme: (next: ThemeMode) => {
       setTheme(next);
-      storePreference("aster.theme", next);
+      onUpdatePreferences?.({ theme: next });
     },
-    changePalette: (next: Palette) => {
+    changePalette: (next: ThemePalette) => {
       setPalette(next);
-      storePreference("aster.palette", next);
+      onUpdatePreferences?.({ palette: next });
     },
   };
 }
@@ -153,7 +158,7 @@ export function ThemePanel({
         </div>
       </fieldset>
       <p className="settings-theme-hint" role="status">
-        已应用 · 自动保存在此浏览器
+        已应用 · 自动保存在服务端
       </p>
     </div>
   );

@@ -16,6 +16,7 @@ import { ProjectEditor } from "@/features/projects/project-editor";
 import { ProjectTransition } from "@/features/projects/project-transition";
 import type { CompleteBehavior } from "@/app/hooks/use-workspace-navigation";
 import type { SidebarPreferences } from "@/app/sidebar-preferences";
+import type { useThemePreference } from "@/app/theme-switcher";
 import {
   WorkspaceSettings,
   type SettingsSection,
@@ -45,6 +46,7 @@ export type ProjectWorkspaceDialogsProps = {
   writeLock: MutableRefObject<boolean>;
   settingsSection: SettingsSection | null;
   setSettingsSection: (section: SettingsSection | null) => void;
+  themePreference: ReturnType<typeof useThemePreference>;
   sidebarPreferences: SidebarPreferences;
   onSidebarPreferencesChange: (next: SidebarPreferences) => void;
   completeBehavior: CompleteBehavior;
@@ -101,6 +103,7 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
     writeLock,
     settingsSection,
     setSettingsSection,
+    themePreference,
     sidebarPreferences,
     onSidebarPreferencesChange,
     completeBehavior,
@@ -346,6 +349,7 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
         onOpenChange={(open) => {
           if (!open) setSettingsSection(null);
         }}
+        themePreference={themePreference}
         sidebarPreferences={sidebarPreferences}
         onSidebarPreferencesChange={onSidebarPreferencesChange}
         completeBehavior={completeBehavior}

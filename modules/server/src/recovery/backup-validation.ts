@@ -273,6 +273,9 @@ export function validateBackup(value: unknown): AsterBackup {
       throw new Error("Invalid built-in filter setting.");
     }
   }
+  if (org.preferences !== undefined) {
+    record(org.preferences);
+  }
   if (org.descriptions !== undefined) {
     record(org.descriptions);
     if (Object.keys(org.descriptions).length > 50000)

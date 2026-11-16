@@ -20,6 +20,7 @@ import {
   applyBuiltinFilterChange,
   applyDescriptionChange,
   applyFilterOrTagChange,
+  applyPreferencesChange,
   applySubtaskChange,
 } from "./organization-item-changes.ts";
 import { applyProjectSaveOrDeleteChange } from "./organization-project-changes.ts";
@@ -113,6 +114,8 @@ export function createOrganizationStore(path: string) {
           await applyFilterOrTagChange(data, input, available, effect);
         } else if (input.kind === "builtinFilter") {
           applyBuiltinFilterChange(data, input);
+        } else if (input.kind === "preferences") {
+          applyPreferencesChange(data, input.patch);
         } else {
           throw new Error("Unsupported action");
         }
@@ -155,5 +158,18 @@ export function createOrganizationStore(path: string) {
     return operation;
   }
 
-  return { read, change, restorePlacement };
+  function updatePreferences(rawPatch: unknown) {
+    const operation = queue
+      .catch(() => undefined)
+      .then(async () => {
+        const data = await read();
+        applyPreferencesChange(data, rawPatch);
+        await persist(data);
+        return data.preferences ?? {};
+      });
+    queue = operation;
+    return operation;
+  }
+
+  return { read, change, restorePlacement, updatePreferences };
 }

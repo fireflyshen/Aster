@@ -14,6 +14,7 @@ import { inProject } from "@core/workspace/focus";
 import type {
   Organization,
   OrganizationChange,
+  WorkspacePreferences,
 } from "@core/workspace/organization";
 import { remapProject } from "@core/workspace/projects";
 import type { Task } from "@shared/tasks";
@@ -351,6 +352,7 @@ export function useWorkspaceData({
           change.kind !== "board" &&
           change.kind !== "energy" &&
           change.kind !== "description" &&
+          change.kind !== "preferences" &&
           !(await load())
         ) {
           setNeedsCheck(true);
@@ -478,6 +480,28 @@ export function useWorkspaceData({
     });
   }, [changeOrganization, organization.revision]);
 
+  const prefsQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const updatePreferences = useCallback((patch: WorkspacePreferences) => {
+    setOrganization((prev) => ({
+      ...prev,
+      preferences: {
+        ...(prev.preferences || {}),
+        ...patch,
+      },
+    }));
+    const next = prefsQueue.current
+      .catch(() => undefined)
+      .then(async () => {
+        const saved = await api<WorkspacePreferences>("preferences", patch);
+        setOrganization((prev) => ({
+          ...prev,
+          preferences: saved,
+        }));
+      });
+    prefsQueue.current = next;
+    return next;
+  }, []);
+
   const reloadAll = useCallback(async () => {
     const result = await loadOrganization();
     if (result) await load();
@@ -531,6 +555,7 @@ export function useWorkspaceData({
     reloadAll,
     mutate,
     changeOrganization,
+    updatePreferences,
     rescheduleOverdue,
     restoreEnergy,
   };

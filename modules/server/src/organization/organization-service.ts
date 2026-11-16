@@ -201,7 +201,7 @@ export function createOrganizationService(
         changeProject: service.changeProject,
       },
     );
-    if (value.kind === "board")
+    if (value.kind === "board" || value.kind === "preferences")
       return {
         ...saved,
         projects: available.projects,
@@ -219,6 +219,9 @@ export function createOrganizationService(
   return {
     load: loadOrganization,
     snapshot: organization.read,
+    loadPreferences: () =>
+      organization.read().then((data) => data.preferences ?? {}),
+    updatePreferences: organization.updatePreferences,
     restorePlacement: organization.restorePlacement,
     workspace: loadOrganization,
     change,

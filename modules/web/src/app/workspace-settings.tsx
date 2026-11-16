@@ -12,7 +12,7 @@ import { RecoveryPanel } from "@/features/recovery/recovery-center";
 import { TimeSettingsPanel } from "@/features/time/time-settings-panel";
 import type { CompleteBehavior } from "./hooks/use-workspace-navigation";
 import { sidebarItems, type SidebarPreferences } from "./sidebar-preferences";
-import { ThemePanel, useThemePreference } from "./theme-switcher";
+import { ThemePanel, type useThemePreference } from "./theme-switcher";
 
 export type SettingsSection =
   | "general"
@@ -45,6 +45,7 @@ export function WorkspaceSettings({
   onRestoreTask,
   onRefreshAll,
   onUnconfirmed,
+  themePreference,
   sidebarPreferences,
   onSidebarPreferencesChange,
 }: {
@@ -52,6 +53,7 @@ export function WorkspaceSettings({
   onOpenChange: (open: boolean) => void;
   section?: SettingsSection;
   onSectionChange?: (section: SettingsSection) => void;
+  themePreference: ReturnType<typeof useThemePreference>;
   sidebarPreferences: SidebarPreferences;
   onSidebarPreferencesChange: (next: SidebarPreferences) => void;
   completeBehavior: CompleteBehavior;
@@ -65,7 +67,6 @@ export function WorkspaceSettings({
   onRefreshAll?: () => Promise<unknown>;
   onUnconfirmed?: () => void;
 }) {
-  const preference = useThemePreference();
   const [internalSection, setInternalSection] =
     useState<SettingsSection>("theme");
   const [recoveryWorking, setRecoveryWorking] = useState(false);
@@ -131,7 +132,7 @@ export function WorkspaceSettings({
           </header>
           <div className="settings-body">
             {section === "theme" ? (
-              <ThemePanel preference={preference} />
+              <ThemePanel preference={themePreference} />
             ) : section === "sidebar" ? (
               <div className="sidebar-preferences-panel">
                 <fieldset>
@@ -173,7 +174,7 @@ export function WorkspaceSettings({
                   />
                 </div>
                 <p className="settings-theme-hint">
-                  隐藏的视图仍可通过搜索打开。设置自动保存在此浏览器。
+                  隐藏的视图仍可通过搜索打开。设置自动保存在服务端。
                 </p>
               </div>
             ) : section === "time" ? (

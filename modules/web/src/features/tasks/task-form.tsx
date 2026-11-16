@@ -681,40 +681,40 @@ export function TaskForm({
             ) : undefined
           }
         />
-      </div>
 
-      {(!editing || changed || busy || Boolean(error)) && (
-        <div
-          data-editor-actions
-          className="flex shrink-0 items-center justify-between gap-4 border-t border-border/70 px-5 pt-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom))] md:py-3.5"
-        >
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={busy || savingDescription}
-              onClick={() => onCheck()}
-              className="h-8 rounded-[6px]"
-            >
-              取消
-            </Button>
-            <Button
-              type="submit"
-              disabled={locked}
-              className="h-8 min-w-18 rounded-[6px]"
-            >
-              {busy || savingDescription ? (
-                <>
-                  <Spinner className="size-4" />
-                  <span>保存中</span>
-                </>
-              ) : (
-                "保存"
-              )}
-            </Button>
+        {(!editing || changed || busy || Boolean(error)) && (
+          <div
+            data-editor-actions
+            className="flex shrink-0 items-center justify-between gap-4 border-t border-border/70 bg-background px-5 pt-3.5 pb-[calc(0.875rem+env(safe-area-inset-bottom))] md:px-8 md:py-3.5"
+          >
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy || savingDescription}
+                onClick={() => onCheck()}
+                className="h-8 rounded-[6px]"
+              >
+                取消
+              </Button>
+              <Button
+                type="submit"
+                disabled={locked}
+                className="h-8 min-w-18 rounded-[6px]"
+              >
+                {busy || savingDescription ? (
+                  <>
+                    <Spinner className="size-4" />
+                    <span>保存中</span>
+                  </>
+                ) : (
+                  "保存"
+                )}
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </form>
   );
 }

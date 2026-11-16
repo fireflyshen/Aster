@@ -1,4 +1,8 @@
-import type { SavedFilter, SavedTag } from "@core/workspace/organization";
+import type {
+  SavedFilter,
+  SavedTag,
+  WorkspacePreferences,
+} from "@core/workspace/organization";
 import type { View } from "@shared/tasks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SettingsSection } from "../workspace-settings";
@@ -13,8 +17,6 @@ export type CompleteBehavior = "hide" | "strikethrough";
 
 export type TimePage = "today" | "weekly" | "reports" | "settings";
 
-const COMPLETE_BEHAVIOR_KEY = "aster:completeBehavior";
-
 const VALID_VIEWS: readonly View[] = ["today", "pending", "focus", "upcoming"];
 
 function validCompleteBehavior(
@@ -23,62 +25,20 @@ function validCompleteBehavior(
   return value === "strikethrough" ? "strikethrough" : "hide";
 }
 
-function readStoredCompleteBehavior(): CompleteBehavior {
-  if (typeof window === "undefined") return "hide";
-  try {
-    return validCompleteBehavior(
-      window.localStorage.getItem(COMPLETE_BEHAVIOR_KEY),
-    );
-  } catch {
-    return "hide";
-  }
-}
-
-function readStoredView(): View {
-  if (typeof window === "undefined") return "today";
-  try {
-    const raw = window.localStorage.getItem("aster:view") as View | null;
-    return raw && VALID_VIEWS.includes(raw) ? raw : "today";
-  } catch {
-    return "today";
-  }
-}
-
-function readStoredLayout(): "list" | "board" {
-  if (typeof window === "undefined") return "list";
-  try {
-    return window.localStorage.getItem("aster:layout") === "board"
-      ? "board"
-      : "list";
-  } catch {
-    return "list";
-  }
-}
-
-function readStoredNav(): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    const raw = window.localStorage.getItem("aster:nav");
-    if (raw === "0") return false;
-    if (raw === "1") return true;
-  } catch {}
-  return true;
-}
-
 function resetMobileScroll() {
   if (!isDesktop()) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
 }
 
-/** Manages persisted view/layout/sidebar navigation, search state, and view switches. */
+/** Manages server-persisted view/layout/sidebar navigation, search state, and view switches. */
 export function useWorkspaceNavigation() {
   const desktop = useDesktop();
-  const [desktopNavOpen, setNavOpen] = useState<boolean>(readStoredNav);
+  const [desktopNavOpen, setNavOpen] = useState<boolean>(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navOpen = desktop ? desktopNavOpen : mobileNavOpen;
-  const [view, setViewState] = useState<View>(readStoredView);
-  const [layout, setLayoutState] = useState<"list" | "board">(readStoredLayout);
+  const [view, setViewState] = useState<View>("today");
+  const [layout, setLayoutState] = useState<"list" | "board">("list");
   const [completeBehavior, setCompleteBehaviorState] =
-    useState<CompleteBehavior>(readStoredCompleteBehavior);
+    useState<CompleteBehavior>("hide");
   const [currentProject, setCurrentProject] = useState("");
   const [organizationPage, setOrganizationPage] = useState(false);
   const [projectsPage, setProjectsPage] = useState(false);
@@ -93,6 +53,34 @@ export function useWorkspaceNavigation() {
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const [subModalOpen, setSubModalOpen] = useState(false);
   const boardScroll = useRef(0);
+  const persistRef = useRef<
+    ((patch: WorkspacePreferences) => void) | undefined
+  >(undefined);
+
+  const syncFromPreferences = useCallback((prefs?: WorkspacePreferences) => {
+    if (!prefs) return;
+    if (prefs.navOpen !== undefined) setNavOpen(prefs.navOpen);
+    if (prefs.view && VALID_VIEWS.includes(prefs.view)) {
+      setViewState(prefs.view);
+    }
+    if (prefs.layout === "list" || prefs.layout === "board") {
+      setLayoutState(prefs.layout);
+    }
+    if (prefs.completeBehavior !== undefined) {
+      setCompleteBehaviorState(validCompleteBehavior(prefs.completeBehavior));
+    }
+  }, []);
+
+  const bindPreferences = useCallback(
+    (
+      prefs: WorkspacePreferences | undefined,
+      onUpdate: (patch: WorkspacePreferences) => void,
+    ) => {
+      persistRef.current = onUpdate;
+      syncFromPreferences(prefs);
+    },
+    [syncFromPreferences],
+  );
 
   const setNavigation = useCallback(
     (next: boolean | ((current: boolean) => boolean)) => {
@@ -102,9 +90,7 @@ export function useWorkspaceNavigation() {
       }
       setNavOpen((prev) => {
         const resolved = typeof next === "function" ? next(prev) : next;
-        try {
-          window.localStorage.setItem("aster:nav", resolved ? "1" : "0");
-        } catch {}
+        persistRef.current?.({ navOpen: resolved });
         return resolved;
       });
     },
@@ -113,9 +99,7 @@ export function useWorkspaceNavigation() {
 
   const setView = useCallback((next: View) => {
     setViewState(next);
-    try {
-      window.localStorage.setItem("aster:view", next);
-    } catch {}
+    persistRef.current?.({ view: next });
   }, []);
 
   const setLayout = useCallback(
@@ -124,9 +108,7 @@ export function useWorkspaceNavigation() {
     ) => {
       setLayoutState((prev) => {
         const resolved = typeof next === "function" ? next(prev) : next;
-        try {
-          window.localStorage.setItem("aster:layout", resolved);
-        } catch {}
+        persistRef.current?.({ layout: resolved });
         return resolved;
       });
     },
@@ -225,19 +207,7 @@ export function useWorkspaceNavigation() {
 
   const setCompleteBehavior = useCallback((next: CompleteBehavior) => {
     setCompleteBehaviorState(next);
-    try {
-      window.localStorage.setItem(COMPLETE_BEHAVIOR_KEY, next);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    const sync = (event: StorageEvent) => {
-      if (event.key === COMPLETE_BEHAVIOR_KEY || event.key === null) {
-        setCompleteBehaviorState(validCompleteBehavior(event.newValue));
-      }
-    };
-    window.addEventListener("storage", sync);
-    return () => window.removeEventListener("storage", sync);
+    persistRef.current?.({ completeBehavior: next });
   }, []);
 
   const scope =
@@ -288,6 +258,7 @@ export function useWorkspaceNavigation() {
     subModalOpen,
     setSubModalOpen,
     boardScroll,
+    bindPreferences,
     scope,
     specialPage,
     openEntry,
