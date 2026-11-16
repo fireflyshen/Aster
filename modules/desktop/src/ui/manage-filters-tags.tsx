@@ -13,7 +13,6 @@ import {
 } from "@raycast/api";
 import { FormValidation, useForm } from "@raycast/utils";
 import { useState } from "react";
-import { resolveBuiltinFilters } from "../../../core/workspace/builtin-filters.ts";
 import type { WorkspaceClient } from "../../../core/workspace/client.ts";
 import {
   type Color as AsterColor,
@@ -167,38 +166,10 @@ export function ManageFiltersAndTags({
 }) {
   const [org, setOrg] = useState(initial);
   const [busy, setBusy] = useState(false);
-  const [showHiddenBuiltin, setShowHiddenBuiltin] = useState(false);
 
   async function applyUpdated(next: Organization) {
     setOrg(next);
     await onSaved();
-  }
-
-  async function toggleBuiltinPref(
-    action: "favorite" | "hide" | "section",
-    id?: string,
-    value?: boolean,
-  ) {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const next = await workspace.change({
-        revision: org.revision,
-        kind: "builtinFilter",
-        action,
-        ...(id ? { id } : {}),
-        ...(typeof value === "boolean" ? { value } : {}),
-      });
-      await applyUpdated(next);
-    } catch (error) {
-      await showToast({
-        style: Toast.Style.Failure,
-        title: "Could Not Update Built-in Filter",
-        message: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setBusy(false);
-    }
   }
 
   async function toggleFavorite(
@@ -405,97 +376,6 @@ export function ManageFiltersAndTags({
             }
           />
         ))}
-      </List.Section>
-      <List.Section
-        title={
-          org.builtinFilterPrefs?.sectionHidden
-            ? "Built-in Filters (Section Hidden)"
-            : "Built-in Filters"
-        }
-        subtitle={String(
-          resolveBuiltinFilters(org.builtinFilterPrefs).filter(
-            (item) => showHiddenBuiltin || !item.hidden,
-          ).length,
-        )}
-      >
-        {resolveBuiltinFilters(org.builtinFilterPrefs)
-          .filter((item) => showHiddenBuiltin || !item.hidden)
-          .map((item) => (
-            <List.Item
-              key={item.id}
-              title={item.name}
-              subtitle={item.expression}
-              icon={{
-                source: item.hidden ? Icon.EyeDisabled : Icon.Filter,
-                tintColor: itemColor(item.color),
-              }}
-              accessories={[
-                ...(item.hidden ? [{ text: "Hidden" }] : []),
-                ...(item.favorite
-                  ? [
-                      {
-                        icon: {
-                          source: Icon.Star,
-                          tintColor: toneColor("favorite"),
-                        },
-                        tooltip: "Favorite",
-                      },
-                    ]
-                  : []),
-              ]}
-              actions={
-                <ActionPanel>
-                  <Action
-                    title={item.favorite ? "Remove Favorite" : "Mark Favorite"}
-                    icon={Icon.Star}
-                    onAction={() =>
-                      toggleBuiltinPref("favorite", item.id, !item.favorite)
-                    }
-                  />
-                  <Action
-                    title={
-                      item.hidden
-                        ? "Show Built-in Filter"
-                        : "Hide Built-in Filter"
-                    }
-                    icon={item.hidden ? Icon.Eye : Icon.EyeDisabled}
-                    onAction={() =>
-                      toggleBuiltinPref("hide", item.id, !item.hidden)
-                    }
-                  />
-                  <Action
-                    title={
-                      showHiddenBuiltin
-                        ? "Hide Hidden Built-in Filters"
-                        : "Show Hidden Built-in Filters"
-                    }
-                    icon={Icon.List}
-                    onAction={() => setShowHiddenBuiltin((curr) => !curr)}
-                  />
-                  <Action
-                    title={
-                      org.builtinFilterPrefs?.sectionHidden
-                        ? "Show Built-in Filters Section"
-                        : "Hide Built-in Filters Section"
-                    }
-                    icon={
-                      org.builtinFilterPrefs?.sectionHidden
-                        ? Icon.Eye
-                        : Icon.EyeDisabled
-                    }
-                    onAction={() =>
-                      toggleBuiltinPref(
-                        "section",
-                        undefined,
-                        !org.builtinFilterPrefs?.sectionHidden,
-                      )
-                    }
-                  />
-                  {createActions}
-                </ActionPanel>
-              }
-            />
-          ))}
       </List.Section>
       {org.filters.length === 0 && org.tags.length === 0 ? (
         <List.EmptyView

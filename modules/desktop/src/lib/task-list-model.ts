@@ -569,10 +569,7 @@ export function emptyViewCopy(
           : "Choose Focus Projects"
         : filter.startsWith("project:")
           ? "No Open Tasks in Project"
-          : filter === "filter:builtin:completed" ||
-              filter === "filter:builtin:completed-7d"
-            ? "No Completed Tasks"
-            : "No Tasks in This View";
+          : "No Tasks in This View";
   const description =
     error?.message ||
     (filter === "focus" && organization

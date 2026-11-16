@@ -35,13 +35,14 @@ import {
   Pencil,
   Play,
   CircleCheck,
+  PlayCircle,
   Plus,
   Target,
 } from "lucide-react";
-import { useBuiltinFilterPrefs } from "@/features/organization/builtin-filter-prefs";
 import { views } from "./workspace-sidebar";
 
 const viewIcons: Record<View, React.ComponentType<{ className?: string }>> = {
+  now: PlayCircle,
   focus: Target,
   pending: Inbox,
   today: CalendarDays,
@@ -98,12 +99,7 @@ export function CommandPalette({
   onRecovery: () => void;
   onEditTask: (task: Task) => void;
 }) {
-  const { builtinFilters, hiddenIds, sectionHidden } =
-    useBuiltinFilterPrefs(organization);
-  const visibleBuiltinFilters = sectionHidden
-    ? []
-    : builtinFilters.filter((item) => !hiddenIds.has(item.id));
-  const allFilters = [...organization.filters, ...visibleBuiltinFilters];
+  const allFilters = organization.filters;
   const run = (action: () => void) => {
     onOpenChange(false);
     action();

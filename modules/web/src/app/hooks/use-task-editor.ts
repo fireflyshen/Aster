@@ -23,6 +23,7 @@ export type TaskMutateFn = (
   callbacks?: {
     onSuccess?: (origin?: MutateOrigin, response?: unknown) => void;
     onError?: (message: string, origin?: MutateOrigin) => void;
+    onDoingLimit?: (error: unknown) => boolean;
   },
 ) => Promise<boolean>;
 
@@ -123,6 +124,7 @@ export function useTaskEditor({
               setEditing({
                 ...editing,
                 ...task,
+                state: editing.state,
                 tags: task.tags || [],
                 due: date?.toISOString(),
                 until: isoDueFromInput(task.until) || undefined,

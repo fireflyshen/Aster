@@ -91,10 +91,7 @@ export function WorkspaceModals(props: WorkspaceModalsProps) {
       />
       <TaskWorkspaceDialogs {...props} />
       <ProjectWorkspaceDialogs {...props} />
-      <HabitWorkspaceDialogs
-        {...props}
-        availableLabels={organization.tags}
-      />
+      <HabitWorkspaceDialogs {...props} availableLabels={organization.tags} />
     </>
   );
 }

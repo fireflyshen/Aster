@@ -5,6 +5,9 @@ import { createTaskService } from "../../core/tasks/service.ts";
 import { createOrganizationService } from "./organization/organization-service.ts";
 import { createBackupRestore } from "./recovery/backup-restore.ts";
 import { createRecoveryService } from "./recovery/recovery.ts";
+import { createStateHistoryStore } from "./tasks/state-history.ts";
+import { createTaskStateManager } from "./tasks/state-changes.ts";
+import { createStateTransitionScheduler } from "./tasks/state-scheduler.ts";
 import { createTaskActions } from "./tasks/task-actions.ts";
 import { createTimeHandlers } from "./time/time-api.ts";
 import { createTimeBackupService } from "./time/time-backup.ts";
@@ -41,6 +44,9 @@ const timeFile = resolve(
 const habitsFile = resolve(
   process.env.HABITS_DB_FILE || resolve(dataDir, "habits.sqlite"),
 );
+const stateLogFile = resolve(
+  process.env.STATE_LOG_FILE || resolve(dataDir, "state-history.jsonl"),
+);
 const timeEnabledFlag = process.env.TIME_ENABLED !== "0";
 
 const service = createTaskService({
@@ -63,6 +69,7 @@ await runCliMaintenanceIfRequested({
   organizationFile,
   recoveryFile,
   timeFile,
+  stateLogFile,
   timeEnabled: timeEnabledFlag,
 });
 
@@ -83,9 +90,6 @@ const timeStore =
       })
     : undefined;
 const timeBackup = timeStore ? createTimeBackupService(timeStore) : undefined;
-const timeCoordinator = timeStore
-  ? createTimeCoordinator({ service, store: timeStore })
-  : undefined;
 const isTimeEnabled = () => Boolean(timeEnabledFlag && timeStore);
 const habitStore = createHabitStore(habitsFile, {
   getTimezone: () =>
@@ -105,11 +109,28 @@ const organization = createOrganizationService(
       }
     : undefined,
 );
+const stateHistory = createStateHistoryStore(stateLogFile);
+const stateManager = createTaskStateManager({
+  service,
+  organization,
+  history: stateHistory,
+  habitStore,
+  getTimezone: () => habitStore.getTimezone(),
+});
+const timeCoordinator = timeStore
+  ? createTimeCoordinator({
+      service,
+      store: timeStore,
+      beforeStart: stateManager.ensureStartReady,
+      prepareComplete: stateManager.prepareComplete,
+    })
+  : undefined;
 const recovery = createRecoveryService(
   service,
   organization,
   recoveryFile,
   habitStore,
+  stateHistory,
 );
 const taskAction = createTaskActions(
   service,
@@ -119,6 +140,7 @@ const taskAction = createTaskActions(
     ? { isEnabled: isTimeEnabled, coordinator: timeCoordinator }
     : undefined,
   habitStore,
+  stateManager,
 );
 const gate = createWorkspaceGate();
 const backupRestore = createBackupRestore(
@@ -129,6 +151,7 @@ const backupRestore = createBackupRestore(
   { organization: organizationFile, recovery: recoveryFile },
   timeStore,
   habitStore,
+  stateHistory,
 );
 
 await backupRestore.repair();
@@ -142,6 +165,13 @@ const timeScheduler =
     : undefined;
 timeScheduler?.start();
 
+const stateScheduler = createStateTransitionScheduler({
+  stateManager,
+  gate,
+  getTimezone: () => habitStore.getTimezone(),
+});
+stateScheduler.start();
+
 const timeRoutes = createTimeHandlers({
   identity,
   gate,
@@ -149,12 +179,14 @@ const timeRoutes = createTimeHandlers({
   store: timeStore,
   backup: timeBackup,
   coordinator: timeCoordinator,
+  beforeStart: stateManager.ensureStartReady,
   isEnabled: isTimeEnabled,
   paths: {
     dataDir,
     organizationFile,
     recoveryFile,
     timeFile,
+    stateLogFile,
     resolveTaskchampionDbPath: async () =>
       (
         await import("./transport/cli-maintenance.ts")
@@ -185,6 +217,7 @@ const handlers = createWorkspaceHandlers({
   recovery,
   backupRestore,
   taskAction,
+  stateManager,
   timeSnapshot: timeStore
     ? {
         isEnabled: isTimeEnabled,

@@ -51,10 +51,23 @@ export function createApiHandler(deps: ApiRouterDeps) {
     const release = spec.skipGate ? undefined : enter();
     try {
       const searchParams = new URL(req.url || "/", origin).searchParams;
+      const clientHeader = req.headers["x-aster-client"];
+      const clientSource =
+        clientHeader === "mcp" ||
+        clientHeader === "tui" ||
+        clientHeader === "web"
+          ? clientHeader
+          : "web";
+      const actor =
+        typeof req.headers["x-aster-source"] === "string"
+          ? req.headers["x-aster-source"]
+          : clientSource;
       const result = await spec.handle({
         searchParams,
         readBody: (limit) => body(req, limit),
         transport: "http",
+        clientSource,
+        actor,
       });
       if (result.headers) {
         for (const [name, value] of Object.entries(result.headers)) {

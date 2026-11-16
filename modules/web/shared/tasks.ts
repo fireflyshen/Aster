@@ -6,4 +6,4 @@ export type Task = {
     ? string
     : TaskwarriorTask[K];
 };
-export type View = "focus" | "pending" | "today" | "upcoming";
+export type View = "now" | "focus" | "pending" | "today" | "upcoming";

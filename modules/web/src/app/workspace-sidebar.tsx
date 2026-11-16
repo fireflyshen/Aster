@@ -34,7 +34,7 @@ import type {
 } from "@core/workspace/organization";
 import type { View } from "@shared/tasks";
 import { cn } from "cn";
-import { Search } from "lucide-react";
+import { PlayCircle, Search } from "lucide-react";
 import type {
   CompleteBehavior,
   TimePage,
@@ -47,13 +47,14 @@ import {
 import { WorkspaceNavigation } from "./workspace-navigation";
 
 export const views: Record<View, string> = {
+  now: "现在能做",
   focus: "Focus",
   pending: "收件箱",
   today: "今天",
   upcoming: "预览",
 };
 
-const viewOrder: View[] = ["focus", "pending", "today", "upcoming"];
+const viewOrder: View[] = ["now", "focus", "pending", "today", "upcoming"];
 
 const viewMeta: Record<
   View,
@@ -62,6 +63,10 @@ const viewMeta: Record<
     colorClass: string;
   }
 > = {
+  now: {
+    icon: PlayCircle,
+    colorClass: "text-primary",
+  },
   focus: {
     icon: FocusNavIcon,
     colorClass: "text-(--due-tomorrow)",
@@ -287,7 +292,14 @@ export function WorkspaceSidebar({
                   >
                     <Icon className={cn("size-5 shrink-0", colorClass)} />
                     <span className="truncate">{label}</span>
-                    {value === "focus" ? (
+                    {value === "now" ? (
+                      <span
+                        data-sidebar-count
+                        className="ml-auto text-xs text-muted-foreground tabular-nums"
+                      >
+                        {count ?? 0}/5
+                      </span>
+                    ) : value === "focus" ? (
                       <span
                         data-sidebar-count
                         className="ml-auto text-xs text-muted-foreground tabular-nums"

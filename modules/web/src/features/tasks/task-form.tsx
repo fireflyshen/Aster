@@ -16,9 +16,16 @@ import {
   TaskHabitSidebarField,
   type TaskHabitDraft,
 } from "@/features/habits/task-habit-field";
+import { api } from "@/lib/api";
+import type { StateHistoryEntryItem } from "@/app/hooks/use-task-state-actions";
 import { setTaskBudget } from "@/features/time/time-api";
 import type { BindTaskHabitInput, HabitListItem } from "@core/habits/model";
 import { taskDate } from "@core/tasks/quick-task";
+import {
+  STATE_LABELS,
+  type EffectiveTaskState,
+  type TaskState,
+} from "@core/tasks/state";
 import {
   DEFAULT_HOURLY_RATE_CENTS,
   type TaskCostSummary,
@@ -83,6 +90,8 @@ type TaskFormProps = {
   onEditSeries: (uuid: string) => void;
   onRemoveNote: (entry: string, description: string) => Promise<boolean>;
   onToggleTask?: () => void;
+  effectiveRowState?: EffectiveTaskState | null;
+  onChangeState?: (state: TaskState) => void;
   isTimeMode?: boolean;
   hourlyRateCents?: number;
   costSummary?: TaskCostSummary;
@@ -145,6 +154,8 @@ export function TaskForm({
   costSummary,
   onRefreshTimeSnapshot,
   habit,
+  effectiveRowState,
+  onChangeState,
   initialHabitPreset = false,
   initialHabitDraft,
   habitTodayDate,
@@ -153,6 +164,7 @@ export function TaskForm({
   onUnbindTaskHabit,
 }: TaskFormProps) {
   const effectiveTodayDate = habitTodayDate || currentLocalTodayDate();
+  const [stateHistory, setStateHistory] = useState<StateHistoryEntryItem[]>([]);
   const [descriptionDraft, setDescriptionDraft] = useState(
     taskDescription || "",
   );
@@ -346,6 +358,26 @@ export function TaskForm({
         : undefined,
     );
   }
+
+  useEffect(() => {
+    if (!editing?.uuid || habit) {
+      setStateHistory([]);
+      return;
+    }
+    let cancelled = false;
+    void api<{ entries: StateHistoryEntryItem[] }>(
+      `state/history?uuid=${encodeURIComponent(editing.uuid)}&limit=10`,
+    )
+      .then((res) => {
+        if (!cancelled) setStateHistory(res.entries || []);
+      })
+      .catch(() => {
+        if (!cancelled) setStateHistory([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editing?.uuid, editing?.state, habit]);
 
   return (
     <form
@@ -624,6 +656,35 @@ export function TaskForm({
             onDirtyChange={setCommentDirty}
           />
 
+          {stateHistory.length > 0 && (
+            <div className="mt-5 border-t border-border/70 pt-3">
+              <div className="mb-2 text-xs font-medium text-muted-foreground">
+                最近状态历史
+              </div>
+              <div className="space-y-1.5 text-xs text-muted-foreground">
+                {stateHistory.map((item, idx) => (
+                  <div
+                    key={`${item.at}-${idx}`}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="truncate">
+                      {item.from
+                        ? STATE_LABELS[item.from as EffectiveTaskState] ||
+                          item.from
+                        : "新建"}{" "}
+                      → {STATE_LABELS[item.to as EffectiveTaskState] || item.to}
+                      {item.reason ? ` · ${item.reason}` : ""}
+                      {item.waitReason ? ` (${item.waitReason})` : ""}
+                    </span>
+                    <span className="shrink-0 tabular-nums opacity-75">
+                      {item.at.slice(0, 16).replace("T", " ")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {error && (
             <Alert id="editor-error" variant="destructive" className="mt-4">
               <AlertDescription className="flex flex-wrap items-start gap-x-3 gap-y-2">
@@ -656,6 +717,8 @@ export function TaskForm({
           timingUnavailable={timingUnavailable}
           onToggleStart={habitTimingAllowed ? onToggleStart : undefined}
           onClearStartMark={habitTimingAllowed ? onClearStartMark : undefined}
+          effectiveRowState={effectiveRowState}
+          onChangeState={onChangeState}
           onDraftChange={onDraftChange}
           onDueChange={onDueChange}
           onTagsChange={onTagsChange}

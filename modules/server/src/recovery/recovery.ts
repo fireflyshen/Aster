@@ -7,6 +7,7 @@ import type { createTaskService } from "../../../core/tasks/service.ts";
 import type { createOrganizationService } from "../organization/organization-service.ts";
 import type { DeletedTask } from "../../../core/workspace/recovery.ts";
 import type { HabitStore } from "../habits/habit-store.ts";
+import type { StateHistoryStore } from "../tasks/state-history.ts";
 
 type Entry = {
   task: RawTask;
@@ -21,6 +22,7 @@ export function createRecoveryService(
   organization: ReturnType<typeof createOrganizationService>,
   path: string,
   habitStore?: HabitStore,
+  stateHistory?: StateHistoryStore,
 ) {
   let queue: Promise<unknown> = Promise.resolve();
   function serial<T>(fn: () => Promise<T>): Promise<T> {
@@ -216,15 +218,19 @@ export function createRecoveryService(
         for (let attempt = 0; attempt < 3; attempt++) {
           const organizationBefore = await organization.snapshot();
           const startedAt = new Date().toISOString();
-          const [tasks, recovery, timewarrior, uda] = await Promise.all([
-            service.exportTasks(),
-            read(),
-            service.exportTimerHistory().then(
-              (intervals) => ({ available: true, intervals }),
-              () => ({ available: false, intervals: null }),
-            ),
-            service.exportSchema(),
-          ]);
+          const [tasks, recovery, timewarrior, uda, stateHistoryEntries] =
+            await Promise.all([
+              service.exportTasks(),
+              read(),
+              service.exportTimerHistory().then(
+                (intervals) => ({ available: true, intervals }),
+                () => ({ available: false, intervals: null }),
+              ),
+              service.exportSchema(),
+              stateHistory
+                ? stateHistory.readAll()
+                : Promise.resolve(undefined),
+            ]);
           const after = await organization.snapshot();
           if (after.revision !== organizationBefore.revision) continue;
           return {
@@ -237,6 +243,9 @@ export function createRecoveryService(
             recovery,
             timewarrior,
             ...(habitStore ? { habits: habitStore.exportBackup() } : {}),
+            ...(stateHistoryEntries !== undefined
+              ? { stateHistory: stateHistoryEntries }
+              : {}),
             warnings: timewarrior.available
               ? []
               : [

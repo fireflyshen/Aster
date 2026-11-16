@@ -1,3 +1,5 @@
+import { isValidTaskState, type TaskState } from "./state.ts";
+
 export interface TaskwarriorAnnotation {
   entry?: string;
   description: string;
@@ -8,6 +10,9 @@ export interface TaskwarriorTask {
   id?: number;
   description: string;
   status: string;
+  state?: TaskState;
+  waitReason?: string;
+  stateChanged?: Date;
   project?: string;
   tags: string[];
   priority?: string;
@@ -25,13 +30,16 @@ export interface TaskwarriorTask {
 }
 
 export type TaskwarriorTaskGroup = "overdue" | "today" | "pending" | "waiting";
-export type TaskView = "today";
+export type TaskView = "now" | "today" | "pending" | "focus" | "upcoming";
 
 interface ExportedTask {
   uuid?: unknown;
   id?: unknown;
   description?: unknown;
   status?: unknown;
+  state?: unknown;
+  waitreason?: unknown;
+  statechanged?: unknown;
   project?: unknown;
   tags?: unknown;
   priority?: unknown;
@@ -112,11 +120,30 @@ export function hydrateTaskwarriorTasks(records: unknown[]): TaskwarriorTask[] {
     const raw = rawRecord as ExportedTask;
     if (typeof raw.uuid !== "string" || typeof raw.description !== "string")
       continue;
+    let state: TaskState | undefined;
+    if (typeof raw.state === "string" && raw.state !== "") {
+      if (isValidTaskState(raw.state)) {
+        state = raw.state;
+      } else {
+        console.warn(
+          `[aster] Discarding invalid task state "${raw.state}" on task ${raw.uuid}`,
+        );
+      }
+    }
+    const waitReason =
+      typeof raw.waitreason === "string" && raw.waitreason.trim()
+        ? raw.waitreason.trim()
+        : undefined;
+    const stateChanged = parseTaskwarriorDate(raw.statechanged);
+
     tasks.push({
       uuid: raw.uuid,
       id: typeof raw.id === "number" ? raw.id : undefined,
       description: raw.description,
       status: typeof raw.status === "string" ? raw.status : "pending",
+      ...(state ? { state } : {}),
+      ...(waitReason ? { waitReason } : {}),
+      ...(stateChanged ? { stateChanged } : {}),
       project: typeof raw.project === "string" ? raw.project : undefined,
       tags: strings(raw.tags),
       priority: typeof raw.priority === "string" ? raw.priority : undefined,
@@ -187,6 +214,7 @@ export function tasksForView(
 ): TaskwarriorTask[] {
   return tasks.filter((task) => {
     if (task.status !== "pending" && task.status !== "waiting") return false;
+    if (view === "now") return task.state === "doing";
     const group = taskGroup(task, now);
     if (view === "today") return group === "overdue" || group === "today";
     return true;

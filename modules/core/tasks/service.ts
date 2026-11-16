@@ -6,11 +6,14 @@ import {
 import type { Connection } from "../connection/settings.ts";
 import {
   addTaskArguments,
+  dependsArguments,
   editTaskArguments,
   reopenTaskArguments,
   requireUuid,
+  stateArguments,
   taskActionArguments,
   waitTaskArguments,
+  type StateModifyInput,
   type TaskInput,
 } from "./arguments.ts";
 import { filterArguments, tagName } from "./filter.ts";
@@ -39,6 +42,9 @@ export function createTaskService(
   return {
     connection,
     setRestoredSchema: runner.setRestoredSchema,
+    withWriteLock: <T>(operation: () => Promise<T>) =>
+      serializeWrite(connection, operation),
+    writeUnlocked: (args: string[]) => runner.run(args, true),
     dataDirectory: () =>
       runner.run(["_get", "rc.data.location", ...READ_OVERRIDES]),
     loadTasks: runner.loadTasks,
@@ -276,6 +282,10 @@ export function createTaskService(
     stopTask: (uuid: string) => runner.write(taskActionArguments(uuid, "stop")),
     setTaskWait: (uuid: string, wait: string) =>
       runner.write(waitTaskArguments(uuid, wait)),
+    setTaskState: (uuid: string, values: StateModifyInput) =>
+      runner.write(stateArguments(uuid, values)),
+    setTaskDepends: (uuid: string, depends: string[]) =>
+      runner.write(dependsArguments(uuid, depends)),
   };
 }
 

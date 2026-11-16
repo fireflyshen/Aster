@@ -14,6 +14,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { recurrenceLabel } from "@core/tasks/recurrence";
+import {
+  allowedStateTargets,
+  type EffectiveTaskState,
+  type TaskState,
+} from "@core/tasks/state";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
@@ -23,7 +28,10 @@ import { DatePicker } from "./date-picker";
 import { LabelsPicker } from "./labels-picker";
 import { ProjectPicker } from "./project-picker";
 import { RepeatEnd, RepeatSelect } from "./repeat-fields";
+import { STATE_ACTION_LABELS, StateTargetIcon } from "./state-dialogs";
 import { PRIORITIES, priorityOption } from "./task-constants";
+import { dueLabel, toDueDay } from "./task-date";
+import { StateChip } from "./task-meta-chips";
 
 type TaskDetailSidebarProps = {
   draft: TaskInput;
@@ -37,6 +45,8 @@ type TaskDetailSidebarProps = {
   timingUnavailable?: boolean;
   onToggleStart?: () => void;
   onClearStartMark?: () => void;
+  effectiveRowState?: EffectiveTaskState | null;
+  onChangeState?: (state: TaskState) => void;
   onDraftChange: (draft: TaskInput) => void;
   onDueChange: (due: string) => void;
   onTagsChange: (tags: string) => void;
@@ -59,6 +69,8 @@ export function TaskDetailSidebar({
   timingUnavailable = false,
   onToggleStart,
   onClearStartMark,
+  effectiveRowState,
+  onChangeState,
   onDraftChange,
   onDueChange,
   onTagsChange,
@@ -80,6 +92,62 @@ export function TaskDetailSidebar({
 
   return (
     <aside className="task-detail-aside" aria-label="任务属性">
+      {editing &&
+        editing.status !== "completed" &&
+        effectiveRowState &&
+        effectiveRowState !== "completed" && (
+          <div className="task-detail-properties">
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs leading-4 font-medium text-muted-foreground">
+                  任务状态
+                </Label>
+                <StateChip
+                  state={effectiveRowState}
+                  waitReason={editing.waitReason}
+                  waitDate={editing.wait}
+                />
+              </div>
+              {effectiveRowState === "waiting" && editing.waitReason && (
+                <p className="text-xs text-muted-foreground">
+                  原因：{editing.waitReason}
+                  {editing.wait
+                    ? ` · 核对日 ${toDueDay(editing.wait) || dueLabel(editing.wait)}`
+                    : ""}
+                </p>
+              )}
+              {effectiveRowState === "parked" && editing.wait && (
+                <p className="text-xs text-muted-foreground">
+                  复查日：{toDueDay(editing.wait) || dueLabel(editing.wait)}
+                </p>
+              )}
+              {effectiveRowState === "planned" && editing.scheduled && (
+                <p className="text-xs text-muted-foreground">
+                  排期：
+                  {toDueDay(editing.scheduled) || dueLabel(editing.scheduled)}
+                </p>
+              )}
+              {onChangeState && (
+                <div className="flex flex-wrap gap-1 pt-0.5">
+                  {allowedStateTargets(effectiveRowState).map((target) => (
+                    <Button
+                      key={target}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() => onChangeState(target)}
+                      className="h-7 gap-1 px-2 text-xs font-normal"
+                    >
+                      <StateTargetIcon state={target} className="size-3" />
+                      <span>{STATE_ACTION_LABELS[target]}</span>
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       {editing && editing.status !== "completed" && onToggleStart && (
         <div className="task-detail-properties">
           <div className="flex min-w-0 flex-col gap-1.5">

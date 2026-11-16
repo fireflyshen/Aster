@@ -45,6 +45,7 @@ export function TaskCheckbox({
   priority,
   description,
   disabled,
+  title,
   size = "md",
   onComplete,
 }: {
@@ -54,6 +55,7 @@ export function TaskCheckbox({
   priority?: string;
   description: string;
   disabled?: boolean;
+  title?: string;
   size?: "sm" | "md" | "lg";
   onComplete: () => void;
 }) {
@@ -65,20 +67,23 @@ export function TaskCheckbox({
   return (
     <Label
       htmlFor={id}
+      title={title}
       className={cn(
         "task-check-target group/check relative flex items-center justify-center",
         dims,
-        disabled ? "cursor-default" : "cursor-pointer",
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
       )}
     >
       <Checkbox
         id={id}
         checked={checked}
         disabled={disabled}
+        title={title}
         aria-label={`${completed ? "重新打开" : "完成"}: ${description}`}
         onCheckedChange={onComplete}
         className={cn(
-          "task-complete rounded-full shadow-none transition-all duration-150 focus-visible:ring-1 disabled:opacity-100 cursor-pointer",
+          "task-complete rounded-full shadow-none transition-all duration-150 focus-visible:ring-1",
+          disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
           dims,
           checked ? style.checked : style.unchecked,
         )}

@@ -21,9 +21,7 @@ export default function ProjectsCommand() {
           onMutated={onProjectMutated ?? workspace.revalidate}
         />
       )}
-      onOpenAllTasks={() => (
-        <TaskListScreen initialFilter="filter:builtin:all" />
-      )}
+      onOpenAllTasks={() => <TaskListScreen initialFilter="pending" />}
     />
   );
 }

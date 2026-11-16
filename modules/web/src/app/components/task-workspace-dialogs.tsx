@@ -11,6 +11,7 @@ import { TaskForm } from "@/features/tasks/task-form";
 import { TaskToast } from "@/features/tasks/task-toast";
 import { useEditorGuard } from "@/features/tasks/use-editor-guard";
 import type { BindTaskHabitInput, HabitListItem } from "@core/habits/model";
+import { effectiveState, type TaskState } from "@core/tasks/state";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -120,6 +121,10 @@ export type TaskWorkspaceDialogsProps = {
   onSetOrganization: React.Dispatch<React.SetStateAction<Organization>>;
   onChangeOrganization: (change: OrganizationChange) => Promise<boolean>;
   onReloadAll: () => Promise<Organization | undefined>;
+  onChangeState?: (
+    task: Task,
+    state: TaskState,
+  ) => Promise<boolean> | boolean | void;
 };
 
 /** Renders quick-add, toast undo, full task detail editor, and recurring series dialogs. */
@@ -187,6 +192,7 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
     habitActions,
     onBindTaskHabit,
     onUnbindTaskHabit,
+    onChangeState,
   } = props;
 
   const editorBusy = busy || organizationSaving;
@@ -419,6 +425,32 @@ export function TaskWorkspaceDialogs(props: TaskWorkspaceDialogsProps) {
                 : undefined
             }
             editing={editing}
+            effectiveRowState={
+              editing && !habitByTaskUuid?.get(editing.uuid)
+                ? effectiveState(
+                    editing,
+                    organization,
+                    new Set(habitByTaskUuid?.keys() ?? []),
+                  )
+                : null
+            }
+            onChangeState={
+              editing &&
+              onChangeState &&
+              !editingParent &&
+              !habitByTaskUuid?.get(editing.uuid)
+                ? (targetState) => {
+                    const target = editing;
+                    void Promise.resolve(
+                      onChangeState(target, targetState),
+                    ).then((saved) => {
+                      if (saved) {
+                        setEditing({ ...target, state: targetState });
+                      }
+                    });
+                  }
+                : undefined
+            }
             projects={filterProjects}
             due={due}
             tags={tags}

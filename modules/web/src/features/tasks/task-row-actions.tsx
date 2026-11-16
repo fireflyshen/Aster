@@ -8,6 +8,7 @@ import { DatePicker } from "@/features/tasks/date-picker";
 import { PRIORITIES, priorityOption } from "@/features/tasks/task-constants";
 import { dueLabel } from "@/features/tasks/task-date";
 import { TaskRowMenu } from "@/features/tasks/task-row-menu";
+import type { EffectiveTaskState, TaskState } from "@core/tasks/state";
 import type { Task } from "@shared/tasks";
 import { cn } from "cn";
 import {
@@ -42,6 +43,8 @@ type TaskRowActionsProps = {
   onInlineEdit?: () => void;
   onToggleStart?: () => void;
   onClearStartMark?: () => void;
+  effectiveRowState?: EffectiveTaskState | null;
+  onChangeState?: (state: TaskState) => void;
   onDueChange?: (due: string) => void;
   onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
   onStartAddSubtask?: () => void;
@@ -71,6 +74,8 @@ export function TaskRowActions({
   onInlineEdit,
   onToggleStart,
   onClearStartMark,
+  effectiveRowState,
+  onChangeState,
   onDueChange,
   onPriorityChange,
   onStartAddSubtask,
@@ -244,6 +249,8 @@ export function TaskRowActions({
           onDelete={onDelete}
           onToggleStart={onToggleStart}
           onClearStartMark={onClearStartMark}
+          effectiveRowState={effectiveRowState}
+          onChangeState={onChangeState}
           timingActive={timingActive}
           timingUnavailable={timingUnavailable}
           extraActions={extraActions}

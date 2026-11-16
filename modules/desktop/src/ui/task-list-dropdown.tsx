@@ -1,5 +1,4 @@
 import { Icon, List } from "@raycast/api";
-import { visibleBuiltinFilters } from "../../../core/workspace/builtin-filters.ts";
 import {
   focusProject,
   isCompletedProject,
@@ -28,17 +27,8 @@ export function TaskViewDropdown({
   projects,
 }: TaskViewDropdownProps) {
   const customFilters = organization?.filters || [];
-  const builtinFilters = visibleBuiltinFilters(
-    organization?.builtinFilterPrefs,
-  );
-  const favoriteFilters = [
-    ...customFilters.filter((item) => item.favorite),
-    ...builtinFilters.filter((item) => item.favorite),
-  ];
+  const favoriteFilters = customFilters.filter((item) => item.favorite);
   const remainingCustomFilters = customFilters.filter((item) => !item.favorite);
-  const remainingBuiltinFilters = builtinFilters.filter(
-    (item) => !item.favorite,
-  );
   const favoriteTagNames = new Set(
     (organization?.tags || [])
       .filter((item) => item.favorite)
@@ -141,21 +131,6 @@ export function TaskViewDropdown({
                 }}
               />
             ))}
-        </List.Dropdown.Section>
-      ) : null}
-      {remainingBuiltinFilters.length ? (
-        <List.Dropdown.Section title="Built-in Filters">
-          {remainingBuiltinFilters.map((item) => (
-            <List.Dropdown.Item
-              key={item.id}
-              title={item.name}
-              value={`filter:${item.id}`}
-              icon={{
-                source: Icon.Filter,
-                tintColor: itemColor(item.color),
-              }}
-            />
-          ))}
         </List.Dropdown.Section>
       ) : null}
       {otherTags.length ? (

@@ -6,6 +6,15 @@ import {
 } from "@/components/ui/popover";
 import { PRIORITIES } from "@/features/tasks/task-constants";
 import { dueLabel, toDueDay } from "@/features/tasks/task-date";
+import {
+  STATE_ACTION_LABELS,
+  StateTargetIcon,
+} from "@/features/tasks/state-dialogs";
+import {
+  allowedStateTargets,
+  type EffectiveTaskState,
+  type TaskState,
+} from "@core/tasks/state";
 import type { Task } from "@shared/tasks";
 import type { ReactNode } from "react";
 import { addDays, format, nextMonday, nextSaturday } from "date-fns";
@@ -43,6 +52,8 @@ export function TaskRowMenu({
   onDelete,
   onToggleStart,
   onClearStartMark,
+  effectiveRowState,
+  onChangeState,
   timingActive,
   timingUnavailable,
   extraActions,
@@ -62,6 +73,8 @@ export function TaskRowMenu({
   onDelete?: () => void;
   onToggleStart?: () => void;
   onClearStartMark?: () => void;
+  effectiveRowState?: EffectiveTaskState | null;
+  onChangeState?: (state: TaskState) => void;
   timingActive?: boolean;
   timingUnavailable?: boolean;
   extraActions?: ReactNode;
@@ -72,6 +85,10 @@ export function TaskRowMenu({
   const tomorrowStr = format(addDays(now, 1), "yyyy-MM-dd");
   const weekendStr = format(nextSaturday(now), "yyyy-MM-dd");
   const nextWeekStr = format(nextMonday(now), "yyyy-MM-dd");
+  const stateTargets =
+    !completed && !isSubtask && onChangeState && effectiveRowState
+      ? allowedStateTargets(effectiveRowState)
+      : [];
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -237,6 +254,29 @@ export function TaskRowMenu({
                 </Button>
               ))}
             </div>
+          </div>
+        )}
+
+        {stateTargets.length > 0 && onChangeState && (
+          <div className="border-b border-border/60 px-1 pt-1.5 pb-1.5">
+            <div className="mb-1 px-1.5 text-[11px] font-medium text-muted-foreground">
+              状态流转
+            </div>
+            {stateTargets.map((target) => (
+              <Button
+                key={target}
+                type="button"
+                variant="navigation"
+                disabled={disabled}
+                onClick={() => {
+                  onOpenChange(false);
+                  onChangeState(target);
+                }}
+              >
+                <StateTargetIcon state={target} />
+                {STATE_ACTION_LABELS[target]}
+              </Button>
+            ))}
           </div>
         )}
 

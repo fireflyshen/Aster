@@ -2,7 +2,6 @@ import { isCompactTaskDate } from "../../../core/tasks/model.ts";
 import { isValidWorkspacePreferences } from "../../../core/workspace/preferences.ts";
 import { requireUuid } from "../../../core/tasks/arguments.ts";
 import { tagName, filterArguments } from "../../../core/tasks/filter.ts";
-import { normalizeBuiltinFilterPrefs } from "../../../core/workspace/builtin-filters.ts";
 import {
   colors,
   type Organization,
@@ -15,6 +14,7 @@ import {
 import type { RawTask } from "../../../core/tasks/raw.ts";
 import type { BackupCounts } from "../../../core/workspace/backup.ts";
 import type { HabitBackupPayload } from "../../../core/habits/model.ts";
+import type { StateHistoryEntry } from "../tasks/state-history.ts";
 export type RawInterval = {
   id?: number;
   start: string;
@@ -41,6 +41,7 @@ export type AsterBackup = {
   };
   timewarrior: { available: boolean; intervals: RawInterval[] | null };
   habits?: HabitBackupPayload;
+  stateHistory?: StateHistoryEntry[];
   warnings?: string[];
 };
 function record(value: unknown): asserts value is Record<string, unknown> {
@@ -274,7 +275,10 @@ export function validateBackup(value: unknown): AsterBackup {
       throw new Error("Invalid built-in filter setting.");
     }
   }
-  if (org.preferences !== undefined && !isValidWorkspacePreferences(org.preferences)) {
+  if (
+    org.preferences !== undefined &&
+    !isValidWorkspacePreferences(org.preferences)
+  ) {
     throw new Error("Invalid workspace preferences in backup.");
   }
   if (org.descriptions !== undefined) {
@@ -338,13 +342,24 @@ export function validateBackup(value: unknown): AsterBackup {
     list(value.habits.dailyLogs, 50000);
     list(value.habits.negativeEvents, 50000);
   }
+  if (value.stateHistory !== undefined) {
+    list(value.stateHistory, 100000);
+    for (const item of value.stateHistory) {
+      record(item);
+      text(item.at, 64);
+      text(item.uuid, 36);
+      requireUuid(item.uuid);
+      if (item.from !== null) text(item.from, 40);
+      text(item.to, 40);
+      text(item.source, 40);
+    }
+  }
   const backup = structuredClone(value) as unknown as AsterBackup;
   // Only persisted fields enter organization storage; derived figures are recalculated.
   const {
     revision,
     filters,
     tags,
-    builtinFilterPrefs,
     projects,
     board,
     energyState,
@@ -355,11 +370,6 @@ export function validateBackup(value: unknown): AsterBackup {
     revision,
     filters,
     tags,
-    ...(builtinFilterPrefs
-      ? {
-          builtinFilterPrefs: normalizeBuiltinFilterPrefs(builtinFilterPrefs),
-        }
-      : {}),
     ...(projects ? { projects } : {}),
     ...(board ? { board } : {}),
     ...(energyState ? { energyState } : {}),

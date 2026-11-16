@@ -9,12 +9,7 @@ import {
   type BoardTask,
 } from "../../../core/workspace/board.ts";
 import {
-  findBuiltinFilter,
-  normalizeBuiltinFilterPrefs,
-} from "../../../core/workspace/builtin-filters.ts";
-import {
   colors,
-  type BuiltinFilterChange,
   type Organization,
   type OrganizationChange,
   type SavedFilter,
@@ -251,40 +246,6 @@ export async function applyFilterOrTagChange(
         .join(" "),
     }));
   }
-}
-
-/** Updates server-synced favorite, hidden, or section visibility preferences for built-in TW filters. */
-export function applyBuiltinFilterChange(
-  data: Organization,
-  input: BuiltinFilterChange,
-): void {
-  const prefs = normalizeBuiltinFilterPrefs(data.builtinFilterPrefs);
-  if (input.action === "section") {
-    const sectionHidden =
-      typeof input.value === "boolean" ? input.value : !prefs.sectionHidden;
-    data.builtinFilterPrefs = normalizeBuiltinFilterPrefs({
-      ...prefs,
-      sectionHidden,
-    });
-    return;
-  }
-  if (input.action !== "favorite" && input.action !== "hide") {
-    throw new Error("Unsupported action");
-  }
-  const id = typeof input.id === "string" ? input.id.trim() : "";
-  if (!findBuiltinFilter(id)) {
-    throw new Error("Built-in filter unavailable.");
-  }
-  const key = input.action === "favorite" ? "favorites" : "hidden";
-  const current = prefs[key].includes(id);
-  const nextFlag = typeof input.value === "boolean" ? input.value : !current;
-  const nextIds = nextFlag
-    ? [...prefs[key], id]
-    : prefs[key].filter((existing) => existing !== id);
-  data.builtinFilterPrefs = normalizeBuiltinFilterPrefs({
-    ...prefs,
-    [key]: nextIds,
-  });
 }
 
 /** Merges validated workspace UI preferences onto `data.preferences`. */

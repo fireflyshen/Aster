@@ -27,6 +27,7 @@ type MutateOriginHandler = {
     response?: unknown,
   ) => void;
   onError?: (message: string, origin?: "editor" | "quick" | "notes") => void;
+  onDoingLimit?: (error: unknown) => boolean;
 };
 
 /** Manages server synchronization for tasks, organization state, board persistence, and daily energy. */
@@ -403,10 +404,13 @@ export function useWorkspaceData({
           setNeedsCheck(true);
           setNotice(message);
         }
-        if (origin) {
-          callbacks?.onError?.(message, origin);
-        } else {
-          setNotice(message);
+        const handled = callbacks?.onDoingLimit?.(error);
+        if (!handled) {
+          if (origin) {
+            callbacks?.onError?.(message, origin);
+          } else {
+            setNotice(message);
+          }
         }
         return false;
       } finally {

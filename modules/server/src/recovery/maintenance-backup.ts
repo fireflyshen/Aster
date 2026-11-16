@@ -84,6 +84,7 @@ export async function runMaintenanceBackup(input: {
   organizationFile: string;
   recoveryFile: string;
   timeFile: string;
+  stateLogFile?: string;
   taskchampionDbPath?: string;
   timeEnabled: boolean;
   // Only for deployment from a verified release that predates Time support.
@@ -148,6 +149,11 @@ export async function runMaintenanceBackup(input: {
       [
         "restored-uda.json",
         join(dirname(input.organizationFile), "restored-uda.json"),
+      ],
+      [
+        "state-history.jsonl",
+        input.stateLogFile ||
+          join(dirname(input.organizationFile), "state-history.jsonl"),
       ],
     ];
     for (const [key, srcPath] of jsonCandidates) {

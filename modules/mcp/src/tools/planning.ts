@@ -6,6 +6,7 @@ import {
   taskGroup,
   type TaskwarriorTask,
 } from "../../../core/tasks/model.ts";
+import { isHabitTask, type TaskState } from "../../../core/tasks/state.ts";
 import {
   defaultBoard,
   inheritSubtaskColumns,
@@ -14,7 +15,11 @@ import {
   unsectionedColumn,
   type BoardColumn,
 } from "../../../core/workspace/board.ts";
-import { inProject, projectStatus } from "../../../core/workspace/focus.ts";
+import {
+  inProject,
+  isHabitProject,
+  projectStatus,
+} from "../../../core/workspace/focus.ts";
 import type {
   Organization,
   SavedProject,
@@ -27,6 +32,7 @@ import {
   revisionSchema,
   uuidSchema,
 } from "./helpers.ts";
+import { stateDateSchema, taskStateSchema } from "./state.ts";
 import { WorkspaceError } from "../transport.ts";
 
 const planSubtaskSchema = z
@@ -51,6 +57,10 @@ const planTaskSchema = z
     due: dateSchema.optional(),
     priority: z.enum(["", "H", "M", "L"]).optional(),
     tags: z.array(z.string().min(1).max(80)).max(30).optional(),
+    state: taskStateSchema.optional(),
+    scheduled: stateDateSchema.optional(),
+    waitReason: z.string().min(1).max(200).optional(),
+    checkDate: stateDateSchema.optional(),
     wait: dateSchema.optional(),
     recur: z.string().max(200).optional(),
     until: dateSchema.optional(),
@@ -82,6 +92,9 @@ interface DigestTaskNode {
   uuid: string;
   description: string;
   status: string;
+  state?: TaskState;
+  scheduled?: string;
+  waitReason?: string;
   project?: string;
   priority?: string;
   urgency: number;
@@ -111,6 +124,9 @@ function toDigestNode(
     uuid: task.uuid,
     description: task.description,
     status: task.status,
+    ...(task.state ? { state: task.state } : {}),
+    ...(task.scheduled ? { scheduled: task.scheduled.toISOString() } : {}),
+    ...(task.waitReason ? { waitReason: task.waitReason } : {}),
     ...(task.project ? { project: task.project } : {}),
     ...(task.priority ? { priority: task.priority } : {}),
     urgency: Number(task.urgency.toFixed(2)),
@@ -275,9 +291,21 @@ export function registerPlanningTools({
       const dueToday = openTasks
         .filter((task) => taskGroup(task, now) === "today")
         .sort(compareTasksByUrgency);
-      const waiting = openTasks.filter(
-        (task) => taskGroup(task, now) === "waiting",
+      const topLevelNonHabitOpen = openTasks.filter(
+        (task) => !meta.parentOf[task.uuid] && !isHabitTask(task, organization),
       );
+      const byState: Record<TaskState, number> = {
+        planned: 0,
+        doing: 0,
+        waiting: 0,
+        parked: 0,
+      };
+      for (const t of topLevelNonHabitOpen) {
+        if (t.state) byState[t.state]++;
+      }
+      const nowList = topLevelNonHabitOpen
+        .filter((task) => task.state === "doing")
+        .sort(compareTasksByUrgency);
       const topUrgency = openTasks
         .filter((task) => taskGroup(task, now) !== "waiting")
         .sort(compareTasksByUrgency)
@@ -304,10 +332,12 @@ export function registerPlanningTools({
           overdue: overdue.length,
           dueToday: dueToday.length,
           openTotal: openTasks.length,
-          waiting: waiting.length,
+          waiting: byState.waiting,
+          byState,
           completedRecent: recentlyCompleted.length,
           completedTotal: completedTasks.length,
         },
+        nowList: nowList.map(summarizeFlat),
         projects: projects.map((project: SavedProject) => ({
           name: project.name,
           status: projectStatus(project),
@@ -500,6 +530,12 @@ export function registerPlanningTools({
 
         for (const planned of i.tasks) {
           const targetProject = (planned.project ?? scopeProject) || undefined;
+          const isHabitProj = Boolean(
+            targetProject &&
+            isHabitProject(targetProject, currentOrg.projects || []),
+          );
+          const scheduledValue =
+            planned.scheduled ?? (!isHabitProj ? planned.wait : undefined);
           const created = await post("/api/tasks", {
             description: planned.description,
             tags: planned.tags || [],
@@ -508,6 +544,10 @@ export function registerPlanningTools({
             ...(planned.priority !== undefined
               ? { priority: planned.priority }
               : {}),
+            ...(planned.state ? { state: planned.state } : {}),
+            ...(scheduledValue ? { scheduled: scheduledValue } : {}),
+            ...(planned.waitReason ? { waitReason: planned.waitReason } : {}),
+            ...(planned.checkDate ? { checkDate: planned.checkDate } : {}),
             ...(planned.recur ? { recur: planned.recur } : {}),
             ...(planned.until ? { until: planned.until } : {}),
             ...(planned.note ? { note: planned.note } : {}),
@@ -522,7 +562,7 @@ export function registerPlanningTools({
             );
           }
 
-          if (planned.wait) {
+          if (isHabitProj && planned.wait) {
             await post("/api/action", {
               action: "wait",
               uuid: parentUuid,
@@ -553,7 +593,7 @@ export function registerPlanningTools({
                 `Subtask creation did not return a UUID for "${sub.description}".`,
               );
             }
-            if (sub.wait) {
+            if (isHabitProj && sub.wait) {
               await post("/api/action", {
                 action: "wait",
                 uuid: childUuid,

@@ -5,7 +5,7 @@ import { useHabitsWorkspace } from "@/features/habits/use-habits";
 import type { TodayHabitsActions } from "@/features/habits/today-habits-section";
 import type { OrganizationEntry } from "@/features/organization/organization-types";
 import { useEffect, useMemo, useState } from "react";
-import { isCompletedFilterExpression } from "@core/workspace/builtin-filters";
+import { isCompletedFilterExpression } from "@core/tasks/filter";
 import { ProjectColorsProvider } from "@/features/projects/project-icon";
 import { WorkspaceContent } from "./components/workspace-content";
 import { WorkspaceToolbar } from "./components/workspace-header";
@@ -14,6 +14,11 @@ import { FilterGroupByProvider } from "./hooks/use-filter-group-by";
 import { useProjectActions } from "./hooks/use-project-actions";
 import { useTaskActions } from "./hooks/use-task-actions";
 import { useTaskRenderer } from "./hooks/use-task-renderer";
+import { useTaskStateActions } from "./hooks/use-task-state-actions";
+import {
+  DoingLimitDialog,
+  WaitingReasonDialog,
+} from "@/features/tasks/state-dialogs";
 import {
   useModalOpenSync,
   useWorkspaceDerivedState,
@@ -79,6 +84,14 @@ export function App() {
     isCompletedFilterExpression(activeItem.expression),
   );
 
+  const stateActions = useTaskStateActions({
+    tasks: data.tasks,
+    writeLock: data.writeLock,
+    needsCheck: data.needsCheck,
+    setNotice: data.setNotice,
+    reloadAll: data.reloadAll,
+  });
+
   const taskActions = useTaskActions({
     view: nav.view,
     completedView,
@@ -103,6 +116,7 @@ export function App() {
     mutate: data.mutate,
     changeOrganization: data.changeOrganization,
     reloadAll: data.reloadAll,
+    onDoingLimit: stateActions.openDoingLimitReplace,
   });
 
   const projectActions = useProjectActions({
@@ -128,7 +142,9 @@ export function App() {
   const habits = useHabitsWorkspace({
     habitsPageActive: nav.habitsPage,
     isTodayView:
-      nav.view === "today" && !nav.currentProject && !nav.specialPage,
+      (nav.view === "today" || nav.view === "now") &&
+      !nav.currentProject &&
+      !nav.specialPage,
     workspaceSyncKey,
   });
 
@@ -261,6 +277,16 @@ export function App() {
     data.organizationBlocked ||
     !data.organizationReady;
 
+  const openTaskUuids = useMemo(
+    () =>
+      new Set(
+        data.tasks
+          .filter((t) => t.status === "pending" || t.status === "waiting")
+          .map((t) => t.uuid),
+      ),
+    [data.tasks],
+  );
+
   const renderTask = useTaskRenderer({
     now: data.now,
     currentProject: nav.currentProject,
@@ -291,6 +317,8 @@ export function App() {
     moveTask: (task, columnId) => taskActions.moveTask(task, columnId, null),
     habitByTaskUuid: habits.habitByTaskUuid,
     habitActions: habitTaskActions,
+    onChangeState: stateActions.changeTaskState,
+    openTaskUuids,
   });
 
   const projectOutcome =
@@ -479,6 +507,12 @@ export function App() {
             onEditHabit={openEditHabit}
             habitsController={habits}
             todayHabitsActions={todayHabitsActions}
+            stateSummary={stateActions.summary}
+            nowSections={data.organization.preferences?.nowSections}
+            onUpdateNowSections={(nowSections) =>
+              void data.updatePreferences({ nowSections })
+            }
+            onChangeState={stateActions.changeTaskState}
           />
         </div>
 
@@ -581,6 +615,25 @@ export function App() {
           editingHabit={editingHabit}
           onClearEditingHabit={() => setEditingHabit(null)}
           onEditHabit={openEditHabit}
+          onChangeState={stateActions.changeTaskState}
+        />
+
+        <WaitingReasonDialog
+          task={stateActions.waitingTask}
+          busy={stateActions.stateBusy}
+          error={stateActions.dialogError}
+          onClose={stateActions.closeWaiting}
+          onSubmit={stateActions.submitWaiting}
+        />
+
+        <DoingLimitDialog
+          open={Boolean(stateActions.doingLimitPrompt)}
+          targetDescription={stateActions.doingLimitPrompt?.targetDescription}
+          doing={stateActions.doingLimitPrompt?.doing || []}
+          busy={stateActions.stateBusy}
+          error={stateActions.dialogError}
+          onClose={stateActions.closeDoingLimit}
+          onConfirmReplace={stateActions.confirmDoingLimitReplace}
         />
       </ProjectColorsProvider>
     </FilterGroupByProvider>

@@ -1,4 +1,6 @@
+import { NowWorkspace } from "@/features/tasks/now-workspace";
 import { UpcomingWorkspace } from "@/features/tasks/upcoming-workspace";
+import type { StateSummaryData } from "../hooks/use-task-state-actions";
 import type { OrganizationEntry } from "@/features/organization/organization-types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -20,13 +22,12 @@ import {
 import { useFilterGroupBy } from "../hooks/use-filter-group-by";
 import { views } from "../workspace-sidebar";
 import type { HabitListItem } from "@core/habits/model";
+import { isCompletedFilterExpression } from "@core/tasks/filter";
 import { taskDate } from "@core/tasks/quick-task";
-import {
-  isCompletedFilterExpression,
-  isUrgencyBuiltinFilterId,
-} from "@core/workspace/builtin-filters";
 import { defaultBoard, type BoardChange } from "@core/workspace/board";
 import { isHabitProject, type ProjectStatus } from "@core/workspace/focus";
+import type { TaskState } from "@core/tasks/state";
+import type { NowSectionState } from "@core/workspace/preferences";
 import type {
   Organization,
   OrganizationChange,
@@ -156,6 +157,10 @@ type WorkspaceContentProps = {
   onEditHabit: (habit: HabitListItem) => void;
   habitsController: HabitsWorkspaceController;
   todayHabitsActions: TodayHabitsActions;
+  stateSummary?: StateSummaryData | null;
+  nowSections?: NowSectionState;
+  onUpdateNowSections?: (sections: NowSectionState) => void;
+  onChangeState?: (task: Task, state: TaskState) => Promise<boolean> | void;
 };
 
 /** Renders workspace header, active alert notices, search bar, management pages, and unified task view. */
@@ -238,6 +243,10 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     onEditHabit,
     habitsController,
     todayHabitsActions,
+    stateSummary = null,
+    nowSections,
+    onUpdateNowSections,
+    onChangeState,
   } = props;
 
   const isCompletedFilter = Boolean(
@@ -478,6 +487,39 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
               void onReloadAll();
             }}
           />
+        ) : view === "now" &&
+          !organizationPage &&
+          !activeEntry &&
+          !currentProject ? (
+          <NowWorkspace
+            tasks={tasks}
+            organization={organization}
+            now={now}
+            query={query}
+            loading={loading}
+            disabled={boardDisabled}
+            summary={stateSummary}
+            habitTaskUuids={excludedHabitTaskUuids}
+            isTimingTask={
+              isTimeMode
+                ? (uuid) =>
+                    Boolean(
+                      timerLiveStatus?.canTick &&
+                      timerSnapshot?.activeActivity?.taskUuid === uuid,
+                    )
+                : undefined
+            }
+            nowSections={nowSections}
+            onUpdateSections={(next) => onUpdateNowSections?.(next)}
+            onChangeState={(task, state) => onChangeState?.(task, state)}
+            renderTask={renderTask}
+            onAddTask={() => onOpenEditor(undefined)}
+            todayHabits={{
+              todayData: habitsController.todayData,
+              todayHabitTasks,
+              actions: todayHabitsActions,
+            }}
+          />
         ) : view === "upcoming" &&
           !organizationPage &&
           !activeEntry &&
@@ -595,11 +637,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                   !activeEntry &&
                   groupBy === "today"
                 }
-                preserveTaskOrder={Boolean(
-                  activeEntry?.kind === "filter" &&
-                  isUrgencyBuiltinFilterId(activeEntry.item.id) &&
-                  !currentProject,
-                )}
+                preserveTaskOrder={false}
                 virtualGroupBy={!isProjectOwned ? groupBy : undefined}
                 virtualGroupTitle={virtualGroupTitle}
                 onRescheduleOverdue={

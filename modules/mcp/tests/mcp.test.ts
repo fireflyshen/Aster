@@ -81,6 +81,45 @@ const cases: [string, any, string, string, any?][] = [
     { uuid, wait: "", action: "wait" },
   ],
   [
+    "task_state_set",
+    {
+      uuid,
+      state: "waiting",
+      waitReason: "等待回复",
+      checkDate: "2026-11-20",
+    },
+    "POST",
+    "/api/action",
+    {
+      uuid,
+      state: "waiting",
+      waitReason: "等待回复",
+      checkDate: "2026-11-20",
+      action: "state.set",
+    },
+  ],
+  [
+    "task_schedule",
+    { uuid, scheduled: "2026-11-18" },
+    "POST",
+    "/api/action",
+    { uuid, scheduled: "2026-11-18", action: "schedule" },
+  ],
+  [
+    "task_depends",
+    { uuid, add: [uuid2] },
+    "POST",
+    "/api/action",
+    { uuid, add: [uuid2], action: "depends" },
+  ],
+  ["state_summary", {}, "GET", "/api/state/summary"],
+  [
+    "state_history",
+    { uuid, limit: 20 },
+    "GET",
+    `/api/state/history?uuid=${encodeURIComponent(uuid)}&limit=20`,
+  ],
+  [
     "task_note_remove",
     { uuid, entry: "now", description: "Note" },
     "POST",
@@ -1145,6 +1184,8 @@ test("task_patch preserves omitted fields and planning tools build digests and m
     assert.equal(digest.revision, 10);
     assert.equal(digest.counts.overdue, 1);
     assert.equal(digest.counts.dueToday, 1);
+    assert.ok(digest.counts.byState);
+    assert.ok(Array.isArray(digest.nowList));
     assert.equal(digest.recentlyCompleted.length, 2);
     assert.equal(digest.recentlyCompleted[0].uuid, uuid2);
     assert.equal(digest.sections[0].name, "No section");

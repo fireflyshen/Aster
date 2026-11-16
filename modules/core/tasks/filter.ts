@@ -88,3 +88,8 @@ export function filterArguments(expression: string): string[] {
     throw new Error("Incomplete query. Check the conditions and parentheses.");
   return result;
 }
+
+/** Returns true when a filter expression explicitly targets completed tasks. */
+export function isCompletedFilterExpression(expression: string): boolean {
+  return /\bstatus:completed\b/i.test(expression);
+}

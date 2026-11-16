@@ -14,6 +14,7 @@ import { TaskRowSubtree } from "@/features/tasks/task-row-subtree";
 import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
 import type { HabitListItem } from "@core/habits/model";
 import { taskDate } from "@core/tasks/quick-task";
+import type { EffectiveTaskState, TaskState } from "@core/tasks/state";
 import type { TaskCostSummary } from "@core/time/model";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
@@ -39,6 +40,9 @@ export type TaskRowProps = {
   onComplete: () => void;
   onToggleStart?: () => void;
   onClearStartMark?: () => void;
+  effectiveRowState?: EffectiveTaskState | null;
+  blocked?: boolean;
+  onChangeState?: (state: TaskState) => void;
   onDueChange?: (due: string) => void;
   onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
   onSaveInline?: (
@@ -85,6 +89,9 @@ export function TaskRow({
   onComplete,
   onToggleStart,
   onClearStartMark,
+  effectiveRowState,
+  blocked = false,
+  onChangeState,
   onDueChange,
   onPriorityChange,
   onSaveInline,
@@ -205,10 +212,15 @@ export function TaskRow({
       (onDueChange ||
         onPriorityChange ||
         onSaveInline ||
+        onChangeState ||
         (canExpandSubtasks && onAddSubtask))) ||
     isSubtask ||
     onDelete,
   );
+  const statePreventsComplete =
+    !habit &&
+    !parentHabit &&
+    (effectiveRowState === "waiting" || effectiveRowState === "parked");
   const hasRightActions = Boolean(
     (!completed && effectiveOnToggleStart) ||
     (variant === "list" &&
@@ -227,6 +239,8 @@ export function TaskRow({
       costSummary.hasBudget),
   );
   const hasDetails = !!(
+    (!habit && effectiveRowState && effectiveRowState !== "completed") ||
+    blocked ||
     showCost ||
     description.trim() ||
     habit ||
@@ -423,7 +437,8 @@ export function TaskRow({
                   completed={completed}
                   priority={task.priority}
                   description={task.description}
-                  disabled={disabled}
+                  disabled={disabled || statePreventsComplete}
+                  title={statePreventsComplete ? "先移回处理中" : undefined}
                   onComplete={onComplete}
                 />
               )}
@@ -497,6 +512,8 @@ export function TaskRow({
                     }
                     onEdit={onEdit}
                     onDueChange={onDueChange}
+                    effectiveRowState={effectiveRowState}
+                    blocked={blocked}
                     habit={habit}
                     habitTodayDate={habitTodayDate}
                     onHabitSwitchPlan={habitActions?.switchPlan}
@@ -529,6 +546,8 @@ export function TaskRow({
                   }
                   onToggleStart={effectiveOnToggleStart}
                   onClearStartMark={effectiveOnClearStartMark}
+                  effectiveRowState={effectiveRowState}
+                  onChangeState={onChangeState}
                   onDueChange={onDueChange}
                   onPriorityChange={onPriorityChange}
                   onStartAddSubtask={

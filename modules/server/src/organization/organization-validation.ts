@@ -61,15 +61,24 @@ export function validateOrganizationData(raw: unknown): Organization {
   const stringList = (value: unknown) =>
     Array.isArray(value) && value.every((item) => typeof item === "string");
 
+  const legacyBuiltinPrefs = (
+    data as unknown as {
+      builtinFilterPrefs?: {
+        favorites?: unknown;
+        hidden?: unknown;
+        sectionHidden?: unknown;
+      };
+    }
+  ).builtinFilterPrefs;
   const builtinPrefsInvalid =
-    data.builtinFilterPrefs !== undefined &&
-    (!data.builtinFilterPrefs ||
-      typeof data.builtinFilterPrefs !== "object" ||
-      Array.isArray(data.builtinFilterPrefs) ||
-      !stringList(data.builtinFilterPrefs.favorites) ||
-      !stringList(data.builtinFilterPrefs.hidden) ||
-      (data.builtinFilterPrefs.sectionHidden !== undefined &&
-        typeof data.builtinFilterPrefs.sectionHidden !== "boolean"));
+    legacyBuiltinPrefs !== undefined &&
+    (!legacyBuiltinPrefs ||
+      typeof legacyBuiltinPrefs !== "object" ||
+      Array.isArray(legacyBuiltinPrefs) ||
+      !stringList(legacyBuiltinPrefs.favorites) ||
+      !stringList(legacyBuiltinPrefs.hidden) ||
+      (legacyBuiltinPrefs.sectionHidden !== undefined &&
+        typeof legacyBuiltinPrefs.sectionHidden !== "boolean"));
 
   const preferencesInvalid = !isValidWorkspacePreferences(data.preferences);
 

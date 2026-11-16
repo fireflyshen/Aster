@@ -23,7 +23,7 @@ function makeTask(
   };
 }
 
-test("compareTasksByUrgency and loadTaskViewWithCatalog support builtin:urgency filter sorted descending", async () => {
+test("compareTasksByUrgency and loadTaskViewWithCatalog support saved filter sorted descending", async () => {
   const low = makeTask("t1", "Low score", { urgency: 1.9 });
   const high = makeTask("t2", "Top urgent", { urgency: 14.5, priority: "H" });
   const mid = makeTask("t3", "Medium score", { urgency: 6.2 });
@@ -39,18 +39,27 @@ test("compareTasksByUrgency and loadTaskViewWithCatalog support builtin:urgency 
     tasks: async (query: { filter?: string }) => {
       requestedFilter = query.filter || "";
       return {
-        tasks: [low, high, mid],
+        tasks: [high, mid, low],
         projects: [],
       };
     },
   } as unknown as WorkspaceClient;
   const loaded = await loadTaskViewWithCatalog(
     {} as TaskService,
-    "filter:builtin:urgency",
+    "filter:custom-urgency",
     {
       revision: 1,
       projects: [],
-      filters: [],
+      filters: [
+        {
+          id: "custom-urgency",
+          name: "Urgency",
+          description: "",
+          expression: "status:pending -WAITING",
+          color: "orange",
+          favorite: false,
+        },
+      ],
       tags: [],
       board: defaultBoard(),
     },

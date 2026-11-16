@@ -34,6 +34,7 @@ import type {
 } from "../../../core/workspace/backup.ts";
 import type { TimeStore } from "../time/time-store.ts";
 import type { HabitStore } from "../habits/habit-store.ts";
+import type { StateHistoryStore } from "../tasks/state-history.ts";
 
 type Item = {
   live: string;
@@ -81,6 +82,7 @@ export function createBackupRestore(
   paths: { organization: string; recovery: string },
   timeStore?: TimeStore,
   habitStore?: HabitStore,
+  stateHistory?: StateHistoryStore,
 ) {
   const root = join(dirname(paths.organization), "restore-points");
   const schemaFile = join(dirname(paths.organization), "restored-uda.json");
@@ -547,6 +549,9 @@ export function createBackupRestore(
           service.setRestoredSchema(data.taskwarrior.uda || {});
           if (habitStore && data.habits) {
             habitStore.restoreBackup(data.habits);
+          }
+          if (stateHistory && data.stateHistory) {
+            await stateHistory.replaceAll(data.stateHistory);
           }
           plans.delete(token);
         } catch (error) {

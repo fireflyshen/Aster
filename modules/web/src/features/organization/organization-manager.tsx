@@ -12,9 +12,8 @@ import type {
   OrganizationChange,
   SavedFilter,
 } from "@core/workspace/organization";
-import { ChevronDown, Eye, EyeOff, Plus } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useBuiltinFilterPrefs } from "./builtin-filter-prefs";
 import {
   FilterEditorDialog,
   OrganizationDeleteDialog,
@@ -65,15 +64,6 @@ export function OrganizationManager({
   const [deleting, setDeleting] = useState<OrganizationEntry>();
   const [localError, setLocalError] = useState("");
   const [editingRevision, setEditingRevision] = useState(data.revision);
-  const [showHiddenBuiltin, setShowHiddenBuiltin] = useState(false);
-  const {
-    builtinFilters,
-    hiddenIds,
-    sectionHidden,
-    toggleFavorite: toggleBuiltinFavorite,
-    toggleHidden: toggleBuiltinHidden,
-    toggleSectionHidden,
-  } = useBuiltinFilterPrefs(data, onChange);
   const locked = busy || blocked;
   useEffect(() => {
     if (editRequest) {
@@ -202,12 +192,6 @@ export function OrganizationManager({
           {(["filter", "tag"] as const).map((kind) => {
             const list = kind === "filter" ? data.filters : data.tags;
             const items = renderSectionRows(kind);
-            const visibleBuiltin = builtinFilters.filter(
-              (item) => showHiddenBuiltin || !hiddenIds.has(item.id),
-            );
-            const matchingBuiltin = visibleBuiltin
-              .map((item) => ({ kind: "filter" as const, item }))
-              .filter((entry) => matchesSearch(entry, search));
             return (
               <div key={kind}>
                 <Collapsible defaultOpen className="mb-6">
@@ -279,89 +263,6 @@ export function OrganizationManager({
                       )}
                   </CollapsibleContent>
                 </Collapsible>
-
-                {kind === "filter" &&
-                  (sectionHidden ? (
-                    <div className="mb-6 flex items-center justify-between border-b border-border/50 py-2 text-xs text-muted-foreground">
-                      <span>已隐藏内置常用 TW 过滤器</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={toggleSectionHidden}
-                      >
-                        <Eye className="size-3.5" />
-                        显示
-                      </Button>
-                    </div>
-                  ) : (
-                    <Collapsible defaultOpen className="mb-6">
-                      <div className="flex h-11 items-center gap-2 border-b border-border/80 md:h-10">
-                        <CollapsibleTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            className="group -ml-2 h-8 min-w-0 flex-1 justify-start gap-2 rounded-md px-2 text-sm font-semibold hover:bg-(--row-hover) has-[>svg]:px-2"
-                          >
-                            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
-                            <span>内置常用 TW 过滤器</span>
-                            <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
-                              {builtinFilters.length - hiddenIds.size}
-                            </span>
-                          </Button>
-                        </CollapsibleTrigger>
-                        {hiddenIds.size > 0 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 px-2 text-xs font-normal text-muted-foreground hover:text-foreground"
-                            onClick={() =>
-                              setShowHiddenBuiltin((current) => !current)
-                            }
-                          >
-                            {showHiddenBuiltin
-                              ? "收起已隐藏"
-                              : `已隐藏 ${hiddenIds.size}`}
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="隐藏内置常用 TW 过滤器"
-                          title="隐藏此分组"
-                          className="text-muted-foreground"
-                          onClick={toggleSectionHidden}
-                        >
-                          <EyeOff className="size-4" strokeWidth={1.5} />
-                        </Button>
-                      </div>
-                      <CollapsibleContent>
-                        {matchingBuiltin.map((entry) => (
-                          <OrganizationRow
-                            key={entry.item.id}
-                            entry={entry}
-                            disabled={locked}
-                            isBuiltin
-                            isHidden={hiddenIds.has(entry.item.id)}
-                            onOpen={onOpen}
-                            onFavorite={() =>
-                              toggleBuiltinFavorite(entry.item.id)
-                            }
-                            onToggleHide={() =>
-                              toggleBuiltinHidden(entry.item.id)
-                            }
-                          />
-                        ))}
-                        {!!search.trim() && !matchingBuiltin.length && (
-                          <p className="py-5 text-sm text-muted-foreground">
-                            未找到匹配的内置过滤器
-                          </p>
-                        )}
-                      </CollapsibleContent>
-                    </Collapsible>
-                  ))}
               </div>
             );
           })}

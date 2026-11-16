@@ -13,6 +13,7 @@ import { ProjectIcon } from "@/features/projects/project-icon";
 import { DatePicker } from "@/features/tasks/date-picker";
 import { dueLabel, toDueDay, taskDateTone } from "@/features/tasks/task-date";
 import type { HabitListItem } from "@core/habits/model";
+import { STATE_LABELS, type EffectiveTaskState } from "@core/tasks/state";
 import { formatDuration } from "@core/workspace/energy";
 import { projectLeaf } from "@core/workspace/projects";
 import { itemColor, type SavedTag } from "@core/workspace/organization";
@@ -38,6 +39,60 @@ function TodoistCalendarGlyph() {
         clipRule="evenodd"
       />
     </svg>
+  );
+}
+
+const STATE_CHIP_STYLE: Record<string, string> = {
+  doing:
+    "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-300",
+  planned: "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-300",
+  waiting: "bg-teal-500/12 text-teal-700 border-teal-500/30 dark:text-teal-300",
+  parked: "bg-muted text-muted-foreground border-border/70",
+};
+
+/** Compact colored badge displaying the task state machine state (`waiting` shows waitReason on hover). */
+export function StateChip({
+  state,
+  waitReason,
+  waitDate,
+  blocked,
+}: {
+  state?: EffectiveTaskState | null;
+  waitReason?: string;
+  waitDate?: string;
+  blocked?: boolean;
+}) {
+  if (!state || state === "completed") return null;
+  const label = STATE_LABELS[state] ?? state;
+  const titleParts: string[] = [label];
+  if (state === "waiting" && waitReason) titleParts.push(`原因: ${waitReason}`);
+  if ((state === "waiting" || state === "parked") && waitDate) {
+    titleParts.push(
+      `${state === "waiting" ? "核对日" : "复查日"}: ${toDueDay(waitDate) || dueLabel(waitDate)}`,
+    );
+  }
+  return (
+    <>
+      <span
+        data-task-state-chip={state}
+        title={titleParts.join(" · ")}
+        className={cn(
+          "inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-[11px] leading-none font-medium whitespace-nowrap",
+          STATE_CHIP_STYLE[state] || STATE_CHIP_STYLE.planned,
+        )}
+      >
+        {label}
+      </span>
+      {blocked && (
+        <span
+          data-task-blocked-chip
+          title="存在未完成的前置依赖任务"
+          className="inline-flex shrink-0 items-center rounded border border-rose-500/30 bg-rose-500/12 px-1.5 py-0.5 text-[11px] leading-none font-medium text-rose-700 dark:text-rose-300 whitespace-nowrap"
+        >
+          被阻塞
+        </span>
+      )}
+    </>
   );
 }
 
@@ -68,6 +123,8 @@ export function TaskMetaChips({
   onToggleSubtasks,
   onEdit,
   onDueChange,
+  effectiveRowState,
+  blocked = false,
   habit,
   habitTodayDate,
   onHabitSwitchPlan,
@@ -94,6 +151,8 @@ export function TaskMetaChips({
   onToggleSubtasks?: () => void;
   onEdit: () => void;
   onDueChange?: (due: string) => void;
+  effectiveRowState?: EffectiveTaskState | null;
+  blocked?: boolean;
   habit?: HabitListItem;
   habitTodayDate?: string;
   onHabitSwitchPlan?: HabitTaskActions["switchPlan"];
@@ -130,13 +189,20 @@ export function TaskMetaChips({
       data-task-details
       className="task-meta mt-1 min-w-0 w-full text-xs leading-4 text-muted-foreground"
     >
-      {habit && habitTodayDate && (
+      {habit && habitTodayDate ? (
         <HabitMetaChip
           habit={habit}
           date={habitTodayDate}
           disabled={disabled}
           onSwitchPlan={onHabitSwitchPlan}
           onOpenDetail={onOpenHabitDetail}
+        />
+      ) : (
+        <StateChip
+          state={effectiveRowState}
+          waitReason={task.waitReason}
+          waitDate={task.wait}
+          blocked={blocked}
         />
       )}
 

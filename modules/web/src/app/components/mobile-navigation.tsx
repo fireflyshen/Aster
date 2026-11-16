@@ -1,4 +1,4 @@
-import { CalendarDays, FolderOpen, Inbox, Menu, Plus } from "lucide-react";
+import { FolderOpen, Inbox, Menu, PlayCircle, Plus } from "lucide-react";
 import type { View } from "@shared/tasks";
 
 /** Mobile shortcuts use the same navigation and task actions as the sidebar. */
@@ -25,12 +25,12 @@ export function MobileNavigation({
     <nav className="mobile-navigation" aria-label="常用导航">
       <button
         type="button"
-        aria-current={view === "today" ? "page" : undefined}
+        aria-current={view === "now" ? "page" : undefined}
         disabled={navigationDisabled}
-        onClick={() => onView("today")}
+        onClick={() => onView("now")}
       >
-        <CalendarDays aria-hidden="true" />
-        <span>今天</span>
+        <PlayCircle aria-hidden="true" />
+        <span>现在</span>
       </button>
       <button
         type="button"

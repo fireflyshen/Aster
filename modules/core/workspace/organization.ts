@@ -74,20 +74,6 @@ export type WorkspaceTiming = {
   historyComplete?: boolean;
 };
 
-export type BuiltinFilterPrefs = {
-  favorites: string[];
-  hidden: string[];
-  sectionHidden?: boolean;
-};
-
-export type BuiltinFilterChange = {
-  revision: number;
-  kind: "builtinFilter";
-  action: "favorite" | "hide" | "section";
-  id?: string;
-  value?: boolean;
-};
-
 import type {
   PreferencesChange,
   ThemeMode,
@@ -106,7 +92,6 @@ export type Organization = {
   revision: number;
   filters: SavedFilter[];
   tags: SavedTag[];
-  builtinFilterPrefs?: BuiltinFilterPrefs;
   preferences?: WorkspacePreferences;
   projectCounts?: Record<string, number>;
   projects?: SavedProject[];
@@ -124,7 +109,6 @@ export type OrganizationChange =
   | EnergyChange
   | SubtaskChange
   | DescriptionChange
-  | BuiltinFilterChange
   | PreferencesChange
   | {
       revision: number;

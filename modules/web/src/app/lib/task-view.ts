@@ -1,5 +1,10 @@
 import { taskDate } from "@core/tasks/quick-task";
-import { focusProject, inProject, projectStatus } from "@core/workspace/focus";
+import {
+  focusProject,
+  inProject,
+  isHabitProject,
+  projectStatus,
+} from "@core/workspace/focus";
 import type {
   Organization,
   SavedFilter,
@@ -89,11 +94,19 @@ export function withViewDefaults<T extends TaskInput>(
   };
 }
 
-/** Computes sidebar task badges for inbox and today views. */
+/** Computes sidebar task badges for now, inbox, and today views. */
 export function computeViewCounts(
   tasks: Task[],
+  organization?: Organization,
 ): Partial<Record<View, number>> {
   return {
+    now: tasks.filter(
+      (task) =>
+        task.status !== "completed" &&
+        !isHabitProject(task.project, organization?.projects) &&
+        !organization?.subtasks?.[task.uuid] &&
+        task.state === "doing",
+    ).length,
     pending: tasks.filter(
       (task) =>
         task.status !== "completed" &&
@@ -240,7 +253,14 @@ export function filterVisibleTasks({
       view !== "focus" ||
       Boolean(currentProject) ||
       Boolean(focusProject(task.project, organization?.projects));
+    const matchesNow =
+      view !== "now" ||
+      Boolean(currentProject) ||
+      Boolean(activeItem) ||
+      (!isHabitProject(task.project, organization?.projects) &&
+        task.state === "doing");
     return (
+      matchesNow &&
       matchesToday &&
       matchesFocus &&
       (!inbox || !task.project) &&

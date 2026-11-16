@@ -140,10 +140,23 @@ export async function startWorkspaceSocket(
         );
         return;
       }
+      const clientHeader = req.headers["x-aster-client"];
+      const clientSource =
+        clientHeader === "tui" ||
+        clientHeader === "web" ||
+        clientHeader === "mcp"
+          ? clientHeader
+          : "mcp";
+      const actor =
+        typeof req.headers["x-aster-source"] === "string"
+          ? req.headers["x-aster-source"]
+          : clientSource;
       const result = await spec.handle({
         searchParams: parsed.searchParams,
         readBody: (limit) => body(req, limit),
         transport: "ipc",
+        clientSource,
+        actor,
       });
       res.writeHead(result.status);
       res.end(JSON.stringify(result.body));

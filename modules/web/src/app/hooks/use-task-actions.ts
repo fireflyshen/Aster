@@ -1,3 +1,5 @@
+import { api, RequestError } from "@/lib/api";
+import type { DoingLimitCandidate } from "@/features/tasks/state-dialogs";
 import type { EnergySummary } from "@core/workspace/energy";
 import type {
   Organization,
@@ -41,6 +43,11 @@ type TaskActionsDeps = {
   mutate: TaskMutateFn;
   changeOrganization: (change: OrganizationChange) => Promise<boolean>;
   reloadAll: () => Promise<Organization | undefined>;
+  onDoingLimit?: (
+    targetDescription: string,
+    doing: DoingLimitCandidate[],
+    retry: (replaceUuid: string) => Promise<void>,
+  ) => void;
 };
 
 /** Composes task editing, completion animations, board drags, and undo toast actions. */
@@ -69,6 +76,7 @@ export function useTaskActions(deps: TaskActionsDeps) {
     mutate,
     changeOrganization,
     reloadAll,
+    onDoingLimit,
   } = deps;
 
   const editor = useTaskEditor({ busy, needsCheck, writeLock, mutate });
@@ -97,8 +105,52 @@ export function useTaskActions(deps: TaskActionsDeps) {
           if (src === "editor" || src === "notes") setFormError(msg);
           else if (src === "quick") setQuickError(msg);
         },
+        onDoingLimit: onDoingLimit
+          ? (error) => {
+              if (
+                error instanceof RequestError &&
+                error.code === "STATE_DOING_LIMIT" &&
+                Array.isArray(error.details?.doing) &&
+                route === "action" &&
+                data &&
+                typeof data === "object" &&
+                "uuid" in data
+              ) {
+                const payload = data as { uuid: string; action?: string };
+                const desc =
+                  tasks.find((t) => t.uuid === payload.uuid)?.description || "";
+                onDoingLimit(
+                  desc,
+                  error.details.doing as DoingLimitCandidate[],
+                  async (replaceUuid: string) => {
+                    await api("action", {
+                      action: "state.set",
+                      uuid: payload.uuid,
+                      state: "doing",
+                      replaceUuid,
+                    });
+                    if (payload.action && payload.action !== "state.set") {
+                      await api("action", payload);
+                    }
+                    await reloadAll();
+                  },
+                );
+                return true;
+              }
+              return false;
+            }
+          : undefined,
       }),
-    [mutate, setFormError, setOpen, setQuickError, setQuickOpen],
+    [
+      mutate,
+      onDoingLimit,
+      reloadAll,
+      setFormError,
+      setOpen,
+      setQuickError,
+      setQuickOpen,
+      tasks,
+    ],
   );
 
   const completionState = useTaskCompletion({

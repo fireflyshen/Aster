@@ -22,6 +22,19 @@ export const READ_OVERRIDES = [
   "rc.hooks=off",
 ];
 
+/** Default UDA and urgency definitions injected into every Taskwarrior invocation. */
+export const STATE_SCHEMA: Record<string, string> = {
+  "uda.state.type": "string",
+  "uda.state.label": "状态",
+  "uda.state.values": "planned,doing,waiting,parked,",
+  "uda.waitreason.type": "string",
+  "uda.waitreason.label": "等待原因",
+  "uda.statechanged.type": "date",
+  "uda.statechanged.label": "状态变更时间",
+  "urgency.uda.state.doing.coefficient": "6.0",
+  "urgency.uda.state.parked.coefficient": "-6.0",
+};
+
 const PENDING_FILTER = ["(", "status:pending", "or", "status:waiting", ")"];
 
 export type TaskScope = "pending" | "completed" | "deleted";
@@ -43,7 +56,7 @@ export function createTaskRunner(connection: Connection, executor: Executor) {
   const rawRun = (args: string[], write = false, input?: string) => {
     if (args.length === 1 && args[0] === "--version")
       return runTaskwarrior(connection, args, write, executor, input);
-    const schema = Object.entries(restoredSchema).map(
+    const schema = Object.entries({ ...STATE_SCHEMA, ...restoredSchema }).map(
       ([key, value]) => `rc.${key}=${value}`,
     );
     const literal = args.indexOf("--");

@@ -203,6 +203,17 @@ Aster 中的**习惯**直接作为普通待办（Todo）的扩展字段存在（
 - 如果收到 `409` 状态码或
   `OPERATION_PENDING_RECONCILE`，说明有跨系统任务状态待核对，请调用
   `operation_get` 查看详情，向用户说明情况，切勿盲目重复重试。
+
+### 6. 任务状态机规范
+
+- 状态只用 `task_state_set` 改，不用标签，不写评论。
+- 新任务默认是计划中（`planned`），带上 `scheduled`；用 `task_schedule` 改排期。
+- 等待中（`waiting`）必须写原因（`waitReason`）和核对日（`checkDate`）。
+- 收到 `409 STATE_DOING_LIMIT` 时，先问用户或 Cadence 放回哪一条，再带
+  `replaceUuid` 重试，绝不静默挤掉。
+- 习惯任务不参与状态机。
+- 每天先读 `state_summary` 处理 `promotionBlocked`、`waitingDue` 和
+  `parkedReviewDue`。
 ```
 
 ---
@@ -220,6 +231,11 @@ Aster MCP 提供三组高内聚工具：
   `status:pending`、`project:Work`）。
 - `task_create` / `task_patch` / `task_edit`：创建与更新任务（优先推荐
   `task_patch` 保留未传字段）。
+- `task_state_set` / `task_schedule` /
+  `task_depends`：流转任务执行状态（`planned` / `doing` 上限 5 条 / `waiting` /
+  `parked`）、修改计划中排期与设置前置依赖。
+- `state_summary` /
+  `state_history`：查看各状态汇总、阻塞列表（`promotionBlocked`、`waitingDue`、`parkedReviewDue`、`anomalies`）及状态变更审计历史。
 - `task_complete` / `task_reopen`：标记任务完成或重新打开。
 - `subtask_link` / `subtask_unlink`：绑定或解绑父子任务关系。
 - `column_save` / `board_task_move`：管理看板列及在列间移动排序。

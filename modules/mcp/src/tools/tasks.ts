@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { dateSchema, type McpToolRegistrar, uuidSchema } from "./helpers.ts";
+import { stateDateSchema, taskStateSchema } from "./state.ts";
 
 const taskSchema = z
   .object({
@@ -18,6 +19,11 @@ const taskCreateSchema = taskSchema
   .extend({
     parentUuid: uuidSchema.optional(),
     taskDescription: z.string().max(20000).optional(),
+    state: taskStateSchema.optional(),
+    scheduled: stateDateSchema.optional(),
+    waitReason: z.string().min(1).max(200).optional(),
+    checkDate: stateDateSchema.optional(),
+    replaceUuid: uuidSchema.optional(),
   })
   .strict();
 
@@ -37,11 +43,13 @@ const taskPatchSchema = z
 
 const TASK_ACTION_DESCRIPTIONS: Record<string, string> = {
   complete: "Complete task",
-  reopen: "Reopen completed task",
-  start: "Start timer, subject to energy and timer availability",
-  stop: "Stop timer",
+  reopen: "Reopen completed task (returns non-habit task to planned)",
+  start:
+    "Start timer (auto-promotes planned tasks to doing, subject to 5-task doing limit), subject to energy and timer availability",
+  stop: "Stop timer (does not change task state)",
   delete: "Soft delete with recovery snapshot",
-  restore: "Restore deleted task from recovery",
+  restore:
+    "Restore deleted task from recovery (returns non-habit task to planned)",
 };
 
 function compactIsoDate(value: string | undefined): string {
@@ -181,7 +189,7 @@ export function registerTaskTools({
 
   register(
     "task_wait",
-    "Set waiting date, or empty string to clear waiting.",
+    "仅用于习惯任务和兼容旧调用；普通任务请用 task_state_set 或 task_schedule。",
     { uuid: uuidSchema, wait: dateSchema },
     false,
     (i) => post("/api/action", { action: "wait", ...i }),

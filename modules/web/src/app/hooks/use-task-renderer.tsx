@@ -3,6 +3,7 @@ import { toDueDay } from "@/features/tasks/task-date";
 import { TaskRow } from "@/features/tasks/task-row";
 import { TaskColumnPicker } from "@/features/tasks/task-column-picker";
 import type { HabitListItem } from "@core/habits/model";
+import { effectiveState, type TaskState } from "@core/tasks/state";
 import { taskColumnId, UNSECTIONED } from "@core/workspace/board";
 import type { TaskCostSummary } from "@core/time/model";
 import type { Organization } from "@core/workspace/organization";
@@ -59,6 +60,8 @@ interface UseTaskRendererOptions {
   moveTask: (task: Task, columnId: string) => unknown;
   habitByTaskUuid?: Map<string, HabitListItem>;
   habitActions?: HabitTaskActions;
+  onChangeState?: (task: Task, state: TaskState) => void;
+  openTaskUuids?: ReadonlySet<string>;
 }
 
 /** Builds the recursive `TaskRow` render callback bound to workspace task actions and state. */
@@ -91,9 +94,12 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
     moveTask,
     habitByTaskUuid,
     habitActions,
+    onChangeState,
+    openTaskUuids,
   } = options;
 
   const todayDayKey = format(now, "yyyy-MM-dd");
+  const habitUuids = new Set(habitByTaskUuid?.keys() ?? []);
 
   const renderTask: TaskRenderFn = (
     task,
@@ -108,6 +114,15 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
     const parentHabit = parentUuid
       ? habitByTaskUuid?.get(parentUuid)
       : undefined;
+    const rowState =
+      habit || parentHabit
+        ? null
+        : effectiveState(task, organization, habitUuids);
+    const blocked = Boolean(
+      rowState === "doing" &&
+      openTaskUuids &&
+      task.depends?.some((dep) => openTaskUuids.has(dep)),
+    );
     const dueDay = task.due ? toDueDay(task.due) : "";
     const overdue = Boolean(
       !habit &&
@@ -179,6 +194,13 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
         onToggleStart={() => void toggleStartTask(task)}
         onClearStartMark={
           clearStartMark ? () => void clearStartMark(task) : undefined
+        }
+        effectiveRowState={rowState}
+        blocked={blocked}
+        onChangeState={
+          onChangeState && !parentUuid && !habit
+            ? (target) => onChangeState(task, target)
+            : undefined
         }
         onDueChange={(nextDue) => void patchTaskFields(task, { due: nextDue })}
         onPriorityChange={(priority) =>

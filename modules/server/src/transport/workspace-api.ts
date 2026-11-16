@@ -1,5 +1,6 @@
 import { parseQuickTask } from "../../../core/tasks/quick-task.ts";
 import type { TaskService } from "../../../core/tasks/service.ts";
+import { isHabitTask } from "../../../core/tasks/state.ts";
 import type { TimerSnapshot } from "../../../core/time/model.ts";
 import type {
   Organization,
@@ -9,6 +10,10 @@ import { renderThemeInitScript } from "../../../core/workspace/preferences.ts";
 import type { createBackupRestore } from "../recovery/backup-restore.ts";
 import type { createOrganizationService } from "../organization/organization-service.ts";
 import type { createRecoveryService } from "../recovery/recovery.ts";
+import type {
+  StateActionMeta,
+  TaskStateManager,
+} from "../tasks/state-changes.ts";
 import { taskInput } from "./validation.ts";
 import type { createWorkspaceGate } from "./workspace-gate.ts";
 
@@ -30,6 +35,8 @@ export interface WorkspaceRouteContext {
   searchParams: URLSearchParams;
   readBody: (limitBytes?: number) => Promise<Record<string, unknown>>;
   transport: TransportKind;
+  clientSource?: "web" | "mcp" | "tui";
+  actor?: string;
 }
 
 export interface WorkspaceRouteSpec {
@@ -54,8 +61,17 @@ export interface WorkspaceHandlers {
   ) => Promise<unknown>;
   addTask: (
     input: Record<string, unknown>,
+    meta?: StateActionMeta,
   ) => Promise<{ ok: true; uuid: string | undefined } | unknown>;
-  action: (input: Record<string, unknown>) => Promise<unknown>;
+  action: (
+    input: Record<string, unknown>,
+    meta?: StateActionMeta,
+  ) => Promise<unknown>;
+  stateSummary?: () => Promise<unknown>;
+  stateHistory?: (options?: {
+    uuid?: string;
+    limit?: number;
+  }) => Promise<unknown>;
   parseQuickTask: (input: unknown) => unknown;
   deleted: (options?: {
     query?: string;
@@ -88,10 +104,29 @@ export async function handleAddTask(
   service: TaskService,
   organization: OrganizationService,
   input: Record<string, unknown>,
+  stateManager?: TaskStateManager,
+  meta?: StateActionMeta,
 ): Promise<{ ok: true; uuid: string | undefined }> {
-  const output = await service.addTask(taskInput(input));
+  const baseInput = taskInput(input);
+  const prepared = stateManager
+    ? await stateManager.prepareCreateFields(input, baseInput, meta)
+    : {
+        taskInput: baseInput,
+        createdState: null,
+        waitReason: undefined,
+        checkDate: undefined,
+      };
+  const output = await service.addTask(prepared.taskInput);
   const createdUuid = output.match(UUID_PATTERN)?.[0];
   if (createdUuid) {
+    if (stateManager && prepared.createdState) {
+      await stateManager.recordTaskCreated(
+        createdUuid,
+        prepared.createdState,
+        meta,
+        { waitReason: prepared.waitReason, checkDate: prepared.checkDate },
+      );
+    }
     let org = await organization.load();
     let rev = org.revision;
     if (typeof input.parentUuid === "string" && input.parentUuid) {
@@ -150,11 +185,21 @@ export async function loadScopedTasks(
     organization.snapshot(),
     service.loadProjects(),
   ]);
+  const view = parameters.get("view");
   const scope = parameters.get("scope") || defaultScope;
 
   let tasks: Awaited<ReturnType<TaskService["loadTasks"]>> = [];
   if (parameters.has("filter")) {
     tasks = await service.filterTasks(parameters.get("filter")!);
+  } else if (view === "now") {
+    const pending = await service.loadTasks("pending");
+    tasks = pending.filter(
+      (task) =>
+        (task.status === "pending" || task.status === "waiting") &&
+        !workspace.subtasks?.[task.uuid] &&
+        !isHabitTask(task, workspace) &&
+        task.state === "doing",
+    );
   } else if (scope === "completed") {
     tasks = await service.loadTasks("completed");
   } else if (scope === "board" || scope === "all") {
@@ -213,7 +258,11 @@ export function createWorkspaceHandlers(deps: {
   organization: OrganizationService;
   recovery: RecoveryService;
   backupRestore: BackupRestoreService;
-  taskAction: (input: Record<string, unknown>) => Promise<unknown>;
+  taskAction: (
+    input: Record<string, unknown>,
+    meta?: StateActionMeta,
+  ) => Promise<unknown>;
+  stateManager?: TaskStateManager;
   timeSnapshot?: {
     isEnabled: () => boolean;
     getTimerSnapshot: (input: { taskUuids: string[] }) => TimerSnapshot;
@@ -228,6 +277,7 @@ export function createWorkspaceHandlers(deps: {
     recovery,
     backupRestore,
     taskAction,
+    stateManager,
     timeSnapshot,
     extraRoutes,
   } = deps;
@@ -247,8 +297,15 @@ export function createWorkspaceHandlers(deps: {
         defaultScope,
         timeSnapshot,
       ),
-    addTask: (input) => handleAddTask(service, organization, input),
+    addTask: (input, meta) =>
+      handleAddTask(service, organization, input, stateManager, meta),
     action: taskAction,
+    ...(stateManager
+      ? {
+          stateSummary: () => stateManager.getSummary(),
+          stateHistory: (options) => stateManager.readHistory(options),
+        }
+      : {}),
     parseQuickTask: parseQuickTaskPreview,
     deleted: recovery.list,
     series: (uuid) => readRecurringSeries(service, uuid),
@@ -336,17 +393,56 @@ export function createWorkspaceRoutes(
     {
       method: "POST",
       route: "api/tasks",
-      handle: async ({ readBody }) => ({
+      handle: async ({ readBody, clientSource, actor }) => ({
         status: 200,
-        body: await handlers.addTask(await readBody()),
+        body: await handlers.addTask(await readBody(), {
+          source: clientSource,
+          actor,
+        }),
       }),
     },
     {
       method: "POST",
       route: "api/action",
-      handle: async ({ readBody }) => {
-        const result = await handlers.action(await readBody());
+      handle: async ({ readBody, clientSource, actor }) => {
+        const result = await handlers.action(await readBody(), {
+          source: clientSource,
+          actor,
+        });
         return { status: 200, body: result ?? { ok: true } };
+      },
+    },
+    {
+      method: "GET",
+      route: "api/state/summary",
+      handle: async () => {
+        if (!handlers.stateSummary) {
+          throw Object.assign(new Error("State summary unavailable."), {
+            status: 404,
+          });
+        }
+        return { status: 200, body: await handlers.stateSummary() };
+      },
+    },
+    {
+      method: "GET",
+      route: "api/state/history",
+      handle: async ({ searchParams }) => {
+        if (!handlers.stateHistory) {
+          throw Object.assign(new Error("State history unavailable."), {
+            status: 404,
+          });
+        }
+        const uuid = searchParams.get("uuid") || undefined;
+        const limitRaw = searchParams.get("limit");
+        const limit =
+          limitRaw !== null && limitRaw !== "" ? Number(limitRaw) : undefined;
+        return {
+          status: 200,
+          body: {
+            entries: await handlers.stateHistory({ uuid, limit }),
+          },
+        };
       },
     },
     {

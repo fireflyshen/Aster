@@ -123,7 +123,9 @@ export function UpcomingWorkspace({
         window.innerHeight + window.scrollY >=
         document.documentElement.scrollHeight - 480;
       if (nearBottom) {
-        setDayCount((prev) => (prev < MAX_DAYS ? Math.min(MAX_DAYS, prev + 14) : prev));
+        setDayCount((prev) =>
+          prev < MAX_DAYS ? Math.min(MAX_DAYS, prev + 14) : prev,
+        );
       }
     };
 
@@ -197,11 +199,7 @@ export function UpcomingWorkspace({
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => jumpToDate(today)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => jumpToDate(today)}>
               今天
             </Button>
             <Button
@@ -241,7 +239,9 @@ export function UpcomingWorkspace({
                   }).format(new Date(`${day}T12:00:00`))}
                 </span>
                 <strong>{Number(day.slice(8))}</strong>
-                {hasTasks && <i className="upcoming-day-dot" aria-hidden="true" />}
+                {hasTasks && (
+                  <i className="upcoming-day-dot" aria-hidden="true" />
+                )}
               </button>
             );
           })}

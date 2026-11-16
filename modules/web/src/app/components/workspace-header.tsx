@@ -206,12 +206,6 @@ export function WorkspaceHeading({
     !activeItem &&
     !timePage &&
     !habitsPage;
-  const showUrgencyMeta =
-    !timePage &&
-    !habitsPage &&
-    !organizationPage &&
-    activeEntry?.kind === "filter" &&
-    activeItem?.id === "builtin:urgency";
   const showInboxCount =
     view === "pending" &&
     !currentProject &&
@@ -297,11 +291,6 @@ export function WorkspaceHeading({
             {showTodayMeta && (
               <span className="text-xs font-medium text-muted-foreground/80 tabular-nums">
                 {viewCounts.today ?? 0} 个任务
-              </span>
-            )}
-            {showUrgencyMeta && (
-              <span className="text-xs font-medium text-muted-foreground/80 tabular-nums">
-                按紧迫度降序
               </span>
             )}
             {showInboxCount && (

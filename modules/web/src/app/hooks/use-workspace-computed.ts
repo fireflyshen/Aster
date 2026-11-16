@@ -1,7 +1,3 @@
-import {
-  findBuiltinFilter,
-  isUrgencyBuiltinFilterId,
-} from "@core/workspace/builtin-filters";
 import type {
   Organization,
   OrganizationChange,
@@ -13,7 +9,6 @@ import {
   computeSubtaskHierarchy,
   computeViewCounts,
   filterVisibleTasks,
-  sortUrgencyTasks,
 } from "../lib/task-view";
 import type { ActiveEntry, CompleteBehavior } from "./use-workspace-navigation";
 
@@ -34,31 +29,16 @@ export function useWorkspaceHierarchy({
   const activeItem = useMemo(() => {
     if (!activeEntry) return undefined;
     if (activeEntry.kind === "filter") {
-      const custom = organization.filters?.find(
-        (f) => f.id === activeEntry.item.id,
+      return (
+        organization.filters?.find((f) => f.id === activeEntry.item.id) ||
+        activeEntry.item
       );
-      if (custom) return custom;
-      const builtin = findBuiltinFilter(activeEntry.item.id);
-      if (builtin) {
-        return {
-          ...builtin,
-          favorite: Boolean(
-            organization.builtinFilterPrefs?.favorites.includes(builtin.id),
-          ),
-        };
-      }
-      return activeEntry.item;
     }
     return (
       organization.tags?.find((t) => t.id === activeEntry.item.id) ||
       activeEntry.item
     );
-  }, [
-    activeEntry,
-    organization.filters,
-    organization.tags,
-    organization.builtinFilterPrefs,
-  ]);
+  }, [activeEntry, organization.filters, organization.tags]);
 
   const activeTagName =
     activeEntry?.kind === "tag" ? activeItem?.name : undefined;
@@ -82,7 +62,10 @@ export function useWorkspaceHierarchy({
     [projects, organization.projects],
   );
 
-  const liveCounts = useMemo(() => computeViewCounts(tasks), [tasks]);
+  const liveCounts = useMemo(
+    () => computeViewCounts(tasks, organization),
+    [tasks, organization],
+  );
   const [preservedCounts, setPreservedCounts] = useState<
     Partial<Record<View, number>>
   >({});
@@ -166,27 +149,11 @@ export function useWorkspaceDerivedState({
 
   const topLevelVisible = useMemo(() => {
     const visibleIds = new Set(visibleTasks.map((t) => t.uuid));
-    const filtered = visibleTasks.filter((t) => {
+    return visibleTasks.filter((t) => {
       const parentUuid = taskLinks[t.uuid];
       return !parentUuid || !visibleIds.has(parentUuid);
     });
-    if (
-      activeEntry?.kind === "filter" &&
-      isUrgencyBuiltinFilterId(activeEntry.item.id) &&
-      !currentProject &&
-      !organizationPage
-    ) {
-      return sortUrgencyTasks(filtered);
-    }
-    return filtered;
-  }, [
-    visibleTasks,
-    taskLinks,
-    view,
-    currentProject,
-    activeEntry,
-    organizationPage,
-  ]);
+  }, [visibleTasks, taskLinks]);
 
   const editingParent = useMemo(() => {
     if (!editing) return undefined;

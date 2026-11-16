@@ -36,7 +36,6 @@ function fixture(): AsterBackup {
       revision: 5,
       filters: [],
       tags: [],
-      builtinFilterPrefs: { favorites: ["builtin:urgency"], hidden: [] },
       projects: [
         {
           name: "Studio",

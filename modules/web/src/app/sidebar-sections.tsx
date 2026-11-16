@@ -1,6 +1,5 @@
 import { FilterIcon, LabelIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
-import { useBuiltinFilterPrefs } from "@/features/organization/builtin-filter-prefs";
 import { RowMenu } from "@/features/organization/organization-row";
 import type { OrganizationEntry } from "@/features/organization/organization-types";
 import { ProjectTree } from "@/features/projects/project-tree";
@@ -48,12 +47,8 @@ export function SidebarFavorites({
   onEditEntry: (entry: OrganizationEntry) => void;
   onChange: (change: OrganizationChange) => Promise<boolean>;
 }) {
-  const { builtinFilters, toggleFavorite } = useBuiltinFilterPrefs(
-    organization,
-    onChange,
-  );
   const entries: OrganizationEntry[] = [
-    ...[...organization.filters, ...builtinFilters]
+    ...organization.filters
       .filter((item) => item.favorite)
       .map((item) => ({ kind: "filter" as const, item })),
     ...organization.tags
@@ -70,7 +65,6 @@ export function SidebarFavorites({
         {entries.map((entry) => {
           const { item, kind } = entry;
           const Icon = kind === "filter" ? FilterIcon : LabelIcon;
-          const isBuiltin = kind === "filter" && item.id.startsWith("builtin:");
           return (
             <div
               key={`${kind}:${item.id}`}
@@ -101,20 +95,18 @@ export function SidebarFavorites({
               <RowMenu
                 entry={entry}
                 disabled={disabled}
-                isBuiltin={isBuiltin}
+                isBuiltin={false}
                 isHidden={false}
                 compact
                 count={kind === "tag" ? (item as SavedTag).count : undefined}
-                onEdit={isBuiltin ? undefined : () => onEditEntry(entry)}
+                onEdit={() => onEditEntry(entry)}
                 onFavorite={() => {
-                  void (isBuiltin
-                    ? toggleFavorite(item.id)
-                    : onChange({
-                        revision: organization.revision,
-                        action: "save",
-                        kind,
-                        item: { ...item, favorite: false },
-                      } as OrganizationChange));
+                  void onChange({
+                    revision: organization.revision,
+                    action: "save",
+                    kind,
+                    item: { ...item, favorite: false },
+                  } as OrganizationChange);
                 }}
               />
             </div>

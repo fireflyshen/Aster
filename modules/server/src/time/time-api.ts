@@ -44,12 +44,17 @@ export function createTimeHandlers(deps: {
   store?: TimeStore;
   backup?: TimeBackupService;
   coordinator?: TimeCoordinator;
+  beforeStart?: (
+    uuid: string,
+    actorMeta?: { source?: "web" | "mcp" | "tui"; actor?: string },
+  ) => Promise<void>;
   isEnabled: () => boolean;
   paths: {
     dataDir: string;
     organizationFile: string;
     recoveryFile: string;
     timeFile: string;
+    stateLogFile?: string;
     resolveTaskchampionDbPath?: () => Promise<string | undefined>;
   };
 }) {
@@ -60,6 +65,7 @@ export function createTimeHandlers(deps: {
     store,
     backup,
     coordinator,
+    beforeStart,
     isEnabled,
     paths,
   } = deps;
@@ -543,7 +549,7 @@ export function createTimeHandlers(deps: {
     {
       method: "POST",
       route: "api/time/start",
-      handle: async ({ readBody }) => {
+      handle: async ({ readBody, clientSource, actor }) => {
         const s = requireEnabledStore();
         const body = await readBody();
         const idempotencyKey = requiredString(
@@ -596,6 +602,9 @@ export function createTimeHandlers(deps: {
               projectSnapshot || plan.projectSnapshot,
               plan.categoryId,
             );
+        }
+        if (taskUuid && beforeStart) {
+          await beforeStart(taskUuid, { source: clientSource, actor });
         }
         const receipt = s.startActivity({
           idempotencyKey,
@@ -901,7 +910,7 @@ export function createTimeHandlers(deps: {
     {
       method: "POST",
       route: "api/time/plans/start",
-      handle: async ({ readBody }) => {
+      handle: async ({ readBody, clientSource, actor }) => {
         const s = requireEnabledStore();
         const body = await readBody();
         const planId = requiredString(body.planId, "planId", 64);
@@ -911,6 +920,12 @@ export function createTimeHandlers(deps: {
             existingPlan.projectSnapshot,
             existingPlan.categoryId,
           );
+        if (existingPlan?.taskUuid && beforeStart) {
+          await beforeStart(existingPlan.taskUuid, {
+            source: clientSource,
+            actor,
+          });
+        }
         const receipt = s.startActivity({
           idempotencyKey: requiredString(
             body.idempotencyKey,
@@ -1369,6 +1384,7 @@ export function createTimeHandlers(deps: {
             organizationFile: paths.organizationFile,
             recoveryFile: paths.recoveryFile,
             timeFile: paths.timeFile,
+            stateLogFile: paths.stateLogFile,
             taskchampionDbPath,
             timeEnabled: isEnabled(),
             timeBackup: backup,

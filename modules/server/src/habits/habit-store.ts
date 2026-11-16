@@ -1882,6 +1882,13 @@ export function createHabitStore(
     });
   }
 
+  function getHabitTaskUuids(): Set<string> {
+    const rows = db
+      .prepare("SELECT task_uuid FROM habits WHERE task_uuid IS NOT NULL")
+      .all() as Array<{ task_uuid: string }>;
+    return new Set(rows.map((r) => r.task_uuid));
+  }
+
   function close(): void {
     db.close();
   }
@@ -1890,6 +1897,7 @@ export function createHabitStore(
     dbPath,
     todayDate: currentTodayDate,
     getTimezone: currentTimezone,
+    getHabitTaskUuids,
     listHabits,
     getTodayHabits,
     getHabitDetail,

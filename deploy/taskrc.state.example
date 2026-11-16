@@ -1,0 +1,20 @@
+# Aster Task State Machine UDA & Report Configuration
+# Append these lines to your server Taskwarrior taskrc (e.g. /etc/taskwarrior/taskrc)
+
+uda.state.type=string
+uda.state.label=状态
+uda.state.values=planned,doing,waiting,parked,
+uda.waitreason.type=string
+uda.waitreason.label=等待原因
+uda.statechanged.type=date
+uda.statechanged.label=状态变更时间
+
+# 处理中排在前面；长期搁置往后沉
+urgency.uda.state.doing.coefficient=6.0
+urgency.uda.state.parked.coefficient=-6.0
+
+# 方便 CLI 查看现在能做的任务（可选）
+report.now.description=现在能做
+report.now.columns=id,project,description.count,tags,due.relative,urgency
+report.now.filter=status:pending state:doing
+report.now.sort=urgency-

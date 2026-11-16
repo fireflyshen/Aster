@@ -1,5 +1,4 @@
 import {
-  compareTasksByUrgency,
   tasksForView,
   type TaskView,
   type TaskwarriorTask,
@@ -13,10 +12,6 @@ import {
   type WorkspaceTaskQuery,
 } from "./client.ts";
 import { focusProject, inProject } from "./focus.ts";
-import {
-  findBuiltinFilter,
-  isUrgencyBuiltinFilterId,
-} from "./builtin-filters.ts";
 import type { Organization } from "./organization.ts";
 
 /** Executes a task query through the shared workspace server when reachable, returning tasks and any project catalog included by the server. */
@@ -111,9 +106,7 @@ export async function loadTaskViewWithCatalog(
   }
   if (view.startsWith("filter:")) {
     const filterId = view.slice(7);
-    const filter =
-      organization?.filters.find((item) => item.id === filterId) ??
-      findBuiltinFilter(filterId);
+    const filter = organization?.filters.find((item) => item.id === filterId);
     if (!filter) {
       throw new Error(
         "Saved filter unavailable. Refresh the web workspace or choose another view.",
@@ -124,10 +117,7 @@ export async function loadTaskViewWithCatalog(
       { filter: filter.expression },
       client,
     );
-    const ordered = isUrgencyBuiltinFilterId(filterId)
-      ? [...result.tasks].sort(compareTasksByUrgency)
-      : result.tasks;
-    return { ...result, tasks: ordered, allTasks: ordered };
+    return { ...result, tasks: result.tasks, allTasks: result.tasks };
   }
   if (view.startsWith("column:")) {
     if (!organization) {

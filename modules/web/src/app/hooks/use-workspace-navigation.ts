@@ -37,7 +37,7 @@ export function useWorkspaceNavigation() {
   const [desktopNavOpen, setNavOpen] = useState<boolean>(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navOpen = desktop ? desktopNavOpen : mobileNavOpen;
-  const [view, setViewState] = useState<View>("today");
+  const [view, setViewState] = useState<View>("now");
   const [layout, setLayoutState] = useState<"list" | "board">("list");
   const [completeBehavior, setCompleteBehaviorState] =
     useState<CompleteBehavior>("hide");

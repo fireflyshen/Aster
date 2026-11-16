@@ -15,6 +15,7 @@ export type ThemePalette = (typeof THEME_PALETTES)[number]["id"];
 const PALETTE_IDS: readonly string[] = THEME_PALETTES.map((item) => item.id);
 
 export const SIDEBAR_ITEMS = [
+  { id: "now", label: "现在能做" },
   { id: "focus", label: "Focus" },
   { id: "pending", label: "收件箱" },
   { id: "today", label: "今天" },
@@ -26,8 +27,20 @@ export const SIDEBAR_ITEMS = [
 export type SidebarItemId = (typeof SIDEBAR_ITEMS)[number]["id"];
 const SIDEBAR_ITEM_IDS = new Set<string>(SIDEBAR_ITEMS.map((item) => item.id));
 
-export const WORKSPACE_VIEWS = ["today", "pending", "focus", "upcoming"] as const;
+export const WORKSPACE_VIEWS = [
+  "now",
+  "today",
+  "pending",
+  "focus",
+  "upcoming",
+] as const;
 export type WorkspaceDefaultView = (typeof WORKSPACE_VIEWS)[number];
+
+export type NowSectionState = {
+  planned?: boolean;
+  waiting?: boolean;
+  parked?: boolean;
+};
 
 export const COMPLETE_BEHAVIORS = ["hide", "strikethrough"] as const;
 export type CompleteBehavior = (typeof COMPLETE_BEHAVIORS)[number];
@@ -57,6 +70,7 @@ export type WorkspacePreferences = {
   view?: WorkspaceDefaultView;
   navOpen?: boolean;
   filterGroupBy?: Record<string, TaskGroupByValue>;
+  nowSections?: NowSectionState;
 };
 
 export type PreferencesChange = {
@@ -103,10 +117,7 @@ export function normalizePreferencesPatch(
     if (!Array.isArray(input.sidebarHidden)) {
       throw new Error("Invalid sidebar hidden items.");
     }
-    if (
-      strict &&
-      input.sidebarHidden.some((id) => typeof id !== "string")
-    ) {
+    if (strict && input.sidebarHidden.some((id) => typeof id !== "string")) {
       throw new Error("Invalid sidebar hidden items.");
     }
     patch.sidebarHidden = [
@@ -125,7 +136,9 @@ export function normalizePreferencesPatch(
     patch.sidebarShowCounts = input.sidebarShowCounts;
   }
   if (input.completeBehavior !== undefined) {
-    if (!COMPLETE_BEHAVIORS.includes(input.completeBehavior as CompleteBehavior)) {
+    if (
+      !COMPLETE_BEHAVIORS.includes(input.completeBehavior as CompleteBehavior)
+    ) {
       throw new Error("Invalid completion behavior preference.");
     }
     patch.completeBehavior = input.completeBehavior as CompleteBehavior;
@@ -174,6 +187,26 @@ export function normalizePreferencesPatch(
       }
     }
     patch.filterGroupBy = clean;
+  }
+  if (input.nowSections !== undefined) {
+    if (
+      !input.nowSections ||
+      typeof input.nowSections !== "object" ||
+      Array.isArray(input.nowSections)
+    ) {
+      throw new Error("Invalid now sections preferences.");
+    }
+    const rawSections = input.nowSections as Record<string, unknown>;
+    const cleanSections: NowSectionState = {};
+    for (const key of ["planned", "waiting", "parked"] as const) {
+      if (rawSections[key] !== undefined) {
+        if (typeof rawSections[key] !== "boolean") {
+          throw new Error("Invalid now sections preferences.");
+        }
+        cleanSections[key] = rawSections[key];
+      }
+    }
+    patch.nowSections = cleanSections;
   }
   return patch;
 }

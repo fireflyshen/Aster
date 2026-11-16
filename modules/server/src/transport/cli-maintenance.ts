@@ -33,6 +33,7 @@ export async function runCliMaintenanceIfRequested(options: {
   organizationFile: string;
   recoveryFile: string;
   timeFile: string;
+  stateLogFile?: string;
   timeEnabled: boolean;
 }): Promise<boolean> {
   const argv = options.argv ?? process.argv;
@@ -56,6 +57,7 @@ export async function runCliMaintenanceIfRequested(options: {
       organizationFile: options.organizationFile,
       recoveryFile: options.recoveryFile,
       timeFile: options.timeFile,
+      stateLogFile: options.stateLogFile,
       taskchampionDbPath,
       timeEnabled: options.timeEnabled,
       allowUninitializedTime: argv.includes("--allow-uninitialized-time"),

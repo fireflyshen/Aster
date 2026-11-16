@@ -17,7 +17,6 @@ import type {
 import { changeProjectFocus } from "../tasks/focus-changes.ts";
 import {
   applyBoardChange,
-  applyBuiltinFilterChange,
   applyDescriptionChange,
   applyFilterOrTagChange,
   applyPreferencesChange,
@@ -112,8 +111,6 @@ export function createOrganizationStore(path: string) {
           await applyProjectSaveOrDeleteChange(data, input, boardContext);
         } else if (input.kind === "filter" || input.kind === "tag") {
           await applyFilterOrTagChange(data, input, available, effect);
-        } else if (input.kind === "builtinFilter") {
-          applyBuiltinFilterChange(data, input);
         } else if (input.kind === "preferences") {
           applyPreferencesChange(data, input.patch);
         } else {

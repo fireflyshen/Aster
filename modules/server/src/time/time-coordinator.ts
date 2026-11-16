@@ -55,6 +55,14 @@ export function createTimeCoordinator(deps: {
   service: TaskService;
   store: TimeStore;
   now?: () => number;
+  beforeStart?: (
+    uuid: string,
+    actorMeta?: { source?: "web" | "mcp" | "tui"; actor?: string },
+  ) => Promise<void>;
+  prepareComplete?: (
+    uuid: string,
+    actorMeta?: { source?: "web" | "mcp" | "tui"; actor?: string },
+  ) => Promise<() => Promise<void>>;
 }) {
   const { service, store } = deps;
   const nowFn = deps.now ?? (() => Date.now());
@@ -108,7 +116,11 @@ export function createTimeCoordinator(deps: {
 
   async function runCoordinatedStart(
     uuid: string,
-    options: { idempotencyKey?: string } = {},
+    options: {
+      idempotencyKey?: string;
+      source?: "web" | "mcp" | "tui";
+      actor?: string;
+    } = {},
   ): Promise<CoordinatedActionResult> {
     const normalizedUuid = uuid.toLowerCase();
     const idempotencyKey =
@@ -135,6 +147,12 @@ export function createTimeCoordinator(deps: {
       }
 
       requireActivityProject(raw.project);
+      if (deps.beforeStart && !raw.start) {
+        await deps.beforeStart(uuid, {
+          source: options.source,
+          actor: options.actor,
+        });
+      }
       const currentStatus = store.getStatus();
       const inputHash = hashNormalizedInput("task_start", {
         uuid: normalizedUuid,
@@ -607,15 +625,30 @@ export function createTimeCoordinator(deps: {
           await service.stopTask(uuid);
         },
       }),
-    completeTask: (uuid: string, opts?: { idempotencyKey?: string }) =>
-      runCoordinatedTaskAction({
+    completeTask: async (
+      uuid: string,
+      opts?: {
+        idempotencyKey?: string;
+        source?: "web" | "mcp" | "tui";
+        actor?: string;
+      },
+    ) => {
+      const recordComplete = deps.prepareComplete
+        ? await deps.prepareComplete(uuid, {
+            source: opts?.source,
+            actor: opts?.actor,
+          })
+        : async () => undefined;
+      return runCoordinatedTaskAction({
         uuid,
         kind: "task_complete",
         idempotencyKey: opts?.idempotencyKey,
         executeDirect: async () => {
           await service.completeTask(uuid);
+          await recordComplete();
         },
-      }),
+      });
+    },
     deleteTask: (
       uuid: string,
       executeDelete: () => Promise<void>,

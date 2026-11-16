@@ -9,10 +9,7 @@ import {
 import { usePromise } from "@raycast/utils";
 import { useEffect, useState } from "react";
 import { taskGroup, type TaskwarriorTask } from "../../../core/tasks/model.ts";
-import {
-  findBuiltinFilter,
-  isCompletedFilterExpression,
-} from "../../../core/workspace/builtin-filters.ts";
+import { isCompletedFilterExpression } from "../../../core/tasks/filter.ts";
 import { defaultBoard } from "../../../core/workspace/board.ts";
 import {
   countProjectTasks,
@@ -143,8 +140,7 @@ export function TaskListScreen({
 
   const custom = isCustomFilterView(filter);
   const activeSavedFilter = filter.startsWith("filter:")
-    ? (organization?.filters.find((item) => item.id === filter.slice(7)) ??
-      findBuiltinFilter(filter.slice(7)))
+    ? organization?.filters.find((item) => item.id === filter.slice(7))
     : undefined;
   const isCompletedFilter = Boolean(
     activeSavedFilter &&
