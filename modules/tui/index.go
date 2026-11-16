@@ -12,7 +12,7 @@ type indexSig struct {
 }
 
 type parsedDates struct {
-	due, wait, start, end time.Time
+	due, wait, scheduled, start, end time.Time
 }
 
 type subtaskStats struct {
@@ -27,6 +27,10 @@ type viewIndex struct {
 	activeTimingTaskUUID string
 	tasksByUUID          map[string]Task
 	dates                map[string]parsedDates
+	openUUIDs            map[string]bool
+	taskStates           map[string]string
+	blockedUUIDs         map[string]bool
+	doingCount           int
 	colSet               map[string]bool
 	placement            map[string]string
 	orderRank            map[string]int
@@ -68,16 +72,19 @@ func buildViewIndex(tasks []Task, org Organization) viewIndex {
 			tags:     len(org.Tags),
 			filters:  len(org.Filters),
 		},
-		tasksByUUID: make(map[string]Task, len(tasks)),
-		dates:       make(map[string]parsedDates, len(tasks)),
-		colSet:      make(map[string]bool, len(org.Board.Columns)),
-		placement:   make(map[string]string, len(org.Board.Placements)),
-		orderRank:   make(map[string]int, len(org.Board.Order)),
-		parentOf:    make(map[string]string, len(org.Subtasks)),
-		childrenOf:  map[string][]string{},
-		subStats:    map[string]subtaskStats{},
-		projByName:  make(map[string]Project, len(org.Projects)),
-		tagByName:   make(map[string]SavedItem, len(org.Tags)),
+		tasksByUUID:  make(map[string]Task, len(tasks)),
+		dates:        make(map[string]parsedDates, len(tasks)),
+		openUUIDs:    make(map[string]bool, len(tasks)),
+		taskStates:   make(map[string]string, len(tasks)),
+		blockedUUIDs: make(map[string]bool, len(tasks)),
+		colSet:       make(map[string]bool, len(org.Board.Columns)),
+		placement:    make(map[string]string, len(org.Board.Placements)),
+		orderRank:    make(map[string]int, len(org.Board.Order)),
+		parentOf:     make(map[string]string, len(org.Subtasks)),
+		childrenOf:   map[string][]string{},
+		subStats:     map[string]subtaskStats{},
+		projByName:   make(map[string]Project, len(org.Projects)),
+		tagByName:    make(map[string]SavedItem, len(org.Tags)),
 	}
 	for _, c := range org.Board.Columns {
 		idx.colSet[c.ID] = true
@@ -111,17 +118,34 @@ func buildViewIndex(tasks []Task, org Organization) viewIndex {
 			org.TimerSnapshot.ActiveActivity.State == "running" &&
 			org.TimerSnapshot.ActiveActivity.SuspendAt == ""
 	}
+	now := time.Now()
 	for _, t := range tasks {
 		idx.tasksByUUID[t.UUID] = t
-		idx.dates[t.UUID] = parsedDates{
-			due:   date(t.Due),
-			wait:  date(t.Wait),
-			start: date(t.Start),
-			end:   date(t.End),
+		td := parsedDates{
+			due:       date(t.Due),
+			wait:      date(t.Wait),
+			scheduled: date(t.Scheduled),
+			start:     date(t.Start),
+			end:       date(t.End),
+		}
+		idx.dates[t.UUID] = td
+		if t.Status == "pending" || t.Status == "waiting" {
+			idx.openUUIDs[t.UUID] = true
+			if eff := effectiveTaskState(t, td, idx.projByName, now); eff != "" {
+				idx.taskStates[t.UUID] = eff
+				if eff == "doing" {
+					idx.doingCount++
+				}
+			}
 		}
 		if !isTimeMode && t.Start != "" &&
 			(t.Status == "pending" || t.Status == "waiting") {
 			idx.anyRunning = true
+		}
+	}
+	for _, t := range tasks {
+		if idx.openUUIDs[t.UUID] && isBlockedTask(t, idx.openUUIDs) {
+			idx.blockedUUIDs[t.UUID] = true
 		}
 	}
 	for child, parent := range org.Subtasks {
@@ -260,8 +284,10 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 		unfinished := t.Status == "pending" || t.Status == "waiting"
 		td := idx.dates[t.UUID]
 		switch {
+		case m.view == "now":
+			match = unfinished && !isHabitProject(t, idx.projByName)
 		case m.view == "focus":
-			if unfinished {
+			if unfinished && !isHabitProject(t, idx.projByName) {
 				for _, p := range idx.activeProjects {
 					if inProject(t.Project, p.Name) {
 						match = true
@@ -270,9 +296,9 @@ func (idx viewIndex) visibleTasks(m model, now time.Time) []Task {
 				}
 			}
 		case m.view == "inbox":
-			match = unfinished && t.Project == ""
+			match = unfinished && !isHabitProject(t, idx.projByName) && t.Project == ""
 		case m.view == "today":
-			match = unfinished && !td.due.IsZero() &&
+			match = unfinished && !isHabitProject(t, idx.projByName) && !td.due.IsZero() &&
 				td.due.Before(todayEnd) &&
 				!td.wait.After(now)
 		case projTarget != "":
@@ -330,12 +356,6 @@ func (idx viewIndex) groupedTasks(
 	}
 	fallback := len(idx.orderRank) + 1
 	sort.SliceStable(sorted, func(i, j int) bool {
-		if isUrgencyFilterView(m.view) {
-			if sorted[i].Urgency != sorted[j].Urgency {
-				return sorted[i].Urgency > sorted[j].Urgency
-			}
-			return sorted[i].Description < sorted[j].Description
-		}
 		ri := idx.rank(sorted[i], fallback)
 		rj := idx.rank(sorted[j], fallback)
 		if ri != rj {
@@ -346,6 +366,13 @@ func (idx viewIndex) groupedTasks(
 		}
 		return sorted[i].Description < sorted[j].Description
 	})
+	return idx.nestSubtasks(m, sorted)
+}
+
+func (idx viewIndex) nestSubtasks(
+	m model,
+	sorted []Task,
+) ([]Task, map[string]int, map[string]bool) {
 	if len(idx.parentOf) == 0 || len(sorted) < 2 {
 		return sorted, nil, nil
 	}
@@ -475,37 +502,6 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 				item:     f,
 			})
 		}
-		var hiddenCount int
-		var builtinRows []row
-		for _, rf := range resolveBuiltinFilters(m.org.BuiltinFilterPrefs) {
-			if rf.Hidden {
-				hiddenCount++
-			}
-			if rf.Hidden && !m.showHiddenBuiltin {
-				continue
-			}
-			if !matchOrg(
-				rf.Item.Name,
-				rf.Item.Description,
-				rf.Item.Expression,
-			) {
-				continue
-			}
-			title := rf.Item.Name
-			if rf.Item.Favorite {
-				title += " ★"
-			}
-			if rf.Hidden {
-				title += " [已隐藏]"
-			}
-			builtinRows = append(builtinRows, row{
-				kind:     "builtin_filter",
-				id:       rf.Item.ID,
-				title:    title,
-				subtitle: rf.Item.Description,
-				item:     rf.Item,
-			})
-		}
 		var tagRows []row
 		for _, tag := range m.org.Tags {
 			if !matchOrg("#"+tag.Name, tag.Description, "") {
@@ -535,23 +531,6 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 				subtitle: fmt.Sprintf("%d 项 · a 新建", len(customRows)),
 			})
 			out = append(out, customRows...)
-		}
-		if len(builtinRows) > 0 || hiddenCount > 0 || q == "" {
-			sub := "Taskwarrior 原生过滤条件"
-			if hiddenCount > 0 {
-				toggleLabel := "显示"
-				if m.showHiddenBuiltin {
-					toggleLabel = "收起"
-				}
-				sub = fmt.Sprintf("已隐藏 %d 项 · v %s", hiddenCount, toggleLabel)
-			}
-			out = append(out, row{
-				kind:     "info",
-				id:       "org.builtin",
-				title:    "内置常用 TW 过滤器",
-				subtitle: sub,
-			})
-			out = append(out, builtinRows...)
 		}
 		if len(tagRows) > 0 || q == "" {
 			out = append(out, row{
@@ -601,6 +580,10 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 		return out
 	case "data", "time.today", "time.weekly", "time.report":
 		return m.extra
+	case "now":
+		if !m.board {
+			return idx.nowRows(m, now)
+		}
 	}
 	ts := idx.visibleTasks(m, now)
 	cols := m.columns()
@@ -630,24 +613,123 @@ func (idx viewIndex) rows(m model, now time.Time) []row {
 			continue
 		}
 		for _, t := range items {
-			parentTitle := ""
-			if depth[t.UUID] == 0 {
-				if pid := idx.parentOf[t.UUID]; pid != "" {
-					if pt, ok := idx.tasksByUUID[pid]; ok {
-						parentTitle = pt.Description
-					}
-				}
+			out = append(out, idx.makeTaskRow(t, depth[t.UUID], lastChild[t.UUID]))
+		}
+	}
+	return out
+}
+
+func (idx viewIndex) makeTaskRow(t Task, depth int, lastChild bool) row {
+	parentTitle := ""
+	if depth == 0 {
+		if pid := idx.parentOf[t.UUID]; pid != "" {
+			if pt, ok := idx.tasksByUUID[pid]; ok {
+				parentTitle = pt.Description
 			}
-			out = append(out, row{
-				kind:        "task",
-				id:          t.UUID,
-				title:       t.Description,
-				subtitle:    t.Project,
-				task:        t,
-				depth:       depth[t.UUID],
-				lastChild:   lastChild[t.UUID],
-				parentTitle: parentTitle,
-			})
+		}
+	}
+	return row{
+		kind:        "task",
+		id:          t.UUID,
+		title:       t.Description,
+		subtitle:    t.Project,
+		task:        t,
+		depth:       depth,
+		lastChild:   lastChild,
+		parentTitle: parentTitle,
+	}
+}
+
+func (idx viewIndex) isTimingActiveTask(t Task) bool {
+	if idx.isTimeMode {
+		return idx.activeTimingTaskUUID != "" &&
+			strings.EqualFold(idx.activeTimingTaskUUID, t.UUID)
+	}
+	return t.Start != ""
+}
+
+func (idx viewIndex) nowRows(m model, now time.Time) []row {
+	ts := idx.visibleTasks(m, now)
+	var doing, planned, waiting, parked []Task
+	for _, t := range ts {
+		eff := effectiveTaskState(t, idx.dates[t.UUID], idx.projByName, now)
+		switch eff {
+		case "doing":
+			doing = append(doing, t)
+		case "waiting":
+			waiting = append(waiting, t)
+		case "parked":
+			parked = append(parked, t)
+		case "scheduled":
+			planned = append(planned, t)
+		default:
+			planned = append(planned, t)
+		}
+	}
+	sort.SliceStable(doing, func(i, j int) bool {
+		ai := idx.isTimingActiveTask(doing[i])
+		aj := idx.isTimingActiveTask(doing[j])
+		if ai != aj {
+			return ai
+		}
+		if doing[i].Urgency != doing[j].Urgency {
+			return doing[i].Urgency > doing[j].Urgency
+		}
+		return doing[i].Description < doing[j].Description
+	})
+	sort.SliceStable(planned, func(i, j int) bool {
+		si := effectiveTaskState(planned[i], idx.dates[planned[i].UUID], idx.projByName, now) == "scheduled"
+		sj := effectiveTaskState(planned[j], idx.dates[planned[j].UUID], idx.projByName, now) == "scheduled"
+		if si != sj {
+			return !si
+		}
+		if planned[i].Urgency != planned[j].Urgency {
+			return planned[i].Urgency > planned[j].Urgency
+		}
+		return planned[i].Description < planned[j].Description
+	})
+	sort.SliceStable(waiting, func(i, j int) bool {
+		return waiting[i].Urgency > waiting[j].Urgency
+	})
+	sort.SliceStable(parked, func(i, j int) bool {
+		return parked[i].Description < parked[j].Description
+	})
+
+	type nowSection struct {
+		id         string
+		title      string
+		tasks      []Task
+		openByDef  bool
+	}
+	doingTitle := fmt.Sprintf("处理中 · %d/%d", len(doing), doingLimit)
+	if m.query == "" && m.stateSummary != nil {
+		doingTitle = fmt.Sprintf("处理中 · %d/%d", m.stateSummary.Counts.Doing, doingLimit)
+	}
+	sections := []nowSection{
+		{id: "now:doing", title: doingTitle, tasks: doing, openByDef: true},
+		{id: "now:planned", title: "计划中", tasks: planned, openByDef: false},
+		{id: "now:waiting", title: "等待中", tasks: waiting, openByDef: false},
+		{id: "now:parked", title: "长期搁置", tasks: parked, openByDef: false},
+	}
+
+	var out []row
+	for _, sec := range sections {
+		items, depth, lastChild := idx.nestSubtasks(m, sec.tasks)
+		out = append(out, row{
+			kind:  "group",
+			id:    sec.id,
+			title: sec.title,
+			count: len(items),
+		})
+		expanded := sec.openByDef && !m.collapsed[sec.id]
+		if !sec.openByDef {
+			expanded = m.nowExpanded[sec.id] || (m.query != "" && len(items) > 0)
+		}
+		if !expanded {
+			continue
+		}
+		for _, t := range items {
+			out = append(out, idx.makeTaskRow(t, depth[t.UUID], lastChild[t.UUID]))
 		}
 	}
 	return out

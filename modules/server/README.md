@@ -10,7 +10,8 @@ TinyCast）、MCP 与 Go TUI 提供单一共享工作区、任务队列与 Time 
 src/
   index.ts                 启动组合根与环境变量装配
   transport/               HTTP 服务（静态资源、CSP、/healthz）、路由适配、Unix Socket IPC、并发门控与校验
-  tasks/                   任务动作、看板分栏变更、Focus 目标状态变更
+  habits/                  habits.sqlite 持久化与 /api/habits/* 路由处理
+  tasks/                   任务动作、状态机流转/审计/调度（state-changes / state-history / state-scheduler）、看板与 Focus 目标变更
   organization/            organization.json 原子修订队列与 Taskwarrior/Time 联动服务
   recovery/                误删恢复日志、全量备份校验、恢复调度与部署前一致性备份
   time/                    SQLite WAL Time Ledger、TimingPlan 到限自动停止调度器、协调器、导入与备份
@@ -48,6 +49,8 @@ src/
 | `TASK_COMMAND`      | `/usr/local/bin/task`                  | Taskwarrior 3 可执行文件路径                |
 | `TASKRC`            | SSH 模式默认 `/etc/taskwarrior/taskrc` | Taskwarrior 配置文件路径                    |
 | `ORGANIZATION_FILE` | `data/organization.json`               | 组织资料路径（决定默认数据目录 `dataDir`）  |
+| `STATE_LOG_FILE`    | `<dataDir>/state-history.jsonl`        | 任务状态机流转历史日志路径                  |
+| `HABITS_DB_FILE`    | `<dataDir>/habits.sqlite`              | Habits SQLite 数据库路径                    |
 | `RECOVERY_FILE`     | `<dataDir>/recovery.json`              | 误删任务恢复快照路径                        |
 | `TIME_DB_FILE`      | `<dataDir>/time.sqlite`                | Time Ledger SQLite 数据库路径               |
 | `TIME_ENABLED`      | `1`                                    | 设为 `0` 可关闭时间账本与自动停止调度       |

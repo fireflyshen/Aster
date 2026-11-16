@@ -18,12 +18,14 @@ export function useWorkspaceHierarchy({
   organization,
   tasks,
   projects,
+  habitUuids,
   isPartialScope = false,
 }: {
   activeEntry: ActiveEntry | undefined;
   organization: Organization;
   tasks: Task[];
   projects: string[];
+  habitUuids?: ReadonlySet<string>;
   isPartialScope?: boolean;
 }) {
   const activeItem = useMemo(() => {
@@ -63,8 +65,8 @@ export function useWorkspaceHierarchy({
   );
 
   const liveCounts = useMemo(
-    () => computeViewCounts(tasks, organization),
-    [tasks, organization],
+    () => computeViewCounts(tasks, organization, habitUuids),
+    [tasks, organization, habitUuids],
   );
   const [preservedCounts, setPreservedCounts] = useState<
     Partial<Record<View, number>>
@@ -99,6 +101,7 @@ export function useWorkspaceDerivedState({
   editing,
   taskLinks,
   organization,
+  habitUuids,
   changeOrganization,
 }: {
   tasks: Task[];
@@ -113,6 +116,7 @@ export function useWorkspaceDerivedState({
   editing: Task | undefined;
   taskLinks: Record<string, string>;
   organization: Organization;
+  habitUuids?: ReadonlySet<string>;
   changeOrganization: (change: OrganizationChange) => Promise<boolean>;
 }) {
   const keepCompleted = completeBehavior === "strikethrough";
@@ -132,6 +136,7 @@ export function useWorkspaceDerivedState({
         query,
         completingUuid,
         keepCompleted,
+        habitUuids,
       }),
     [
       tasks,
@@ -144,6 +149,7 @@ export function useWorkspaceDerivedState({
       query,
       completingUuid,
       keepCompleted,
+      habitUuids,
     ],
   );
 

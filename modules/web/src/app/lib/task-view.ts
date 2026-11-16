@@ -1,3 +1,4 @@
+import { isHabitTask } from "@core/tasks/state";
 import { taskDate } from "@core/tasks/quick-task";
 import {
   focusProject,
@@ -94,28 +95,46 @@ export function withViewDefaults<T extends TaskInput>(
   };
 }
 
+function isHabitOrSubtaskOfHabit(
+  task: Task,
+  organization: Organization | undefined,
+  habitUuids?: ReadonlySet<string>,
+  taskByUuid?: Map<string, Task>,
+): boolean {
+  if (isHabitTask(task, organization, habitUuids)) return true;
+  const parentUuid = organization?.subtasks?.[task.uuid];
+  if (!parentUuid) return false;
+  if (habitUuids?.has(parentUuid)) return true;
+  const parent = taskByUuid?.get(parentUuid);
+  return Boolean(parent && isHabitTask(parent, organization, habitUuids));
+}
+
 /** Computes sidebar task badges for now, inbox, and today views. */
 export function computeViewCounts(
   tasks: Task[],
   organization?: Organization,
+  habitUuids?: ReadonlySet<string>,
 ): Partial<Record<View, number>> {
+  const taskByUuid = new Map(tasks.map((t) => [t.uuid, t]));
   return {
     now: tasks.filter(
       (task) =>
         task.status !== "completed" &&
-        !isHabitProject(task.project, organization?.projects) &&
+        !isHabitOrSubtaskOfHabit(task, organization, habitUuids, taskByUuid) &&
         !organization?.subtasks?.[task.uuid] &&
         task.state === "doing",
     ).length,
     pending: tasks.filter(
       (task) =>
         task.status !== "completed" &&
+        !isHabitOrSubtaskOfHabit(task, organization, habitUuids, taskByUuid) &&
         !task.project &&
         taskGroup(task) !== "waiting",
     ).length,
     today: tasks.filter(
       (task) =>
         task.status !== "completed" &&
+        !isHabitOrSubtaskOfHabit(task, organization, habitUuids, taskByUuid) &&
         ["overdue", "today"].includes(taskGroup(task)),
     ).length,
   };
@@ -212,6 +231,7 @@ export function filterVisibleTasks({
   query,
   completingUuid,
   keepCompleted = false,
+  habitUuids,
 }: {
   tasks: Task[];
   view: View;
@@ -222,12 +242,21 @@ export function filterVisibleTasks({
   query: string;
   completingUuid?: string;
   keepCompleted?: boolean;
+  habitUuids?: ReadonlySet<string>;
 }): Task[] {
   const needle = query.trim().toLocaleLowerCase();
   const isFilterItem = Boolean(activeItem && "expression" in activeItem);
   const isTagItem = Boolean(activeItem && !("expression" in activeItem));
+  const taskByUuid = new Map(tasks.map((t) => [t.uuid, t]));
   return tasks.filter((task) => {
     const isCompleting = completingUuid === task.uuid;
+    if (
+      !currentProject &&
+      !activeItem &&
+      isHabitOrSubtaskOfHabit(task, organization, habitUuids, taskByUuid)
+    ) {
+      return false;
+    }
     if (
       !isFilterItem &&
       task.status === "completed" &&

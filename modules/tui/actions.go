@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
@@ -60,6 +59,11 @@ func (m *model) openActions() {
 	switch r.kind {
 	case "task":
 		add("edit", "编辑任务", "名称、项目、日期、优先级、标签、重复、描述")
+		if r.task.Status != "completed" && !isHabitProject(r.task, m.viewIdx().projByName) {
+			add("task.state", "切换执行状态 (t)", "处理中 / 计划中 / 排期 / 等待 / 搁置")
+			add("task.schedule", "设置排期日期", "指定未来可见日期，清空回到计划中")
+			add("task.depends", "前置依赖", "勾选必须先完成的前置任务")
+		}
 		add("task.toggle", "完成 / 重新打开", "保留 UUID 与栏目")
 		add("task.timer", "开始 / 停止计时", "切换或停止当前活跃计时")
 		if m.isTimeMode() && r.task.Start != "" &&
@@ -73,7 +77,6 @@ func (m *model) openActions() {
 		if m.viewIdx().parentOf[r.id] != "" {
 			add("task.unlink", "脱离父任务", "保留任务本身，解除子任务归属")
 		}
-		add("task.wait", "设置 / 清除等待", "明确日期时间")
 		add("task.move", "移动 / 排序", "选择栏目及插入位置")
 		add("project.next", "设为项目下一步", "Focus 项目已有任务")
 		add("note.add", "追加备注", "多行文本")
@@ -85,24 +88,6 @@ func (m *model) openActions() {
 		add("project.child", "添加子项目", "原生点路径层级")
 		add("project.status", "项目状态 / Focus", "激活、暂停、完成或重新打开")
 		add("delete", "删除项目", "任务保留，项目字段清除")
-	case "builtin_filter":
-		favLabel := "收藏到侧边栏"
-		if r.item.Favorite {
-			favLabel = "取消收藏"
-		}
-		hiddenLabel := "隐藏此内置过滤器"
-		if prefs := m.org.BuiltinFilterPrefs; prefs != nil &&
-			slices.Contains(prefs.Hidden, r.id) {
-			hiddenLabel = "恢复显示此内置过滤器"
-		}
-		toggleHiddenLabel := "显示已隐藏内置过滤器"
-		if m.showHiddenBuiltin {
-			toggleHiddenLabel = "收起已隐藏内置过滤器"
-		}
-		add("open.entry", "打开筛选结果", r.item.Expression)
-		add("item.favorite", favLabel, "同步侧边栏收藏 · f")
-		add("builtin.hide", hiddenLabel, "跨端隐藏或恢复 · H")
-		add("builtin.toggle_hidden", toggleHiddenLabel, "切换显示已隐藏项 · v")
 	case "filter", "tag":
 		favLabel := "收藏到侧边栏"
 		if r.item.Favorite {
@@ -172,6 +157,48 @@ func (m *model) action(a string) tea.Cmd {
 				m.selected = row{kind: "project", id: p.Name, project: p}
 				return m.openStatus(p, "active")
 			}
+		}
+	}
+	if strings.HasPrefix(a, "setstate.replace:") {
+		if m.pendingWrite == nil {
+			return nil
+		}
+		replaceUUID := strings.TrimPrefix(a, "setstate.replace:")
+		payload := map[string]any{}
+		for k, v := range m.pendingWrite.data {
+			payload[k] = v
+		}
+		payload["replaceUuid"] = replaceUUID
+		m.pendingWrite = &pendingMutation{route: m.pendingWrite.route, data: payload}
+		m.busy = true
+		return m.write(m.pendingWrite.route, payload)
+	}
+	if strings.HasPrefix(a, "setstate:") {
+		if r.kind != "task" {
+			m.message = "请先选择任务"
+			return nil
+		}
+		target := strings.TrimPrefix(a, "setstate:")
+		switch target {
+		case "waiting":
+			return m.openForm(
+				"task.state.waiting",
+				"转为等待外部",
+				r.title,
+				textField("等待原因", r.task.WaitReason, "必填：等待谁/等待什么外部结果"),
+				textField("跟进日期（可选）", shownDate(r.task.Wait), "YYYY-MM-DD 或 YYYY-MM-DD HH:MM；留空不设"),
+			)
+		case "scheduled":
+			return m.action("task.schedule")
+		default:
+			payload := map[string]any{
+				"action": "state.set",
+				"uuid":   r.id,
+				"state":  target,
+			}
+			m.pendingWrite = &pendingMutation{route: "/api/action", data: payload}
+			m.busy = true
+			return m.write("/api/action", payload)
 		}
 	}
 	if strings.HasPrefix(a, "setprio:") {
@@ -298,7 +325,7 @@ func (m *model) action(a string) tea.Cmd {
 		return nil
 	case "open.entry":
 		switch r.kind {
-		case "filter", "builtin_filter":
+		case "filter":
 			return m.navigate("filter:" + r.id)
 		case "tag":
 			return m.navigate("tag:" + r.item.Name)
@@ -310,13 +337,6 @@ func (m *model) action(a string) tea.Cmd {
 		}
 	case "item.favorite":
 		switch r.kind {
-		case "builtin_filter":
-			return m.orgChange(map[string]any{
-				"kind":   "builtinFilter",
-				"action": "favorite",
-				"id":     r.id,
-				"value":  !r.item.Favorite,
-			})
 		case "filter", "tag":
 			color := r.item.Color
 			if color == "" {
@@ -341,28 +361,6 @@ func (m *model) action(a string) tea.Cmd {
 			m.message = "仅过滤器与标签支持收藏"
 			return nil
 		}
-	case "builtin.hide":
-		if r.kind != "builtin_filter" {
-			m.message = "仅内置 TW 过滤器支持隐藏或恢复"
-			return nil
-		}
-		hidden := m.org.BuiltinFilterPrefs != nil &&
-			slices.Contains(m.org.BuiltinFilterPrefs.Hidden, r.id)
-		return m.orgChange(map[string]any{
-			"kind":   "builtinFilter",
-			"action": "hide",
-			"id":     r.id,
-			"value":  !hidden,
-		})
-	case "builtin.toggle_hidden":
-		m.showHiddenBuiltin = !m.showHiddenBuiltin
-		m.cursor = min(m.cursor, max(0, len(m.rows())-1))
-		if m.showHiddenBuiltin {
-			m.message = "已显示隐藏的内置 TW 过滤器"
-		} else {
-			m.message = "已收起隐藏的内置 TW 过滤器"
-		}
-		return nil
 	case "quick":
 		m.selected = row{}
 		return m.openForm(
@@ -378,10 +376,84 @@ func (m *model) action(a string) tea.Cmd {
 			"仅支持 Taskwarrior 过滤条件，不执行操作命令。",
 			textField("筛选表达式", "status:pending", "例如 project:Work +READY"),
 		)
+	case "task.state":
+		if r.kind != "task" {
+			m.message = "请先选择任务"
+			return nil
+		}
+		if r.task.Status == "completed" {
+			m.message = "已完成任务不调整执行态，请先按 x 重开"
+			return nil
+		}
+		idx := m.viewIdx()
+		if isHabitProject(r.task, idx.projByName) {
+			m.message = "习惯项目任务不使用执行态状态机"
+			return nil
+		}
+		eff := effectiveTaskState(r.task, idx.dates[r.id], idx.projByName, time.Now())
+		targets := allowedStateTargets(eff)
+		opts := make([]choice, 0, len(targets))
+		for _, target := range targets {
+			opts = append(opts, choice{
+				value: "setstate:" + target,
+				label: stateActionLabels[target],
+				hint:  stateActionHints[target],
+			})
+		}
+		m.choose(opts, -1)
+		m.message = fmt.Sprintf("当前执行态：%s · 选择目标状态", stateLabel(eff))
+		return nil
+	case "task.schedule":
+		if r.kind != "task" {
+			m.message = "请先选择任务"
+			return nil
+		}
+		if r.task.Status == "completed" {
+			m.message = "已完成任务不可排期"
+			return nil
+		}
+		return m.openForm(
+			a,
+			"设置排期日期",
+			r.title,
+			textField("排期日期", shownDate(r.task.Scheduled), "YYYY-MM-DD 或 YYYY-MM-DD HH:MM；留空清除排期回到计划中"),
+		)
+	case "task.depends":
+		if r.kind != "task" {
+			m.message = "请先选择任务"
+			return nil
+		}
+		existing := dependsUUIDs(r.task)
+		var opts []choice
+		for _, ot := range m.tasks {
+			if ot.UUID == r.id || (ot.Status != "pending" && ot.Status != "waiting") {
+				continue
+			}
+			opts = append(opts, choice{
+				value: ot.UUID,
+				label: ot.Description,
+				hint:  ot.Project,
+			})
+		}
+		if len(opts) == 0 {
+			m.message = "暂无可选的前置未完成任务"
+			return nil
+		}
+		depsField := selectField("前置依赖（Enter 多选，Ctrl+S 保存）", strings.Join(existing, ", "), opts)
+		depsField.multi = true
+		return m.openForm(a, "设置前置依赖", r.title, depsField)
 	case "task.toggle", "task.timer", "task.clear_start":
 		if r.kind != "task" {
 			m.message = "请先选择任务"
 			return nil
+		}
+		if a == "task.toggle" && r.task.Status != "completed" {
+			idx := m.viewIdx()
+			eff := effectiveTaskState(r.task, idx.dates[r.id], idx.projByName, time.Now())
+			if eff == "waiting" || eff == "parked" {
+				m.message = "等待或搁置中的任务需先切回「计划中」或「处理中」才能完成"
+				return nil
+			}
 		}
 		act, reverse := "complete", "reopen"
 		if r.task.Status == "completed" {
@@ -410,18 +482,16 @@ func (m *model) action(a string) tea.Cmd {
 		} else {
 			m.undo = nil
 		}
+		if act == "start" {
+			m.pendingWrite = &pendingMutation{
+				route: "/api/action",
+				data:  map[string]any{"uuid": r.task.UUID, "action": "start"},
+			}
+		} else {
+			m.pendingWrite = nil
+		}
 		m.busy = true
 		return m.taskAction(act, r.task)
-	case "task.wait":
-		if r.kind != "task" {
-			return nil
-		}
-		return m.openForm(
-			a,
-			"等待日期",
-			"清空日期恢复待办。",
-			textField("等到", shownDate(r.task.Wait), "YYYY-MM-DD HH:MM"),
-		)
 	case "task.move":
 		if r.kind != "task" {
 			return nil
@@ -542,9 +612,6 @@ func (m *model) action(a string) tea.Cmd {
 			return m.openProjectForm(r.project)
 		case "filter", "tag":
 			return m.openItemForm(r.kind, r.item)
-		case "builtin_filter":
-			m.message = "内置过滤器不可改名，请按 f 收藏或 H 隐藏"
-			return nil
 		case "group", "column":
 			if r.id != "unsectioned" {
 				return m.openForm(
@@ -564,10 +631,6 @@ func (m *model) action(a string) tea.Cmd {
 		return m.openItemForm(kind, SavedItem{Color: "gray"})
 	case "delete":
 		if r.id == "" || r.id == "unsectioned" || r.kind == "info" {
-			return nil
-		}
-		if r.kind == "builtin_filter" {
-			m.message = "内置过滤器不可删除，请按 H 隐藏"
 			return nil
 		}
 		hint := "任务会保留在删除恢复中。"

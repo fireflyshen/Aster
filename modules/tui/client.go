@@ -37,8 +37,11 @@ type Task struct {
 	Priority    string   `json:"priority"`
 	Urgency     float64  `json:"urgency"`
 	Tags        []string `json:"tags"`
-	Start       string   `json:"start"`
-	Annotations []Note   `json:"annotations"`
+	Start        string   `json:"start"`
+	State        string   `json:"state,omitempty"`
+	WaitReason   string   `json:"waitreason,omitempty"`
+	StateChanged string   `json:"statechanged,omitempty"`
+	Annotations  []Note   `json:"annotations"`
 }
 type Project struct {
 	Color       string `json:"color"`
@@ -47,6 +50,7 @@ type Project struct {
 	Status      string `json:"status"`
 	Outcome     string `json:"outcome"`
 	NextTask    string `json:"nextTask"`
+	Category    string `json:"category,omitempty"`
 }
 type Column struct {
 	ID      string `json:"id"`
@@ -101,19 +105,33 @@ type TimerSnapshot struct {
 	HistoryComplete       bool                       `json:"historyComplete"`
 }
 
-type BuiltinFilterPrefs struct {
-	Favorites     []string `json:"favorites"`
-	Hidden        []string `json:"hidden"`
-	SectionHidden bool     `json:"sectionHidden,omitempty"`
+type StateDoingCandidate struct {
+	UUID        string `json:"uuid"`
+	Description string `json:"description"`
+}
+
+type StateSummary struct {
+	Limit            int                   `json:"limit"`
+	Doing            []StateDoingCandidate `json:"doing"`
+	WaitingDue       []StateDoingCandidate `json:"waitingDue"`
+	ParkedReviewDue  []StateDoingCandidate `json:"parkedReviewDue"`
+	PromotionBlocked []StateDoingCandidate `json:"promotionBlocked"`
+	Anomalies        []StateDoingCandidate `json:"anomalies"`
+	Counts           struct {
+		Planned   int `json:"planned"`
+		Doing     int `json:"doing"`
+		Scheduled int `json:"scheduled"`
+		Waiting   int `json:"waiting"`
+		Parked    int `json:"parked"`
+	} `json:"counts"`
 }
 
 type Organization struct {
-	Filters            []SavedItem         `json:"filters"`
-	Tags               []SavedItem         `json:"tags"`
-	BuiltinFilterPrefs *BuiltinFilterPrefs `json:"builtinFilterPrefs,omitempty"`
-	ProjectCounts      map[string]int      `json:"projectCounts"`
-	Subtasks           map[string]string   `json:"subtasks"`
-	Descriptions       map[string]string   `json:"descriptions"`
+	Filters       []SavedItem       `json:"filters"`
+	Tags          []SavedItem       `json:"tags"`
+	ProjectCounts map[string]int    `json:"projectCounts"`
+	Subtasks      map[string]string `json:"subtasks"`
+	Descriptions  map[string]string `json:"descriptions"`
 	Energy             *struct {
 		Remaining           *float64           `json:"remaining"`
 		Max                 float64            `json:"max"`
@@ -154,6 +172,8 @@ type requestError struct {
 	message   string
 	uncertain bool
 	code      int
+	errCode   string
+	doing     []StateDoingCandidate
 }
 
 func (e *requestError) Error() string { return e.message }
@@ -238,7 +258,7 @@ func (c Client) runInput(
 	return b, nil
 }
 
-const bridge = `const http=require('node:http');const p=JSON.parse(require('node:fs').readFileSync(0,'utf8'));const b=p.data?JSON.stringify(p.data):'';const q=http.request({socketPath:p.socket,path:p.route,method:b?'POST':'GET',headers:{'Content-Type':'application/json','X-Aster-Source':p.identity}},r=>{let s='';r.on('data',c=>s+=c);r.on('end',()=>console.log(JSON.stringify({status:r.statusCode,body:JSON.parse(s)})))});q.setTimeout(20000,()=>q.destroy(new Error('Workspace timeout')));q.on('error',e=>{console.error(e.message);process.exitCode=1});q.end(b);`
+const bridge = `const http=require('node:http');const p=JSON.parse(require('node:fs').readFileSync(0,'utf8'));const b=p.data?JSON.stringify(p.data):'';const q=http.request({socketPath:p.socket,path:p.route,method:b?'POST':'GET',headers:{'Content-Type':'application/json','X-Aster-Source':p.identity,'X-Aster-Client':'tui'}},r=>{let s='';r.on('data',c=>s+=c);r.on('end',()=>console.log(JSON.stringify({status:r.statusCode,body:JSON.parse(s)})))});q.setTimeout(20000,()=>q.destroy(new Error('Workspace timeout')));q.on('error',e=>{console.error(e.message);process.exitCode=1});q.end(b);`
 
 func (c Client) request(route string, data any, out any) error {
 	p, _ := json.Marshal(
@@ -265,10 +285,19 @@ func (c Client) request(route string, data any, out any) error {
 	}
 	if reply.Status != 200 {
 		var failure struct {
-			Error   string
-			Outcome string
+			Error   string `json:"error"`
+			Outcome string `json:"outcome"`
+			Code    string `json:"code"`
+			Details *struct {
+				Limit int                   `json:"limit"`
+				Doing []StateDoingCandidate `json:"doing"`
+			} `json:"details"`
 		}
 		_ = json.Unmarshal(reply.Body, &failure)
+		var doing []StateDoingCandidate
+		if failure.Details != nil {
+			doing = failure.Details.Doing
+		}
 		return &requestError{
 			message: fmt.Sprintf(
 				"Workspace: %s (%d)",
@@ -277,7 +306,9 @@ func (c Client) request(route string, data any, out any) error {
 			),
 			uncertain: failure.Outcome == "unknown" ||
 				data != nil && reply.Status >= 500,
-			code: reply.Status,
+			code:    reply.Status,
+			errCode: failure.Code,
+			doing:   doing,
 		}
 	}
 	if out != nil {
@@ -320,6 +351,14 @@ func (c Client) tasks() ([]Task, error) {
 		return nil, err
 	}
 	return c.legacyTasks()
+}
+func (c Client) stateSummary() (*StateSummary, error) {
+	var s StateSummary
+	err := c.request("/api/state/summary", nil, &s)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
 }
 func (c Client) legacyTasks() ([]Task, error) {
 	args := []string{c.TaskCommand}

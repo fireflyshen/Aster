@@ -26,7 +26,7 @@ import { isCompletedFilterExpression } from "@core/tasks/filter";
 import { taskDate } from "@core/tasks/quick-task";
 import { defaultBoard, type BoardChange } from "@core/workspace/board";
 import { isHabitProject, type ProjectStatus } from "@core/workspace/focus";
-import type { TaskState } from "@core/tasks/state";
+import { isHabitTask, type TaskState } from "@core/tasks/state";
 import type { NowSectionState } from "@core/workspace/preferences";
 import type {
   Organization,
@@ -46,10 +46,6 @@ import {
   HabitsWorkspace,
   type HabitsWorkspaceController,
 } from "@/features/habits/habits-workspace";
-import {
-  TodayHabitsSection,
-  type TodayHabitsActions,
-} from "@/features/habits/today-habits-section";
 import { TimeLedgerWorkspace } from "@/features/time/time-ledger-workspace";
 import type { TimePage } from "../hooks/use-workspace-navigation";
 import type { TimerSnapshot } from "@core/time/model";
@@ -156,7 +152,6 @@ type WorkspaceContentProps = {
   habitsPage: boolean;
   onEditHabit: (habit: HabitListItem) => void;
   habitsController: HabitsWorkspaceController;
-  todayHabitsActions: TodayHabitsActions;
   stateSummary?: StateSummaryData | null;
   nowSections?: NowSectionState;
   onUpdateNowSections?: (sections: NowSectionState) => void;
@@ -242,7 +237,6 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     habitsPage,
     onEditHabit,
     habitsController,
-    todayHabitsActions,
     stateSummary = null,
     nowSections,
     onUpdateNowSections,
@@ -289,20 +283,23 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     !organizationPage && !timePage && !habitsPage && layout === "board"
       ? "board"
       : "list";
-  const excludedHabitTaskUuids = new Set(
-    habitsController.habitByTaskUuid?.keys() || [],
-  );
+  const habitUuidSet = new Set(habitsController.habitByTaskUuid?.keys() || []);
   const taskByUuid = new Map(tasks.map((item) => [item.uuid, item]));
-  const todayHabitTasks = (habitsController.todayData?.items || [])
-    .map((item) =>
-      item.habit.taskUuid ? taskByUuid.get(item.habit.taskUuid) : undefined,
-    )
-    .filter((item): item is Task => Boolean(item));
-  const isDefaultTodayView =
-    view === "today" && !currentProject && !activeEntry;
-  const visibleTasksForBoard = isDefaultTodayView
-    ? topLevelVisible.filter((item) => !excludedHabitTaskUuids.has(item.uuid))
-    : topLevelVisible;
+  const isHabitOwned = (task: Task) => {
+    if (isHabitTask(task, organization, habitUuidSet)) return true;
+    const parentUuid = organization.subtasks?.[task.uuid];
+    if (!parentUuid) return false;
+    if (habitUuidSet.has(parentUuid)) return true;
+    const parent = taskByUuid.get(parentUuid);
+    return Boolean(parent && isHabitTask(parent, organization, habitUuidSet));
+  };
+  const excludedHabitTaskUuids = new Set(
+    tasks.filter(isHabitOwned).map((item) => item.uuid),
+  );
+  const visibleTasksForBoard =
+    !currentProject && !activeEntry
+      ? topLevelVisible.filter((item) => !excludedHabitTaskUuids.has(item.uuid))
+      : topLevelVisible;
 
   return (
     <main
@@ -514,11 +511,6 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
             onChangeState={(task, state) => onChangeState?.(task, state)}
             renderTask={renderTask}
             onAddTask={() => onOpenEditor(undefined)}
-            todayHabits={{
-              todayData: habitsController.todayData,
-              todayHabitTasks,
-              actions: todayHabitsActions,
-            }}
           />
         ) : view === "upcoming" &&
           !organizationPage &&
@@ -527,6 +519,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           <UpcomingWorkspace
             tasks={tasks.filter(
               (task) =>
+                !excludedHabitTaskUuids.has(task.uuid) &&
                 (completeBehavior === "strikethrough" ||
                   task.status !== "completed") &&
                 (!query.trim() ||
@@ -574,23 +567,6 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           )
         ) : (
           <TabsContent value={layout} className="mt-0 min-w-0">
-            {view === "today" &&
-              !currentProject &&
-              !activeEntry &&
-              !(layout === "list" && groupBy === "today") &&
-              habitsController.todayData &&
-              habitsController.todayData.items.length > 0 && (
-                <div className="mb-4">
-                  <TodayHabitsSection
-                    todayData={habitsController.todayData}
-                    todayHabitTasks={todayHabitTasks}
-                    renderTask={renderTask}
-                    availableLabels={organization.tags}
-                    actions={todayHabitsActions}
-                    disabled={boardDisabled}
-                  />
-                </div>
-              )}
             <Suspense
               fallback={
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -653,12 +629,11 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                 hasSearch={Boolean(query.trim())}
                 onClearSearch={() => onQueryChange("")}
                 onAdd={(nextDraft) => onOpenEditor(undefined, nextDraft)}
-                todayHabits={{
-                  todayData: habitsController.todayData,
-                  todayHabitTasks,
-                  excludedTaskUuids: excludedHabitTaskUuids,
-                  actions: todayHabitsActions,
-                }}
+                excludedHabitTaskUuids={
+                  !currentProject && !activeEntry
+                    ? excludedHabitTaskUuids
+                    : undefined
+                }
               />
             </Suspense>
           </TabsContent>

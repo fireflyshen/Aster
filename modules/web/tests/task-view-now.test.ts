@@ -106,3 +106,72 @@ test("now view filters strictly to non-habit doing tasks and computeViewCounts c
     ["doing-1", "sub-doing"],
   );
 });
+
+test("habit tasks and bound habit subtasks are excluded from now, today, and inbox views and counts", () => {
+  const organization = {
+    revision: 1,
+    filters: [],
+    tags: [],
+    projects: [
+      { name: "Habits", color: "green", description: "", category: "habit" },
+      { name: "Work", color: "blue", description: "", category: "normal" },
+    ],
+    subtasks: { "habit-child": "habit-bound" },
+  };
+  const todayIso = new Date().toISOString();
+  const normalToday = makeTask("work-today", "Normal Today", {
+    project: "Work",
+    due: todayIso,
+  });
+  const normalInbox = makeTask("inbox-1", "Inbox Task", {});
+  const habitProjTask = makeTask("habit-proj", "Habit Project Task", {
+    project: "Habits",
+    due: todayIso,
+  });
+  const habitBoundTask = makeTask("habit-bound", "Bound Habit Task", {
+    due: todayIso,
+  });
+  const habitChildTask = makeTask("habit-child", "Habit Child Checklist", {
+    due: todayIso,
+  });
+  const all = [
+    normalToday,
+    normalInbox,
+    habitProjTask,
+    habitBoundTask,
+    habitChildTask,
+  ];
+  const habitUuids = new Set(["habit-bound"]);
+
+  const counts = computeViewCounts(all, organization, habitUuids);
+  assert.equal(counts.today, 1);
+  assert.equal(counts.pending, 1);
+
+  const visibleToday = filterVisibleTasks({
+    tasks: all,
+    view: "today",
+    organization,
+    inbox: false,
+    currentProject: "",
+    query: "",
+    habitUuids,
+  });
+  assert.deepEqual(
+    visibleToday.map((t: { uuid: string }) => t.uuid),
+    ["work-today"],
+  );
+
+  const visibleInbox = filterVisibleTasks({
+    tasks: all,
+    view: "pending",
+    organization,
+    inbox: true,
+    currentProject: "",
+    query: "",
+    habitUuids,
+  });
+  assert.deepEqual(
+    visibleInbox.map((t: { uuid: string }) => t.uuid),
+    ["inbox-1"],
+  );
+});

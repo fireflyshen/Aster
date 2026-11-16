@@ -285,10 +285,17 @@ export function registerPlanningTools({
         })
         .filter((section) => section.tasks.length > 0);
 
-      const overdue = openTasks
+      const scopeIsHabit = Boolean(
+        scopeProject && isHabitProject(scopeProject, projects),
+      );
+      const digestPool = scopeIsHabit
+        ? openTasks
+        : openTasks.filter((task) => !isHabitTask(task, organization));
+
+      const overdue = digestPool
         .filter((task) => taskGroup(task, now) === "overdue")
         .sort(compareTasksByUrgency);
-      const dueToday = openTasks
+      const dueToday = digestPool
         .filter((task) => taskGroup(task, now) === "today")
         .sort(compareTasksByUrgency);
       const topLevelNonHabitOpen = openTasks.filter(
@@ -306,7 +313,7 @@ export function registerPlanningTools({
       const nowList = topLevelNonHabitOpen
         .filter((task) => task.state === "doing")
         .sort(compareTasksByUrgency);
-      const topUrgency = openTasks
+      const topUrgency = digestPool
         .filter((task) => taskGroup(task, now) !== "waiting")
         .sort(compareTasksByUrgency)
         .slice(0, 15);

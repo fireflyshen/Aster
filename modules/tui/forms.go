@@ -665,21 +665,59 @@ func (m *model) submit() (tea.Cmd, error) {
 		m.filterLoaded = false
 		m.query = ""
 		return m.read("filter", "/api/tasks?filter="+url.QueryEscape(v[0])), nil
-	case "task.wait":
-		d, e := inputDate(v[0], r.task.Wait)
+	case "task.state.waiting":
+		reason := strings.TrimSpace(v[0])
+		if reason == "" {
+			return nil, errRequired("等待原因")
+		}
+		checkDate := ""
+		if strings.TrimSpace(v[1]) != "" {
+			d, e := inputDate(v[1], r.task.Wait)
+			if e != nil {
+				return nil, e
+			}
+			checkDate = d
+		}
+		payload := map[string]any{
+			"state":      "waiting",
+			"waitReason": reason,
+		}
+		if checkDate != "" {
+			payload["checkDate"] = checkDate
+		}
+		return action("state.set", payload), nil
+	case "task.schedule":
+		d, e := inputDate(v[0], r.task.Scheduled)
 		if e != nil {
 			return nil, e
 		}
-		m.undo = &undoChange{
-			"/api/action",
-			map[string]any{
-				"uuid":   r.id,
-				"action": "wait",
-				"wait":   compact(r.task.Wait),
-			},
-			r.title,
+		return action("schedule", map[string]any{"scheduled": d}), nil
+	case "task.depends":
+		nextList := splitTags(v[0])
+		nextSet := make(map[string]bool, len(nextList))
+		for _, id := range nextList {
+			nextSet[id] = true
 		}
-		return action("wait", map[string]any{"wait": d}), nil
+		prevList := dependsUUIDs(r.task)
+		prevSet := make(map[string]bool, len(prevList))
+		for _, id := range prevList {
+			prevSet[id] = true
+		}
+		var addIDs, removeIDs []string
+		for _, id := range nextList {
+			if !prevSet[id] {
+				addIDs = append(addIDs, id)
+			}
+		}
+		for _, id := range prevList {
+			if !nextSet[id] {
+				removeIDs = append(removeIDs, id)
+			}
+		}
+		return action("depends", map[string]any{
+			"add":    addIDs,
+			"remove": removeIDs,
+		}), nil
 	case "task.move":
 		if v[0] == "" {
 			return nil, errRequired("目标栏目")

@@ -11,11 +11,6 @@ import {
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task, TaskInput } from "@shared/tasks";
 import { cn } from "cn";
-import {
-  TodayHabitsSection,
-  type TodayHabitsActions,
-} from "@/features/habits/today-habits-section";
-import type { TodayHabitsResponse } from "@core/habits/model";
 import { CheckCircle2, ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { BoardCard } from "./board-card";
@@ -46,12 +41,7 @@ type TodaySplitViewProps = {
   onRescheduleOverdue?: (overdueTasks: Task[], day: string) => Promise<void>;
   onCreateTask?: (task: TaskInput, columnId?: string) => Promise<boolean>;
   onAdd: (draft?: TaskInput) => void;
-  todayHabits?: {
-    todayData: TodayHabitsResponse | null;
-    todayHabitTasks?: Task[];
-    excludedTaskUuids?: Set<string>;
-    actions: TodayHabitsActions;
-  };
+  excludedTaskUuids?: ReadonlySet<string>;
 };
 
 /** Today view split into collapsible Overdue section and Today section. */
@@ -71,12 +61,11 @@ export function TodaySplitView({
   onRescheduleOverdue,
   onCreateTask,
   onAdd,
-  todayHabits,
+  excludedTaskUuids,
 }: TodaySplitViewProps) {
   const [overdueCollapsed, setOverdueCollapsed] = useState(false);
 
   const visibleColumnIds = new Set(columns.map((col) => col.id));
-  const excludedUuids = todayHabits?.excludedTaskUuids;
   const ordered = columns
     .flatMap((col) =>
       columnTasks(tasks, displayBoard, col.id, visibleColumnIds).map(
@@ -86,7 +75,7 @@ export function TodaySplitView({
         }),
       ),
     )
-    .filter(({ task }) => !excludedUuids?.has(task.uuid));
+    .filter(({ task }) => !excludedTaskUuids?.has(task.uuid));
   const overdueEntries = ordered.filter(({ task }) => isTaskOverdue(task));
   const todayEntries = ordered.filter(({ task }) => !isTaskOverdue(task));
 
@@ -116,8 +105,6 @@ export function TodaySplitView({
       ))}
     </BoardCard>
   );
-
-  const hasTodayHabits = Boolean(todayHabits?.todayData?.items.length);
 
   return (
     <div className="today-sections">
@@ -162,7 +149,7 @@ export function TodaySplitView({
         aria-label="今日任务"
         className="min-w-0"
       >
-        {(overdueEntries.length > 0 || hasTodayHabits) && (
+        {overdueEntries.length > 0 && (
           <div className="mb-1 flex h-10 items-center gap-2 border-b border-border/80">
             <h2 className="text-sm font-semibold">今日任务</h2>
             <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
@@ -186,9 +173,7 @@ export function TodaySplitView({
                   <p className="mt-1 max-w-xs text-xs text-muted-foreground">
                     {overdueEntries.length
                       ? `上方还有 ${overdueEntries.length} 项逾期任务，可以重新安排。`
-                      : hasTodayHabits
-                        ? "下方的习惯可以继续记录。"
-                        : "留点时间给自己，或添加新的安排。"}
+                      : "留点时间给自己，或添加新的安排。"}
                   </p>
                 </div>
               )
@@ -214,16 +199,6 @@ export function TodaySplitView({
           )}
         </div>
       </section>
-      {todayHabits && hasTodayHabits && (
-        <TodayHabitsSection
-          todayData={todayHabits.todayData}
-          todayHabitTasks={todayHabits.todayHabitTasks}
-          renderTask={renderTask}
-          availableLabels={availableLabels}
-          actions={todayHabits.actions}
-          disabled={disabled}
-        />
-      )}
     </div>
   );
 }

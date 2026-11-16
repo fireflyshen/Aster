@@ -86,12 +86,14 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 			if cnt := m.org.ProjectCounts[pName]; cnt > 0 && rowW > 14 {
 				countText = fmt.Sprintf(" %d", cnt)
 			}
+		} else if e.id == "now" && rowW > 14 {
+			doingCnt := f.idx.doingCount
+			if m.stateSummary != nil {
+				doingCnt = m.stateSummary.Counts.Doing
+			}
+			countText = fmt.Sprintf(" %d/%d", doingCnt, doingLimit)
 		} else if e.id == "focus" && rowW > 14 {
 			countText = fmt.Sprintf(" %d/3", len(f.idx.activeProjects))
-		} else if e.id == "filter:builtin:active" && f.idx.anyRunning {
-			prefix = "▶ "
-			dotColor = timerColor
-			hasDot = true
 		} else if strings.HasPrefix(e.id, "filter:") {
 			filterID := strings.TrimPrefix(e.id, "filter:")
 			prefix = "★ "
@@ -192,6 +194,50 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 		groups = append(
 			groups,
 			[]styledSpan{span("↳ "+clip(clean(r.parentTitle), 18), dim)},
+		)
+	}
+	if eff := effectiveTaskState(t, td, f.idx.projByName, f.now); eff != "" && eff != "planned" {
+		var stLbl string
+		stCol := muted
+		stBold := false
+		switch eff {
+		case "doing":
+			stLbl = "处理中"
+			stCol = timerColor
+			stBold = true
+		case "scheduled":
+			when := t.Scheduled
+			if when == "" {
+				when = t.Wait
+			}
+			if s := shownDate(when); s != "" {
+				stLbl = "排期 " + strings.Split(s, " ")[0]
+			} else {
+				stLbl = "已排期"
+			}
+			stCol = brand
+		case "waiting":
+			stLbl = "等待中"
+			if wr := clean(t.WaitReason); wr != "" {
+				stLbl = "等待:" + clip(wr, 14)
+			}
+			stCol = warnColor
+		case "parked":
+			stLbl = "长期搁置"
+			stCol = muted
+		}
+		if stLbl != "" {
+			st := lipgloss.NewStyle().Foreground(stCol)
+			if stBold {
+				st = st.Bold(true)
+			}
+			groups = append(groups, []styledSpan{span("["+stLbl+"]", st)})
+		}
+	}
+	if f.idx.blockedUUIDs[t.UUID] {
+		groups = append(
+			groups,
+			[]styledSpan{span("[阻塞]", lipgloss.NewStyle().Foreground(dangerColor).Bold(true))},
 		)
 	}
 	showProject := t.Project != ""
@@ -580,7 +626,7 @@ func (m model) list(w, h int, f renderFrame) string {
 			dotColor := ""
 			if r.kind == "project" {
 				dotColor = r.project.Color
-			} else if r.kind == "filter" || r.kind == "builtin_filter" || r.kind == "tag" {
+			} else if r.kind == "filter" || r.kind == "tag" {
 				dotColor = r.item.Color
 			}
 			if dotColor != "" {
@@ -688,14 +734,11 @@ func (m model) emptyMessage() string {
 	if m.query != "" {
 		return "当前搜索没有匹配项。按 / 清空或修改关键词。"
 	}
+	if m.view == "now" {
+		return "「现在能做」暂无匹配任务。按 a 新建任务，或按 t 切换任务状态。"
+	}
 	if m.view == "focus" && len(m.viewIdx().activeProjects) == 0 {
 		return "还没有聚焦项目。按 p 最多选择 3 个 Focus 项目，或按 Tab 在其他视图操作。"
-	}
-	if m.view == "filter:builtin:waiting" {
-		return "没有处于等待状态的任务。"
-	}
-	if m.view == "filter:builtin:active" {
-		return "当前没有正在计时的任务。选中任意任务按 s 开始计时。"
 	}
 	if isCompletedFilterView(m.org, m.view, m.expression) {
 		return "当前没有已完成任务。"
@@ -876,6 +919,46 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			}
 		}
 		kv("状态", statusLbl, statusCol)
+		if eff := effectiveTaskState(t, td, f.idx.projByName, f.now); eff != "" {
+			effCol := inkSoft
+			switch eff {
+			case "doing":
+				effCol = timerColor
+			case "scheduled":
+				effCol = brand
+			case "waiting":
+				effCol = warnColor
+			case "parked":
+				effCol = muted
+			}
+			kv("执行态", stateLabel(eff), effCol)
+		}
+		if t.Scheduled != "" {
+			kv("排期", shownDate(t.Scheduled), brand)
+		}
+		if t.WaitReason != "" {
+			kv("等待因", t.WaitReason, warnColor)
+		}
+		if deps := dependsUUIDs(t); len(deps) > 0 {
+			depLabels := make([]string, 0, len(deps))
+			for _, depUUID := range deps {
+				lbl := depUUID
+				if dt, ok := f.idx.tasksByUUID[depUUID]; ok {
+					lbl = clean(dt.Description)
+					if dt.Status == "completed" {
+						lbl += " (已完成)"
+					} else {
+						lbl += " (未完成)"
+					}
+				}
+				depLabels = append(depLabels, lbl)
+			}
+			depCol := muted
+			if f.idx.blockedUUIDs[t.UUID] {
+				depCol = dangerColor
+			}
+			kv("前置依赖", strings.Join(depLabels, "、"), depCol)
+		}
 
 		project := t.Project
 		projCol := inkSoft
@@ -1099,7 +1182,7 @@ func (m model) inspector(w, h int, f renderFrame) string {
 			}
 		}
 		lines = append(lines, "", dim.Render("Enter 打开任务 · : 管理项目"))
-	case "filter", "builtin_filter", "tag":
+	case "filter", "tag":
 		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.item.Name)
 		if r.item.Description != "" {
 			addRich(r.item.Description)
@@ -1109,16 +1192,7 @@ func (m model) inspector(w, h int, f renderFrame) string {
 		}
 		kv("颜色", r.item.Color, swatchColor(r.item.Color))
 		kv("收藏", fmt.Sprint(r.item.Favorite), inkSoft)
-		if r.kind == "builtin_filter" {
-			kv("来源", "内置 TW 过滤器（跨端同步）", inkSoft)
-			lines = append(
-				lines,
-				"",
-				dim.Render("Enter 打开筛选 · f 收藏 · H 隐藏/恢复 · v 显隐已隐藏"),
-			)
-		} else {
-			lines = append(lines, "", dim.Render("Enter 打开任务 · f 收藏 · : 操作"))
-		}
+		lines = append(lines, "", dim.Render("Enter 打开任务 · f 收藏 · : 操作"))
 	case "group", "column":
 		addStyled(lipgloss.NewStyle().Foreground(ink).Bold(true), r.title)
 		add(fmt.Sprintf("%d 个可见任务", r.count))
@@ -1440,6 +1514,21 @@ func (m model) View() string {
 				Render("▶ 计时中"),
 		)
 	}
+	if m.stateSummary != nil {
+		alertCount := len(m.stateSummary.WaitingDue) +
+			len(m.stateSummary.ParkedReviewDue) +
+			len(m.stateSummary.PromotionBlocked) +
+			len(m.stateSummary.Anomalies)
+		if alertCount > 0 {
+			rightParts = append(
+				rightParts,
+				lipgloss.NewStyle().
+					Foreground(warnColor).
+					Bold(true).
+					Render(fmt.Sprintf("⚠ %d状态提醒", alertCount)),
+			)
+		}
+	}
 	if m.org.Energy != nil {
 		if m.org.Energy.TrackedSecondsToday >= 60 {
 			rightParts = append(
@@ -1500,11 +1589,11 @@ func (m model) View() string {
 						": / Ctrl+K       搜索并执行所有操作",
 						"a / A / S        新建任务 / 一句话 / 添加子任务",
 						"e / D / x / s    编辑 / 任务描述 / 完成 / 计时",
-						"! / @ / m        快速优先级 / 改期 / 移动排序",
+						"t / ! / @ / m    切换状态 / 优先级 / 改期 / 移动排序",
 						"d / u / r        删除 / 撤销最近操作 / 刷新核对",
 						"b / ← →          列表看板切换 / 切换栏目",
 						"p / n / g        Focus 项目 / 下一步 / 新增分组",
-						"f / H / v        收藏过滤标签 / 隐藏内置 / 显隐切换",
+						"f                收藏过滤器或标签",
 						"T / B / P / $    时间视图 / 设预算 / 建计划 / 联账单",
 						"c / , / [ ] .    确认或明细 / 单价设置 / 时间翻期",
 						"w / o            成本报告周月 / 排序切换",

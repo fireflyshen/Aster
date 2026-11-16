@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestSidebarFiveSectionsAndHeaderSkipping(t *testing.T) {
@@ -50,10 +48,6 @@ func TestSidebarFiveSectionsAndHeaderSkipping(t *testing.T) {
 	m.org.Tags = []SavedItem{
 		{ID: "t-fav", Name: "urgent", Color: "orange", Favorite: true},
 	}
-	m.org.BuiltinFilterPrefs = &BuiltinFilterPrefs{
-		Favorites: []string{"builtin:ready"},
-		Hidden:    []string{"builtin:blocked"},
-	}
 
 	es := m.nav()
 	var ids, headers []string
@@ -81,6 +75,7 @@ func TestSidebarFiveSectionsAndHeaderSkipping(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		"now",
 		"focus",
 		"inbox",
 		"today",
@@ -88,7 +83,6 @@ func TestSidebarFiveSectionsAndHeaderSkipping(t *testing.T) {
 		"time.weekly",
 		"time.report",
 		"filter:f-fav",
-		"filter:builtin:ready",
 		"tag:urgent",
 		"project:Work",
 		"project:Someday",
@@ -146,7 +140,7 @@ func TestSidebarFiveSectionsAndHeaderSkipping(t *testing.T) {
 	}
 }
 
-func TestMergedOrgViewAndBuiltinFilterActions(t *testing.T) {
+func TestMergedOrgViewAndCustomItems(t *testing.T) {
 	c, log := validClient(t)
 	m := sampleModel()
 	m.client = c
@@ -157,10 +151,6 @@ func TestMergedOrgViewAndBuiltinFilterActions(t *testing.T) {
 	}
 	m.org.Tags = []SavedItem{
 		{ID: "t1", Name: "focus", Color: "green"},
-	}
-	m.org.BuiltinFilterPrefs = &BuiltinFilterPrefs{
-		Favorites: []string{"builtin:ready"},
-		Hidden:    []string{"builtin:blocked"},
 	}
 
 	now := time.Now()
@@ -174,54 +164,28 @@ func TestMergedOrgViewAndBuiltinFilterActions(t *testing.T) {
 	}
 
 	rows := m.viewIdx().rows(m, now)
-	if idx, _ := findRow(rows, "builtin:ready"); idx < 0 {
-		t.Fatalf("expected visible builtin:ready row in org view")
+	if idx, _ := findRow(rows, "org.builtin"); idx >= 0 {
+		t.Fatalf("did not expect built-in filters section in org view")
 	}
-	if idx, _ := findRow(rows, "builtin:blocked"); idx >= 0 {
-		t.Fatalf("expected builtin:blocked hidden when showHiddenBuiltin=false")
-	}
-
-	// Toggle showing hidden built-in filters with 'v'.
-	nextModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'v'}})
-	m = nextModel.(model)
-	if !m.showHiddenBuiltin {
-		t.Fatalf("expected 'v' to toggle showHiddenBuiltin in org view")
-	}
-	rows = m.viewIdx().rows(m, now)
-	blockedIdx, _ := findRow(rows, "builtin:blocked")
-	if blockedIdx < 0 {
-		t.Fatalf("expected builtin:blocked to appear after toggling 'v'")
+	fIdx, _ := findRow(rows, "f1")
+	if fIdx < 0 {
+		t.Fatalf("expected custom filter f1 row in org view")
 	}
 
-	// Toggle favorite on builtin:ready -> sends kind=builtinFilter, action=favorite, value=false.
-	readyIdx, _ := findRow(rows, "builtin:ready")
-	m.cursor = readyIdx
+	// Toggle favorite on custom filter -> sends kind=filter, action=save, item.favorite=false.
+	m.cursor = fIdx
 	cmd := m.action("item.favorite")
 	if cmd == nil {
-		t.Fatalf("expected orgChange cmd for builtin_filter item.favorite")
+		t.Fatalf("expected orgChange cmd for filter item.favorite")
 	}
 	cmd()
 	p := readPayload(t, log)
 	data := p["data"].(map[string]any)
-	if data["kind"] != "builtinFilter" || data["action"] != "favorite" ||
-		data["id"] != "builtin:ready" ||
-		data["value"] != false {
+	item := data["item"].(map[string]any)
+	if data["kind"] != "filter" || data["action"] != "save" ||
+		item["id"] != "f1" ||
+		item["favorite"] != false {
 		t.Fatalf("unexpected favorite payload: %+v", p)
-	}
-
-	// Toggle hidden on builtin:blocked -> sends kind=builtinFilter, action=hide, value=false (unhide).
-	m.cursor = blockedIdx
-	cmd = m.action("builtin.hide")
-	if cmd == nil {
-		t.Fatalf("expected orgChange cmd for builtin.hide")
-	}
-	cmd()
-	p = readPayload(t, log)
-	data = p["data"].(map[string]any)
-	if data["kind"] != "builtinFilter" || data["action"] != "hide" ||
-		data["id"] != "builtin:blocked" ||
-		data["value"] != false {
-		t.Fatalf("unexpected hide payload: %+v", p)
 	}
 
 	// Non-clickable info header guards cleanly against delete/favorite.
@@ -235,28 +199,16 @@ func TestMergedOrgViewAndBuiltinFilterActions(t *testing.T) {
 	}
 }
 
-func TestMergedDataViewAndBuiltinFilterPrefsJSON(t *testing.T) {
+func TestMergedDataViewAndLegacyOrgJSON(t *testing.T) {
 	raw := []byte(
 		`{"revision":3,"builtinFilterPrefs":{"favorites":["builtin:ready"],"hidden":["builtin:blocked"],"sectionHidden":true}}`,
 	)
 	var org Organization
 	if err := json.Unmarshal(raw, &org); err != nil {
-		t.Fatalf("unmarshal Organization failed: %v", err)
+		t.Fatalf("unmarshal legacy Organization failed: %v", err)
 	}
-	if org.BuiltinFilterPrefs == nil ||
-		!slices.Equal(
-			org.BuiltinFilterPrefs.Favorites,
-			[]string{"builtin:ready"},
-		) ||
-		!slices.Equal(
-			org.BuiltinFilterPrefs.Hidden,
-			[]string{"builtin:blocked"},
-		) ||
-		!org.BuiltinFilterPrefs.SectionHidden {
-		t.Fatalf(
-			"unexpected BuiltinFilterPrefs decoded: %+v",
-			org.BuiltinFilterPrefs,
-		)
+	if org.Revision != 3 {
+		t.Fatalf("expected revision 3, got %d", org.Revision)
 	}
 
 	m := sampleModel()
@@ -288,7 +240,7 @@ func TestMergedDataViewAndBuiltinFilterPrefsJSON(t *testing.T) {
 			t.Fatalf("expected taskView()=false for %q", nonTask)
 		}
 	}
-	for _, taskV := range []string{"focus", "inbox", "today", "filter:builtin:urgency"} {
+	for _, taskV := range []string{"now", "focus", "inbox", "today"} {
 		m.view = taskV
 		if !m.taskView() {
 			t.Fatalf("expected taskView()=true for %q", taskV)

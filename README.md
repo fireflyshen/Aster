@@ -15,9 +15,10 @@ Aster 是一个基于 **Taskwarrior 3**
    - Node.js 22.16+ 原生实现（零第三方运行时依赖），通过 HTTP（Web
      / 本地客户端）与私有 Unix Socket IPC（SSH 远程客户端、MCP、Go
      TUI）对外提供同一套序列化事务与并发门控。
+   - **任务执行状态机 & 历史审计**：基于 Taskwarrior UDA（`state`、`waitreason`、`statechanged`）与 `state-history.jsonl` 管理 `planned` / `doing`（最多 5 项）/ `scheduled` / `waiting` / `parked`，支持 `409 STATE_DOING_LIMIT` 原子替换、依赖阻塞与跨日自动升迁；配套 [`scripts/migrate-task-state.mjs`](scripts/migrate-task-state.mjs) 做幂等数据迁移。
    - 统一持久化 **Organization & Habits**：`organization.json`
      队列管理项目树、最多 3 个 Active 的 Focus 目标、看板自定义分栏与排序、saved
-     filters、项目与任务 Markdown 说明及颜色；`habits.sqlite`
+     filters（仅保留用户自定义过滤器与标签）、项目与任务 Markdown 说明及颜色；`habits.sqlite`
      存储习惯配置与每日记录，绑定到 Todo 的
      `taskUuid`，并与 Taskwarrior 任务及子任务自动保持同步。
    - **Time Ledger（SQLite WAL）**：独立
@@ -32,16 +33,15 @@ Aster 是一个基于 **Taskwarrior 3**
      [工程契约](docs/time-management-v1-decisions.md)。
 2. **极简 Web 应用（`modules/web`）**
    - React 19 + shadcn/ui + Tailwind
-     CSS，支持 Todoist 风格窄列表快速捕捉（`Q`）、行内编辑、树形子任务、List/Board 一体化视图、任务列表与详情内嵌投入成本及预算演化、Data
+     CSS，默认进入 **「现在能做」（`now`）** 状态工作区（顶部处理中最多 5 项 + 可折叠计划中/等待中/长期搁置与状态提醒条），支持 Todoist 风格窄列表快速捕捉（`Q`）、行内编辑、树形子任务、List/Board 一体化视图、任务列表与详情内嵌投入成本及预算演化、Data
      & Recovery 备份恢复。
    - 提供极简留白的 **Time
      Ledger（今日时间线 / 本周分布 / 成本报告 / 时间设置）**
      与顶部单行执行条、到限确认与修正弹窗。
-   - 新增
-     **习惯管理（Habits，Web 端）**：习惯直接作为 Todo 的扩展属性字段，与普通任务共享项目、标签、说明与原生子任务。支持正向打卡、反向习惯（不发生即达成、仅记破例与备注）、可展开动作清单（可选 A/B 训练方案与组/次/重成绩）及统一低饱和灰绿综合热力图。
+   - **习惯管理（Habits，Web 端）**：习惯直接在左侧专属 **「习惯」菜单** 查看与打卡（不嵌入「现在能做」「今天」「收件箱」「预览」等普通任务列表），与普通任务共用底层 Todo、项目、标签、说明与原生子任务。支持正向打卡、反向习惯（不发生即达成、仅记破例与备注）、可展开动作清单（可选 A/B 训练方案与组/次/重成绩）及统一低饱和灰绿综合热力图。
 3. **AI / Grok Bot 接口（`modules/mcp`）**
    - 标准 MCP
-     stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务规划、看板拆解、**习惯管理（`habit_*`：创建绑定习惯 Todo、日常打卡、动作清单组/次/重与 A/B 切换、反向破例、热力图与补录）**、Time 随手记账、TimingPlan 定时安排与对账摘要。
+     stdio 服务（`@modelcontextprotocol/sdk`），不依赖特定模型 SDK 或 Key，覆盖任务状态机（`task_state_set` / `task_schedule` / `task_depends` / `state_summary` / `state_history`）、任务规划与看板拆解、**习惯管理（`habit_*`：创建绑定习惯 Todo、日常打卡、动作清单组/次/重与 A/B 切换、反向破例、热力图与补录）**、Time 随手记账、TimingPlan 定时安排与对账摘要。
    - 给 Grok Bot / AI 助手配置 System
      Prompt、项目/标签归类规范、**习惯 Todo 操作与防误删原则**及完整工具清单，请直接阅读
      [`modules/mcp/README.md`](modules/mcp/README.md)。
@@ -50,7 +50,7 @@ Aster 是一个基于 **Taskwarrior 3**
      `Quick Add Task` 三个命令入口，复用 SSH / 本地共享工作区或原生 Taskwarrior
      3。
    - **Go
-     TUI**：单二进制终端界面，支持宽窄屏自适应布局、Focus/看板管理、实时计时状态与全量备份导出恢复。
+     TUI**：单二进制终端界面，默认进入 **「现在能做」** 核心视图，支持状态徽章/阻塞标记、`t` 切换执行状态、上限 5 项替换选择器、宽窄屏自适应布局、Focus/看板管理、实时计时状态与全量备份导出恢复。
 
 ---
 
@@ -61,7 +61,7 @@ modules/
   core/                    无平台依赖的共用领域内核
     connection/            本机 / SSH OpenSSH 执行器与数据源标识
     habits/                Habit 领域模型、周期调度、动作清单/A/B 映射、连续统计与热力图计算
-    tasks/                 Taskwarrior 3 数据模型、过滤解析、Quick Add 与 Timewarrior 导入解析
+    tasks/                 Taskwarrior 3 数据模型、状态机规则（state.ts）、过滤解析、Quick Add 与 Timewarrior 导入解析
     time/                  Time Ledger 分类规则、C+U=T 账本计算、快照合并与时区处理
     workspace/             Organization 契约、Focus/看板/子任务模型、恢复/备份与 WorkspaceClient
 
@@ -70,11 +70,11 @@ modules/
       index.ts             启动组合根、环境装配与默认本地/SSH 模式选择
       transport/           HTTP 服务（静态资源、CSP、/healthz）、路由适配、Unix IPC、并发门控、CLI 维护
       habits/              habits.sqlite 持久化、Taskwarrior 目录同步与 /api/habits/* 路由处理
-      tasks/               任务动作、看板与 Focus 变更处理器
+      tasks/               任务动作、状态机流转/审计/调度（state-*）、看板与 Focus 变更处理器
       organization/        organization.json 版本存储与 Taskwarrior/Time 联动服务
       recovery/            误删恢复快照、全量导出校验、原子恢复与部署前一致性备份
       time/                SQLite Time Ledger、TimingPlan 到限调度器、协调器、导入与备份恢复
-    tests/                 57 项服务端单测与 HTTP/IPC 真实进程集成测试
+    tests/                 71 项服务端单测 + 7 项 HTTP/IPC 真实进程集成测试
 
   web/                     前端 Web 应用（React + shadcn/ui + Vite）
     shared/                前端复用 DTO 类型导出（@shared/*）
@@ -83,7 +83,7 @@ modules/
       features/            tasks、habits、projects、organization、recovery、time（Today/Weekly/Settings）
       components/          自定义图标与 shadcn/ui 基础组件
       lib/                 HTTP API 请求工具与平台辅助
-    tests/                 Web 模型、视图与 Time API 契约测试
+    tests/                 Web 模型、状态机视图与 Time/Habits API 契约测试
 
   desktop/                 Raycast / TinyCast 桌面扩展
     src/
@@ -97,7 +97,7 @@ modules/
   mcp/                     Model Context Protocol (MCP) stdio 服务端
     src/
       index.ts / server.ts / transport.ts
-      tools/               helpers / tasks / workspace / habits / time / planning 工具分组
+      tools/               helpers / tasks / state / workspace / habits / time / planning 工具分组
     tests/                 基于官方 MCP SDK 的契约、幂等键与故障场景测试
 
   tui/                     Go Bubble Tea 终端客户端

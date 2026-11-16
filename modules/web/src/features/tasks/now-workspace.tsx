@@ -7,12 +7,7 @@ import {
 import type { TaskRenderFn } from "@/app/hooks/use-task-renderer";
 import type { StateSummaryData } from "@/app/hooks/use-task-state-actions";
 import { sortUrgencyTasks } from "@/app/lib/task-view";
-import {
-  TodayHabitsSection,
-  type TodayHabitsActions,
-} from "@/features/habits/today-habits-section";
 import { dueLabel, toDueDay } from "@/features/tasks/task-date";
-import type { TodayHabitsResponse } from "@core/habits/model";
 import { DOING_LIMIT, isHabitTask, type TaskState } from "@core/tasks/state";
 import type { Organization } from "@core/workspace/organization";
 import type { NowSectionState } from "@core/workspace/preferences";
@@ -57,7 +52,6 @@ export function NowWorkspace({
   onChangeState,
   renderTask,
   onAddTask,
-  todayHabits,
 }: {
   tasks: Task[];
   organization: Organization;
@@ -73,11 +67,6 @@ export function NowWorkspace({
   onChangeState: (task: Task, state: TaskState) => Promise<boolean> | void;
   renderTask: TaskRenderFn;
   onAddTask: () => void;
-  todayHabits?: {
-    todayData?: TodayHabitsResponse | null;
-    todayHabitTasks?: Task[];
-    actions: TodayHabitsActions;
-  };
 }) {
   const [alertsExpanded, setAlertsExpanded] = useState(false);
   const needle = query.trim().toLocaleLowerCase();
@@ -372,17 +361,6 @@ export function NowWorkspace({
           </div>
         )}
       </section>
-
-      {todayHabits?.todayData && todayHabits.todayData.items.length > 0 && (
-        <TodayHabitsSection
-          todayData={todayHabits.todayData}
-          todayHabitTasks={todayHabits.todayHabitTasks}
-          renderTask={renderTask}
-          availableLabels={organization.tags}
-          actions={todayHabits.actions}
-          disabled={disabled}
-        />
-      )}
 
       <Collapsible
         open={plannedOpen}

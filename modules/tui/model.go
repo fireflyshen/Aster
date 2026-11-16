@@ -16,9 +16,14 @@ import (
 )
 
 type loaded struct {
-	tasks []Task
-	org   Organization
-	err   error
+	tasks   []Task
+	org     Organization
+	summary *StateSummary
+	err     error
+}
+type pendingMutation struct {
+	route string
+	data  map[string]any
 }
 type saved struct {
 	err     error
@@ -92,7 +97,9 @@ type model struct {
 	dataBackup                                   []row
 	filterLoaded                                 bool
 	laterCollapsed                               bool
-	showHiddenBuiltin                            bool
+	stateSummary                                 *StateSummary
+	nowExpanded                                  map[string]bool
+	pendingWrite                                 *pendingMutation
 	preview                                      json.RawMessage
 	previewToken                                 string
 	undo                                         *undoChange
@@ -106,13 +113,14 @@ func newModel(c Client) model {
 	s.Width = 64
 	return model{
 		client:           c,
-		view:             "focus",
+		view:             "now",
 		navCursor:        1,
 		laterCollapsed:   true,
 		width:            120,
 		height:           32,
 		busy:             true,
 		collapsed:        map[string]bool{},
+		nowExpanded:      map[string]bool{},
 		expandedSubtasks: map[string]bool{},
 		draft:            map[string][]string{},
 		search:           s,
@@ -379,11 +387,12 @@ func (m model) refresh() tea.Cmd {
 		var (
 			o  Organization
 			ts []Task
+			ss *StateSummary
 			oe error
 			te error
 			wg sync.WaitGroup
 		)
-		wg.Add(2)
+		wg.Add(3)
 		go func() {
 			defer wg.Done()
 			o, oe = m.client.workspace()
@@ -392,11 +401,15 @@ func (m model) refresh() tea.Cmd {
 			defer wg.Done()
 			ts, te = m.client.tasks()
 		}()
+		go func() {
+			defer wg.Done()
+			ss, _ = m.client.stateSummary()
+		}()
 		wg.Wait()
 		if oe != nil {
 			return loaded{err: oe}
 		}
-		return loaded{ts, o, te}
+		return loaded{ts, o, ss, te}
 	}
 }
 func (m model) write(route string, data any) tea.Cmd {
@@ -408,6 +421,7 @@ func (m model) read(kind, route string) tea.Cmd {
 func (m model) nav() []entry {
 	es := []entry{
 		{id: "hdr:core", title: "核心视图", header: true},
+		{id: "now", title: "▷  现在能做"},
 		{id: "focus", title: "◎  Focus"},
 		{id: "inbox", title: "▣  收件箱"},
 		{id: "today", title: "◷  今天"},
@@ -427,14 +441,6 @@ func (m model) nav() []entry {
 			favs = append(
 				favs,
 				entry{id: "filter:" + f.ID, title: "★  " + f.Name},
-			)
-		}
-	}
-	for _, bf := range resolveBuiltinFilters(m.org.BuiltinFilterPrefs) {
-		if bf.Item.Favorite {
-			favs = append(
-				favs,
-				entry{id: "filter:" + bf.Item.ID, title: "★  " + bf.Item.Name},
 			)
 		}
 	}
@@ -593,8 +599,6 @@ func (m model) columns() []Column {
 			}
 		}
 		return cols
-	case isUrgencyFilterView(m.view):
-		return []Column{{ID: "unsectioned", Name: "紧迫排行"}}
 	default:
 		for _, c := range m.org.Board.Columns {
 			if c.Project == "" {
@@ -752,6 +756,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.timerSnap != nil {
 			m.org.TimerSnapshot = m.timerSnap
 		}
+		if msg.summary != nil {
+			m.stateSummary = msg.summary
+		}
 		m.idx = buildViewIndex(m.tasks, m.org)
 		m.ready = true
 		m.lastRefresh = time.Now()
@@ -800,12 +807,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.undo = nil
 			var e *requestError
 			if errors.As(msg.err, &e) &&
+				e.errCode == "STATE_DOING_LIMIT" &&
+				len(e.doing) > 0 &&
+				m.pendingWrite != nil {
+				opts := make([]choice, 0, len(e.doing))
+				for _, d := range e.doing {
+					opts = append(opts, choice{
+						value: "setstate.replace:" + d.UUID,
+						label: "换下：" + d.Description,
+						hint:  "将该任务退回「计划中」，腾出处理中名额",
+					})
+				}
+				m.choose(opts, -1)
+				m.message = fmt.Sprintf("处理中已满 %d/%d 项，请选择要退回计划中的任务", doingLimit, doingLimit)
+				return m, nil
+			}
+			m.pendingWrite = nil
+			if errors.As(msg.err, &e) &&
 				(e.uncertain || e.code == 409 || e.code == 423) {
 				m.blocked = true
 				m.message += " · 请刷新核对，保留草稿"
 			}
 			return m, nil
 		}
+		m.pendingWrite = nil
 		m.mode = ""
 		m.fields = nil
 		m.previewToken = ""
@@ -967,13 +992,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.timeState.SelectedDate = r.id
 				return m, m.navigate("time.today")
 			case "group":
-				m.collapsed[r.id] = !m.collapsed[r.id]
-				if m.view == "data" {
-					m.rebuildDataRows()
+				if strings.HasPrefix(r.id, "now:") && r.id != "now:doing" {
+					if m.nowExpanded == nil {
+						m.nowExpanded = map[string]bool{}
+					}
+					m.nowExpanded[r.id] = !m.nowExpanded[r.id]
+				} else {
+					m.collapsed[r.id] = !m.collapsed[r.id]
+					if m.view == "data" {
+						m.rebuildDataRows()
+					}
 				}
 			case "project":
 				return m, m.navigate("project:" + r.id)
-			case "filter", "builtin_filter":
+			case "filter":
 				return m, m.navigate("filter:" + r.id)
 			case "tag":
 				return m, m.navigate("tag:" + r.item.Name)
@@ -998,6 +1030,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if k == " " {
 			r := m.current()
 			if r.kind == "group" && !m.board {
+				if strings.HasPrefix(r.id, "now:") && r.id != "now:doing" {
+					if m.nowExpanded == nil {
+						m.nowExpanded = map[string]bool{}
+					}
+					m.nowExpanded[r.id] = !m.nowExpanded[r.id]
+					return m, nil
+				}
 				m.collapsed[r.id] = !m.collapsed[r.id]
 				if m.view == "data" {
 					m.rebuildDataRows()
@@ -1048,14 +1087,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if k == "v" {
-			if m.isTimeNavView() {
-				if m.view == "time.report" {
-					return m, m.action("time.report.group")
-				}
-			} else if m.view == "org" {
-				m.showHiddenBuiltin = !m.showHiddenBuiltin
-				m.cursor = min(m.cursor, max(0, len(m.rows())-1))
-				return m, nil
+			if m.isTimeNavView() && m.view == "time.report" {
+				return m, m.action("time.report.group")
 			}
 		}
 		actions := map[string]string{
@@ -1064,6 +1097,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			"S": "task.subtask",
 			"D": "task.description",
 			"e": "edit",
+			"t": "task.state",
 			"x": "task.toggle",
 			"s": "task.timer",
 			"m": "task.move",
@@ -1075,7 +1109,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			"n": "project.next",
 			"g": "column.new",
 			"f": "item.favorite",
-			"H": "builtin.hide",
 			"T": "time.go.today",
 			"B": "task.budget",
 			"P": "time.plan.new",
@@ -1106,14 +1139,7 @@ func (m model) handleResult(r result) (tea.Model, tea.Cmd) {
 			m.message = e.Error()
 			return m, nil
 		}
-		if isUrgencyFilterView(m.view) {
-			sort.SliceStable(p.Tasks, func(i, j int) bool {
-				if p.Tasks[i].Urgency != p.Tasks[j].Urgency {
-					return p.Tasks[i].Urgency > p.Tasks[j].Urgency
-				}
-				return p.Tasks[i].Description < p.Tasks[j].Description
-			})
-		} else if isCompletedFilterView(m.org, m.view, m.expression) {
+		if isCompletedFilterView(m.org, m.view, m.expression) {
 			sort.SliceStable(p.Tasks, func(i, j int) bool {
 				return p.Tasks[i].End > p.Tasks[j].End
 			})

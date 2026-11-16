@@ -449,13 +449,8 @@ func TestSubtasksNestingOrphanPromotionAndActiveView(t *testing.T) {
 		)
 	}
 
-	// Active view only shows running task sub2.
+	// Active tasks still have Start marker in Task struct cleanly.
 	m.query = ""
-	m.view = "filter:builtin:active"
-	vis := m.visible()
-	if len(vis) != 1 || vis[0].UUID != "sub2" {
-		t.Fatalf("expected only active task sub2, got %+v", vis)
-	}
 
 	// Responsive sizes remain bounded with nested subtasks, descriptions, priorities, and timer badges.
 	if _, ok := findFilterByID(m.org, "all-test"); !ok {
@@ -733,20 +728,22 @@ func TestCompactSingleLineFooterAndDescriptionWrapping(t *testing.T) {
 	}
 }
 
-func TestUrgencyViewSortingAndScoreDisplay(t *testing.T) {
+func TestNowViewSortingAndStateBadges(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.TrueColor)
 	lipgloss.SetHasDarkBackground(false)
 	defer lipgloss.SetColorProfile(termenv.Ascii)
 	csi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 	m := sampleModel()
-	m.view = "filter:builtin:urgency"
+	m.view = "now"
 	m.tasks = []Task{
-		{UUID: "low", Description: "低分任务", Status: "pending", Urgency: 2.3},
+		{UUID: "low", Description: "低分任务", Status: "pending", State: "doing", Urgency: 2.3},
 		{
 			UUID:        "wait",
-			Description: "未来等待",
+			Description: "等待外部反馈",
 			Status:      "waiting",
+			State:       "waiting",
+			WaitReason:  "等对方发资料",
 			Wait:        "20990101T000000Z",
 			Urgency:     25.0,
 		},
@@ -754,35 +751,42 @@ func TestUrgencyViewSortingAndScoreDisplay(t *testing.T) {
 			UUID:        "high",
 			Description: "高分紧急任务",
 			Status:      "pending",
+			State:       "doing",
 			Priority:    "H",
 			Urgency:     12.4,
+		},
+		{
+			UUID:        "blocked",
+			Description: "被阻塞任务",
+			Status:      "pending",
+			State:       "planned",
+			Depends:     []any{"high"},
+			Urgency:     8.0,
 		},
 		{UUID: "done", Description: "已完成", Status: "completed", Urgency: 30.0},
 	}
 
-	vis := m.visible()
-	cols := m.columns()
-	if len(cols) != 1 || cols[0].ID != "unsectioned" {
-		t.Fatalf("expected flat single urgency column, got %+v", cols)
-	}
 	idx := m.viewIdx()
-	ordered, _, _ := idx.groupedTasks(m, vis, "unsectioned")
-	if len(ordered) != 2 || ordered[0].UUID != "high" ||
-		ordered[1].UUID != "low" {
-		t.Fatalf(
-			"expected actionable tasks sorted descending by urgency [high, low], got %+v",
-			ordered,
-		)
+	rows := idx.rows(m, time.Now())
+	if len(rows) < 6 || rows[0].id != "now:doing" || rows[1].id != "high" || rows[2].id != "low" {
+		t.Fatalf("unexpected now view rows order (expected now:doing -> [high, low]): %+v", rows)
+	}
+	if !idx.blockedUUIDs["blocked"] {
+		t.Fatalf("expected blocked task to be detected in idx.blockedUUIDs")
 	}
 
 	f := renderFrame{now: time.Now(), idx: idx}
-	spans := m.taskMetaSpans(f, row{kind: "task", task: ordered[0]}, false)
-	rendered := csi.ReplaceAllString(renderSpans(spans, 60, 60, false), "")
-	if !strings.Contains(rendered, "12.4分") {
-		t.Fatalf(
-			"expected urgency score 12.4分 in task metadata, got %q",
-			rendered,
-		)
+	spHigh := csi.ReplaceAllString(renderSpans(m.taskMetaSpans(f, row{kind: "task", task: m.tasks[2]}, false), 60, 60, false), "")
+	if !strings.Contains(spHigh, "[处理中]") || !strings.Contains(spHigh, "12.4分") {
+		t.Fatalf("expected [处理中] & 12.4分 in task metadata, got %q", spHigh)
+	}
+	spWait := csi.ReplaceAllString(renderSpans(m.taskMetaSpans(f, row{kind: "task", task: m.tasks[1]}, false), 80, 80, false), "")
+	if !strings.Contains(spWait, "[等待:等对方发资料]") {
+		t.Fatalf("expected wait reason badge in metadata, got %q", spWait)
+	}
+	spBlocked := csi.ReplaceAllString(renderSpans(m.taskMetaSpans(f, row{kind: "task", task: m.tasks[3]}, false), 80, 80, false), "")
+	if !strings.Contains(spBlocked, "[阻塞]") {
+		t.Fatalf("expected [阻塞] in blocked task metadata, got %q", spBlocked)
 	}
 }
 

@@ -2,7 +2,6 @@ import type { HabitTaskActions } from "@/features/habits/habit-task-controls";
 import { currentLocalTodayDate } from "@/features/habits/task-habit-field";
 import type { HabitListItem } from "@core/habits/model";
 import { useHabitsWorkspace } from "@/features/habits/use-habits";
-import type { TodayHabitsActions } from "@/features/habits/today-habits-section";
 import type { OrganizationEntry } from "@/features/organization/organization-types";
 import { useEffect, useMemo, useState } from "react";
 import { isCompletedFilterExpression } from "@core/tasks/filter";
@@ -61,6 +60,28 @@ export function App() {
     data.updatePreferences,
   ]);
 
+  const workspaceSyncKey = useMemo(
+    () =>
+      `${data.organization.revision}:${data.tasks
+        .map(
+          (t) =>
+            `${t.uuid}:${t.status}:${t.description}:${t.project || ""}:${t.tags.join(",")}`,
+        )
+        .join("|")}`,
+    [data.organization.revision, data.tasks],
+  );
+  const [habitFormOpen, setHabitFormOpen] = useState(false);
+  const [editingHabit, setEditingHabit] = useState<HabitListItem | null>(null);
+  const habits = useHabitsWorkspace({
+    habitsPageActive: nav.habitsPage,
+    isTodayView: false,
+    workspaceSyncKey,
+  });
+  const habitTaskUuids = useMemo(
+    () => new Set(habits.habitByTaskUuid.keys()),
+    [habits.habitByTaskUuid],
+  );
+
   const {
     activeItem,
     activeTagName,
@@ -74,6 +95,7 @@ export function App() {
     organization: data.organization,
     tasks: data.tasks,
     projects: data.projects,
+    habitUuids: habitTaskUuids,
     isPartialScope: nav.scope.startsWith("filter="),
   });
 
@@ -127,27 +149,6 @@ export function App() {
     changeOrganization: data.changeOrganization,
   });
 
-  const workspaceSyncKey = useMemo(
-    () =>
-      `${data.organization.revision}:${data.tasks
-        .map(
-          (t) =>
-            `${t.uuid}:${t.status}:${t.description}:${t.project || ""}:${t.tags.join(",")}`,
-        )
-        .join("|")}`,
-    [data.organization.revision, data.tasks],
-  );
-  const [habitFormOpen, setHabitFormOpen] = useState(false);
-  const [editingHabit, setEditingHabit] = useState<HabitListItem | null>(null);
-  const habits = useHabitsWorkspace({
-    habitsPageActive: nav.habitsPage,
-    isTodayView:
-      (nav.view === "today" || nav.view === "now") &&
-      !nav.currentProject &&
-      !nav.specialPage,
-    workspaceSyncKey,
-  });
-
   const openEditHabit = (habit: HabitListItem) => {
     if (habit.taskUuid) {
       const linkedTask = data.tasks.find((t) => t.uuid === habit.taskUuid);
@@ -186,30 +187,6 @@ export function App() {
       },
     }),
     [habits],
-  );
-
-  const todayHabitsActions = useMemo<TodayHabitsActions>(
-    () => ({
-      disabled: habits.busy,
-      onTogglePositive: (habitId, date, completed) =>
-        void habits.togglePositive(habitId, date, completed),
-      onSetChecklistItem: (input) => void habits.setChecklistItem(input),
-      onSwitchPlan: (habitId, planId, date) =>
-        void habits.switchPlan(habitId, planId, date),
-      onRecordNegative: (habitId, date, note) =>
-        void habits.recordNegative(habitId, date, note),
-      onUndoNegative: (habitId, date, eventId) =>
-        void habits.undoNegative(habitId, date, eventId),
-      onUpdateNegativeNote: (habitId, eventId, note, date) =>
-        void habits.updateNegativeNote(habitId, eventId, note, date),
-      onSetDailyNote: (habitId, note, date) =>
-        void habits.setDailyNote(habitId, note, date),
-      onOpenHabitsPage: nav.openHabitsPage,
-      onOpenHabitDetail: (habitId) => {
-        habits.setDetailId(habitId);
-      },
-    }),
-    [habits, nav.openHabitsPage],
   );
 
   useModalOpenSync(
@@ -266,6 +243,7 @@ export function App() {
       editing: taskActions.editing,
       taskLinks,
       organization: data.organization,
+      habitUuids: habitTaskUuids,
       changeOrganization: data.changeOrganization,
     });
 
@@ -506,7 +484,6 @@ export function App() {
             habitsPage={nav.habitsPage}
             onEditHabit={openEditHabit}
             habitsController={habits}
-            todayHabitsActions={todayHabitsActions}
             stateSummary={stateActions.summary}
             nowSections={data.organization.preferences?.nowSections}
             onUpdateNowSections={(nowSections) =>
