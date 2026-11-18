@@ -626,7 +626,8 @@ func TestSelectionBackgroundIsContinuousAndSubtaskTreeAligned(t *testing.T) {
 			strings.Contains(plain1, "P2") {
 			t.Fatalf("unexpected Line 1 layout: %q", plain1)
 		}
-		if !strings.HasPrefix(plain2, "▎      ● Work.Child") ||
+		if !strings.HasPrefix(plain2, "▎      ") ||
+			!strings.Contains(plain2, "● Work.Child") ||
 			!strings.Contains(plain2, "P2") ||
 			!strings.Contains(plain2, "≡") {
 			t.Fatalf(
@@ -643,10 +644,8 @@ func TestSelectionBackgroundIsContinuousAndSubtaskTreeAligned(t *testing.T) {
 		if plain := csi.ReplaceAllString(
 			lastLines[1],
 			"",
-		); !strings.HasPrefix(
-			plain,
-			"▎      ● Work.Child",
-		) {
+		); !strings.HasPrefix(plain, "▎      ") ||
+			!strings.Contains(plain, "● Work.Child") {
 			t.Fatalf(
 				"expected aligned blank gutter after ▎ for last child, got %q",
 				plain,
@@ -786,6 +785,7 @@ func TestNowViewSortingAndStateBadges(t *testing.T) {
 	}
 
 	f := renderFrame{now: time.Now(), idx: idx}
+	// Outside a matching state group, badge renders softly without raw float urgency noise.
 	spHigh := csi.ReplaceAllString(
 		renderSpans(
 			m.taskMetaSpans(f, row{kind: "task", task: m.tasks[2]}, false),
@@ -795,9 +795,34 @@ func TestNowViewSortingAndStateBadges(t *testing.T) {
 		),
 		"",
 	)
-	if !strings.Contains(spHigh, "[处理中]") ||
-		!strings.Contains(spHigh, "12.4分") {
-		t.Fatalf("expected [处理中] & 12.4分 in task metadata, got %q", spHigh)
+	if !strings.Contains(spHigh, "处理中") ||
+		!strings.Contains(spHigh, "P1") ||
+		strings.Contains(spHigh, "12.4分") {
+		t.Fatalf(
+			"expected 处理中 & P1 without 12.4分 in task metadata, got %q",
+			spHigh,
+		)
+	}
+	// Inside matching now:doing group, redundant 处理中 badge is suppressed.
+	spDoingGrouped := csi.ReplaceAllString(
+		renderSpans(
+			m.taskMetaSpans(
+				f,
+				row{kind: "task", task: m.tasks[2], groupState: "doing"},
+				false,
+			),
+			60,
+			60,
+			false,
+		),
+		"",
+	)
+	if strings.Contains(spDoingGrouped, "处理中") ||
+		!strings.Contains(spDoingGrouped, "P1") {
+		t.Fatalf(
+			"expected grouped doing row to omit redundant badge, got %q",
+			spDoingGrouped,
+		)
 	}
 	spWait := csi.ReplaceAllString(
 		renderSpans(
@@ -808,8 +833,32 @@ func TestNowViewSortingAndStateBadges(t *testing.T) {
 		),
 		"",
 	)
-	if !strings.Contains(spWait, "[等待:等对方发资料]") {
-		t.Fatalf("expected wait reason badge in metadata, got %q", spWait)
+	if !strings.Contains(spWait, "等待:等对方发资料") ||
+		strings.Contains(spWait, "◴ 等待") {
+		t.Fatalf(
+			"expected wait reason badge without duplicate ◴ 等待, got %q",
+			spWait,
+		)
+	}
+	spWaitGrouped := csi.ReplaceAllString(
+		renderSpans(
+			m.taskMetaSpans(
+				f,
+				row{kind: "task", task: m.tasks[1], groupState: "waiting"},
+				false,
+			),
+			80,
+			80,
+			false,
+		),
+		"",
+	)
+	if !strings.Contains(spWaitGrouped, "原因:等对方发资料") ||
+		!strings.Contains(spWaitGrouped, "核对 ") {
+		t.Fatalf(
+			"expected grouped waiting row to show 原因 and 核对, got %q",
+			spWaitGrouped,
+		)
 	}
 	spBlocked := csi.ReplaceAllString(
 		renderSpans(
@@ -820,8 +869,62 @@ func TestNowViewSortingAndStateBadges(t *testing.T) {
 		),
 		"",
 	)
-	if !strings.Contains(spBlocked, "[阻塞]") {
-		t.Fatalf("expected [阻塞] in blocked task metadata, got %q", spBlocked)
+	if !strings.Contains(spBlocked, "阻塞") {
+		t.Fatalf("expected 阻塞 in blocked task metadata, got %q", spBlocked)
+	}
+
+	// Narrow budget collapses extra tags into #first +N and never leaves a dangling separator.
+	rich := Task{
+		UUID:        "rich",
+		Description: "窄宽度元信息裁剪",
+		Project:     "Work.Aster.SubModule",
+		Priority:    "H",
+		Status:      "pending",
+		State:       "parked",
+		Wait:        "20991218T000000Z",
+		Tags:        []string{"ui", "deep", "cleanup"},
+	}
+	narrowLines := m.renderTaskLines(
+		f,
+		row{kind: "task", task: rich, groupState: "parked"},
+		40,
+		false,
+	)
+	if len(narrowLines) != 2 {
+		t.Fatalf(
+			"expected 2 lines for parked task with meta, got %d",
+			len(narrowLines),
+		)
+	}
+	narrowMeta := strings.TrimRight(
+		csi.ReplaceAllString(narrowLines[1], ""),
+		" ",
+	)
+	if strings.HasSuffix(narrowMeta, "·") ||
+		strings.Contains(narrowMeta, "◴ 等待") {
+		t.Fatalf(
+			"unexpected dangling separator or wait glyph in narrow meta: %q",
+			narrowMeta,
+		)
+	}
+	if !strings.Contains(narrowMeta, "复查 ") {
+		t.Fatalf("expected parked review date label in %q", narrowMeta)
+	}
+	wideMeta := csi.ReplaceAllString(
+		renderSpans(
+			m.taskMetaSpans(
+				f,
+				row{kind: "task", task: rich, groupState: "parked"},
+				false,
+			),
+			80,
+			80,
+			false,
+		),
+		"",
+	)
+	if !strings.Contains(wideMeta, "#ui +2") {
+		t.Fatalf("expected collapsed multi-tag #ui +2, got %q", wideMeta)
 	}
 }
 

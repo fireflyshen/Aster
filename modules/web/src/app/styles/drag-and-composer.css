@@ -16,7 +16,20 @@
   height: 1px;
   background: var(--border);
   opacity: 1;
+  transition: opacity 140ms ease;
   pointer-events: none;
+}
+[data-task-surface][data-variant="list"]:is(
+    [data-selected="true"],
+    :has(:focus-visible),
+    :has([data-actions-open="true"])
+  )::after {
+  opacity: 0;
+}
+@media (hover: hover) {
+  [data-task-surface][data-variant="list"]:hover::after {
+    opacity: 0;
+  }
 }
 [data-task-surface][data-variant="list"] > div {
   position: relative;
@@ -193,30 +206,16 @@
 .task-add-section:focus-within {
   opacity: 1;
 }
-[data-task-menu] {
-  border-radius: 7px;
-  border-color: var(--input);
-  box-shadow: var(--floating-shadow);
-}
 [data-task-menu] [data-variant="navigation"] {
-  height: 32px;
-  color: var(--foreground);
+  min-height: 32px;
   font-size: 13px;
-  padding-inline: 9px;
-  border-radius: 4px;
+  border-radius: 7px;
 }
-[data-task-menu] [data-variant="navigation"] svg {
-  width: 16px;
-  height: 16px;
-  color: var(--muted-foreground);
-}
-[data-task-menu] [aria-label^="Delete task"] {
-  margin-top: 4px;
-  border-top: 1px solid var(--border);
+[data-task-menu] [data-task-menu-destructive] {
   color: var(--destructive);
 }
-[data-task-menu] [aria-label^="Delete task"] svg {
-  color: inherit;
+[data-task-menu] [data-task-menu-destructive] svg {
+  color: currentColor;
 }
 [data-todoist-composer="edit"][data-compact="true"] .task-composer-shell {
   padding: 8px 10px;

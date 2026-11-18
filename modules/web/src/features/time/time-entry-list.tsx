@@ -7,7 +7,7 @@ import type {
   LocatedSegment,
   TimelineGap,
 } from "@core/time/model";
-import { LedgerAttribution, LedgerIconButton } from "./ledger-ui";
+import { LedgerAttribution } from "./ledger-ui";
 import {
   formatClockInZone,
   formatCurrencyCny,
@@ -27,8 +27,8 @@ export function TimeEntryList({
   timeZone: string;
   loading?: boolean;
   busy: boolean;
-  onEdit: (segment: LocatedSegment) => void;
-  onFillGap: (gap: TimelineGap) => void;
+  onEdit: (segment: LocatedSegment, trigger: HTMLButtonElement) => void;
+  onFillGap: (gap: TimelineGap, trigger: HTMLButtonElement) => void;
 }) {
   const { t, locale } = useI18n();
   const [showGaps, setShowGaps] = useState(false);
@@ -72,11 +72,19 @@ export function TimeEntryList({
       ) : (
         <div className="ledger-entry-body">
           {entries.map((item) => {
-            if (item.kind === "gap")
+            if (item.kind === "gap") {
+              const startTime = formatClockInZone(item.gap.startMs, timeZone);
+              const label = t("补记 {0} 的空白", startTime);
               return (
-                <div
+                <button
+                  type="button"
                   key={`gap:${item.start}`}
                   className="ledger-entry ledger-entry-gap"
+                  aria-label={label}
+                  aria-haspopup="dialog"
+                  title={label}
+                  disabled={busy}
+                  onClick={(event) => onFillGap(item.gap, event.currentTarget)}
                 >
                   <time
                     title={formatTimeRangeInZone(
@@ -85,26 +93,20 @@ export function TimeEntryList({
                       timeZone,
                     )}
                   >
-                    {formatClockInZone(item.gap.startMs, timeZone)}
+                    {startTime}
                     <small>{formatClockInZone(item.gap.endMs, timeZone)}</small>
                   </time>
-                  <div className="ledger-entry-description">{t("空档")}</div>
+                  <span className="ledger-entry-description">{t("空档")}</span>
                   <span className="ledger-entry-duration">
                     {formatLedgerDuration(item.gap.durationSeconds, locale)}
                   </span>
                   <span className="ledger-entry-cost">—</span>
-                  <LedgerIconButton
-                    label={t(
-                      "补记 {0} 的空白",
-                      formatClockInZone(item.gap.startMs, timeZone),
-                    )}
-                    disabled={busy}
-                    onClick={() => onFillGap(item.gap)}
-                  >
+                  <span className="ledger-entry-action" aria-hidden="true">
                     <Plus className="size-3.5" />
-                  </LedgerIconButton>
-                </div>
+                  </span>
+                </button>
               );
+            }
             const segment = item.segment;
             const needsReview =
               segment.reviewState === "review_required" ||
@@ -112,10 +114,16 @@ export function TimeEntryList({
             const approximate = segment.precision === "estimated_bounds";
             const unconfirmed = needsReview && segment.confirmedSeconds === 0;
             return (
-              <article
+              <button
+                type="button"
                 key={`${segment.activityId}:${segment.startMs}`}
                 className="ledger-entry"
                 data-pending={needsReview || undefined}
+                aria-label={segment.title}
+                aria-haspopup="dialog"
+                title={t("编辑 {0}", segment.title)}
+                disabled={busy}
+                onClick={(event) => onEdit(segment, event.currentTarget)}
               >
                 <time
                   title={formatTimeRangeInZone(
@@ -134,15 +142,9 @@ export function TimeEntryList({
                     )}
                   </small>
                 </time>
-                <div className="ledger-entry-description">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onEdit(segment)}
-                  >
-                    {segment.title}
-                  </button>
-                  <div className="ledger-entry-meta">
+                <span className="ledger-entry-description">
+                  <span className="ledger-entry-title">{segment.title}</span>
+                  <span className="ledger-entry-meta">
                     <LedgerAttribution
                       project={segment.projectSnapshot}
                       tags={segment.tags}
@@ -156,8 +158,8 @@ export function TimeEntryList({
                         {t("待核对")}
                       </span>
                     )}
-                  </div>
-                </div>
+                  </span>
+                </span>
                 <span className="ledger-entry-duration">
                   {formatLedgerDuration(segment.durationSeconds, locale)}
                 </span>
@@ -176,14 +178,10 @@ export function TimeEntryList({
                     ? "—"
                     : formatCurrencyCny(segment.confirmedCostCents)}
                 </span>
-                <LedgerIconButton
-                  label={t("编辑 {0}", segment.title)}
-                  disabled={busy}
-                  onClick={() => onEdit(segment)}
-                >
+                <span className="ledger-entry-action" aria-hidden="true">
                   <Pencil className="size-3.5" />
-                </LedgerIconButton>
-              </article>
+                </span>
+              </button>
             );
           })}
         </div>

@@ -285,8 +285,10 @@ export function TimeSettingsPage({
           </div>
         </section>
 
-        <details className="ledger-disclosure ledger-settings-advanced">
-          <summary>{t("计时偏好")}</summary>
+        <details className="ledger-section-disclosure">
+          <summary>
+            <span>{t("计时偏好")}</span>
+          </summary>
 
           <div className="divide-y divide-border/35">
             <div className="flex flex-wrap items-center justify-between gap-4 py-3.5">

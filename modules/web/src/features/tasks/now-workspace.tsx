@@ -530,22 +530,6 @@ export function NowWorkspace({
                     >
                       {renderTask(task)}
                     </BoardCard>
-                    {(task.waitReason || task.wait) && (
-                      <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
-                        {task.waitReason && (
-                          <span className="mr-2">
-                            {t("原因：")}
-                            {task.waitReason}
-                          </span>
-                        )}
-                        {task.wait && (
-                          <span>
-                            {t("核对日：")}
-                            {toDueDay(task.wait) || dueLabel(task.wait)}
-                          </span>
-                        )}
-                      </div>
-                    )}
                   </div>
                 ))
               )}
@@ -599,12 +583,6 @@ export function NowWorkspace({
                     >
                       {renderTask(task)}
                     </BoardCard>
-                    {task.wait && (
-                      <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
-                        {t("复查日：")}
-                        {toDueDay(task.wait) || dueLabel(task.wait)}
-                      </div>
-                    )}
                   </div>
                 ))
               )}

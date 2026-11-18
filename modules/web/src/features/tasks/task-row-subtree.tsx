@@ -70,7 +70,7 @@ export function TaskRowSubtree({
               type="button"
               data-no-drag
               onClick={onStartAdd}
-              className="flex w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-normal text-muted-foreground transition-colors hover:bg-muted/50 hover:text-primary"
+              className="mt-1 flex h-8 w-full cursor-pointer items-center gap-2 rounded-[7px] px-1.5 text-left text-[13px] font-normal text-muted-foreground transition-colors hover:bg-(--row-hover) hover:text-primary"
             >
               <Plus className="size-3.5 text-primary" />
               <span>添加子任务</span>

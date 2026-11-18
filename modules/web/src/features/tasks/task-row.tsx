@@ -62,6 +62,7 @@ export type TaskRowProps = {
   showInbox?: boolean;
   sectionName?: string;
   variant?: "list" | "card";
+  selected?: boolean;
   transition?: { checked: boolean; phase: "checking" | "leaving" };
   subtasks?: Task[];
   isSubtask?: boolean;
@@ -110,6 +111,7 @@ export function TaskRow({
   sectionName,
   transition,
   variant = "list",
+  selected = false,
   subtasks = [],
   isSubtask = false,
   description = "",
@@ -132,6 +134,10 @@ export function TaskRow({
 
   const [editingInline, setEditingInline] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [contextMenuPoint, setContextMenuPoint] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [priorityPopoverOpen, setPriorityPopoverOpen] = useState(false);
   const [drawerPinned, setDrawerPinned] = useState(false);
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
@@ -385,6 +391,18 @@ export function TaskRow({
         <div
           data-task-surface
           data-variant={variant}
+          data-selected={selected ? "true" : undefined}
+          onContextMenu={(event) => {
+            if (disabled || editingInline || !hasMoreMenu) return;
+            const target = event.target as HTMLElement | null;
+            if (target?.closest("input, textarea, [contenteditable='true']")) {
+              return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            setContextMenuPoint({ x: event.clientX, y: event.clientY });
+            setMoreOpen(true);
+          }}
           className={cn(
             "group/row",
             variant === "card" && "[&:has(:focus-visible)]:bg-(--row-hover)",
@@ -533,7 +551,12 @@ export function TaskRow({
                   isSubtask={isSubtask}
                   actionsVisible={actionsVisible}
                   moreOpen={moreOpen}
-                  onMoreOpenChange={setMoreOpen}
+                  onMoreOpenChange={(open) => {
+                    setMoreOpen(open);
+                    if (!open) setContextMenuPoint(null);
+                  }}
+                  contextMenuPoint={contextMenuPoint}
+                  onOpenTriggerMenu={() => setContextMenuPoint(null)}
                   priorityPopoverOpen={priorityPopoverOpen}
                   onPriorityPopoverOpenChange={setPriorityPopoverOpen}
                   hasMoreMenu={hasMoreMenu}

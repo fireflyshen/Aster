@@ -63,7 +63,13 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 		cursorHere := m.navFocus && i == m.navCursor
 		softActive := !m.navFocus && activeView
 
-		prefix := "  "
+		gutter := "  "
+		if cursorHere {
+			gutter = "▎ "
+		} else if activeView {
+			gutter = "● "
+		}
+		icon := ""
 		label := e.title
 		countText := ""
 		dotColor := brand
@@ -75,13 +81,12 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 				hasDot = true
 			}
 			label = projectTreeLabel(pName, es, i)
-			prefix = "● "
-			if strings.Contains(pName, ".") {
-				prefix = "  "
-			}
-			if !hasDot {
-				dotColor = muted
-				hasDot = true
+			if !strings.Contains(pName, ".") {
+				icon = "●  "
+				if !hasDot {
+					dotColor = muted
+					hasDot = true
+				}
 			}
 			if cnt := m.org.ProjectCounts[pName]; cnt > 0 && rowW > 14 {
 				countText = fmt.Sprintf(" %d", cnt)
@@ -96,7 +101,7 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 			countText = fmt.Sprintf(" %d/3", len(f.idx.activeProjects))
 		} else if strings.HasPrefix(e.id, "filter:") {
 			filterID := strings.TrimPrefix(e.id, "filter:")
-			prefix = "★ "
+			icon = "★  "
 			if item, ok := findFilterByID(
 				m.org,
 				filterID,
@@ -111,7 +116,7 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 			}
 		} else if strings.HasPrefix(e.id, "tag:") {
 			tagName := strings.TrimPrefix(e.id, "tag:")
-			prefix = "# "
+			icon = "#  "
 			if tag, ok := f.idx.tagByName[tagName]; ok && tag.Color != "" {
 				dotColor = swatchColor(tag.Color)
 				hasDot = true
@@ -119,23 +124,19 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 				dotColor = brand
 				hasDot = true
 			}
-		} else if activeView && !cursorHere {
-			prefix = "● "
-			dotColor = brand
-			hasDot = true
-		}
-		if cursorHere {
-			prefix = "▎ "
 		}
 
-		prefixStyle := lipgloss.NewStyle().Foreground(muted)
+		gutterStyle := lipgloss.NewStyle().Foreground(muted)
+		if cursorHere || activeView {
+			gutterStyle = lipgloss.NewStyle().Foreground(brand).Bold(true)
+		}
+		iconStyle := lipgloss.NewStyle().Foreground(muted)
 		if hasDot {
-			prefixStyle = lipgloss.NewStyle().Foreground(dotColor)
+			iconStyle = lipgloss.NewStyle().Foreground(dotColor)
 		}
 		textStyle := lipgloss.NewStyle().Foreground(ink)
 		countStyle := lipgloss.NewStyle().Foreground(muted)
 		if cursorHere {
-			prefixStyle = lipgloss.NewStyle().Foreground(brand).Bold(true)
 			textStyle = lipgloss.NewStyle().Foreground(selectedFG).Bold(true)
 			countStyle = lipgloss.NewStyle().Foreground(muted)
 		} else if softActive {
@@ -143,20 +144,12 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 			countStyle = lipgloss.NewStyle().Foreground(brand)
 		}
 
-		maxTitleW := max(
-			4,
-			rowW-lipgloss.Width(prefix)-lipgloss.Width(countText),
-		)
+		leadW := lipgloss.Width(gutter) + lipgloss.Width(icon)
+		maxTitleW := max(4, rowW-leadW-lipgloss.Width(countText))
 		clippedLabel := clip(label, maxTitleW)
 		gap := max(
 			0,
-			rowW-lipgloss.Width(
-				prefix,
-			)-lipgloss.Width(
-				clippedLabel,
-			)-lipgloss.Width(
-				countText,
-			),
+			rowW-leadW-lipgloss.Width(clippedLabel)-lipgloss.Width(countText),
 		)
 		treePrefix, displayLabel := "", clippedLabel
 		if strings.HasPrefix(e.id, "project:") {
@@ -168,7 +161,8 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 			}
 		}
 		spans := []styledSpan{
-			span(prefix, prefixStyle),
+			span(gutter, gutterStyle),
+			span(icon, iconStyle),
 			span(treePrefix, lipgloss.NewStyle().Foreground(treeLine)),
 			span(displayLabel, textStyle),
 			span(strings.Repeat(" ", gap), textStyle),
@@ -180,77 +174,221 @@ func (m model) sidebar(w, h int, f renderFrame) string {
 }
 
 func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
+	return m.taskMetaSpansBudget(f, r, selected, 0)
+}
+
+func (m model) taskMetaSpansBudget(
+	f renderFrame,
+	r row,
+	selected bool,
+	maxWidth int,
+) []styledSpan {
 	t := r.task
 	td := f.idx.dates[t.UUID]
-	waiting := t.Status == "waiting" || td.wait.After(f.now)
 	sepStyle := dim
 	textStyle := softText
 	if selected {
 		textStyle = lipgloss.NewStyle().Foreground(selectedFG)
 	}
-	var groups [][]styledSpan
+	var groups []metaGroup
 
 	if r.parentTitle != "" {
-		groups = append(
-			groups,
-			[]styledSpan{span("↳ "+clip(clean(r.parentTitle), 18), dim)},
-		)
+		groups = append(groups, metaGroup{
+			spans: []styledSpan{span("↳ "+clip(clean(r.parentTitle), 18), dim)},
+		})
 	}
-	if eff := effectiveTaskState(
-		t,
-		td,
-		f.idx.projByName,
-		f.now,
-	); eff != "" &&
-		eff != "planned" {
-		var stLbl string
-		stCol := muted
-		stBold := false
-		switch eff {
-		case "doing":
-			stLbl = "处理中"
-			stCol = timerColor
-			stBold = true
-		case "scheduled":
-			when := t.Scheduled
-			if when == "" {
-				when = t.Wait
+
+	eff := effectiveTaskState(t, td, f.idx.projByName, f.now)
+	sameGroup := r.groupState != "" && r.groupState == eff
+	if eff != "" && eff != "planned" {
+		if !sameGroup {
+			var stLbl string
+			switch eff {
+			case "doing":
+				stLbl = "处理中"
+			case "scheduled":
+				when := t.Scheduled
+				if when == "" {
+					when = t.Wait
+				}
+				if s := shownDate(when); s != "" {
+					stLbl = "排期 " + strings.Split(s, " ")[0]
+				} else {
+					stLbl = "已排期"
+				}
+			case "waiting":
+				stLbl = "等待中"
+				if wr := clean(t.WaitReason); wr != "" {
+					stLbl = "等待:" + clip(wr, 14)
+				}
+			case "parked":
+				stLbl = "长期搁置"
 			}
-			if s := shownDate(when); s != "" {
-				stLbl = "排期 " + strings.Split(s, " ")[0]
-			} else {
-				stLbl = "已排期"
+			if stLbl != "" {
+				groups = append(groups, metaGroup{
+					spans: []styledSpan{
+						pillSpan(" "+stLbl+" ", stateBadgeStyle(eff)),
+					},
+				})
 			}
-			stCol = brand
-		case "waiting":
-			stLbl = "等待中"
+		} else if eff == "waiting" {
 			if wr := clean(t.WaitReason); wr != "" {
-				stLbl = "等待:" + clip(wr, 14)
+				groups = append(groups, metaGroup{
+					spans: []styledSpan{
+						span(
+							"原因:"+clip(wr, 22),
+							lipgloss.NewStyle().Foreground(warnColor),
+						),
+					},
+					trimmable: true,
+					minWidth:  10,
+				})
 			}
-			stCol = warnColor
-		case "parked":
-			stLbl = "长期搁置"
-			stCol = muted
+			if t.Wait != "" {
+				if d := shownDate(t.Wait); d != "" {
+					groups = append(groups, metaGroup{
+						spans: []styledSpan{
+							span("核对 "+strings.Split(d, " ")[0], dim),
+						},
+					})
+				}
+			}
+		} else if eff == "parked" && t.Wait != "" {
+			if d := shownDate(t.Wait); d != "" {
+				groups = append(groups, metaGroup{
+					spans: []styledSpan{
+						span("复查 "+strings.Split(d, " ")[0], dim),
+					},
+				})
+			}
 		}
-		if stLbl != "" {
-			st := lipgloss.NewStyle().Foreground(stCol)
-			if stBold {
+	}
+
+	if f.idx.blockedUUIDs[t.UUID] {
+		groups = append(groups, metaGroup{
+			spans: []styledSpan{pillSpan(" 阻塞 ", blockedBadgeStyle())},
+		})
+	}
+
+	if t.Due != "" {
+		lbl, c := dueLabel(td.due, t.Due, t.Status == "completed", f.now)
+		if lbl != "" {
+			st := lipgloss.NewStyle().Foreground(c)
+			if strings.HasPrefix(lbl, "逾期 ") {
 				st = st.Bold(true)
 			}
-			groups = append(groups, []styledSpan{span("["+stLbl+"]", st)})
+			groups = append(
+				groups,
+				metaGroup{spans: []styledSpan{span(lbl, st)}},
+			)
 		}
 	}
-	if f.idx.blockedUUIDs[t.UUID] {
+
+	if st, ok := f.idx.subStats[t.UUID]; ok && st.total > 0 {
+		arrow := "▸ "
+		if m.expandedSubtasks[t.UUID] || m.query != "" {
+			arrow = "▾ "
+		}
+		subStyle := softText
+		subText := fmt.Sprintf("%s%d/%d", arrow, st.done, st.total)
+		if st.done == st.total {
+			subStyle = lipgloss.NewStyle().Foreground(okColor)
+			subText = arrow + fmt.Sprintf("✓ %d/%d", st.done, st.total)
+		}
 		groups = append(
 			groups,
-			[]styledSpan{
-				span(
-					"[阻塞]",
-					lipgloss.NewStyle().Foreground(dangerColor).Bold(true),
-				),
-			},
+			metaGroup{spans: []styledSpan{span(subText, subStyle)}},
 		)
 	}
+
+	if pCode := priorityCode(
+		t.Priority,
+	); pCode != "" &&
+		t.Status != "completed" {
+		groups = append(groups, metaGroup{
+			spans: []styledSpan{span(pCode, priorityStyle(t.Priority, false))},
+		})
+	}
+
+	isTimeMode, isTiming, started, secs, secsKnown := m.resolveTaskTiming(
+		t,
+		td,
+		f.now,
+	)
+	if isTimeMode {
+		_, cappedExtra, _ := m.snapshotLiveStatus(f.now)
+		liveExtra := 0.0
+		if isTiming {
+			liveExtra = cappedExtra
+		}
+		if handled, costGroups := m.renderTaskMetaTimeCost(
+			t,
+			isTiming,
+			started,
+			secs,
+			secsKnown,
+			liveExtra,
+		); handled {
+			for _, cg := range costGroups {
+				groups = append(groups, metaGroup{spans: cg})
+			}
+		} else if !secsKnown {
+			lbl := "⧖ —"
+			st := dim
+			if isTiming {
+				lbl = "▶ —"
+				st = lipgloss.NewStyle().Foreground(timerColor).Bold(true)
+			} else if started {
+				lbl = "▷ —"
+			}
+			groups = append(
+				groups,
+				metaGroup{spans: []styledSpan{span(lbl, st)}},
+			)
+		} else if isTiming {
+			groups = append(groups, metaGroup{
+				spans: []styledSpan{
+					span(
+						"▶ "+formatDurationShort(secs),
+						lipgloss.NewStyle().Foreground(timerColor).Bold(true),
+					),
+				},
+			})
+		} else if started {
+			groups = append(groups, metaGroup{
+				spans: []styledSpan{
+					span(
+						"▷ "+formatDurationShort(secs),
+						lipgloss.NewStyle().Foreground(warnColor),
+					),
+				},
+			})
+		} else if secs >= 60 {
+			groups = append(groups, metaGroup{
+				spans: []styledSpan{span("⧖ "+formatDurationShort(secs), dim)},
+			})
+		}
+	} else {
+		if t.Start != "" && !td.start.IsZero() && t.Status != "completed" {
+			groups = append(groups, metaGroup{
+				spans: []styledSpan{
+					span(
+						"▶ "+formatDurationShort(f.now.Sub(td.start).Seconds()),
+						lipgloss.NewStyle().Foreground(timerColor).Bold(true),
+					),
+				},
+			})
+		} else if m.org.Energy != nil {
+			if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
+				groups = append(groups, metaGroup{
+					spans: []styledSpan{
+						span("⧖ "+formatDurationShort(secs), dim),
+					},
+				})
+			}
+		}
+	}
+
 	showProject := t.Project != ""
 	if showProject {
 		if strings.HasPrefix(m.view, "project:") &&
@@ -273,150 +411,57 @@ func (m model) taskMetaSpans(f renderFrame, r row, selected bool) []styledSpan {
 		if p, ok := f.idx.projByName[t.Project]; ok && p.Color != "" {
 			c = swatchColor(p.Color)
 		}
-		groups = append(groups, []styledSpan{
-			span("●", lipgloss.NewStyle().Foreground(c)),
-			span(" ", textStyle),
-			span(clean(t.Project), textStyle),
+		groups = append(groups, metaGroup{
+			spans: []styledSpan{
+				span("●", lipgloss.NewStyle().Foreground(c)),
+				span(" ", textStyle),
+				span(clean(t.Project), textStyle),
+			},
+			trimmable: true,
+			minWidth:  10,
 		})
 	}
-	if t.Due != "" {
-		lbl, c := dueLabel(td.due, t.Due, t.Status == "completed", f.now)
-		if lbl != "" {
-			st := lipgloss.NewStyle().Foreground(c)
-			if strings.HasPrefix(lbl, "逾期 ") {
-				st = st.Bold(true)
-			}
-			groups = append(groups, []styledSpan{span(lbl, st)})
-		}
-	}
-	if st, ok := f.idx.subStats[t.UUID]; ok && st.total > 0 {
-		arrow := "▸ "
-		if m.expandedSubtasks[t.UUID] || m.query != "" {
-			arrow = "▾ "
-		}
-		subStyle := softText
-		subText := fmt.Sprintf("%s%d/%d", arrow, st.done, st.total)
-		if st.done == st.total {
-			subStyle = lipgloss.NewStyle().Foreground(okColor)
-			subText = arrow + fmt.Sprintf("✓ %d/%d", st.done, st.total)
-		}
-		groups = append(groups, []styledSpan{span(subText, subStyle)})
-	}
-	if pCode := priorityCode(
-		t.Priority,
-	); pCode != "" &&
-		t.Status != "completed" {
-		groups = append(
-			groups,
-			[]styledSpan{span(pCode, priorityStyle(t.Priority, false))},
-		)
-	}
-	if t.Urgency > 0 && t.Status != "completed" {
-		uStyle := dim
-		if t.Urgency >= 10 {
-			uStyle = lipgloss.NewStyle().Foreground(warnColor)
-		}
-		groups = append(
-			groups,
-			[]styledSpan{span(fmt.Sprintf("%.1f分", t.Urgency), uStyle)},
-		)
-	}
-	isTimeMode, isTiming, started, secs, secsKnown := m.resolveTaskTiming(
-		t,
-		td,
-		f.now,
-	)
-	if isTimeMode {
-		_, cappedExtra, _ := m.snapshotLiveStatus(f.now)
-		liveExtra := 0.0
-		if isTiming {
-			liveExtra = cappedExtra
-		}
-		if handled, costGroups := m.renderTaskMetaTimeCost(
-			t,
-			isTiming,
-			started,
-			secs,
-			secsKnown,
-			liveExtra,
-		); handled {
-			groups = append(groups, costGroups...)
-		} else if !secsKnown {
-			lbl := "⧖ —"
-			st := dim
-			if isTiming {
-				lbl = "▶ —"
-				st = lipgloss.NewStyle().Foreground(timerColor).Bold(true)
-			} else if started {
-				lbl = "▷ —"
-			}
-			groups = append(groups, []styledSpan{span(lbl, st)})
-		} else if isTiming {
-			groups = append(groups, []styledSpan{
-				span(
-					"▶ "+formatDurationShort(secs),
-					lipgloss.NewStyle().Foreground(timerColor).Bold(true),
-				),
-			})
-		} else if started {
-			groups = append(groups, []styledSpan{
-				span(
-					"▷ "+formatDurationShort(secs),
-					lipgloss.NewStyle().Foreground(warnColor),
-				),
-			})
-		} else if secs >= 60 {
-			groups = append(groups, []styledSpan{
-				span("⧖ "+formatDurationShort(secs), dim),
-			})
-		}
-	} else {
-		if t.Start != "" && !td.start.IsZero() && t.Status != "completed" {
-			groups = append(groups, []styledSpan{
-				span(
-					"▶ "+formatDurationShort(f.now.Sub(td.start).Seconds()),
-					lipgloss.NewStyle().Foreground(timerColor).Bold(true),
-				),
-			})
-		} else if m.org.Energy != nil {
-			if secs := m.org.Energy.TaskSeconds[t.UUID]; secs >= 60 {
-				groups = append(groups, []styledSpan{
-					span("⧖ "+formatDurationShort(secs), dim),
-				})
-			}
-		}
-	}
-	for _, tag := range t.Tags {
+
+	if len(t.Tags) > 0 {
+		firstTag := clean(t.Tags[0])
 		c := muted
-		if item, ok := f.idx.tagByName[tag]; ok && item.Color != "" {
+		if item, ok := f.idx.tagByName[t.Tags[0]]; ok && item.Color != "" {
 			c = swatchColor(item.Color)
 		}
-		groups = append(groups, []styledSpan{
-			span("#"+clean(tag), lipgloss.NewStyle().Foreground(c)),
+		tagSpans := []styledSpan{
+			span("#"+firstTag, lipgloss.NewStyle().Foreground(c)),
+		}
+		if len(t.Tags) > 1 {
+			tagSpans = append(
+				tagSpans,
+				span(" ", textStyle),
+				pillSpan(
+					fmt.Sprintf("+%d", len(t.Tags)-1),
+					lipgloss.NewStyle().
+						Foreground(muted).
+						Background(tagMorePillBG),
+				),
+			)
+		}
+		groups = append(groups, metaGroup{
+			spans:     tagSpans,
+			trimmable: true,
+			minWidth:  8,
 		})
 	}
+
 	if t.Recur != "" {
-		groups = append(groups, []styledSpan{
-			span("↻ "+clean(t.Recur), dim),
-		})
-	}
-	if waiting {
-		groups = append(groups, []styledSpan{
-			span("◴ 等待", lipgloss.NewStyle().Foreground(warnColor)),
+		groups = append(groups, metaGroup{
+			spans: []styledSpan{span("↻ "+clean(t.Recur), dim)},
 		})
 	}
 	if strings.TrimSpace(m.org.Descriptions[t.UUID]) != "" {
-		groups = append(groups, []styledSpan{span("≡", dim)})
+		groups = append(groups, metaGroup{
+			spans: []styledSpan{span("≡", dim)},
+		})
 	}
 
-	var spans []styledSpan
-	for i, g := range groups {
-		if i > 0 {
-			spans = append(spans, span(" · ", sepStyle))
-		}
-		spans = append(spans, g...)
-	}
-	return spans
+	return fitMetaGroups(groups, span(" · ", sepStyle), maxWidth)
 }
 
 func (m model) renderTaskLines(
@@ -484,13 +529,21 @@ func (m model) renderTaskLines(
 	}
 	out := []string{renderSpans(line1Spans, width, width, selected)}
 
-	if metaSpans := m.taskMetaSpans(f, r, selected); len(metaSpans) > 0 {
-		line2Spans := []styledSpan{
-			span(marker, markerStyle),
-			span(metaTree, treeStyle),
-			span("  ", titleStyle),
-		}
-		line2Spans = append(line2Spans, metaSpans...)
+	line2Prefix := []styledSpan{
+		span(marker, markerStyle),
+		span(metaTree, treeStyle),
+		span("  ", titleStyle),
+	}
+	metaBudget := max(12, width-spansWidth(line2Prefix))
+	if metaSpans := m.taskMetaSpansBudget(
+		f,
+		r,
+		selected,
+		metaBudget,
+	); len(
+		metaSpans,
+	) > 0 {
+		line2Spans := append(line2Prefix, metaSpans...)
 		out = append(out, renderSpans(line2Spans, width, width, selected))
 	}
 	return out
@@ -503,7 +556,7 @@ func (m model) list(w, h int, f renderFrame) string {
 	var lines []string
 	if m.view == "focus" {
 		active := f.idx.activeProjects
-		bannerW := max(10, w-5)
+		bannerW := max(10, w-4)
 		if len(active) == 0 {
 			lines = append(lines, dim.Render("按 p 选择聚焦项目（最多 3 个），或按 Tab 切换工作区"))
 		} else {
@@ -1444,6 +1497,33 @@ func (m model) overlay(w, h int) string {
 	)
 }
 
+func helpContent(w, h int) (int, int, []string) {
+	pw := min(74, max(24, w-2))
+	ph := min(20, max(6, h))
+	raw := []string{
+		"Tab / ← →        切换左侧导航 / 右侧任务区",
+		"↑ ↓ / j k        上下选择条目",
+		"Enter / Space    详情 / 打开项目 / 折展分组或子任务",
+		": / Ctrl+K       搜索并执行所有操作",
+		"a / A / S        新建任务 / 一句话 / 添加子任务",
+		"e / D / x / s    编辑 / 任务描述 / 完成 / 计时",
+		"t / ! / @ / m    切换状态 / 优先级 / 改期 / 移动排序",
+		"d / u / r        删除 / 撤销最近操作 / 刷新核对",
+		"b / ← →          列表看板切换 / 切换栏目",
+		"p / n / g        Focus 项目 / 下一步 / 新增分组",
+		"f                收藏过滤器或标签",
+		"T / B / P / $    时间视图 / 设预算 / 建计划 / 联账单",
+		"c / , / [ ] .    确认或明细 / 单价设置 / 时间翻期",
+		"w / o            成本报告周月 / 排序切换",
+		"/ / PgUp / PgDn  搜索视图 / 滚动详情",
+		"表单按键         Tab 切换 · Enter 选择 · Ctrl+S 保存",
+		"Esc / q          关闭或暂存草稿 / 退出",
+	}
+	innerW := max(10, pw-4)
+	lines := strings.Split(wrap(strings.Join(raw, "\n"), innerW), "\n")
+	return pw, ph, lines
+}
+
 func (m model) View() string {
 	w, h := max(30, m.width), max(12, m.height)
 	now := time.Now()
@@ -1598,37 +1678,25 @@ func (m model) View() string {
 	contentHeight := max(5, h-2)
 	var body string
 	if m.help {
+		pw, ph, lines := helpContent(w, contentHeight)
+		page := max(1, ph-4)
+		scroll := min(m.helpScroll, max(0, len(lines)-page))
+		visible := lines[scroll:min(len(lines), scroll+page)]
+		hint := ""
+		if len(lines) > page {
+			hint = "j/k · PgUp/PgDn"
+		}
 		body = lipgloss.Place(
 			w,
 			contentHeight,
 			lipgloss.Center,
 			lipgloss.Center,
-			panel(
+			panelWithRight(
 				"键盘快捷键",
-				strings.Join(
-					[]string{
-						"Tab / ← →        切换左侧导航 / 右侧任务区",
-						"↑ ↓ / j k        上下选择条目",
-						"Enter / Space    详情 / 打开项目 / 折展分组或子任务",
-						": / Ctrl+K       搜索并执行所有操作",
-						"a / A / S        新建任务 / 一句话 / 添加子任务",
-						"e / D / x / s    编辑 / 任务描述 / 完成 / 计时",
-						"t / ! / @ / m    切换状态 / 优先级 / 改期 / 移动排序",
-						"d / u / r        删除 / 撤销最近操作 / 刷新核对",
-						"b / ← →          列表看板切换 / 切换栏目",
-						"p / n / g        Focus 项目 / 下一步 / 新增分组",
-						"f                收藏过滤器或标签",
-						"T / B / P / $    时间视图 / 设预算 / 建计划 / 联账单",
-						"c / , / [ ] .    确认或明细 / 单价设置 / 时间翻期",
-						"w / o            成本报告周月 / 排序切换",
-						"/ / PgUp / PgDn  搜索视图 / 滚动详情",
-						"表单按键         Tab 切换 · Enter 选择 · Ctrl+S 保存",
-						"Esc / q          关闭或暂存草稿 / 退出",
-					},
-					"\n",
-				),
-				min(74, w-2),
-				min(20, contentHeight),
+				hint,
+				strings.Join(visible, "\n"),
+				pw,
+				ph,
 				true,
 			),
 		)
@@ -1861,17 +1929,18 @@ func (m model) boardView(w, h int, f renderFrame) string {
 					renderSpans(rowSpans, cardW, cardW, selected),
 				)
 			}
-			if metaSpans := m.taskMetaSpans(
+			metaPrefix := []styledSpan{
+				span(marker, markerSt),
+				span(metaTree, treeSt),
+				span("  ", titleSt),
+			}
+			if metaSpans := m.taskMetaSpansBudget(
 				f,
 				row{task: t, depth: depth[t.UUID]},
 				selected,
+				max(12, cardW-spansWidth(metaPrefix)),
 			); len(metaSpans) > 0 {
-				lineSpans := []styledSpan{
-					span(marker, markerSt),
-					span(metaTree, treeSt),
-					span("  ", titleSt),
-				}
-				lineSpans = append(lineSpans, metaSpans...)
+				lineSpans := append(metaPrefix, metaSpans...)
 				lines = append(
 					lines,
 					renderSpans(lineSpans, cardW, cardW, selected),

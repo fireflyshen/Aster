@@ -19,7 +19,7 @@ import {
 } from "@core/workspace/projects";
 import type { View } from "@shared/tasks";
 import { cn } from "cn";
-import { PanelLeft, Plus, RotateCw, Search } from "lucide-react";
+import { PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
 import type {
   CompleteBehavior,
   TimePage,
@@ -30,13 +30,12 @@ import { WorkspaceHeadingMenu } from "./workspace-heading-menu";
 type WorkspaceToolbarProps = {
   navOpen: boolean;
   searchOpen: boolean;
-  query: string;
+  canSearchTasks: boolean;
   loading: boolean;
   busy: boolean;
   addDisabled: boolean;
   onAdd: () => void;
   onOpenNav: () => void;
-  onOpenCommand: () => void;
   onToggleSearch: () => void;
   onRefresh: () => void;
 };
@@ -44,17 +43,20 @@ type WorkspaceToolbarProps = {
 export function WorkspaceToolbar({
   navOpen,
   searchOpen,
-  query,
+  canSearchTasks,
   loading,
   busy,
   addDisabled,
   onAdd,
   onOpenNav,
-  onOpenCommand,
   onToggleSearch,
   onRefresh,
 }: WorkspaceToolbarProps) {
   const { t } = useI18n();
+  const searchLabel = t(
+    canSearchTasks ? (searchOpen ? "关闭搜索" : "搜索任务") : "快速查找",
+  );
+  const SearchIcon = searchOpen ? X : Search;
   return (
     <header className="workspace-toolbar sticky top-0 z-20 flex h-12 items-center bg-background/90 backdrop-blur">
       <div className="workspace-frame flex items-center justify-between gap-2">
@@ -88,34 +90,26 @@ export function WorkspaceToolbar({
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          {!navOpen && (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("快速查找 (⌘K)")}
-              className="hidden sm:inline-flex"
-              onClick={onOpenCommand}
-            >
-              <Search className="size-[18px]" strokeWidth={1.5} />
-            </Button>
-          )}
           <Button
             variant="ghost"
             size="icon-sm"
             id="search-toggle"
-            aria-label={searchOpen || query ? t("关闭搜索") : t("搜索任务")}
-            aria-expanded={Boolean(searchOpen || query)}
-            aria-controls="task-search"
+            aria-label={searchLabel}
+            title={searchLabel}
+            aria-expanded={canSearchTasks ? searchOpen : undefined}
+            aria-controls={searchOpen ? "task-search" : undefined}
+            aria-haspopup={canSearchTasks ? undefined : "dialog"}
             aria-keyshortcuts="/"
             onClick={onToggleSearch}
-            className="text-muted-foreground hover:text-foreground sm:hidden"
+            className="text-muted-foreground hover:text-foreground"
           >
-            <Search className="size-[18px]" strokeWidth={1.5} />
+            <SearchIcon className="size-[18px]" strokeWidth={1.5} />
           </Button>
           <Button
             variant="ghost"
             size="icon-sm"
             aria-label={t("刷新任务")}
+            title={t("刷新任务")}
             disabled={loading || busy}
             onClick={onRefresh}
             className="text-muted-foreground hover:text-foreground"
@@ -139,7 +133,7 @@ type WorkspaceHeadingProps = {
   projectsPage: boolean;
   timePage?: TimePage | null;
   habitsPage?: boolean;
-  specialPage: boolean;
+  showDisplayOptions: boolean;
   organizationReady: boolean;
   organizationSaving: boolean;
   busy: boolean;
@@ -185,7 +179,7 @@ export function WorkspaceHeading({
   projectsPage,
   timePage = null,
   habitsPage = false,
-  specialPage,
+  showDisplayOptions,
   organizationReady,
   organizationSaving,
   busy,
@@ -291,7 +285,7 @@ export function WorkspaceHeading({
 
       <div
         data-workspace-heading
-        className="mb-5 flex min-h-10 items-start justify-between gap-3"
+        className="mb-4 flex min-h-8 items-start justify-between gap-3"
       >
         <div className="flex min-w-0 flex-col">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -357,7 +351,7 @@ export function WorkspaceHeading({
           )}
         </div>
 
-        {!organizationPage && (!specialPage || activeItem) && (
+        {showDisplayOptions && (
           <div className="workspace-view-controls flex shrink-0 items-center gap-1.5">
             <WorkspaceDisplayOptions
               disabled={disabled}

@@ -59,10 +59,8 @@ export function SidebarFavorites({
   ];
   if (!entries.length) return null;
   return (
-    <>
-      <p className="mt-6 mb-1.5 px-2.5 text-xs font-medium text-muted-foreground">
-        {t("收藏")}
-      </p>
+    <div className="sidebar-nav-section">
+      <p className="sidebar-nav-label">{t("收藏")}</p>
       <nav aria-label={t("收藏")} className="space-y-0.5">
         {entries.map((entry) => {
           const { item, kind } = entry;
@@ -89,7 +87,7 @@ export function SidebarFavorites({
                 className="min-w-0 flex-1"
               >
                 <Icon
-                  className="size-5"
+                  className="size-[18px] shrink-0"
                   style={{ color: itemColor(item.color) }}
                 />
                 <span className="truncate">{item.name}</span>
@@ -115,7 +113,7 @@ export function SidebarFavorites({
           );
         })}
       </nav>
-    </>
+    </div>
   );
 }
 
@@ -156,15 +154,15 @@ export function SidebarProjectsSection({
     !organizationPage && !hasActiveItem ? currentProject : undefined;
 
   return (
-    <>
-      <div className="mt-6 mb-1 flex items-center justify-between pl-0.5">
+    <div className="sidebar-nav-section flex-1">
+      <div className="mb-0.5 flex shrink-0 items-center justify-between pr-1">
         <Button
           variant="ghost"
           onClick={onProjects}
           disabled={disabled}
           aria-label={t("管理项目")}
           aria-current={organizationPage && projectsPage ? "page" : undefined}
-          className="h-7 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-navigation-hover hover:text-foreground aria-[current=page]:bg-navigation-selected aria-[current=page]:text-foreground"
+          className="h-6 rounded-md px-3 text-[11px] font-medium tracking-wide text-muted-foreground/85 hover:bg-navigation-hover hover:text-foreground aria-[current=page]:bg-navigation-selected aria-[current=page]:text-foreground"
         >
           {t("我的项目")}
         </Button>
@@ -174,9 +172,9 @@ export function SidebarProjectsSection({
           aria-label={t("添加项目")}
           disabled={disabled}
           onClick={onAddProject}
-          className="size-7 text-muted-foreground hover:bg-navigation-hover hover:text-foreground"
+          className="size-6 rounded-md text-muted-foreground/85 hover:bg-navigation-hover hover:text-foreground"
         >
-          <Plus className="size-4" />
+          <Plus className="size-3.5" />
         </Button>
       </div>
       <nav aria-label={t("项目")} className="flex-1 space-y-0.5">
@@ -205,7 +203,7 @@ export function SidebarProjectsSection({
           </Button>
         )}
       </nav>
-    </>
+    </div>
   );
 }
 
@@ -263,7 +261,7 @@ export function SidebarEnergyMeter({
       {isTimeMode && timerSnapshot && timerSnapshot.state !== "ready" && (
         <div
           role="status"
-          className="mt-6 space-y-1 px-2.5 text-xs leading-5 text-muted-foreground"
+          className="mt-4 space-y-1 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-2 text-xs leading-5 text-muted-foreground"
         >
           <p className="font-medium text-foreground">
             {timerSnapshot.state === "pending_reconcile"
@@ -357,7 +355,7 @@ export function SidebarEnergyMeter({
       {!isTimeMode && timingUnavailable && (
         <div
           role="status"
-          className="mt-6 space-y-1 px-2.5 text-xs leading-5 text-muted-foreground"
+          className="mt-4 space-y-1 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-2 text-xs leading-5 text-muted-foreground"
         >
           <p>{t("计时数据不可用")}</p>
           <p>{t("暂时无法计算精力值。")}</p>

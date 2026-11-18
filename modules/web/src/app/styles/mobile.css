@@ -295,7 +295,6 @@
     font-size: 14px;
   }
   [data-task-menu] [data-size^="icon"] {
-    min-width: 44px;
     min-height: 44px;
   }
   [data-task-menu-dates] button {

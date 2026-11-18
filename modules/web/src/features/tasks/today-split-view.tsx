@@ -173,10 +173,9 @@ export function TodaySplitView({
           {todayEntries.length === 0
             ? !hasSearch && (
                 <div className="today-empty">
-                  <CheckCircle2
-                    className="mb-3 size-7 text-muted-foreground/55"
-                    strokeWidth={1.4}
-                  />
+                  <span className="flex size-8 items-center justify-center rounded-full bg-muted/70 text-muted-foreground">
+                    <CheckCircle2 className="size-4" strokeWidth={1.6} />
+                  </span>
                   <h3 className="text-sm font-medium text-foreground">
                     {overdueEntries.length
                       ? t("今天暂无安排")

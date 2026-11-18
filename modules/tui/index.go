@@ -716,17 +716,41 @@ func (idx viewIndex) nowRows(m model, now time.Time) []row {
 	})
 
 	type nowSection struct {
-		id        string
+		id, state string
 		title     string
 		tasks     []Task
 		openByDef bool
 	}
 	doingTitle := "处理中"
 	sections := []nowSection{
-		{id: "now:doing", title: doingTitle, tasks: doing, openByDef: true},
-		{id: "now:planned", title: "计划中", tasks: planned, openByDef: false},
-		{id: "now:waiting", title: "等待中", tasks: waiting, openByDef: false},
-		{id: "now:parked", title: "长期搁置", tasks: parked, openByDef: false},
+		{
+			id:        "now:doing",
+			state:     "doing",
+			title:     doingTitle,
+			tasks:     doing,
+			openByDef: true,
+		},
+		{
+			id:        "now:planned",
+			state:     "planned",
+			title:     "计划中",
+			tasks:     planned,
+			openByDef: false,
+		},
+		{
+			id:        "now:waiting",
+			state:     "waiting",
+			title:     "等待中",
+			tasks:     waiting,
+			openByDef: false,
+		},
+		{
+			id:        "now:parked",
+			state:     "parked",
+			title:     "长期搁置",
+			tasks:     parked,
+			openByDef: false,
+		},
 	}
 
 	var out []row
@@ -747,10 +771,9 @@ func (idx viewIndex) nowRows(m model, now time.Time) []row {
 			continue
 		}
 		for _, t := range items {
-			out = append(
-				out,
-				idx.makeTaskRow(t, depth[t.UUID], lastChild[t.UUID]),
-			)
+			tr := idx.makeTaskRow(t, depth[t.UUID], lastChild[t.UUID])
+			tr.groupState = sec.state
+			out = append(out, tr)
 		}
 	}
 	return out

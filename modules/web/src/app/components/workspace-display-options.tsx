@@ -110,7 +110,7 @@ export function WorkspaceDisplayOptions({
               <SelectContent>
                 {groupOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.label)}
                   </SelectItem>
                 ))}
               </SelectContent>

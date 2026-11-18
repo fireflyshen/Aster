@@ -1,5 +1,5 @@
 import { useI18n } from "@/app/language";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { FilePlus2, Play } from "lucide-react";
 import type {
   Activity,
@@ -99,6 +99,7 @@ export function TimeTodayPage({
   const [locating, setLocating] = useState<Activity | null>(null);
   const [editing, setEditing] = useState<LocatedSegment | null>(null);
   const [requestedPlanId, setRequestedPlanId] = useState<string>();
+  const dialogTrigger = useRef<HTMLButtonElement | null>(null);
   const projectOptions = useMemo(
     () => collectProjectOptions(projects || [], tasks),
     [projects, tasks],
@@ -107,6 +108,15 @@ export function TimeTodayPage({
     () => collectTagOptions(availableLabels || [], tasks),
     [availableLabels, tasks],
   );
+  function restoreDialogFocus(event: Event) {
+    const trigger = dialogTrigger.current;
+    dialogTrigger.current = null;
+    if (trigger?.isConnected && !trigger.disabled) {
+      event.preventDefault();
+      trigger.focus({ preventScroll: true });
+    }
+  }
+
   function openLog(gap?: TimelineGap) {
     const end =
       gap?.endMs ??
@@ -165,7 +175,10 @@ export function TimeTodayPage({
         <LedgerIconButton
           label={t("补记")}
           disabled={busy || !currentDateLoaded}
-          onClick={() => openLog()}
+          onClick={(event) => {
+            dialogTrigger.current = event.currentTarget;
+            openLog();
+          }}
         >
           <FilePlus2 className="size-4" />
         </LedgerIconButton>
@@ -233,8 +246,14 @@ export function TimeTodayPage({
           !currentDateLoaded || (loading && daily.locatedSegments.length === 0)
         }
         busy={busy}
-        onEdit={setEditing}
-        onFillGap={openLog}
+        onEdit={(segment, trigger) => {
+          dialogTrigger.current = trigger;
+          setEditing(segment);
+        }}
+        onFillGap={(gap, trigger) => {
+          dialogTrigger.current = trigger;
+          openLog(gap);
+        }}
       />
       <TimePlansPanel
         plans={plans}
@@ -249,6 +268,7 @@ export function TimeTodayPage({
       />
       <TimeLogOrEstimateDialog
         open={Boolean(logSeed)}
+        onCloseAutoFocus={restoreDialogFocus}
         onOpenChange={(open) => {
           if (!open) setLogSeed(null);
         }}
@@ -286,6 +306,7 @@ export function TimeTodayPage({
       />
       <EditSegmentDialog
         segment={editing}
+        onCloseAutoFocus={restoreDialogFocus}
         date={selectedDate}
         timeZone={timeZone}
         policy={policy}

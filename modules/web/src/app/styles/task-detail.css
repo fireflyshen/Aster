@@ -167,7 +167,7 @@
   [data-variant="list"] [data-row-actions] {
     position: absolute;
     right: 0;
-    top: 4px;
+    top: 3px;
     z-index: 10;
     margin: 0;
     padding-left: 10px;
@@ -256,7 +256,8 @@
 }
 
 [data-list-section="true"] {
-  height: 36px;
+  height: 38px;
+  min-height: 38px;
   margin-bottom: 0;
 }
 .task-section-toggle {
@@ -270,7 +271,7 @@
 .task-section-toggle .task-section-chevron,
 .task-section-toggle > svg:first-child {
   position: absolute;
-  left: -30px;
+  left: -28px;
   top: 50%;
   transform: translateY(-50%);
   display: inline-flex;

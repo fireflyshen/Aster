@@ -368,11 +368,17 @@
   border-top: 1px solid var(--border);
 }
 .ledger-entry {
+  width: 100%;
   min-height: 60px;
   border-bottom: 1px solid var(--border);
   padding: 10px 0;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  text-align: start;
+}
+.ledger-entry:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
 }
 .ledger-entry > time {
   align-self: start;
@@ -389,16 +395,11 @@
 .ledger-entry-description {
   min-width: 0;
 }
-.ledger-entry-description > button {
+.ledger-entry-title {
   display: block;
-  text-align: left;
   font-size: 14px;
   line-height: 1.5;
   overflow-wrap: anywhere;
-}
-.ledger-entry-description > button:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 .ledger-entry-meta {
   display: flex;
@@ -438,8 +439,8 @@
   color: var(--muted-foreground);
   font-weight: 400;
 }
-.ledger-entry > button {
-  justify-self: end;
+.ledger-entry-action {
+  justify-self: center;
   color: var(--muted-foreground);
 }
 .ledger-entry-gap {
@@ -750,18 +751,6 @@
   outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
-.ledger-disclosure {
-  border-bottom: 1px solid var(--border);
-}
-.ledger-disclosure > summary {
-  padding-block: 12px;
-  font-size: 13px;
-  color: var(--muted-foreground);
-  cursor: pointer;
-}
-.ledger-disclosure[open] {
-  padding-bottom: 16px;
-}
 @media (max-width: 639px) {
   .ledger-workspace {
     gap: 14px;
@@ -835,7 +824,7 @@
     grid-column: 2;
     grid-row: 1;
   }
-  .ledger-entry > button {
+  .ledger-entry-action {
     grid-column: 3;
     grid-row: 1;
   }
@@ -959,9 +948,6 @@
   > div:first-child
   > div:first-child {
   max-width: 440px;
-}
-.ledger-settings-advanced > div:first-of-type {
-  display: none;
 }
 .ledger-settings-save {
   display: flex;

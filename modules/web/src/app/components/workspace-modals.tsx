@@ -23,7 +23,7 @@ export type WorkspaceModalsProps = TaskWorkspaceDialogsProps &
     layout: "list" | "board";
     tasks: Task[];
     openQuickAdd: () => void;
-    onToggleLayout: () => void;
+    onToggleLayout?: () => void;
     onSelectView: (view: View) => void;
     onSelectEntry: (entry: {
       kind: "filter" | "tag";

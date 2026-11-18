@@ -290,12 +290,152 @@ func energyMeter(
 }
 
 type styledSpan struct {
-	text  string
-	style lipgloss.Style
+	text       string
+	style      lipgloss.Style
+	preserveBg bool
 }
 
 func span(text string, style lipgloss.Style) styledSpan {
 	return styledSpan{text: text, style: style}
+}
+
+func pillSpan(text string, style lipgloss.Style) styledSpan {
+	return styledSpan{text: text, style: style, preserveBg: true}
+}
+
+var (
+	doingPillBG     = lipgloss.AdaptiveColor{Light: "#E5F3F6", Dark: "#1E2F34"}
+	scheduledPillBG = lipgloss.AdaptiveColor{Light: "#EFEDE8", Dark: "#2A2A2E"}
+	waitingPillBG   = lipgloss.AdaptiveColor{Light: "#FBF0DF", Dark: "#332A1E"}
+	parkedPillBG    = lipgloss.AdaptiveColor{Light: "#ECEAE4", Dark: "#27272A"}
+	blockedPillBG   = lipgloss.AdaptiveColor{Light: "#FBE8E7", Dark: "#392324"}
+	tagMorePillBG   = lipgloss.AdaptiveColor{Light: "#ECEAE4", Dark: "#28282B"}
+)
+
+func stateBadgeStyle(state string) lipgloss.Style {
+	switch state {
+	case "doing":
+		return lipgloss.NewStyle().
+			Foreground(timerColor).
+			Background(doingPillBG).
+			Bold(true)
+	case "scheduled":
+		return lipgloss.NewStyle().Foreground(brand).Background(scheduledPillBG)
+	case "waiting":
+		return lipgloss.NewStyle().
+			Foreground(warnColor).
+			Background(waitingPillBG)
+	case "parked":
+		return lipgloss.NewStyle().Foreground(muted).Background(parkedPillBG)
+	default:
+		return lipgloss.NewStyle().Foreground(muted).Background(parkedPillBG)
+	}
+}
+
+func blockedBadgeStyle() lipgloss.Style {
+	return lipgloss.NewStyle().
+		Foreground(dangerColor).
+		Background(blockedPillBG).
+		Bold(true)
+}
+
+type metaGroup struct {
+	spans     []styledSpan
+	trimmable bool
+	minWidth  int
+}
+
+func spansWidth(spans []styledSpan) int {
+	total := 0
+	for _, sp := range spans {
+		total += lipgloss.Width(sp.text)
+	}
+	return total
+}
+
+func trimGroupToWidth(spans []styledSpan, maxW int) ([]styledSpan, bool) {
+	if maxW <= 0 || len(spans) == 0 {
+		return nil, false
+	}
+	out := make([]styledSpan, 0, len(spans))
+	used := 0
+	for i, sp := range spans {
+		w := lipgloss.Width(sp.text)
+		if used+w <= maxW {
+			out = append(out, sp)
+			used += w
+			continue
+		}
+		rem := maxW - used
+		if rem >= 3 {
+			tr := ansi.Truncate(sp.text, rem, "…")
+			if tr != "" && tr != "…" {
+				out = append(
+					out,
+					styledSpan{
+						text:       tr,
+						style:      sp.style,
+						preserveBg: sp.preserveBg,
+					},
+				)
+				return out, true
+			}
+		}
+		if i == 0 {
+			return nil, false
+		}
+		return out, used > 0
+	}
+	return out, len(out) > 0
+}
+
+// fitMetaGroups joins atomic metadata groups with sep, fitting inside maxWidth without dangling separators or half-chopped badges.
+func fitMetaGroups(
+	groups []metaGroup,
+	sep styledSpan,
+	maxWidth int,
+) []styledSpan {
+	if len(groups) == 0 {
+		return nil
+	}
+	sepW := lipgloss.Width(sep.text)
+	var out []styledSpan
+	used := 0
+	count := 0
+	for _, g := range groups {
+		if len(g.spans) == 0 {
+			continue
+		}
+		gw := spansWidth(g.spans)
+		needSep := count > 0
+		prefixW := 0
+		if needSep {
+			prefixW = sepW
+		}
+		if maxWidth <= 0 || used+prefixW+gw <= maxWidth {
+			if needSep {
+				out = append(out, sep)
+				used += sepW
+			}
+			out = append(out, g.spans...)
+			used += gw
+			count++
+			continue
+		}
+		rem := maxWidth - used - prefixW
+		minW := max(6, g.minWidth)
+		if (g.trimmable || count == 0) && rem >= minW {
+			if trimmed, ok := trimGroupToWidth(g.spans, rem); ok {
+				if needSep {
+					out = append(out, sep)
+				}
+				out = append(out, trimmed...)
+				count++
+			}
+		}
+		break
+	}
+	return out
 }
 
 func clipSpans(spans []styledSpan, maxWidth int) ([]styledSpan, int) {
@@ -316,7 +456,14 @@ func clipSpans(spans []styledSpan, maxWidth int) ([]styledSpan, int) {
 		if rem > 0 {
 			tr := ansi.Truncate(sp.text, rem, "…")
 			if tr != "" {
-				out = append(out, styledSpan{text: tr, style: sp.style})
+				out = append(
+					out,
+					styledSpan{
+						text:       tr,
+						style:      sp.style,
+						preserveBg: sp.preserveBg,
+					},
+				)
 				used += lipgloss.Width(tr)
 			}
 		}
@@ -336,7 +483,7 @@ func renderSpans(
 	var b strings.Builder
 	for _, sp := range clipped {
 		st := sp.style
-		if selected {
+		if selected && !sp.preserveBg {
 			st = st.Background(selectedBG)
 		}
 		b.WriteString(st.Render(sp.text))

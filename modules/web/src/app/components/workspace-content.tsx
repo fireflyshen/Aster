@@ -76,7 +76,8 @@ type WorkspaceContentProps = {
   currentProject: string;
   organizationPage: boolean;
   projectsPage: boolean;
-  specialPage: boolean;
+  isNowView: boolean;
+  canChangeLayout: boolean;
   organization: Organization;
   organizationError: string;
   organizationReady: boolean;
@@ -175,7 +176,8 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     currentProject,
     organizationPage,
     projectsPage,
-    specialPage,
+    isNowView,
+    canChangeLayout,
     organization,
     organizationError,
     organizationReady,
@@ -278,12 +280,9 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
       ? activeItem.expression
       : activeItem?.name ||
         (activeEntry.kind === "filter" ? t("过滤器") : t("标签"))
-    : views[view];
+    : t(views[view]);
 
-  const activeLayout =
-    !organizationPage && !timePage && !habitsPage && layout === "board"
-      ? "board"
-      : "list";
+  const activeLayout = canChangeLayout ? layout : "list";
   const habitUuidSet = new Set(habitsController.habitByTaskUuid?.keys() || []);
   const taskByUuid = new Map(tasks.map((item) => [item.uuid, item]));
   const isHabitOwned = (task: Task) => {
@@ -308,34 +307,6 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
       data-layout={activeLayout}
       data-workspace-view={timePage ? "time" : undefined}
     >
-      {searchOpen && (
-        <div className="mb-3 max-w-sm">
-          <InputGroup>
-            <InputGroupAddon>
-              <Search className="size-3.5 text-muted-foreground" />
-            </InputGroupAddon>
-            <InputGroupInput
-              id="task-search"
-              autoFocus
-              value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
-              placeholder={t("搜索任务...")}
-              aria-label={t("搜索任务")}
-            />
-            {query && (
-              <InputGroupButton
-                size="icon-xs"
-                variant="ghost"
-                aria-label={t("清除搜索")}
-                onClick={() => onQueryChange("")}
-              >
-                <X className="size-3.5" />
-              </InputGroupButton>
-            )}
-          </InputGroup>
-        </div>
-      )}
-
       <Tabs
         value={layout}
         onValueChange={(next) =>
@@ -350,7 +321,9 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           projectsPage={projectsPage}
           timePage={timePage}
           habitsPage={habitsPage}
-          specialPage={specialPage}
+          showDisplayOptions={
+            canChangeLayout && (!activeEntry || Boolean(activeItem))
+          }
           organizationReady={organizationReady}
           organizationSaving={organizationSaving}
           busy={busy}
@@ -401,6 +374,37 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           onDeleteProject={onDeleteProject}
           onManageOrganization={onOpenOrganization}
         />
+
+        {searchOpen && (
+          <div className="mb-3 max-w-sm">
+            <InputGroup>
+              <InputGroupAddon>
+                <Search className="size-3.5 text-muted-foreground" />
+              </InputGroupAddon>
+              <InputGroupInput
+                id="task-search"
+                autoFocus
+                value={query}
+                onChange={(e) => onQueryChange(e.target.value)}
+                placeholder={t("搜索任务...")}
+                aria-label={t("搜索任务")}
+              />
+              {query && (
+                <InputGroupButton
+                  size="icon-xs"
+                  variant="ghost"
+                  aria-label={t("清除搜索")}
+                  onClick={() => {
+                    document.getElementById("task-search")?.focus();
+                    onQueryChange("");
+                  }}
+                >
+                  <X className="size-3.5" />
+                </InputGroupButton>
+              )}
+            </InputGroup>
+          </div>
+        )}
 
         {currentProject && !organizationPage && !timePage && (
           <ProjectInlineMeta
@@ -485,10 +489,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
               void onReloadAll();
             }}
           />
-        ) : view === "now" &&
-          !organizationPage &&
-          !activeEntry &&
-          !currentProject ? (
+        ) : isNowView ? (
           <NowWorkspace
             tasks={tasks}
             organization={organization}

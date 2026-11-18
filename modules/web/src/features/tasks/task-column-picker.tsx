@@ -35,9 +35,12 @@ export function TaskColumnPicker({
     ? current
     : UNSECTIONED;
   return (
-    <div className="border-b border-border/60 px-1.5 py-2">
+    <div className="px-1.5 py-1">
       <Select value={value} disabled={disabled} onValueChange={onMove}>
-        <SelectTrigger aria-label="移动到分区" className="w-full min-w-0">
+        <SelectTrigger
+          aria-label="移动到分区"
+          className="h-8 w-full min-w-0 rounded-[7px] text-xs"
+        >
           <span className="text-muted-foreground">移至</span>
           <SelectValue />
         </SelectTrigger>

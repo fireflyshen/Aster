@@ -75,12 +75,10 @@ export function BoardColumn({
     >
       {showHeader && (
         <div
-          data-list-section={compact}
+          data-list-section={compact ? "true" : undefined}
           className={cn(
             "flex items-center gap-2",
-            compact
-              ? "mb-0.5 h-10 border-b border-border/80"
-              : "mb-2 h-9 px-0.5",
+            compact ? "border-b border-border/80" : "mb-2 h-9 px-0.5",
           )}
         >
           {compact ? (
@@ -205,59 +203,55 @@ function ColumnMenu({
           <Ellipsis className="size-4" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-44 p-1">
+      <PopoverContent
+        align="end"
+        className="w-44 rounded-xl border-border/70 p-1.5 shadow-floating"
+      >
         <Button
           variant="navigation"
-          className="h-8 text-xs"
+          className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90 [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
           onClick={() => {
             onOpenChange(false);
             onEdit();
           }}
         >
-          <Pencil className="size-3.5" />
+          <Pencil />
           {compact ? "重命名分区" : "重命名"}
         </Button>
         <Button
           variant="navigation"
-          className="h-8 text-xs"
+          className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90 [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
           disabled={index === 0}
           onClick={() => {
             onOpenChange(false);
             onShift("left");
           }}
         >
-          {compact ? (
-            <ArrowUp className="size-3.5" />
-          ) : (
-            <ArrowLeft className="size-3.5" />
-          )}
+          {compact ? <ArrowUp /> : <ArrowLeft />}
           {compact ? "向上移动" : "向左移动"}
         </Button>
         <Button
           variant="navigation"
-          className="h-8 text-xs"
+          className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90 [&_svg]:size-3.5 [&_svg]:text-muted-foreground"
           disabled={index === total - 1}
           onClick={() => {
             onOpenChange(false);
             onShift("right");
           }}
         >
-          {compact ? (
-            <ArrowDown className="size-3.5" />
-          ) : (
-            <ArrowRight className="size-3.5" />
-          )}
+          {compact ? <ArrowDown /> : <ArrowRight />}
           {compact ? "向下移动" : "向右移动"}
         </Button>
+        <div role="separator" className="my-1.5 h-px bg-border/65" />
         <Button
           variant="navigation"
-          className="h-8 text-xs text-destructive hover:text-destructive"
+          className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:size-3.5 [&_svg]:text-current"
           onClick={() => {
             onOpenChange(false);
             onDelete();
           }}
         >
-          <Trash2 className="size-3.5" />
+          <Trash2 />
           {compact ? "删除分区" : "删除列"}
         </Button>
       </PopoverContent>

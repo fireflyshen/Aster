@@ -1,5 +1,5 @@
 import { languages, setLanguage, useI18n, type Language } from "@/app/language";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   DatabaseBackup,
   Palette,
@@ -87,6 +87,11 @@ export function WorkspaceSettings({
   const section = controlledSection ?? internalSection;
   const selectSection = onSectionChange ?? setInternalSection;
   const preventClose = recoveryWorking;
+  const settingsBody = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (open && settingsBody.current) settingsBody.current.scrollTop = 0;
+  }, [open, section]);
 
   const navItems: Array<{
     id: SettingsSection;
@@ -143,7 +148,7 @@ export function WorkspaceSettings({
               {t(SECTION_TITLES[section])}
             </DialogTitle>
           </header>
-          <div className="settings-body">
+          <div ref={settingsBody} className="settings-body">
             {section === "theme" ? (
               <ThemePanel preference={themePreference} />
             ) : section === "sidebar" ? (

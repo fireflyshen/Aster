@@ -72,14 +72,24 @@ export function StateChip({
       `${t(state === "waiting" ? "核对日：" : "复查日：")}${dueLabel(waitDate, locale)}`,
     );
   }
+  const showInlineWaitMeta =
+    groupedState === "waiting" || groupedState === "parked";
+  const formattedWaitDate = waitDate
+    ? toDueDay(waitDate) || dueLabel(waitDate, locale)
+    : "";
+
   return (
     <>
       {state !== groupedState && (
         <span
           data-task-state-chip={state}
           title={titleParts.join(" · ")}
-          className="inline-flex shrink-0 items-center text-[11px] leading-none whitespace-nowrap"
+          className="inline-flex h-[18px] shrink-0 items-center gap-1 rounded-[5px] border px-1.5 text-[11px] leading-none font-medium whitespace-nowrap"
         >
+          <span
+            className="task-state-dot size-1.5 shrink-0 rounded-full"
+            aria-hidden="true"
+          />
           {label}
         </span>
       )}
@@ -87,11 +97,34 @@ export function StateChip({
         <span
           data-task-blocked-chip
           title={t("存在未完成的前置依赖任务")}
-          className="inline-flex shrink-0 items-center rounded border border-rose-500/30 bg-rose-500/12 px-1.5 py-0.5 text-[11px] leading-none font-medium text-rose-700 dark:text-rose-300 whitespace-nowrap"
+          className="inline-flex h-[18px] shrink-0 items-center rounded-[5px] border border-rose-500/30 bg-rose-500/12 px-1.5 text-[11px] leading-none font-medium text-rose-700 dark:text-rose-300 whitespace-nowrap"
         >
           {t("被阻塞")}
         </span>
       )}
+      {showInlineWaitMeta && state === "waiting" && waitReason && (
+        <span
+          data-task-meta="wait-reason"
+          title={`${t("原因：")}${waitReason}`}
+          className="inline-flex min-w-0 max-w-[260px] items-center text-[12px] leading-none text-amber-700/90 dark:text-amber-300/90"
+        >
+          <span className="truncate">
+            {t("原因：")}
+            {waitReason}
+          </span>
+        </span>
+      )}
+      {showInlineWaitMeta &&
+        (state === "waiting" || state === "parked") &&
+        formattedWaitDate && (
+          <span
+            data-task-meta={state === "waiting" ? "wait-date" : "review-date"}
+            className="inline-flex shrink-0 items-center text-[12px] leading-none text-muted-foreground whitespace-nowrap tabular-nums"
+          >
+            {t(state === "waiting" ? "核对日：" : "复查日：")}
+            {formattedWaitDate}
+          </span>
+        )}
     </>
   );
 }
@@ -375,6 +408,8 @@ export function TaskMetaChips({
 
       {groupedState !== "waiting" &&
         groupedState !== "parked" &&
+        effectiveRowState !== "waiting" &&
+        effectiveRowState !== "parked" &&
         !!task.wait &&
         new Date(task.wait) > new Date() &&
         !checked && (

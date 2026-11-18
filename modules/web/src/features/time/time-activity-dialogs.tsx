@@ -52,6 +52,7 @@ export type LogDialogSeed = {
 export function TimeLogOrEstimateDialog({
   open,
   onOpenChange,
+  onCloseAutoFocus,
   seed,
   timeZone,
   policy,
@@ -65,6 +66,7 @@ export function TimeLogOrEstimateDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCloseAutoFocus: (event: Event) => void;
   seed: LogDialogSeed | null;
   timeZone: string;
   policy: TimePolicy | null;
@@ -299,6 +301,7 @@ export function TimeLogOrEstimateDialog({
       <DialogContent
         className="ledger-activity-dialog sm:max-w-md"
         aria-describedby={undefined}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <DialogTitle>{t("补记")}</DialogTitle>
@@ -630,6 +633,7 @@ export function EditSegmentDialog({
   segments,
   busy,
   onOpenChange,
+  onCloseAutoFocus,
   onSave,
 }: {
   segment: LocatedSegment | null;
@@ -641,6 +645,7 @@ export function EditSegmentDialog({
   segments?: readonly LocatedSegment[];
   busy: boolean;
   onOpenChange: (open: boolean) => void;
+  onCloseAutoFocus: (event: Event) => void;
   onSave: (input: {
     activityId: string;
     expectedVersion: number;
@@ -763,6 +768,7 @@ export function EditSegmentDialog({
       <DialogContent
         className="ledger-activity-dialog sm:max-w-md"
         aria-describedby={undefined}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         <DialogHeader>
           <DialogTitle>{t("编辑记录")}</DialogTitle>

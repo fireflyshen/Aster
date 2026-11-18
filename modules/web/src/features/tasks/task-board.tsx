@@ -292,7 +292,7 @@ export function TaskBoard({
           <div
             className={
               layout === "list"
-                ? "space-y-4"
+                ? "space-y-5"
                 : "task-board-columns grid grid-flow-col items-start"
             }
           >

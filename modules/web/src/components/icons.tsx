@@ -1,4 +1,5 @@
 import type { SVGProps } from "react";
+import { asterFlowerPath } from "./aster-mark-path";
 
 /** Small navigation glyphs are drawn on their native 20px grid. */
 function NavIcon({ children, ...props }: SVGProps<SVGSVGElement>) {
@@ -31,10 +32,7 @@ export function AsterMark(props: SVGProps<SVGSVGElement>) {
       {...props}
     >
       <rect width="28" height="28" rx="8" fill="currentColor" />
-      <g fill="var(--sidebar)">
-        <path d="M14 5.5c2.1 0 2.5 3.8 0 7-2.5-3.2-2.1-7 0-7Z" />
-        <path d="M21.36 9.75c1.05 1.82-2.04 4.07-6.06 3.5 1.52-3.77 5.01-5.32 6.06-3.5ZM21.36 18.25c-1.05 1.82-4.54.27-6.06-3.5 4.02-.57 7.11 1.68 6.06 3.5ZM14 22.5c-2.1 0-2.5-3.8 0-7 2.5 3.2 2.1 7 0 7ZM6.64 18.25c-1.05-1.82 2.04-4.07 6.06-3.5-1.52 3.77-5.01 5.32-6.06 3.5ZM6.64 9.75c1.05-1.82 4.54-.27 6.06 3.5-4.02.57-7.11-1.68-6.06-3.5Z" />
-      </g>
+      <path d={asterFlowerPath} fill="var(--sidebar)" />
     </svg>
   );
 }

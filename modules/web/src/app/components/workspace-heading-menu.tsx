@@ -81,13 +81,16 @@ export function WorkspaceHeadingMenu({
           <Ellipsis className="size-5" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-44 p-1">
+      <PopoverContent
+        align="end"
+        className="w-48 rounded-xl border-border/70 p-1.5 shadow-floating"
+      >
         {currentProject && !activeItem && (
           <>
             {!currentProjectIsHabit && (
               <Button
                 variant="navigation"
-                className="h-8 text-xs"
+                className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90"
                 disabled={disabled}
                 onClick={() => {
                   onOpenChange(false);
@@ -112,7 +115,7 @@ export function WorkspaceHeadingMenu({
             )}
             <Button
               variant="navigation"
-              className="h-8 text-xs"
+              className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90"
               disabled={disabled}
               onClick={() => {
                 onOpenChange(false);
@@ -127,7 +130,7 @@ export function WorkspaceHeadingMenu({
             </Button>
             <Button
               variant="navigation"
-              className="h-8 text-xs"
+              className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90"
               disabled={metaDisabled}
               onClick={() => {
                 onOpenChange(false);
@@ -139,7 +142,7 @@ export function WorkspaceHeadingMenu({
             </Button>
             <Button
               variant="navigation"
-              className="h-8 text-xs"
+              className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90"
               disabled={metaDisabled}
               onClick={() => {
                 onOpenChange(false);
@@ -151,7 +154,7 @@ export function WorkspaceHeadingMenu({
             </Button>
             <Button
               variant="navigation"
-              className="h-8 text-xs"
+              className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90"
               disabled={metaDisabled}
               onClick={() => {
                 onOpenChange(false);
@@ -163,7 +166,7 @@ export function WorkspaceHeadingMenu({
             </Button>
             <Button
               variant="navigation"
-              className="h-8 text-xs"
+              className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90"
               disabled={metaDisabled}
               onClick={() => {
                 onOpenChange(false);
@@ -173,10 +176,11 @@ export function WorkspaceHeadingMenu({
               <Pencil className="size-3.5" />
               {t("编辑项目")}
             </Button>
+            <div role="separator" className="my-1.5 h-px bg-border/65" />
             <Button
               variant="navigation"
               disabled={metaDisabled}
-              className="h-8 text-xs text-destructive hover:text-destructive"
+              className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:text-current"
               onClick={() => {
                 onOpenChange(false);
                 onDeleteProject(currentProject);
@@ -197,7 +201,7 @@ export function WorkspaceHeadingMenu({
             )}
             <Button
               variant="navigation"
-              className="h-8 text-xs"
+              className="h-8 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90"
               onClick={() => {
                 onOpenChange(false);
                 onManageOrganization();

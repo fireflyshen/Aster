@@ -128,6 +128,8 @@ export function useWorkspaceNavigation() {
     setTimePage(null);
     setHabitsPage(false);
     setActiveEntry(undefined);
+    setSearchOpen(false);
+    setQuery("");
   }, []);
 
   const openEntry = useCallback(
@@ -151,7 +153,6 @@ export function useWorkspaceNavigation() {
       openTaskView();
       setCurrentProject(name);
       setView("pending");
-      setQuery("");
     },
     [openTaskView, setView],
   );
@@ -161,23 +162,20 @@ export function useWorkspaceNavigation() {
       openTaskView();
       setView(nextView);
       setCurrentProject("");
-      setQuery("");
     },
     [openTaskView, setView],
   );
 
   const openManagementPage = useCallback(
-    (kind: "organization" | "projects", closeSearch = true) => {
+    (kind: "organization" | "projects") => {
       resetMobileScroll();
       setTimePage(null);
       setHabitsPage(false);
       setProjectsPage(kind === "projects");
       setOrganizationPage(true);
       setActiveEntry(undefined);
-      if (closeSearch) {
-        setSearchOpen(false);
-        setQuery("");
-      }
+      setSearchOpen(false);
+      setQuery("");
       setCurrentProject("");
     },
     [],
@@ -226,6 +224,27 @@ export function useWorkspaceNavigation() {
   const specialPage = Boolean(
     organizationPage || projectsPage || activeEntry || timePage || habitsPage,
   );
+  const canSearchTasks = !organizationPage && !timePage && !habitsPage;
+  const isNowView =
+    canSearchTasks && view === "now" && !activeEntry && !currentProject;
+  const canChangeLayout = canSearchTasks && !isNowView;
+
+  const openSearch = useCallback(() => {
+    if (!canSearchTasks) {
+      setCommandOpen(true);
+      return;
+    }
+    setSearchOpen(true);
+    requestAnimationFrame(() =>
+      document.getElementById("task-search")?.focus(),
+    );
+  }, [canSearchTasks]);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setQuery("");
+    document.getElementById("search-toggle")?.focus({ preventScroll: true });
+  }, []);
 
   return {
     navOpen,
@@ -256,9 +275,13 @@ export function useWorkspaceNavigation() {
       setSettingsSection(section),
     closeSettings: () => setSettingsSection(null),
     searchOpen,
-    setSearchOpen,
+    openSearch,
+    closeSearch,
     query,
     setQuery,
+    canSearchTasks,
+    isNowView,
+    canChangeLayout,
     viewMenuOpen,
     setViewMenuOpen,
     subModalOpen,

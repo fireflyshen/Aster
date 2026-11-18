@@ -11,6 +11,7 @@ import {
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
 import { useI18n } from "@/app/language";
+import { applyThemeFavicon } from "./theme-favicon";
 
 export const themePresets = THEME_PALETTES;
 
@@ -50,20 +51,18 @@ export function useThemePreference(
     const apply = () => {
       const dark = theme === "dark" || (theme === "system" && system.matches);
       document.documentElement.dataset.theme = theme;
+      document.documentElement.dataset.palette = palette;
       document.documentElement.classList.toggle("dark", dark);
       document
         .querySelector('meta[name="theme-color"]')
         ?.setAttribute("content", dark ? "#1c1c1d" : "#faf9f7");
+      applyThemeFavicon(palette, dark);
       setResolvedDark(dark);
     };
     apply();
     system.addEventListener("change", apply);
     return () => system.removeEventListener("change", apply);
-  }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.dataset.palette = palette;
-  }, [palette]);
+  }, [theme, palette]);
 
   return {
     theme,

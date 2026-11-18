@@ -62,6 +62,7 @@ interface UseTaskRendererOptions {
   habitActions?: HabitTaskActions;
   onChangeState?: (task: Task, state: TaskState) => void;
   openTaskUuids?: ReadonlySet<string>;
+  selectedTaskUuid?: string;
 }
 
 /** Builds the recursive `TaskRow` render callback bound to workspace task actions and state. */
@@ -96,6 +97,7 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
     habitActions,
     onChangeState,
     openTaskUuids,
+    selectedTaskUuid,
   } = options;
 
   const todayDayKey = format(now, "yyyy-MM-dd");
@@ -238,6 +240,7 @@ export function useTaskRenderer(options: UseTaskRendererOptions): TaskRenderFn {
         showInbox={showInboxLocation}
         sectionName={sectionName}
         variant={variant}
+        selected={selectedTaskUuid === task.uuid}
         transition={isRowTransition ? completion : undefined}
         subtasks={subtasks}
         isSubtask={Boolean(taskLinks[task.uuid])}

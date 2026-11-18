@@ -51,7 +51,7 @@ import { WorkspaceNavigation } from "./workspace-navigation";
 
 export const views: Record<View, string> = {
   now: "现在能做",
-  focus: "Focus",
+  focus: "焦点",
   pending: "收件箱",
   today: "今天",
   upcoming: "预览",
@@ -196,7 +196,7 @@ export function WorkspaceSidebar({
         onOpenChange={onOpenChange}
         showCounts={sidebarPreferences.showCounts}
       >
-        <div className="sidebar-account flex h-14 items-center justify-between px-1">
+        <div className="sidebar-account flex h-12 items-center justify-between px-1">
           <button
             type="button"
             aria-label={t("打开设置")}
@@ -206,7 +206,7 @@ export function WorkspaceSidebar({
             }}
             className="sidebar-brand"
           >
-            <AsterMark className="size-7" />
+            <AsterMark className="size-6.5" />
             <span>Aster</span>
             <svg
               viewBox="0 0 16 16"
@@ -228,41 +228,48 @@ export function WorkspaceSidebar({
             className="size-7 text-muted-foreground hover:bg-navigation-hover hover:text-foreground"
             onClick={() => onOpenChange(false)}
           >
-            <SidebarToggleIcon className="size-5" />
+            <SidebarToggleIcon className="size-[18px]" />
           </Button>
         </div>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            closeOnMobile();
-            onAdd();
-          }}
-          disabled={addDisabled}
-          aria-keyshortcuts="Q"
-          className="sidebar-add h-9 w-full justify-start gap-2.5 px-2 font-semibold text-(--navigation-selected-ink) hover:bg-navigation-hover hover:text-(--navigation-selected-ink) has-[>svg]:px-2"
-        >
-          <AddTaskIcon className="size-5 shrink-0" />
-          {t("添加任务")}
-          <kbd
-            aria-hidden="true"
-            className="ml-auto rounded border border-border/80 bg-background/80 px-1.5 py-0.5 font-sans text-[11px] leading-none text-muted-foreground"
+        <div className="mt-1 space-y-0.5">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              closeOnMobile();
+              onAdd();
+            }}
+            disabled={addDisabled}
+            aria-keyshortcuts="Q"
+            className="sidebar-add h-9 w-full justify-start gap-2.5 px-3 font-medium text-(--navigation-selected-ink) hover:bg-navigation-hover hover:text-(--navigation-selected-ink) has-[>svg]:px-3"
           >
-            Q
-          </kbd>
-        </Button>
-        <Button
-          variant="navigation"
-          onClick={() => {
-            closeOnMobile();
-            onSearch();
-          }}
-          aria-keyshortcuts="Meta+K Control+K"
-          className="sidebar-search"
-        >
-          <Search className="size-[18px]" strokeWidth={1.5} />
-          {t("搜索")}
-          <kbd className="ml-auto text-[11px] text-muted-foreground">⌘K</kbd>
-        </Button>
+            <AddTaskIcon className="size-5 shrink-0" />
+            <span className="truncate">{t("添加任务")}</span>
+            <kbd
+              aria-hidden="true"
+              className="ml-auto rounded border border-border/75 bg-background/70 px-1.5 py-0.5 font-sans text-[11px] leading-none font-normal text-muted-foreground"
+            >
+              Q
+            </kbd>
+          </Button>
+          <Button
+            variant="navigation"
+            onClick={() => {
+              closeOnMobile();
+              onSearch();
+            }}
+            aria-keyshortcuts="Meta+K Control+K"
+            className="sidebar-search"
+          >
+            <Search className="size-[18px]" strokeWidth={1.6} />
+            <span className="truncate">{t("搜索")}</span>
+            <kbd
+              aria-hidden="true"
+              className="ml-auto rounded border border-border/75 bg-background/70 px-1.5 py-0.5 font-sans text-[11px] leading-none font-normal text-muted-foreground"
+            >
+              ⌘K
+            </kbd>
+          </Button>
+        </div>
         {workViews.length > 0 && (
           <nav aria-label={t("任务")} className="sidebar-nav-section">
             <p className="sidebar-nav-label">{t("任务")}</p>
@@ -358,8 +365,10 @@ export function WorkspaceSidebar({
                   closeOnMobile();
                 }}
               >
-                <LedgerNavIcon className="sidebar-ledger-icon size-[18px]" />
-                <span className="flex-1 text-left">{t("时间账本")}</span>
+                <LedgerNavIcon className="sidebar-ledger-icon size-[18px] shrink-0" />
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {t("时间账本")}
+                </span>
                 {timerSnapshot?.state === "pending_reconcile" && (
                   <span
                     aria-label={t("有待核对的计时")}
@@ -380,8 +389,10 @@ export function WorkspaceSidebar({
                   closeOnMobile();
                 }}
               >
-                <OrganizationIcon className="size-[18px] text-(--priority-2)" />
-                {t("过滤器 &amp; 标签")}
+                <OrganizationIcon className="size-[18px] shrink-0 text-(--priority-2)" />
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {t("过滤器 & 标签")}
+                </span>
               </Button>
             )}
           </nav>

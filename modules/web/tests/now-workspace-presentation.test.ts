@@ -15,8 +15,8 @@ const compiled = await build({
       import { renderToStaticMarkup } from 'react-dom/server';
       import { NowWorkspace, scheduledGroupLabel } from './src/features/tasks/now-workspace';
       import { StateChip, TaskStateGroupContext } from './src/features/tasks/task-meta-chips';
-      export const renderState = (state, group, blocked) => renderToStaticMarkup(
-        <TaskStateGroupContext value={group}><StateChip state={state} blocked={blocked}/></TaskStateGroupContext>);
+      export const renderState = (state, group, blocked, waitReason, waitDate) => renderToStaticMarkup(
+        <TaskStateGroupContext value={group}><StateChip state={state} blocked={blocked} waitReason={waitReason} waitDate={waitDate}/></TaskStateGroupContext>);
       export const label = (scheduled) => scheduledGroupLabel(scheduled, new Date(2026,10,17,12));
       export const renderNow = (tasks) => renderToStaticMarkup(<NowWorkspace
         tasks={tasks} organization={{revision:1,filters:[],tags:[]}}
@@ -51,7 +51,13 @@ const compiled = await build({
 });
 const loaded = {
   exports: {} as {
-    renderState: (state: string, group?: string, blocked?: boolean) => string;
+    renderState: (
+      state: string,
+      group?: string,
+      blocked?: boolean,
+      waitReason?: string,
+      waitDate?: string,
+    ) => string;
     label: (scheduled: string) => string;
     renderNow: (tasks: unknown[]) => string;
   },
@@ -72,6 +78,26 @@ test("state sections omit repeated badges but keep blocked and differing states 
   const blocked = renderState("doing", "doing", true);
   assert.ok(blocked.includes("被阻塞"));
   assert.ok(!blocked.includes("data-task-state-chip"));
+  const waitInline = renderState(
+    "waiting",
+    "waiting",
+    false,
+    "等审批",
+    "2026-11-20",
+  );
+  assert.ok(waitInline.includes('data-task-meta="wait-reason"'));
+  assert.ok(waitInline.includes("等审批"));
+  assert.ok(waitInline.includes('data-task-meta="wait-date"'));
+  assert.ok(waitInline.includes("2026-11-20"));
+  const parkedInline = renderState(
+    "parked",
+    "parked",
+    false,
+    undefined,
+    "2026-12-18",
+  );
+  assert.ok(parkedInline.includes('data-task-meta="review-date"'));
+  assert.ok(parkedInline.includes("2026-12-18"));
 });
 
 test("planned tasks at different times share one calendar-day heading, with years kept distinct", () => {

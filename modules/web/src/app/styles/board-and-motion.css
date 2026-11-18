@@ -32,17 +32,45 @@
 
 /* A project is one navigation row, including its disclosure and menu. */
 [data-project-nav] {
-  border-radius: calc(var(--radius) - 2px);
+  position: relative;
+  border-radius: var(--row-hover-radius);
   transition: background-color 150ms ease;
 }
 [data-project-nav][data-selected="true"] {
   background-color: var(--navigation-selected);
   color: var(--navigation-selected-ink);
+  font-weight: 500;
 }
 .workspace-sidebar [data-variant="navigation"][aria-current="page"] {
+  position: relative;
   background-color: var(--navigation-selected);
   color: var(--navigation-selected-ink);
   font-weight: 500;
+}
+.workspace-sidebar
+  > nav
+  [data-variant="navigation"][aria-current="page"]::before,
+.workspace-sidebar
+  .sidebar-nav-section
+  > [data-variant="navigation"][aria-current="page"]::before,
+.workspace-sidebar .sidebar-favorite-row[data-selected="true"],
+.workspace-sidebar [data-project-nav][data-selected="true"] {
+  position: relative;
+}
+.workspace-sidebar
+  .sidebar-nav-section
+  > [data-variant="navigation"][aria-current="page"]::before,
+.workspace-sidebar .sidebar-favorite-row[data-selected="true"]::before,
+.workspace-sidebar [data-project-nav][data-selected="true"]::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 7px;
+  bottom: 7px;
+  width: 2.5px;
+  border-radius: 9999px;
+  background: var(--theme-accent, var(--primary));
+  pointer-events: none;
 }
 [data-project-nav] > button,
 [data-project-nav] > button:hover {

@@ -209,19 +209,15 @@ export function App() {
     open: taskActions.open,
     commandOpen: nav.commandOpen,
     quickOpen: taskActions.quickOpen,
-    organizationPage: nav.organizationPage,
+    canChangeLayout: nav.canChangeLayout,
     busy: data.busy,
     organizationSaving: data.organizationSaving,
-    view: nav.view,
     searchOpen: nav.searchOpen,
-    query: nav.query,
     setCommandOpen: nav.setCommandOpen,
     setLayout: nav.setLayout,
     setNavOpen: nav.setNavigation,
-    setOrganizationPage: nav.setOrganizationPage,
-    setView: nav.setView,
-    setSearchOpen: nav.setSearchOpen,
-    setQuery: nav.setQuery,
+    openSearch: nav.openSearch,
+    closeSearch: nav.closeSearch,
     openQuickAdd: taskActions.openQuickAdd,
   });
 
@@ -298,6 +294,7 @@ export function App() {
     habitActions: habitTaskActions,
     onChangeState: stateActions.changeTaskState,
     openTaskUuids,
+    selectedTaskUuid: taskActions.editing?.uuid,
   });
 
   const projectOutcome =
@@ -386,19 +383,13 @@ export function App() {
           <WorkspaceToolbar
             navOpen={nav.navOpen}
             searchOpen={nav.searchOpen}
-            query={nav.query}
+            canSearchTasks={nav.canSearchTasks}
             loading={data.loading}
             busy={data.busy}
             addDisabled={workspaceLocked}
             onAdd={taskActions.openQuickAdd}
             onOpenNav={() => nav.setNavigation(true)}
-            onOpenCommand={() => nav.setCommandOpen(true)}
-            onToggleSearch={() => {
-              if (nav.searchOpen || nav.query) {
-                nav.setSearchOpen(false);
-                nav.setQuery("");
-              } else nav.setSearchOpen(true);
-            }}
+            onToggleSearch={nav.searchOpen ? nav.closeSearch : nav.openSearch}
             onRefresh={() => void data.reloadAll()}
           />
 
@@ -420,7 +411,8 @@ export function App() {
             currentProject={nav.currentProject}
             organizationPage={nav.organizationPage}
             projectsPage={nav.projectsPage}
-            specialPage={nav.specialPage}
+            isNowView={nav.isNowView}
+            canChangeLayout={nav.canChangeLayout}
             organization={data.organization}
             organizationError={data.organizationError}
             organizationReady={data.organizationReady}
@@ -454,9 +446,7 @@ export function App() {
             setHeaderDescDraft={projectActions.setHeaderDescDraft}
             onSelectProject={nav.selectProject}
             onOpenEntry={nav.openEntry}
-            onOpenOrganization={() =>
-              nav.openManagementPage("organization", false)
-            }
+            onOpenOrganization={() => nav.openManagementPage("organization")}
             onTransitionProject={projectActions.transition}
             onAddSubproject={projectActions.addSubproject}
             onEditProject={projectActions.editProject}
@@ -550,8 +540,11 @@ export function App() {
           editingParent={editingParent}
           subtasksMap={subtasksMap}
           onToastAction={() => taskActions.handleToastAction(nav.selectProject)}
-          onToggleLayout={() =>
-            nav.setLayout((prev) => (prev === "list" ? "board" : "list"))
+          onToggleLayout={
+            nav.canChangeLayout
+              ? () =>
+                  nav.setLayout((prev) => (prev === "list" ? "board" : "list"))
+              : undefined
           }
           onSelectView={nav.selectView}
           onSelectProject={nav.selectProject}

@@ -1,23 +1,18 @@
-import type { View } from "@shared/tasks";
 import { useEffect } from "react";
 
 type WorkspaceShortcutParams = {
   open: boolean;
   commandOpen: boolean;
   quickOpen: boolean;
-  organizationPage: boolean;
+  canChangeLayout: boolean;
   busy: boolean;
   organizationSaving: boolean;
-  view: View;
   searchOpen: boolean;
-  query: string;
   setCommandOpen: (updater: (current: boolean) => boolean) => void;
   setLayout: (updater: (current: "list" | "board") => "list" | "board") => void;
   setNavOpen: (updater: (current: boolean) => boolean) => void;
-  setOrganizationPage: (open: boolean) => void;
-  setView: (view: View) => void;
-  setSearchOpen: (open: boolean) => void;
-  setQuery: (query: string) => void;
+  openSearch: () => void;
+  closeSearch: () => void;
   openQuickAdd: () => void;
 };
 
@@ -26,19 +21,15 @@ export function useWorkspaceShortcuts({
   open,
   commandOpen,
   quickOpen,
-  organizationPage,
+  canChangeLayout,
   busy,
   organizationSaving,
-  view,
   searchOpen,
-  query,
   setCommandOpen,
   setLayout,
   setNavOpen,
-  setOrganizationPage,
-  setView,
-  setSearchOpen,
-  setQuery,
+  openSearch,
+  closeSearch,
   openQuickAdd,
 }: WorkspaceShortcutParams) {
   useEffect(() => {
@@ -72,7 +63,6 @@ export function useWorkspaceShortcuts({
         return;
       }
 
-      const target = event.target;
       if (
         event.ctrlKey ||
         event.metaKey ||
@@ -80,14 +70,27 @@ export function useWorkspaceShortcuts({
         open ||
         commandOpen ||
         quickOpen ||
-        overlayOpen ||
-        (target instanceof Element &&
-          target.closest(
-            'input, textarea, select, [contenteditable="true"], [role="combobox"]',
-          ))
+        overlayOpen
       ) {
         return;
       }
+
+      const target = event.target;
+      const editable =
+        target instanceof Element &&
+        target.closest(
+          'input, textarea, select, [contenteditable="true"], [role="combobox"]',
+        );
+      if (
+        event.key === "Escape" &&
+        searchOpen &&
+        (!editable || editable.id === "task-search")
+      ) {
+        event.preventDefault();
+        closeSearch();
+        return;
+      }
+      if (editable) return;
 
       const key = event.key.toLowerCase();
       if (
@@ -109,7 +112,7 @@ export function useWorkspaceShortcuts({
         openQuickAdd();
       }
 
-      if (key === "b" && !organizationPage && !busy && !organizationSaving) {
+      if (key === "b" && canChangeLayout && !busy && !organizationSaving) {
         event.preventDefault();
         setLayout((current) => (current === "list" ? "board" : "list"));
       }
@@ -126,17 +129,7 @@ export function useWorkspaceShortcuts({
 
       if (event.key === "/") {
         event.preventDefault();
-        setOrganizationPage(false);
-        if (view === "focus") setView("pending");
-        setSearchOpen(true);
-        document.getElementById("task-search")?.focus();
-      }
-
-      if (event.key === "Escape" && (searchOpen || query)) {
-        event.preventDefault();
-        setQuery("");
-        setSearchOpen(false);
-        document.getElementById("search-toggle")?.focus();
+        openSearch();
       }
     };
 
@@ -147,18 +140,14 @@ export function useWorkspaceShortcuts({
     commandOpen,
     quickOpen,
     openQuickAdd,
-    organizationPage,
+    canChangeLayout,
     busy,
     organizationSaving,
-    view,
     searchOpen,
-    query,
     setCommandOpen,
     setLayout,
     setNavOpen,
-    setOrganizationPage,
-    setView,
-    setSearchOpen,
-    setQuery,
+    openSearch,
+    closeSearch,
   ]);
 }

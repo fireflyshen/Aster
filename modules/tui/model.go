@@ -52,6 +52,7 @@ type row struct {
 	depth                     int
 	lastChild                 bool
 	parentTitle               string
+	groupState                string
 	chartValue, chartMax      float64
 	chart                     bool
 	chartSeconds              float64
@@ -80,6 +81,7 @@ type model struct {
 	cursor, navCursor, width, height             int
 	navFocus, busy, blocked, board, detail, help bool
 	detailScroll, boardColumn                    int
+	helpScroll                                   int
 	collapsed                                    map[string]bool
 	expandedSubtasks                             map[string]bool
 	mode                                         string
@@ -422,7 +424,7 @@ func (m model) nav() []entry {
 	es := []entry{
 		{id: "hdr:core", title: "核心视图", header: true},
 		{id: "now", title: "▷  现在能做"},
-		{id: "focus", title: "◎  Focus"},
+		{id: "focus", title: "◎  焦点"},
 		{id: "inbox", title: "▣  收件箱"},
 		{id: "today", title: "◷  今天"},
 	}
@@ -440,7 +442,7 @@ func (m model) nav() []entry {
 		if f.Favorite {
 			favs = append(
 				favs,
-				entry{id: "filter:" + f.ID, title: "★  " + f.Name},
+				entry{id: "filter:" + f.ID, title: f.Name},
 			)
 		}
 	}
@@ -448,7 +450,7 @@ func (m model) nav() []entry {
 		if t.Favorite {
 			favs = append(
 				favs,
-				entry{id: "tag:" + t.Name, title: "#  " + t.Name},
+				entry{id: "tag:" + t.Name, title: t.Name},
 			)
 		}
 	}
@@ -880,15 +882,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if k == "ctrl+c" {
 			return m, tea.Quit
 		}
-		if m.busy {
-			if k == "?" {
-				m.help = !m.help
-			}
-			return m, nil
-		}
 		if m.help {
 			if k == "esc" || k == "?" {
 				m.help = false
+				return m, nil
+			}
+			_, height, lines := helpContent(m.width, m.height-2)
+			page := max(1, height-4)
+			last := max(0, len(lines)-page)
+			m.helpScroll = min(m.helpScroll, last)
+			switch k {
+			case "up", "k":
+				m.helpScroll = max(0, m.helpScroll-1)
+			case "down", "j":
+				m.helpScroll = min(last, m.helpScroll+1)
+			case "pgup":
+				m.helpScroll = max(0, m.helpScroll-page)
+			case "pgdown":
+				m.helpScroll = min(last, m.helpScroll+page)
+			case "home":
+				m.helpScroll = 0
+			case "end":
+				m.helpScroll = last
+			}
+			return m, nil
+		}
+		if m.busy {
+			if k == "?" {
+				m.help = true
+				m.helpScroll = 0
 			}
 			return m, nil
 		}
@@ -897,6 +919,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if k == "?" {
 			m.help = true
+			m.helpScroll = 0
 			return m, nil
 		}
 		if k == "q" {
@@ -926,6 +949,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if k == "/" {
+			if m.isTimeNavView() || m.view == "data" {
+				m.openActions()
+				return m, nil
+			}
 			m.mode = "search"
 			m.search.SetValue(m.query)
 			return m, m.search.Focus()
@@ -960,11 +987,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
-		if (k == "left" || k == "h") && !m.board {
+		boardView := m.board && m.taskView()
+		if (k == "left" || k == "h") && !boardView {
 			m.navFocus = true
 			return m, nil
 		}
-		if k == "b" {
+		if k == "b" && m.taskView() {
 			selected := m.current()
 			m.board = !m.board
 			if m.board && selected.kind == "task" {
@@ -977,7 +1005,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.selectFirstTask()
 			return m, nil
 		}
-		if (k == "left" || k == "h" || k == "right" || k == "l") && m.board {
+		if (k == "left" || k == "h" || k == "right" || k == "l") && boardView {
 			d := 1
 			if k == "left" || k == "h" {
 				d = -1
@@ -1040,7 +1068,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if k == " " {
 			r := m.current()
-			if r.kind == "group" && !m.board {
+			if r.kind == "group" && !boardView {
 				if strings.HasPrefix(r.id, "now:") && r.id != "now:doing" {
 					if m.nowExpanded == nil {
 						m.nowExpanded = map[string]bool{}

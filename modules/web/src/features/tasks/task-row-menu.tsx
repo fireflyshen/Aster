@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -16,7 +17,8 @@ import {
   type TaskState,
 } from "@core/tasks/state";
 import type { Task } from "@shared/tasks";
-import type { ReactNode } from "react";
+import { cn } from "cn";
+import { useMemo, type ReactNode } from "react";
 import { addDays, format, nextMonday, nextSaturday } from "date-fns";
 import {
   Armchair,
@@ -35,7 +37,14 @@ import {
   X,
 } from "lucide-react";
 
-/** Todoist-aligned overflow context menu (`···`) for task rows and board cards. */
+const MENU_ITEM_CLASS =
+  "h-8 w-full justify-start gap-2.5 rounded-[7px] px-2 text-[13px] font-normal text-foreground/90 hover:bg-navigation-hover hover:text-foreground [&_svg]:size-3.5 [&_svg]:text-muted-foreground";
+
+function MenuSeparator() {
+  return <div role="separator" className="my-1.5 h-px bg-border/65" />;
+}
+
+/** Todoist-aligned overflow & right-click context menu for task rows and board cards. */
 export function TaskRowMenu({
   task,
   completed,
@@ -43,6 +52,8 @@ export function TaskRowMenu({
   isSubtask,
   open,
   onOpenChange,
+  anchorPoint,
+  onOpenTriggerMenu,
   onInlineEdit,
   onDueChange,
   onPriorityChange,
@@ -64,6 +75,8 @@ export function TaskRowMenu({
   isSubtask: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  anchorPoint?: { x: number; y: number } | null;
+  onOpenTriggerMenu?: () => void;
   onInlineEdit?: () => void;
   onDueChange?: (due: string) => void;
   onPriorityChange?: (priority: "H" | "M" | "L" | "") => void;
@@ -89,9 +102,28 @@ export function TaskRowMenu({
     !completed && !isSubtask && onChangeState && effectiveRowState
       ? allowedStateTargets(effectiveRowState)
       : [];
+  const hasQuickControls =
+    !completed && Boolean(onDueChange || onPriorityChange);
+  const virtualAnchorRef = useMemo(
+    () => ({
+      current: anchorPoint
+        ? ({
+            getBoundingClientRect: () =>
+              DOMRect.fromRect({
+                x: anchorPoint.x,
+                y: anchorPoint.y,
+                width: 0,
+                height: 0,
+              }),
+          } as Element)
+        : null,
+    }),
+    [anchorPoint],
+  );
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
+      {anchorPoint && <PopoverAnchor virtualRef={virtualAnchorRef} />}
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -99,46 +131,54 @@ export function TaskRowMenu({
           size="icon-sm"
           disabled={disabled}
           aria-label={`更多操作: ${task.description}`}
-          title="更多操作"
+          title="更多操作 (右键任务行亦可)"
+          onClick={() => onOpenTriggerMenu?.()}
           className="size-6 rounded-[4px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
         >
           <Ellipsis className="size-3.5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        align="end"
+        align={anchorPoint ? "start" : "end"}
+        sideOffset={anchorPoint ? 4 : 6}
         collisionPadding={12}
         data-task-menu
-        className="w-60 p-1"
+        className="w-64 rounded-xl border-border/70 p-1.5 shadow-floating"
       >
         {!completed && onInlineEdit && (
-          <Button
-            type="button"
-            variant="navigation"
-            className="h-8 text-xs font-normal"
-            onClick={() => {
-              onOpenChange(false);
-              onInlineEdit();
-            }}
-          >
-            <Pencil className="size-3.5" />
-            编辑任务
-            <kbd className="ml-auto text-[11px] text-muted-foreground">E</kbd>
-          </Button>
+          <>
+            <Button
+              type="button"
+              variant="navigation"
+              className={MENU_ITEM_CLASS}
+              onClick={() => {
+                onOpenChange(false);
+                onInlineEdit();
+              }}
+            >
+              <Pencil />
+              <span>编辑任务</span>
+              <kbd className="ml-auto font-sans text-[11px] text-muted-foreground/80">
+                E
+              </kbd>
+            </Button>
+            {(hasQuickControls || stateTargets.length > 0 || extraActions) && (
+              <MenuSeparator />
+            )}
+          </>
         )}
 
         {!completed && onDueChange && (
-          <div className="border-b border-border/60 px-1.5 pt-1 pb-2">
+          <div
+            className={cn("px-1.5 pt-0.5 pb-1.5", onPriorityChange && "pb-2")}
+          >
             <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
               <span>日期</span>
-              <span className="font-normal">
+              <span className="font-normal tabular-nums text-muted-foreground/85">
                 {task.due ? dueLabel(task.due) : "无日期"}
               </span>
             </div>
-            <div
-              data-task-menu-dates
-              className="flex items-center justify-between gap-1"
-            >
+            <div data-task-menu-dates className="grid grid-cols-5 gap-1">
               <Button
                 type="button"
                 variant={dueDay === todayStr ? "secondary" : "ghost"}
@@ -149,7 +189,7 @@ export function TaskRowMenu({
                   onOpenChange(false);
                   onDueChange(todayStr);
                 }}
-                className="size-8 rounded-md"
+                className="h-8 w-full rounded-[7px]"
               >
                 <Sun className="size-4 text-(--due-today)" />
                 <span className="md:hidden">今天</span>
@@ -164,7 +204,7 @@ export function TaskRowMenu({
                   onOpenChange(false);
                   onDueChange(tomorrowStr);
                 }}
-                className="size-8 rounded-md"
+                className="h-8 w-full rounded-[7px]"
               >
                 <Sunrise className="size-4 text-(--due-tomorrow)" />
                 <span className="md:hidden">明天</span>
@@ -179,7 +219,7 @@ export function TaskRowMenu({
                   onOpenChange(false);
                   onDueChange(weekendStr);
                 }}
-                className="size-8 rounded-md"
+                className="h-8 w-full rounded-[7px]"
               >
                 <Armchair className="size-4 text-(--priority-3)" />
                 <span className="md:hidden">周末</span>
@@ -194,7 +234,7 @@ export function TaskRowMenu({
                   onOpenChange(false);
                   onDueChange(nextWeekStr);
                 }}
-                className="size-8 rounded-md"
+                className="h-8 w-full rounded-[7px]"
               >
                 <ArrowRight className="size-4 text-(--due-upcoming)" />
                 <span className="md:hidden">下周</span>
@@ -210,7 +250,7 @@ export function TaskRowMenu({
                   onOpenChange(false);
                   onDueChange("");
                 }}
-                className="size-8 rounded-md text-muted-foreground"
+                className="h-8 w-full rounded-[7px] text-muted-foreground"
               >
                 <X className="size-4" />
                 <span className="md:hidden">清除</span>
@@ -220,10 +260,10 @@ export function TaskRowMenu({
         )}
 
         {!completed && onPriorityChange && (
-          <div className="border-b border-border/60 px-1.5 pt-2 pb-2">
+          <div className="px-1.5 pt-0.5 pb-1.5">
             <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-muted-foreground">
               <span>优先级</span>
-              <span className="font-normal">
+              <span className="font-normal tabular-nums text-muted-foreground/85">
                 {task.priority === "H"
                   ? "P1"
                   : task.priority === "M"
@@ -233,89 +273,112 @@ export function TaskRowMenu({
                       : "P4"}
               </span>
             </div>
-            <div className="flex items-center justify-between gap-1">
-              {PRIORITIES.map((item) => (
+            <div className="grid grid-cols-4 gap-1">
+              {PRIORITIES.map((item) => {
+                const active = (task.priority || "") === item.value;
+                return (
+                  <Button
+                    key={item.label}
+                    type="button"
+                    variant={active ? "secondary" : "ghost"}
+                    size="icon-xs"
+                    title={item.label}
+                    aria-label={item.label}
+                    onClick={() => {
+                      onOpenChange(false);
+                      onPriorityChange(item.value);
+                    }}
+                    className={cn(
+                      "h-8 w-full gap-1 rounded-[7px] text-[11px] font-medium",
+                      active
+                        ? "ring-1 ring-border text-foreground"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    <Flag className={`size-3.5 ${item.iconClass}`} />
+                    <span>{item.value ? item.short : "P4"}</span>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {hasQuickControls && (stateTargets.length > 0 || extraActions) && (
+          <MenuSeparator />
+        )}
+
+        {stateTargets.length > 0 && onChangeState && (
+          <div>
+            <div className="mb-0.5 px-2 pt-0.5 text-[11px] font-medium text-muted-foreground">
+              状态流转
+            </div>
+            <div className="space-y-0.5">
+              {stateTargets.map((target) => (
                 <Button
-                  key={item.label}
+                  key={target}
                   type="button"
-                  variant={
-                    (task.priority || "") === item.value ? "secondary" : "ghost"
-                  }
-                  size="icon-xs"
-                  title={item.label}
-                  aria-label={item.label}
+                  variant="navigation"
+                  disabled={disabled}
+                  className={MENU_ITEM_CLASS}
                   onClick={() => {
                     onOpenChange(false);
-                    onPriorityChange(item.value);
+                    onChangeState(target);
                   }}
-                  className="size-8 rounded-md"
                 >
-                  <Flag className={`size-4 ${item.iconClass}`} />
+                  <StateTargetIcon state={target} />
+                  <span>{STATE_ACTION_LABELS[target]}</span>
                 </Button>
               ))}
             </div>
           </div>
         )}
 
-        {stateTargets.length > 0 && onChangeState && (
-          <div className="border-b border-border/60 px-1 pt-1.5 pb-1.5">
-            <div className="mb-1 px-1.5 text-[11px] font-medium text-muted-foreground">
-              状态流转
-            </div>
-            {stateTargets.map((target) => (
-              <Button
-                key={target}
-                type="button"
-                variant="navigation"
-                disabled={disabled}
-                onClick={() => {
-                  onOpenChange(false);
-                  onChangeState(target);
-                }}
-              >
-                <StateTargetIcon state={target} />
-                {STATE_ACTION_LABELS[target]}
-              </Button>
-            ))}
-          </div>
+        {stateTargets.length > 0 && extraActions && <MenuSeparator />}
+        {extraActions}
+
+        {(hasQuickControls || stateTargets.length > 0 || extraActions) && (
+          <MenuSeparator />
         )}
 
-        {extraActions}
-        <div className="pt-1">
+        <div className="space-y-0.5">
           {!completed && onToggleStart && (
             <>
               <Button
                 type="button"
                 variant="navigation"
                 disabled={disabled || (!timingActive && timingUnavailable)}
+                className={MENU_ITEM_CLASS}
                 onClick={() => {
                   onOpenChange(false);
                   onToggleStart();
                 }}
               >
-                {timingActive ? (
-                  <Square className="size-3.5" />
-                ) : (
-                  <Play className="size-3.5" />
-                )}
-                {timingActive
-                  ? "停止计时"
-                  : task.start
-                    ? "切换为此任务计时"
-                    : "设为正在进行（开始计时）"}
+                {timingActive ? <Square /> : <Play />}
+                <span>
+                  {timingActive
+                    ? "停止计时"
+                    : task.start
+                      ? "切换为此任务计时"
+                      : "设为正在进行"}
+                </span>
+                <kbd className="ml-auto font-sans text-[11px] text-muted-foreground/80">
+                  S
+                </kbd>
               </Button>
               {!timingActive && task.start && onClearStartMark && (
                 <Button
                   type="button"
                   variant="navigation"
                   disabled={disabled}
+                  className={MENU_ITEM_CLASS}
                   onClick={() => {
                     onOpenChange(false);
                     onClearStartMark();
                   }}
                 >
-                  <X className="size-3.5" />
-                  清除进行中标记
+                  <X />
+                  <span>清除进行中标记</span>
                 </Button>
               )}
             </>
@@ -324,58 +387,69 @@ export function TaskRowMenu({
             <Button
               type="button"
               variant="navigation"
-              className="h-8 text-xs font-normal"
+              className={MENU_ITEM_CLASS}
               onClick={() => {
                 onOpenChange(false);
                 onStartAddSubtask();
               }}
             >
-              <CornerDownRight className="size-3.5" />
-              添加子任务
+              <CornerDownRight />
+              <span>添加子任务</span>
             </Button>
           )}
           {isSubtask && onUnlinkSubtask && (
             <Button
               type="button"
               variant="navigation"
-              className="h-8 text-xs font-normal"
+              className={MENU_ITEM_CLASS}
               onClick={() => {
                 onOpenChange(false);
                 onUnlinkSubtask();
               }}
             >
-              <ArrowUpRight className="size-3.5" />
-              转为主任务
+              <ArrowUpRight />
+              <span>转为主任务</span>
             </Button>
           )}
           <Button
             type="button"
             variant="navigation"
-            className="h-8 text-xs font-normal"
+            className={MENU_ITEM_CLASS}
             onClick={() => {
               onOpenChange(false);
               onEdit();
             }}
           >
-            <ListPlus className="size-3.5" />
-            备注与完整详情…
+            <ListPlus />
+            <span>备注与完整详情…</span>
           </Button>
-          {onDelete && (
+        </div>
+
+        {onDelete && (
+          <>
+            <MenuSeparator />
             <Button
               type="button"
               variant="navigation"
+              data-task-menu-destructive
               aria-label={`删除任务: ${task.description}`}
-              className="mt-1 h-8 border-t border-border/60 pt-1 text-xs font-normal text-destructive hover:text-destructive"
+              className={cn(
+                MENU_ITEM_CLASS,
+                "text-destructive hover:bg-destructive/10 hover:text-destructive [&_svg]:text-current",
+              )}
               onClick={() => {
                 onOpenChange(false);
                 onDelete();
               }}
             >
-              <Trash2 className="size-3.5" />
-              删除任务
+              <Trash2 />
+              <span>删除任务</span>
+              <kbd className="ml-auto font-sans text-[11px] text-destructive/75">
+                ⌫
+              </kbd>
             </Button>
-          )}
-        </div>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );

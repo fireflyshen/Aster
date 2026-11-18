@@ -35,6 +35,8 @@ type TaskRowActionsProps = {
   actionsVisible: boolean;
   moreOpen: boolean;
   onMoreOpenChange: (open: boolean) => void;
+  contextMenuPoint?: { x: number; y: number } | null;
+  onOpenTriggerMenu?: () => void;
   priorityPopoverOpen: boolean;
   onPriorityPopoverOpenChange: (open: boolean) => void;
   hasMoreMenu: boolean;
@@ -66,6 +68,8 @@ export function TaskRowActions({
   actionsVisible,
   moreOpen,
   onMoreOpenChange,
+  contextMenuPoint,
+  onOpenTriggerMenu,
   priorityPopoverOpen,
   onPriorityPopoverOpenChange,
   hasMoreMenu,
@@ -240,6 +244,8 @@ export function TaskRowActions({
           isSubtask={isSubtask}
           open={moreOpen}
           onOpenChange={onMoreOpenChange}
+          anchorPoint={contextMenuPoint}
+          onOpenTriggerMenu={onOpenTriggerMenu}
           onInlineEdit={onInlineEdit}
           onDueChange={onDueChange}
           onPriorityChange={onPriorityChange}
