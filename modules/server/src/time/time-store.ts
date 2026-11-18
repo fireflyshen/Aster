@@ -10,6 +10,7 @@ import {
   computeCostReport,
   computeDurationCostCents,
   computeTaskCostSummary,
+  hourlyRateForTags,
   normalizeActivityTags,
   normalizeHourlyRateCents,
   resolveActivityHourlyRateCents,
@@ -824,7 +825,8 @@ export async function createTimeStore(
         (input.patch.sleepTemplate.startTime !==
           current.sleepTemplate.startTime ||
           input.patch.sleepTemplate.endTime !== current.sleepTemplate.endTime ||
-          input.patch.sleepTemplate.enabled !== current.sleepTemplate.enabled);
+          input.patch.sleepTemplate.enabled !== current.sleepTemplate.enabled ||
+          (input.patch.sleepTemplate.tag?.trim() || undefined) !== current.sleepTemplate.tag);
 
       const nextPolicy = validatePolicy({
         ...current,
@@ -1015,7 +1017,7 @@ export async function createTimeStore(
     const tags = normalizeActivityTags(input.tags);
     const hourlyRateCents = isSleepCategory(policy, classified.categoryId)
       ? 0
-      : normalizeHourlyRateCents(policy.hourlyRateCents);
+      : hourlyRateForTags(policy, tags);
     const newActivity: Activity = {
       id: randomUUID(),
       version: 1,
@@ -1599,7 +1601,7 @@ export async function createTimeStore(
       const tags = normalizeActivityTags(input.tags);
       const hourlyRateCents = isSleepCategory(policy, classified.categoryId)
         ? 0
-        : normalizeHourlyRateCents(policy.hourlyRateCents);
+        : hourlyRateForTags(policy, tags);
 
       const activity: Activity = {
         id: randomUUID(),
@@ -1763,7 +1765,7 @@ export async function createTimeStore(
       const tags = normalizeActivityTags(input.tags);
       const hourlyRateCents = isSleepCategory(policy, classified.categoryId)
         ? 0
-        : normalizeHourlyRateCents(policy.hourlyRateCents);
+        : hourlyRateForTags(policy, tags);
 
       const activity: Activity = {
         id: randomUUID(),
@@ -2597,11 +2599,11 @@ export async function createTimeStore(
       if (hit.hit) return hit.receipt;
 
       const policy = parsePolicy(meta);
-      if (!policy.sleepTemplate.enabled) {
+      if (!policy.sleepTemplate.enabled || !policy.sleepTemplate.tag) {
         throw new TimeStoreError(
           409,
           "SLEEP_TEMPLATE_DISABLED",
-          "Sleep template is disabled.",
+          "睡眠模板未启用或未选择标签。",
         );
       }
 
@@ -2672,7 +2674,7 @@ export async function createTimeStore(
         version: 1,
         kind: "located",
         title: "睡眠",
-        projectSnapshot: "睡眠",
+        tags: [policy.sleepTemplate.tag],
         categoryId: sleepCategory,
         ruleVersion: policy.policyVersion,
         ruleSource: "explicit",
@@ -3987,9 +3989,10 @@ export async function createTimeStore(
           a.startMs !== undefined &&
           a.reviewState !== "voided",
       )
-      .reduce<
-        number | undefined
-      >((min, a) => (min === undefined || a.startMs! < min ? a.startMs! : min), undefined);
+      .reduce<number | undefined>(
+        (min, a) => (min === undefined || a.startMs! < min ? a.startMs! : min),
+        undefined,
+      );
 
     const policy = parsePolicy(meta);
     const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
@@ -4813,10 +4816,7 @@ export async function createTimeStore(
             state: op.state,
             timeEffect:
               (parsed.timeEffect as
-                | "started"
-                | "switched"
-                | "stopped"
-                | "none") ?? "none",
+                "started" | "switched" | "stopped" | "none") ?? "none",
             receipt: parsed,
           };
         }
@@ -5362,8 +5362,7 @@ export async function createTimeStore(
         applied: true,
         state: "applied" as OperationState,
         timeEffect: (closedActivity ? "switched" : "started") as
-          | "switched"
-          | "started",
+          "switched" | "started",
         receipt,
         activity: newActivity,
         closedActivity,

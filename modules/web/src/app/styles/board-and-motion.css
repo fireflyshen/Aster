@@ -12,12 +12,15 @@
   transform: translateX(0);
 }
 .workspace-main {
+  min-width: 0;
   transition: margin-left var(--sidebar-duration) var(--sidebar-easing);
 }
 @media (min-width: 768px) {
   .workspace-frame {
     padding-inline: 1.5rem;
   }
+}
+@media (min-width: 1100px) {
   .workspace-main[data-sidebar-open="true"] {
     margin-left: var(--sidebar-width);
   }

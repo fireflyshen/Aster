@@ -6,6 +6,7 @@ import { BoardCard } from "@/features/tasks/board-card";
 import type { DropPosition } from "@/features/tasks/drag-model";
 import { TaskDragLayer } from "@/features/tasks/task-drag-layer";
 import { dueLabel, toDueDay } from "@/features/tasks/task-date";
+import { TaskStateGroupContext } from "./task-meta-chips";
 import { useBoardDnd } from "@/features/tasks/use-board-dnd";
 import type { BoardColumn as Column } from "@core/workspace/board";
 import {
@@ -18,16 +19,7 @@ import type { NowSectionState } from "@core/workspace/preferences";
 import { closestCenter, DndContext, useDroppable } from "@dnd-kit/core";
 import type { Task } from "@shared/tasks";
 import { addDays, format } from "date-fns";
-import {
-  AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  Clock3,
-  Hourglass,
-  PauseCircle,
-  PlayCircle,
-  Plus,
-} from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 
 const NOW_COLUMNS: Record<TaskState, Column> = {
@@ -61,12 +53,15 @@ function NowDropSection({
   });
   return (
     <section ref={setNodeRef} data-board-column={state} aria-label={label}>
-      {children}
+      <TaskStateGroupContext value={state}>{children}</TaskStateGroupContext>
     </section>
   );
 }
 
-function scheduledGroupLabel(scheduled: string | undefined, now: Date): string {
+export function scheduledGroupLabel(
+  scheduled: string | undefined,
+  now: Date,
+): string {
   if (!scheduled) return "未排期";
   const day = toDueDay(scheduled);
   if (!day) return "未排期";
@@ -75,7 +70,10 @@ function scheduledGroupLabel(scheduled: string | undefined, now: Date): string {
   if (day < todayStr) return `已到期 · ${day}`;
   if (day === todayStr) return "今天";
   if (day === tomorrowStr) return "明天";
-  return dueLabel(scheduled);
+  return format(
+    new Date(`${day}T00:00:00`),
+    day.slice(0, 4) === format(now, "yyyy") ? "M月d日" : "yyyy年M月d日",
+  );
 }
 
 /** Dedicated "现在能做" (`now`) workspace view: up to 5 doing tasks expanded, alerts at top, planned/waiting/parked collapsible. */
@@ -214,7 +212,7 @@ export function NowWorkspace({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="now-workspace min-w-0 space-y-6">
       {alertCount > 0 && summary && (
         <section
           data-state-alerts
@@ -376,15 +374,14 @@ export function NowWorkspace({
           data-board-scroll
           role="region"
           aria-label="现在能做状态分组"
-          className="space-y-6"
+          className="now-sections"
         >
           <NowDropSection state="doing" label="处理中" disabled={disabled}>
             <div
               data-list-section="true"
-              className="flex items-center justify-between border-b border-border/80"
+              className="now-section-heading flex items-center justify-between border-b border-border/80"
             >
               <div className="flex items-center gap-1.5">
-                <PlayCircle className="size-4 text-primary" />
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
                   处理中
                 </h2>
@@ -392,25 +389,13 @@ export function NowWorkspace({
                   {doing.length}/{doingLimit}
                 </span>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={disabled}
-                onClick={onAddTask}
-                className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <Plus className="size-3.5" />
-                添加任务
-              </Button>
             </div>
 
             <div data-drop-content className="min-h-7">
               {doing.length === 0 && !loading ? (
-                <div className="mt-2 rounded-lg border border-dashed border-border/80 px-4 py-6 text-center text-sm text-muted-foreground">
-                  当前「处理中」为空（0/{doingLimit}
-                  ）。可以从下方「计划中」拖入或切换至此。
-                </div>
+                <p className="py-3 text-xs text-muted-foreground">
+                  暂无处理中任务，可从计划中移入。
+                </p>
               ) : (
                 doing.map((task) => {
                   const active = Boolean(
@@ -420,11 +405,6 @@ export function NowWorkspace({
                     <div
                       key={task.uuid}
                       data-now-active-timer={active ? "true" : undefined}
-                      className={
-                        active
-                          ? "rounded-md bg-primary/6 ring-1 ring-inset ring-primary/25"
-                          : undefined
-                      }
                     >
                       <BoardCard
                         compact
@@ -440,12 +420,21 @@ export function NowWorkspace({
                 })
               )}
             </div>
+            <button
+              type="button"
+              className="now-add-task"
+              disabled={disabled}
+              onClick={onAddTask}
+            >
+              <Plus className="size-4" />
+              添加任务
+            </button>
           </NowDropSection>
 
           <NowDropSection state="planned" label="计划中" disabled={disabled}>
             <div
               data-list-section="true"
-              className="flex items-center border-b border-border/80"
+              className="now-section-heading flex items-center border-b border-border/80"
             >
               <button
                 type="button"
@@ -460,7 +449,6 @@ export function NowWorkspace({
                     }`}
                   />
                 </span>
-                <Clock3 className="size-3.5 text-blue-600 dark:text-blue-400" />
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
                   计划中
                 </h2>
@@ -475,7 +463,7 @@ export function NowWorkspace({
             <div
               data-drop-content
               hidden={!plannedOpen}
-              className="min-h-7 space-y-4"
+              className="now-scheduled-groups min-h-7"
             >
               {plannedGroups.length === 0 ? (
                 <p className="py-3 text-xs text-muted-foreground">
@@ -483,10 +471,8 @@ export function NowWorkspace({
                 </p>
               ) : (
                 plannedGroups.map(([label, list]) => (
-                  <div key={label}>
-                    <div className="flex h-8 items-center border-b border-border/60 pt-1 text-xs font-semibold text-foreground/80">
-                      {label}
-                    </div>
+                  <div key={label} className="now-scheduled-group">
+                    <h3 className="now-scheduled-heading">{label}</h3>
                     <div>
                       {list.map((task) => (
                         <BoardCard
@@ -510,7 +496,7 @@ export function NowWorkspace({
           <NowDropSection state="waiting" label="等待中" disabled={disabled}>
             <div
               data-list-section="true"
-              className="flex items-center border-b border-border/80"
+              className="now-section-heading flex items-center border-b border-border/80"
             >
               <button
                 type="button"
@@ -525,7 +511,6 @@ export function NowWorkspace({
                     }`}
                   />
                 </span>
-                <Hourglass className="size-3.5 text-teal-600 dark:text-teal-400" />
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
                   等待中
                 </h2>
@@ -573,7 +558,7 @@ export function NowWorkspace({
           <NowDropSection state="parked" label="长期搁置" disabled={disabled}>
             <div
               data-list-section="true"
-              className="flex items-center border-b border-border/80"
+              className="now-section-heading flex items-center border-b border-border/80"
             >
               <button
                 type="button"
@@ -588,7 +573,6 @@ export function NowWorkspace({
                     }`}
                   />
                 </span>
-                <PauseCircle className="size-3.5 text-muted-foreground" />
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
                   长期搁置
                 </h2>

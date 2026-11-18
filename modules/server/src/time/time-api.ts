@@ -1,4 +1,4 @@
-import { requireActivityProject } from "./time-project.ts";
+import { normalizeActivityProject, timeAssignment } from "./time-project.ts";
 import type { TaskService } from "../../../core/tasks/service.ts";
 import { exportTimewarrior } from "../../../core/tasks/timewarrior.ts";
 import type { CostReportTaskMeta } from "../../../core/time/cost.ts";
@@ -70,23 +70,30 @@ export function createTimeHandlers(deps: {
     paths,
   } = deps;
 
-  async function projectForNewActivity(
-    body: Record<string, unknown>,
-  ): Promise<string> {
+  async function assignmentForNewActivity(body: Record<string, unknown>) {
     let project = optionalString(body.projectSnapshot, 200);
+    let tags = optionalStringArray(body.tags);
     const taskUuid = optionalString(body.taskUuid, 64);
-    if (!project && taskUuid) {
+    if (
+      taskUuid &&
+      (body.projectSnapshot === undefined || body.tags === undefined)
+    ) {
       try {
         const task = await service.rawTask(taskUuid);
-        project = typeof task.project === "string" ? task.project : undefined;
+        if (
+          body.projectSnapshot === undefined &&
+          typeof task.project === "string"
+        )
+          project = task.project;
+        if (body.tags === undefined && Array.isArray(task.tags))
+          tags = task.tags.filter(
+            (tag): tag is string => typeof tag === "string",
+          );
       } catch {
-        /* Explicit project remains usable without Taskwarrior. */
+        /* Supplied project and tags remain usable without Taskwarrior. */
       }
     }
-    return requireActivityProject(
-      project,
-      optionalString(body.explicitCategoryId, 100),
-    );
+    return timeAssignment(project, tags);
   }
 
   function requireStore(): TimeStore {
@@ -322,10 +329,7 @@ export function createTimeHandlers(deps: {
         const today = defaultDate(s);
         const taskUuid = requiredString(body.taskUuid, "taskUuid", 64);
         const mode = optionalString(body.mode, 16) as
-          | "set"
-          | "add"
-          | "clear"
-          | undefined;
+          "set" | "add" | "clear" | undefined;
         const plannedStartAtMs = parseTimestampInput(body, {
           msKey: "plannedStartAtMs",
           isoKey: "plannedStartAtIso",
@@ -569,6 +573,7 @@ export function createTimeHandlers(deps: {
             const raw = await service.rawTask(taskUuid);
             if (!title) title = raw.description;
             if (
+              body.projectSnapshot === undefined &&
               !projectSnapshot &&
               typeof raw.project === "string" &&
               raw.project
@@ -590,19 +595,23 @@ export function createTimeHandlers(deps: {
           );
         }
 
-        if (!timingPlanId)
-          projectSnapshot = requireActivityProject(
-            projectSnapshot,
-            optionalString(body.explicitCategoryId, 100),
+        const linkedPlan = timingPlanId
+          ? s.getTimingPlan(timingPlanId)
+          : undefined;
+        if (timingPlanId && !linkedPlan)
+          throw new TimeStoreError(
+            404,
+            "TIMING_PLAN_NOT_FOUND",
+            "Timing plan not found.",
           );
-        else {
-          const plan = s.getTimingPlan(timingPlanId);
-          if (plan)
-            requireActivityProject(
-              projectSnapshot || plan.projectSnapshot,
-              plan.categoryId,
-            );
-        }
+        const assignment = timeAssignment(
+          linkedPlan && body.projectSnapshot === undefined
+            ? linkedPlan.projectSnapshot
+            : projectSnapshot,
+          linkedPlan && body.tags === undefined ? linkedPlan.tags : tags,
+        );
+        projectSnapshot = assignment.projectSnapshot;
+        tags = assignment.tags;
         if (taskUuid && beforeStart) {
           await beforeStart(taskUuid, { source: clientSource, actor });
         }
@@ -740,6 +749,7 @@ export function createTimeHandlers(deps: {
             const raw = await service.rawTask(taskUuid);
             if (!title) title = raw.description;
             if (
+              body.projectSnapshot === undefined &&
               !projectSnapshot &&
               typeof raw.project === "string" &&
               raw.project
@@ -790,10 +800,9 @@ export function createTimeHandlers(deps: {
           defaultDate,
         });
 
-        projectSnapshot = requireActivityProject(
-          projectSnapshot,
-          optionalString(body.categoryId, 100),
-        );
+        const assignment = timeAssignment(projectSnapshot, tags);
+        projectSnapshot = assignment.projectSnapshot;
+        tags = assignment.tags;
         const result = s.createTimingPlan({
           idempotencyKey: optionalString(body.idempotencyKey, 200),
           receivedAtMs,
@@ -861,15 +870,41 @@ export function createTimeHandlers(deps: {
         });
 
         if (body.projectSnapshot !== undefined) {
-          const plan = s.getTimingPlan(
+          body.projectSnapshot =
+            normalizeActivityProject(
+              optionalNullableString(
+                body.projectSnapshot,
+                "projectSnapshot",
+                200,
+              ),
+            ) ?? null;
+        }
+        if (
+          body.projectSnapshot !== undefined ||
+          body.tags !== undefined ||
+          body.categoryId !== undefined
+        ) {
+          const existing = s.getTimingPlan(
             requiredString(body.planId, "planId", 64),
           );
-          body.projectSnapshot = requireActivityProject(
-            body.projectSnapshot,
-            typeof body.categoryId === "string"
-              ? body.categoryId
-              : plan?.categoryId,
-          );
+          if (existing) {
+            const assignment = timeAssignment(
+              body.projectSnapshot === undefined
+                ? existing.projectSnapshot
+                : optionalNullableString(
+                    body.projectSnapshot,
+                    "projectSnapshot",
+                    200,
+                  ),
+              body.tags === undefined
+                ? existing.tags
+                : body.tags === null
+                  ? []
+                  : optionalStringArray(body.tags),
+            );
+            body.projectSnapshot = assignment.projectSnapshot ?? null;
+            body.tags = assignment.tags;
+          }
         }
         const result = s.updateTimingPlan({
           idempotencyKey: optionalString(body.idempotencyKey, 200),
@@ -915,11 +950,12 @@ export function createTimeHandlers(deps: {
         const body = await readBody();
         const planId = requiredString(body.planId, "planId", 64);
         const existingPlan = s.getTimingPlan(planId);
-        if (existingPlan)
-          requireActivityProject(
-            existingPlan.projectSnapshot,
-            existingPlan.categoryId,
-          );
+        const assignment = existingPlan
+          ? timeAssignment(
+              existingPlan.projectSnapshot,
+              existingPlan.tags,
+            )
+          : undefined;
         if (existingPlan?.taskUuid && beforeStart) {
           await beforeStart(existingPlan.taskUuid, {
             source: clientSource,
@@ -935,6 +971,7 @@ export function createTimeHandlers(deps: {
           receivedAtMs: optionalNumber(body.receivedAtMs),
           effectiveAtMs: optionalNumber(body.effectiveAtMs),
           timingPlanId: planId,
+          ...assignment,
           sameTaskNoop: optionalBoolean(body.sameTaskNoop, "sameTaskNoop"),
           expectedSessionVersion: optionalNumber(body.expectedSessionVersion),
         });
@@ -1004,16 +1041,14 @@ export function createTimeHandlers(deps: {
             endMs: requiredNumber(body.endMs, "endMs"),
             explicitCategoryId: optionalString(body.explicitCategoryId, 100),
             taskUuid: optionalString(body.taskUuid, 64),
-            projectSnapshot: await projectForNewActivity(body),
-            tags: optionalStringArray(body.tags),
+            ...(await assignmentForNewActivity(body)),
             precision:
               body.precision === "estimated_bounds" ||
               body.precision === "approximate"
                 ? "estimated_bounds"
                 : "exact",
             source: optionalString(body.source, 40) as
-              | ActivitySource
-              | undefined,
+              ActivitySource | undefined,
             note: optionalString(body.note, 2000),
             rawInput: optionalString(body.rawInput, 2000),
           }),
@@ -1045,11 +1080,9 @@ export function createTimeHandlers(deps: {
             windowEndMs: optionalNumber(body.windowEndMs),
             explicitCategoryId: optionalString(body.explicitCategoryId, 100),
             taskUuid: optionalString(body.taskUuid, 64),
-            projectSnapshot: await projectForNewActivity(body),
-            tags: optionalStringArray(body.tags),
+            ...(await assignmentForNewActivity(body)),
             source: optionalString(body.source, 40) as
-              | ActivitySource
-              | undefined,
+              ActivitySource | undefined,
             note: optionalString(body.note, 2000),
             rawInput: optionalString(body.rawInput, 2000),
           }),
@@ -1097,15 +1130,41 @@ export function createTimeHandlers(deps: {
         }
         const patch = body.patch as Record<string, unknown>;
         if (Object.prototype.hasOwnProperty.call(patch, "projectSnapshot")) {
-          const activity = s.getActivity(
+          patch.projectSnapshot =
+            normalizeActivityProject(
+              optionalNullableString(
+                patch.projectSnapshot,
+                "projectSnapshot",
+                200,
+              ),
+            ) ?? null;
+        }
+        if (
+          patch.projectSnapshot !== undefined ||
+          patch.tags !== undefined ||
+          patch.categoryId !== undefined
+        ) {
+          const existing = s.getActivity(
             requiredString(body.activityId, "activityId", 64),
           );
-          patch.projectSnapshot = requireActivityProject(
-            patch.projectSnapshot,
-            typeof patch.categoryId === "string"
-              ? patch.categoryId
-              : activity?.categoryId,
-          );
+          if (existing) {
+            const assignment = timeAssignment(
+              patch.projectSnapshot === undefined
+                ? existing.projectSnapshot
+                : optionalNullableString(
+                    patch.projectSnapshot,
+                    "projectSnapshot",
+                    200,
+                  ),
+              patch.tags === undefined
+                ? existing.tags
+                : patch.tags === null
+                  ? []
+                  : optionalStringArray(patch.tags),
+            );
+            patch.projectSnapshot = assignment.projectSnapshot ?? null;
+            patch.tags = assignment.tags;
+          }
         }
         return {
           status: 200,

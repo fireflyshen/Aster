@@ -38,6 +38,7 @@ export type TagCategoryRule = {
 
 export type SleepTemplate = {
   enabled: boolean;
+  tag?: string;
   /** Local wall-clock start time in HH:MM (e.g. "23:30"). */
   startTime: string;
   /** Local wall-clock end time in HH:MM (e.g. "07:30"). */
@@ -65,6 +66,7 @@ export type TimePolicy = {
   reconcileReminder: ReconcileReminderPolicy;
   /** Hourly time value in integer CNY cents (e.g. 10000 = ¥100 / hour). */
   hourlyRateCents?: number;
+  zeroRateTags?: string[];
   /** Whether task rows emphasize invested cost over duration by default. */
   taskListHighlightCost?: boolean;
 };
@@ -78,7 +80,7 @@ export function createDefaultTimePolicy(): TimePolicy {
     tagRules: [],
     taskOverrides: {},
     sleepTemplate: {
-      enabled: true,
+      enabled: false,
       startTime: "23:30",
       endTime: "07:30",
       version: 1,

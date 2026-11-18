@@ -50,6 +50,11 @@ const STATE_CHIP_STYLE: Record<string, string> = {
   parked: "bg-muted text-muted-foreground border-border/70",
 };
 
+/** A section already communicates its state; retain exceptional blocked badges. */
+export const TaskStateGroupContext = createContext<
+  EffectiveTaskState | undefined
+>(undefined);
+
 /** Compact colored badge displaying the task state machine state (`waiting` shows waitReason on hover). */
 export function StateChip({
   state,
@@ -62,6 +67,7 @@ export function StateChip({
   waitDate?: string;
   blocked?: boolean;
 }) {
+  const groupedState = useContext(TaskStateGroupContext);
   if (!state || state === "completed") return null;
   const label = STATE_LABELS[state] ?? state;
   const titleParts: string[] = [label];
@@ -73,16 +79,18 @@ export function StateChip({
   }
   return (
     <>
-      <span
-        data-task-state-chip={state}
-        title={titleParts.join(" · ")}
-        className={cn(
-          "inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-[11px] leading-none font-medium whitespace-nowrap",
-          STATE_CHIP_STYLE[state] || STATE_CHIP_STYLE.planned,
-        )}
-      >
-        {label}
-      </span>
+      {state !== groupedState && (
+        <span
+          data-task-state-chip={state}
+          title={titleParts.join(" · ")}
+          className={cn(
+            "inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-[11px] leading-none font-medium whitespace-nowrap",
+            STATE_CHIP_STYLE[state] || STATE_CHIP_STYLE.planned,
+          )}
+        >
+          {label}
+        </span>
+      )}
       {blocked && (
         <span
           data-task-blocked-chip

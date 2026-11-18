@@ -3,11 +3,9 @@ import {
   normalizeActivityTags,
   normalizeHourlyRateCents,
   resolveActivityHourlyRateCents,
-  resolveActivityProject,
   resolveEffectiveActivityEndMs,
   resolveEffectiveConfirmedEndMs,
   secondsDelta,
-  UNASSIGNED_PROJECT_KEY,
   UNTAGGED_KEY,
 } from "./cost.ts";
 import type {
@@ -89,7 +87,7 @@ export function buildSleepCandidateForDate(
   >,
   referenceNowMs: number,
 ): SleepCandidate | null {
-  if (!policy.sleepTemplate.enabled) return null;
+  if (!policy.sleepTemplate.enabled || !policy.sleepTemplate.tag) return null;
   const { startMs, endMs } = computeSleepCandidateRange(
     date,
     policy.sleepTemplate.startTime,
@@ -226,8 +224,7 @@ export function computeDailyLedger(
       rateCents,
     );
     const tags = normalizeActivityTags(activity.tags);
-    const projectKey =
-      resolveActivityProject(activity, policy) || UNASSIGNED_PROJECT_KEY;
+    const projectKey = activity.projectSnapshot?.trim();
 
     coveredSeconds += confirmedSeconds;
     provisionalSeconds += segmentProvisionalSeconds;
@@ -236,10 +233,12 @@ export function computeDailyLedger(
     if (confirmedSeconds > 0) {
       byCategorySeconds[activity.categoryId] =
         (byCategorySeconds[activity.categoryId] || 0) + confirmedSeconds;
-      byProjectSeconds[projectKey] =
-        (byProjectSeconds[projectKey] || 0) + confirmedSeconds;
-      byProjectCostCents[projectKey] =
-        (byProjectCostCents[projectKey] || 0) + segConfirmedCostCents;
+      if (projectKey) {
+        byProjectSeconds[projectKey] =
+          (byProjectSeconds[projectKey] || 0) + confirmedSeconds;
+        byProjectCostCents[projectKey] =
+          (byProjectCostCents[projectKey] || 0) + segConfirmedCostCents;
+      }
       if (tags.length > 0) {
         for (const tag of tags) {
           byTagSeconds[tag] = (byTagSeconds[tag] || 0) + confirmedSeconds;
@@ -284,8 +283,8 @@ export function computeDailyLedger(
       title: activity.title,
       categoryId: activity.categoryId,
       ...(activity.taskUuid ? { taskUuid: activity.taskUuid } : {}),
-      ...(resolveActivityProject(activity, policy)
-        ? { projectSnapshot: resolveActivityProject(activity, policy) }
+      ...(activity.projectSnapshot
+        ? { projectSnapshot: activity.projectSnapshot }
         : {}),
       ...(tags.length > 0 ? { tags } : {}),
       hourlyRateCents: rateCents,

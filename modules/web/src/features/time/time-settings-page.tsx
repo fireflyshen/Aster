@@ -11,6 +11,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { saveBackup } from "@/features/recovery/backup-panel";
+import { TimeTagPicker } from "./project-tag-fields";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   applyTimeBackupRestore,
   applyTimewarriorImport,
@@ -30,10 +32,12 @@ import {
 
 export function TimeSettingsPage({
   policy,
+  availableTags,
   busy,
   runMutation,
 }: {
   policy: TimePolicy;
+  availableTags: readonly string[];
   busy: boolean;
   runMutation: <T extends TimeReceipt | Record<string, unknown>>(
     label: string,
@@ -46,8 +50,10 @@ export function TimeSettingsPage({
     String(Math.max(1, Math.round(policy.longActivityThresholdSeconds / 60))),
   );
   const [sleepEnabled, setSleepEnabled] = useState(
-    policy.sleepTemplate.enabled,
+    policy.sleepTemplate.enabled && Boolean(policy.sleepTemplate.tag),
   );
+  const [sleepTag, setSleepTag] = useState(policy.sleepTemplate.tag ?? "");
+  const [zeroRateTags, setZeroRateTags] = useState(policy.zeroRateTags ?? []);
   const [sleepStart, setSleepStart] = useState(policy.sleepTemplate.startTime);
   const [sleepEnd, setSleepEnd] = useState(policy.sleepTemplate.endTime);
   const [hourlyRateYuan, setHourlyRateYuan] = useState(
@@ -75,7 +81,9 @@ export function TimeSettingsPage({
     setThresholdMins(
       String(Math.max(1, Math.round(policy.longActivityThresholdSeconds / 60))),
     );
-    setSleepEnabled(policy.sleepTemplate.enabled);
+    setSleepEnabled(policy.sleepTemplate.enabled && Boolean(policy.sleepTemplate.tag));
+    setSleepTag(policy.sleepTemplate.tag ?? "");
+    setZeroRateTags(policy.zeroRateTags ?? []);
     setSleepStart(policy.sleepTemplate.startTime);
     setSleepEnd(policy.sleepTemplate.endTime);
     setHourlyRateYuan(
@@ -92,6 +100,7 @@ export function TimeSettingsPage({
 
   async function handleSavePolicy(e: React.FormEvent) {
     e.preventDefault();
+    if (sleepEnabled && !sleepTag) return;
     const parsedThreshold = Number(thresholdMins);
     await runMutation("已保存时间与单价设置", () =>
       updateTimePolicy({
@@ -104,11 +113,13 @@ export function TimeSettingsPage({
               : policy.longActivityThresholdSeconds,
           sleepTemplate: {
             enabled: sleepEnabled,
+            tag: sleepTag,
             startTime: sleepStart,
             endTime: sleepEnd,
             version: policy.sleepTemplate.version,
           },
           hourlyRateCents: previewRateCents,
+          zeroRateTags,
           taskListHighlightCost,
         },
       }),
@@ -232,6 +243,19 @@ export function TimeSettingsPage({
               </p>
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-2 py-3.5">
+              <div>
+                <div className="text-sm text-foreground">只计时长的标签</div>
+                <p className="text-xs text-muted-foreground">
+                  新记录带有任一所选标签时按 ¥0/小时入账。历史单价保留。
+                </p>
+                {zeroRateTags.length > 0 && (
+                  <p className="mt-1 break-words text-xs">{zeroRateTags.map((tag) => `#${tag}`).join(" · ")}</p>
+                )}
+              </div>
+              <TimeTagPicker label="选择只计时长的标签" tags={zeroRateTags} onChange={setZeroRateTags} availableTags={availableTags} />
+            </div>
+
             <div className="flex items-center justify-between gap-4 py-3.5">
               <div>
                 <div className="text-sm text-foreground">
@@ -305,7 +329,7 @@ export function TimeSettingsPage({
                 <div>
                   <div className="text-sm text-foreground">睡眠模板候选</div>
                   <div className="text-xs text-muted-foreground">
-                    每日生成一条作息候选，可一键“照常”或跳过
+                    使用你选择的标签，手动确认后才入账
                   </div>
                 </div>
                 <Switch
@@ -316,6 +340,16 @@ export function TimeSettingsPage({
               </div>
               {sleepEnabled && (
                 <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-muted-foreground">
+                  <Select value={sleepTag} onValueChange={setSleepTag}>
+                    <SelectTrigger aria-label="作息模板标签" className="w-36">
+                      <SelectValue placeholder="选择已有标签" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[...new Set([...availableTags, ...(sleepTag ? [sleepTag] : [])])].map((tag) => (
+                        <SelectItem key={tag} value={tag}>#{tag}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <label className="flex items-center gap-2">
                     <span>入睡</span>
                     <Input
@@ -342,7 +376,7 @@ export function TimeSettingsPage({
           </div>
         </details>
         <div className="ledger-settings-save">
-          <Button type="submit" size="sm" disabled={busy}>
+          <Button type="submit" size="sm" disabled={busy || (sleepEnabled && !sleepTag)}>
             保存设置
           </Button>
         </div>

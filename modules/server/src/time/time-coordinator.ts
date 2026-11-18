@@ -1,4 +1,4 @@
-import { requireActivityProject } from "./time-project.ts";
+import { timeAssignment } from "./time-project.ts";
 import { randomUUID } from "node:crypto";
 import type { TaskService } from "../../../core/tasks/service.ts";
 import type { RawTask } from "../../../core/tasks/raw.ts";
@@ -146,7 +146,12 @@ export function createTimeCoordinator(deps: {
         );
       }
 
-      requireActivityProject(raw.project);
+      timeAssignment(
+        typeof raw.project === "string" ? raw.project : undefined,
+        Array.isArray(raw.tags)
+          ? raw.tags.filter((tag): tag is string => typeof tag === "string")
+          : undefined,
+      );
       if (deps.beforeStart && !raw.start) {
         await deps.beforeStart(uuid, {
           source: options.source,

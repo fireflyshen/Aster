@@ -221,7 +221,7 @@ test("COORD-01..04: skip already-started, unknown outcome pending_reconcile, unr
   }
 });
 
-test("starting a task without a project rejects before Taskwarrior or timer writes", async () => {
+test("task timing accepts a shared tag without a project and rejects unassigned starts before writes", async () => {
   const dir = await mkdtemp(join(tmpdir(), "aster-coord-project-"));
   const store = await createTimeStore(join(dir, "time.sqlite"));
   try {
@@ -239,12 +239,20 @@ test("starting a task without a project rejects before Taskwarrior or timer writ
     });
     await assert.rejects(
       () => coordinator.startTask(uuid),
-      (error: unknown) =>
-        (error as { code?: string }).code === "PROJECT_REQUIRED",
+      (error) =>
+        (error as { code?: string }).code === "TIME_ASSIGNMENT_REQUIRED",
     );
     assert.equal(store.getStatus().activeActivity, null);
-    assert.equal(harness.tasks.get(uuid)?.start, undefined);
     assert.ok(!harness.calls.some((call) => call.startsWith("startTask:")));
+    harness.tasks.get(uuid)!.tags = ["睡眠"];
+    await coordinator.startTask(uuid);
+    assert.equal(store.getStatus().activeActivity?.categoryId, "sleep");
+    assert.equal(store.getStatus().activeActivity?.hourlyRateCents, 0);
+    assert.deepEqual(store.getStatus().activeActivity?.tags, ["睡眠"]);
+    assert.equal(store.getStatus().activeActivity?.projectSnapshot, undefined);
+    assert.equal(harness.tasks.get(uuid)?.project, undefined);
+    assert.equal(harness.tasks.get(uuid)?.status, "pending");
+    assert.ok(harness.calls.some((call) => call.startsWith("startTask:")));
   } finally {
     store.close();
     await rm(dir, { recursive: true, force: true });

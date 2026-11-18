@@ -4,10 +4,9 @@ import type {
   TimePolicy,
   TimerSnapshot,
   TimingPlan,
-  WeeklyDistributionSummary,
 } from "@core/time/model";
 import { localDateOf } from "@core/time/zone";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TimePage } from "@/app/hooks/use-workspace-navigation";
 import {
   ackTimeEvents,
@@ -17,7 +16,6 @@ import {
   fetchTimePolicy,
   fetchTimeStatus,
   fetchTimingPlans,
-  fetchWeeklySummary,
   inspectTimeOperation,
   undoTimeOperation,
   type InspectOperationResponse,
@@ -67,7 +65,6 @@ export function useTimeLedger({
   const [digest, setDigest] = useState<TimeReconcileDigest | null>(null);
   const [plans, setPlans] = useState<TimingPlan[]>([]);
   const [events, setEvents] = useState<TimeEvent[]>([]);
-  const [weekly, setWeekly] = useState<WeeklyDistributionSummary | null>(null);
   const [pendingDetails, setPendingDetails] = useState<
     PendingOperationDetail[]
   >([]);
@@ -78,7 +75,12 @@ export function useTimeLedger({
     null,
   );
 
+  const loadGeneration = useRef(0);
+  const queryRef = useRef({ page, selectedDate, timeZone: policy?.timezone });
+  queryRef.current = { page, selectedDate, timeZone: policy?.timezone };
   const loadData = useCallback(async () => {
+    const { page, selectedDate } = queryRef.current;
+    const request = ++loadGeneration.current;
     setLoading(true);
     setError("");
     try {
@@ -86,6 +88,7 @@ export function useTimeLedger({
         fetchTimeStatus(),
         fetchTimePolicy(),
       ]);
+      if (request !== loadGeneration.current) return;
       setStatus(nextStatus);
       setPolicy(nextPolicy);
 
@@ -99,6 +102,7 @@ export function useTimeLedger({
             fetchTimingPlans(),
             fetchTimeEvents(),
           ]);
+        if (request !== loadGeneration.current) return;
         setDaily(nextDaily);
         setDigest(nextDigest);
         setPlans(nextPlans);
@@ -128,32 +132,36 @@ export function useTimeLedger({
               },
             ),
           );
+          if (request !== loadGeneration.current) return;
           setPendingDetails(details);
         } else {
           setPendingDetails([]);
         }
-      } else if (page === "weekly") {
-        const nextWeekly = await fetchWeeklySummary(selectedDate);
-        setWeekly(nextWeekly);
       }
     } catch (err) {
+      if (request !== loadGeneration.current) return;
       setError(
         formatTimeErrorMessage(
           err,
-          policy?.timezone ||
+          queryRef.current.timeZone ||
             Intl.DateTimeFormat().resolvedOptions().timeZone ||
             "UTC",
         ),
       );
     } finally {
-      setLoading(false);
+      if (request === loadGeneration.current) setLoading(false);
     }
-  }, [page, selectedDate]);
+  }, []);
 
   useEffect(() => {
     void loadData();
+    return () => {
+      loadGeneration.current++;
+    };
   }, [
     loadData,
+    page,
+    selectedDate,
     timerSnapshot?.timeEpoch,
     timerSnapshot?.taskDataEpoch,
     timerSnapshot?.sessionVersion,
@@ -219,6 +227,11 @@ export function useTimeLedger({
             Intl.DateTimeFormat().resolvedOptions().timeZone ||
             "UTC",
         );
+        // A failed response may follow a committed write or a successful first
+        // step (for example, saving a plan before starting it). Reconcile before
+        // presenting the error so retries use the current server version.
+        await loadData();
+        onTimeMutated();
         if (options?.onError) {
           options.onError(msg);
         } else {
@@ -284,7 +297,6 @@ export function useTimeLedger({
     digest,
     plans,
     events,
-    weekly,
     pendingDetails,
     loading,
     busy,

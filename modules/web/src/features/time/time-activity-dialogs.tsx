@@ -1,3 +1,5 @@
+import { hasTimeAssignment } from "@core/time/assignment";
+import { hourlyRateForTags } from "@core/time/cost";
 import { DateField } from "@/components/ui/date-field";
 import type { Activity, LocatedSegment, TimePolicy } from "@core/time/model";
 import { zonedDateTimeToUtcMs } from "@core/time/zone";
@@ -98,10 +100,9 @@ export function TimeLogOrEstimateDialog({
   const [estimatedMinutes, setEstimatedMinutes] = useState("60");
   const [project, setProject] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [isSleep, setIsSleep] = useState(false);
   const [taskUuid, setTaskUuid] = useState("none");
   const [approximate, setApproximate] = useState(false);
-  const [useWindow, setUseWindow] = useState(true);
+  const [useWindow, setUseWindow] = useState(false);
   const [note, setNote] = useState("");
   const [localError, setLocalError] = useState("");
 
@@ -115,18 +116,15 @@ export function TimeLogOrEstimateDialog({
     setTitle("");
     setProject("");
     setTags([]);
-    setIsSleep(false);
     setTaskUuid("none");
     setApproximate(false);
-    setUseWindow(true);
+    setUseWindow(false);
     setNote("");
     setLocalError("");
   }, [open, seed]);
 
   const pendingTasks = tasks.filter((t) => t.status === "pending");
-  const activeRateCents = isSleep
-    ? 0
-    : normalizeHourlyRateCents(policy?.hourlyRateCents);
+  const activeRateCents = hourlyRateForTags(policy ?? {}, tags);
 
   function handleSelectTask(nextUuid: string) {
     setTaskUuid(nextUuid);
@@ -134,8 +132,10 @@ export function TimeLogOrEstimateDialog({
     const found = tasks.find((t) => t.uuid === nextUuid);
     if (!found) return;
     if (!title.trim()) setTitle(found.description);
-    setProject(found.project || "");
-    setTags(found.tags ? [...found.tags] : []);
+    if (!hasTimeAssignment(project, tags)) {
+      setProject(found.project || "");
+      setTags([...found.tags]);
+    }
   }
 
   let previewDurationSeconds = 0;
@@ -180,19 +180,12 @@ export function TimeLogOrEstimateDialog({
       setLocalError("请输入活动名称或关联一个任务。");
       return;
     }
-    const explicitCategoryId = isSleep ? "sleep" : "work";
-    const resolvedProject =
-      project.trim() || selectedTask?.project || (isSleep ? "睡眠" : undefined);
-    if (!resolvedProject) {
-      setLocalError("请选择时间记录所属的项目。");
+    const resolvedProject = project.trim();
+    if (!hasTimeAssignment(resolvedProject, tags)) {
+      setLocalError("请选择项目或至少一个标签。");
       return;
     }
-    const resolvedTags =
-      tags.length > 0
-        ? tags
-        : selectedTask?.tags?.length
-          ? selectedTask.tags
-          : undefined;
+    const resolvedTags = tags;
 
     if (mode === "log") {
       try {
@@ -225,7 +218,6 @@ export function TimeLogOrEstimateDialog({
           title: finalTitle,
           startMs,
           endMs,
-          explicitCategoryId,
           taskUuid: selectedTask?.uuid,
           projectSnapshot: resolvedProject,
           tags: resolvedTags,
@@ -269,7 +261,6 @@ export function TimeLogOrEstimateDialog({
       targetDate: date,
       windowStartMs,
       windowEndMs,
-      explicitCategoryId,
       taskUuid: selectedTask?.uuid,
       projectSnapshot: resolvedProject,
       tags: resolvedTags,
@@ -284,7 +275,7 @@ export function TimeLogOrEstimateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="ledger-activity-dialog sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
             {mode === "log" ? "补记已发生时段" : "记录待定位估记"}
@@ -305,7 +296,7 @@ export function TimeLogOrEstimateDialog({
               className="flex-1"
               onClick={() => setMode("log")}
             >
-              固定时段补记
+              知道起止时间
             </Button>
             <Button
               type="button"
@@ -314,7 +305,7 @@ export function TimeLogOrEstimateDialog({
               className="flex-1"
               onClick={() => setMode("estimate")}
             >
-              模糊时长估记
+              只记得时长
             </Button>
           </div>
 
@@ -329,36 +320,7 @@ export function TimeLogOrEstimateDialog({
             />
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="time-log-task">关联任务（可选）</Label>
-            <Select value={taskUuid} onValueChange={handleSelectTask}>
-              <SelectTrigger id="time-log-task">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">不关联任务</SelectItem>
-                {pendingTasks.slice(0, 60).map((task) => (
-                  <SelectItem key={task.uuid} value={task.uuid}>
-                    {task.description}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <ProjectTagFields
-            idPrefix="time-log"
-            project={project}
-            onProjectChange={setProject}
-            tags={tags}
-            onTagsChange={setTags}
-            availableProjects={availableProjects}
-            availableTags={availableTags}
-            isSleep={isSleep}
-            onSleepChange={setIsSleep}
-          />
-
-          <div className="grid grid-cols-3 gap-2">
+          <div className="ledger-dialog-time-grid grid grid-cols-3 gap-2">
             <div className="space-y-1.5">
               <Label htmlFor="time-log-date">日期</Label>
               <DateField id="time-log-date" value={date} onChange={setDate} />
@@ -437,11 +399,11 @@ export function TimeLogOrEstimateDialog({
 
           {previewDurationSeconds > 0 && (
             <div className="rounded-md bg-muted/45 px-2.5 py-1.5 text-xs text-muted-foreground tabular-nums">
-              {isSleep ? (
-                <span>睡眠时段：单价 ¥0，折算成本 ¥0</span>
+              {activeRateCents === 0 ? (
+                <span>计入时长 · 不折算金额</span>
               ) : (
                 <span>
-                  按当前单价（
+                  {mode === "estimate" ? "定位后预计按单价（" : "按当前单价（"}
                   {formatCurrencyCny(activeRateCents)}
                   /小时）折算：
                   <strong className="font-medium text-foreground">
@@ -452,16 +414,48 @@ export function TimeLogOrEstimateDialog({
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label htmlFor="time-log-note">备注（可选）</Label>
-            <Textarea
-              id="time-log-note"
-              rows={2}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="补充说明…"
-            />
-          </div>
+          <ProjectTagFields
+            idPrefix="time-log"
+            project={project}
+            onProjectChange={setProject}
+            tags={tags}
+            onTagsChange={setTags}
+            availableProjects={availableProjects}
+            availableTags={availableTags}
+          />
+
+          <details className="ledger-dialog-options">
+            <summary>关联任务与备注（可选）</summary>
+            <div className="space-y-3 pt-3">
+              {" "}
+              <div className="space-y-1.5">
+                <Label htmlFor="time-log-task">关联任务（可选）</Label>
+                <Select value={taskUuid} onValueChange={handleSelectTask}>
+                  <SelectTrigger id="time-log-task">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">不关联任务</SelectItem>
+                    {pendingTasks.slice(0, 60).map((task) => (
+                      <SelectItem key={task.uuid} value={task.uuid}>
+                        {task.description}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="time-log-note">备注（可选）</Label>
+                <Textarea
+                  id="time-log-note"
+                  rows={2}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="补充说明…"
+                />
+              </div>
+            </div>
+          </details>
 
           {localError && (
             <p className="text-xs text-destructive">{localError}</p>
@@ -557,12 +551,12 @@ export function LocateEstimateDialog({
 
   return (
     <Dialog open={Boolean(activity)} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent className="ledger-activity-dialog sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>将估记定位到具体时段</DialogTitle>
           <DialogDescription>
             定位后将把「{activity?.title}
-            」从待定位估记转为已定位时间（C 增加，U 减少）。
+            」计入所选日期；不会与原估记重复累计。
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
@@ -652,7 +646,6 @@ export function EditSegmentDialog({
   const [title, setTitle] = useState("");
   const [project, setProject] = useState("");
   const [tags, setTags] = useState<string[]>([]);
-  const [isSleep, setIsSleep] = useState(false);
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [origStartTime, setOrigStartTime] = useState("");
@@ -668,8 +661,7 @@ export function EditSegmentDialog({
     const initEnd = formatClockInZone(segment.endMs, timeZone);
     setTitle(segment.title);
     setProject(segment.projectSnapshot || "");
-    setTags(segment.tags ? [...segment.tags] : []);
-    setIsSleep(segment.categoryId === "sleep");
+    setTags([...(segment.tags || [])]);
     setStartTime(initStart);
     setEndTime(initEnd);
     setOrigStartTime(initStart);
@@ -688,15 +680,10 @@ export function EditSegmentDialog({
       setLocalError("活动标题不能为空。");
       return;
     }
-    if (!project.trim() && !isSleep) {
-      setLocalError("请选择时间记录所属的项目。");
+    if (!hasTimeAssignment(project, tags)) {
+      setLocalError("请选择项目或至少一个标签。");
       return;
     }
-    const nextCategoryId = isSleep
-      ? "sleep"
-      : segment.categoryId === "sleep"
-        ? "work"
-        : segment.categoryId || "work";
     const patch: {
       title?: string;
       categoryId?: string;
@@ -709,8 +696,7 @@ export function EditSegmentDialog({
       confirmReview?: boolean;
     } = {
       title: title.trim(),
-      categoryId: nextCategoryId,
-      projectSnapshot: project.trim() || (isSleep ? "睡眠" : null),
+      projectSnapshot: project.trim() || null,
       tags,
       precision: approximate ? "estimated_bounds" : "exact",
       ...(clearTaskLink ? { clearTaskLink: true } : {}),
@@ -759,11 +745,11 @@ export function EditSegmentDialog({
 
   return (
     <Dialog open={Boolean(segment)} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="ledger-activity-dialog sm:max-w-md">
         <DialogHeader>
           <DialogTitle>修改时间记录</DialogTitle>
           <DialogDescription>
-            支持修改标题、关联项目/标签、精确度或时段；提交将按版本号校验，并保留当时单价。
+            修改活动内容、项目、标签或起止时间，保留记录时的单价。
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
@@ -803,8 +789,6 @@ export function EditSegmentDialog({
             onTagsChange={setTags}
             availableProjects={availableProjects}
             availableTags={availableTags}
-            isSleep={isSleep}
-            onSleepChange={setIsSleep}
           />
           {!segment?.running && (
             <div className="grid grid-cols-2 gap-2">

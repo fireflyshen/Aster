@@ -96,6 +96,7 @@
 
 /* Workspace proportions follow the task-first desktop layout. */
 .workspace-content {
+  min-width: 0;
   padding-top: 24px;
 }
 .workspace-content[data-layout="list"] {
@@ -927,4 +928,166 @@
 }
 .task-meta-location {
   max-width: min(100%, 180px);
+}
+
+/* State groups contain their rows, including drag and timer surfaces. */
+.now-workspace [data-board-column],
+.now-workspace [data-drop-content] {
+  min-width: 0;
+}
+.now-workspace .board-card[data-compact="true"] {
+  margin-inline: 0;
+  padding-inline: 0;
+  max-width: 100%;
+}
+/* Todoist list proportions: the checkbox anchors the section; controls use the margin. */
+.now-workspace {
+  --now-row-gap: 10px;
+}
+.now-workspace .now-sections {
+  display: grid;
+  gap: 28px;
+}
+.now-workspace .now-section-heading {
+  height: 36px;
+  min-height: 36px;
+  border-color: var(--border);
+}
+.now-workspace .now-section-heading h2 {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  letter-spacing: 0;
+}
+.now-workspace .task-section-toggle {
+  min-height: 36px;
+  padding-left: 0;
+}
+.now-workspace .task-section-toggle .task-section-chevron {
+  left: -28px;
+}
+.now-workspace .now-scheduled-groups {
+  display: grid;
+  gap: 18px;
+  padding-top: 12px;
+}
+.now-workspace .now-scheduled-heading {
+  padding-bottom: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+}
+.now-workspace [data-task-surface][data-variant="list"] > div {
+  gap: var(--now-row-gap);
+}
+.now-workspace [data-variant="list"] .task-row-gutter {
+  position: absolute;
+  display: grid;
+  grid-template-columns: 16px 20px;
+  align-items: center;
+  justify-content: start;
+  gap: 0;
+  left: -40px;
+  top: 0;
+  width: 36px;
+  height: 20px;
+  margin-top: 9px;
+}
+.now-workspace [data-variant="list"] .task-row-gutter [data-drag-handle],
+.now-workspace [data-variant="list"] .task-row-gutter button {
+  position: static;
+  flex-shrink: 0;
+  height: 20px;
+}
+.now-workspace [data-variant="list"] .task-row-gutter [data-drag-handle] {
+  width: 16px;
+  grid-column: 1;
+}
+.now-workspace [data-variant="list"] .task-row-gutter button {
+  width: 20px;
+  grid-column: 2;
+}
+.now-workspace [data-variant="list"] [data-task-details] {
+  gap: 4px 10px;
+  margin-top: 3px;
+  padding-top: 0;
+}
+.task-meta:empty {
+  display: none;
+}
+.now-workspace .now-add-task {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+.now-add-task > svg {
+  color: var(--primary);
+}
+.now-workspace .now-add-task:hover {
+  color: var(--primary);
+}
+.now-add-task:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+@media (min-width: 768px) and (max-width: 1099px) {
+  .now-workspace [data-variant="list"] .task-row-gutter {
+    left: -28px;
+    width: 24px;
+    grid-template-columns: 24px;
+  }
+  .now-workspace [data-variant="list"] .task-row-gutter [data-drag-handle] {
+    display: none;
+  }
+  .now-workspace [data-variant="list"] .task-row-gutter button {
+    grid-column: 1;
+  }
+}
+@media (max-width: 767px), (hover: none), (pointer: coarse) {
+  .now-workspace .now-section-heading {
+    height: 44px;
+    min-height: 44px;
+    padding-left: 9px;
+  }
+  .now-workspace .task-section-toggle {
+    min-height: 44px;
+  }
+  .now-workspace .task-section-toggle .task-section-chevron {
+    left: -24px;
+  }
+  /* Subtask counts remain the touch expansion control; the card supports long-press drag. */
+  .now-workspace [data-variant="list"] .task-row-gutter {
+    display: none;
+  }
+  .now-workspace .now-scheduled-heading {
+    padding-left: 9px;
+  }
+  .now-workspace [data-task-details] button[aria-expanded] {
+    min-height: 32px;
+  }
+  .now-workspace .now-add-task {
+    padding-left: 9px;
+    min-height: 44px;
+  }
+}
+@media (max-width: 767px) {
+  .now-workspace {
+    --now-row-gap: 6px;
+  }
+}
+[data-task-title] {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 768px) and (max-width: 1099px) {
+  .workspace-content,
+  .workspace-content[data-layout="list"] {
+    padding-inline: 32px;
+    padding-top: 16px;
+  }
 }

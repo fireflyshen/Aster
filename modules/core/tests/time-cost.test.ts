@@ -130,7 +130,7 @@ test("historical segments keep captured hourlyRateCents while provisional segmen
   assert.equal(daily.confirmedCostCents, 10_000);
   assert.equal(daily.provisionalCostCents, 20_000);
   assert.equal(daily.byProjectCostCents["Work.Aster"], 10_000);
-  assert.equal(daily.byProjectCostCents["睡眠"], 0);
+  assert.equal(daily.byProjectCostCents["睡眠"], undefined);
   assert.equal(daily.byTagCostCents.dev, 10_000);
   assert.equal(daily.byTagCostCents.core, 10_000);
   assert.equal(daily.byTagCostCents[UNTAGGED_KEY], 0);
@@ -478,7 +478,7 @@ test("legacy sleep rates are zero in cost reports and task summaries including c
   assert.equal(report.totalPeriodConfirmedSeconds, 8 * 3600);
 });
 
-test("legacy sleep without a project is consistently grouped under sleep without rewriting history", () => {
+test("legacy sleep without a project retains its raw snapshot and stays outside project groups", () => {
   const policy = makePolicy();
   const activity = makeActivity({
     id: "legacy-sleep",
@@ -494,9 +494,9 @@ test("legacy sleep without a project is consistently grouped under sleep without
     policy,
     at("18:00"),
   );
-  assert.equal(daily.byProjectSeconds["睡眠"], 6 * 3600);
+  assert.deepEqual(Object.keys(daily.byProjectSeconds), []);
   assert.equal(daily.byProjectSeconds[UNASSIGNED_PROJECT_KEY], undefined);
-  assert.equal(daily.locatedSegments[0].projectSnapshot, "睡眠");
+  assert.equal(daily.locatedSegments[0].projectSnapshot, undefined);
   const report = computeCostReport({
     granularity: "week",
     anchorDate: "2026-11-15",
@@ -506,8 +506,100 @@ test("legacy sleep without a project is consistently grouped under sleep without
     policy,
     nowMs: at("18:00"),
   });
-  assert.equal(report.byProject[0].projectName, "睡眠");
-  assert.equal(report.byProject[0].periodSeconds, 6 * 3600);
+  assert.equal(report.byProject.length, 0);
+  assert.equal(report.unassignedSegments[0].confirmedSeconds, 6 * 3600);
   assert.equal(report.totalPeriodConfirmedCostCents, 0);
   assert.equal(activity.projectSnapshot, undefined);
+});
+
+test("project reports contain only real projects while tag statistics retain projectless time", () => {
+  const policy = makePolicy();
+  const activities = [
+    makeActivity({
+      id: "sleep",
+      categoryId: "sleep",
+      tags: ["睡眠"],
+      startMs: at("01:00"),
+      endMs: at("07:00"),
+      confirmedThroughMs: at("07:00"),
+    }),
+    makeActivity({
+      id: "named-project",
+      categoryId: "sleep",
+      projectSnapshot: "睡眠",
+      tags: ["睡眠"],
+      startMs: at("07:00"),
+      endMs: at("08:00"),
+      confirmedThroughMs: at("08:00"),
+    }),
+    makeActivity({
+      id: "exercise",
+      tags: ["运动", "健康"],
+      startMs: at("08:00"),
+      endMs: at("09:00"),
+      confirmedThroughMs: at("09:00"),
+    }),
+    makeActivity({
+      id: "legacy",
+      categoryId: "uncategorized",
+      startMs: at("09:00"),
+      endMs: at("10:00"),
+      confirmedThroughMs: at("10:00"),
+    }),
+    makeActivity({
+      id: "project",
+      projectSnapshot: "Aster",
+      tags: ["编码"],
+      startMs: at("10:00"),
+      endMs: at("11:00"),
+      confirmedThroughMs: at("11:00"),
+    }),
+  ];
+  const original = structuredClone(activities);
+  const report = computeCostReport({
+    granularity: "week",
+    anchorDate: "2026-11-15",
+    sortBy: "highest_cost",
+    activities,
+    budgetsByTaskUuid: new Map(),
+    policy,
+    nowMs: at("18:00"),
+  });
+  assert.deepEqual(
+    report.byProject.map((row) => row.projectName).sort(),
+    ["Aster", "睡眠"].sort(),
+  );
+  assert.equal(
+    report.byProject.find((row) => row.projectName === "睡眠")!.periodSeconds,
+    3600,
+  );
+  assert.equal(
+    report.unassignedSegments.filter((seg) => !seg.projectSnapshot).length,
+    3,
+  );
+  assert.equal(
+    report.byProject.reduce((sum, row) => sum + row.periodSeconds, 0) +
+      report.unassignedSegments
+        .filter((seg) => !seg.projectSnapshot)
+        .reduce((sum, seg) => sum + seg.confirmedSeconds, 0),
+    report.totalPeriodConfirmedSeconds,
+  );
+  assert.equal(
+    report.byProject.reduce((sum, row) => sum + row.periodCostCents, 0) +
+      report.unassignedSegments
+        .filter((seg) => !seg.projectSnapshot)
+        .reduce((sum, seg) => sum + seg.confirmedCostCents, 0),
+    report.totalPeriodConfirmedCostCents,
+  );
+  assert.deepEqual(activities, original);
+  const weekly = computeWeeklyDistribution(
+    "2026-11-15",
+    activities,
+    policy,
+    at("18:00"),
+  );
+  assert.equal(weekly.byProjectSeconds["睡眠"], 3600);
+  assert.equal(weekly.byTagSeconds["睡眠"], 7 * 3600);
+  assert.equal(weekly.byTagSeconds["运动"], 3600);
+  assert.equal(weekly.byProjectSeconds[UNASSIGNED_PROJECT_KEY], undefined);
 });

@@ -1,17 +1,24 @@
+import { hasTimeAssignment } from "../../../core/time/assignment.ts";
+import { normalizeActivityTags } from "../../../core/time/cost.ts";
 import { TimeStoreError } from "./time-store-types.ts";
 
-export const SLEEP_PROJECT = "睡眠";
-
 /** Project names belong to the time record; this never edits its linked task. */
-export function requireActivityProject(
-  project: unknown,
-  categoryId?: string,
-): string {
-  if (typeof project === "string" && project.trim()) return project.trim();
-  if (categoryId === "sleep") return SLEEP_PROJECT;
-  throw new TimeStoreError(
-    400,
-    "PROJECT_REQUIRED",
-    "请先选择时间记录所属的项目；标签可以留空。",
-  );
+export function normalizeActivityProject(project: unknown): string | undefined {
+  return typeof project === "string" ? project.trim() || undefined : undefined;
+}
+
+export function timeAssignment(
+  project: string | null | undefined,
+  tags?: readonly string[] | null,
+): { projectSnapshot?: string; tags: string[] } {
+  const projectSnapshot = normalizeActivityProject(project);
+  const normalizedTags = normalizeActivityTags(tags ?? []);
+  if (!hasTimeAssignment(projectSnapshot, normalizedTags)) {
+    throw new TimeStoreError(
+      400,
+      "TIME_ASSIGNMENT_REQUIRED",
+      "请选择一个项目，或至少一个标签。",
+    );
+  }
+  return { projectSnapshot, tags: normalizedTags };
 }

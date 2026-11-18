@@ -58,7 +58,6 @@ export function LedgerSummary({
   items: {
     label: string;
     value: ReactNode;
-    hint?: ReactNode;
     attention?: boolean;
   }[];
 }) {
@@ -68,7 +67,6 @@ export function LedgerSummary({
         <div key={item.label} data-attention={item.attention || undefined}>
           <dt>{item.label}</dt>
           <dd>{item.value}</dd>
-          {item.hint && <p>{item.hint}</p>}
         </div>
       ))}
     </dl>

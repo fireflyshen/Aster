@@ -34,20 +34,13 @@ export function normalizeHourlyRateCents(
   return Math.round(value);
 }
 
-/** Legacy sleep records still belong to the sleep project in reports. */
-export function resolveActivityProject(
-  activity: Pick<Activity, "projectSnapshot" | "categoryId">,
-  policy: TimePolicy,
-): string | undefined {
-  return (
-    activity.projectSnapshot?.trim() ||
-    (activity.categoryId === "sleep" ||
-    policy.categories.some(
-      (category) => category.id === activity.categoryId && category.isSleep,
-    )
-      ? "睡眠"
-      : undefined)
-  );
+export function hourlyRateForTags(
+  policy: Pick<TimePolicy, "zeroRateTags" | "hourlyRateCents">,
+  tags: readonly string[],
+): number {
+  return policy.zeroRateTags?.some((tag) => tags.includes(tag))
+    ? 0
+    : normalizeHourlyRateCents(policy.hourlyRateCents);
 }
 
 /** Sleep has duration, but never incurs time cost, even with legacy rate data. */
@@ -496,13 +489,13 @@ export function computeCostReport(options: {
   };
   const projectAccums = new Map<string, ProjectAccum>();
   const ensureProject = (projectSnapshot?: string): ProjectAccum => {
-    const trimmed = projectSnapshot?.trim();
-    const projectKey = trimmed || UNASSIGNED_PROJECT_KEY;
+    const projectName = projectSnapshot?.trim();
+    const projectKey = projectName || UNASSIGNED_PROJECT_KEY;
     const existing = projectAccums.get(projectKey);
     if (existing) return existing;
     const created: ProjectAccum = {
       projectKey,
-      projectName: trimmed || "未指定项目",
+      projectName: projectName || "未关联项目",
       periodSeconds: 0,
       periodCostCents: 0,
       periodProvisionalCostCents: 0,
@@ -514,6 +507,8 @@ export function computeCostReport(options: {
     projectAccums.set(projectKey, created);
     return created;
   };
+
+  const activityProjectRows = new Map<string, ProjectAccum>();
 
   for (const activity of options.activities) {
     if (
@@ -567,8 +562,8 @@ export function computeCostReport(options: {
       provisionalSeconds,
       provisionalCostCents,
       hourlyRateCents: rate,
-      ...(resolveActivityProject(activity, options.policy)
-        ? { projectSnapshot: resolveActivityProject(activity, options.policy) }
+      ...(activity.projectSnapshot
+        ? { projectSnapshot: activity.projectSnapshot }
         : {}),
       ...(tags.length > 0 ? { tags } : {}),
       ...(activity.taskUuid ? { taskUuid: activity.taskUuid } : {}),
@@ -578,10 +573,9 @@ export function computeCostReport(options: {
 
     const taskKey = activity.taskUuid?.toLowerCase();
     const taskMeta = taskKey ? options.taskMetaByUuid?.get(taskKey) : undefined;
-    const projectName =
-      resolveActivityProject(activity, options.policy) ||
-      taskMeta?.project?.trim();
+    const projectName = activity.projectSnapshot?.trim();
     const projectRow = ensureProject(projectName);
+    activityProjectRows.set(activity.id, projectRow);
     projectRow.periodSeconds += confirmedSeconds;
     projectRow.periodCostCents += confirmedCostCents;
     projectRow.periodProvisionalCostCents += provisionalCostCents;
@@ -654,14 +648,16 @@ export function computeCostReport(options: {
           });
         }
         const meta = options.taskMetaByUuid?.get(key);
-        const proj = ensureProject(meta?.project);
+        const proj =
+          (link.activityId
+            ? activityProjectRows.get(link.activityId)
+            : undefined) ?? ensureProject(meta?.project);
         if (!proj.billLinkIds.has(link.id)) {
           proj.billLinkIds.add(link.id);
           proj.cashExpenseCents += Math.max(0, link.cnyAmountCents);
         }
       } else if (link.activityId && periodActivityMap.has(link.activityId)) {
-        const seg = periodActivityMap.get(link.activityId)!;
-        const proj = ensureProject(seg.projectSnapshot);
+        const proj = activityProjectRows.get(link.activityId)!;
         if (!proj.billLinkIds.has(link.id)) {
           proj.billLinkIds.add(link.id);
           proj.cashExpenseCents += Math.max(0, link.cnyAmountCents);
@@ -740,6 +736,7 @@ export function computeCostReport(options: {
 
   const byProject: CostReportProjectRow[] = [];
   for (const proj of projectAccums.values()) {
+    if (proj.projectKey === UNASSIGNED_PROJECT_KEY) continue;
     let overInitialBudgetCents = 0;
     for (const uuid of proj.taskUuids) {
       overInitialBudgetCents += taskOverMap.get(uuid) ?? 0;

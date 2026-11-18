@@ -24,7 +24,9 @@ export {
 };
 
 export function projectDisplayName(key: string): string {
-  return key === UNASSIGNED_PROJECT_KEY || !key.trim() ? "未指定项目" : key;
+  return key === UNASSIGNED_PROJECT_KEY || !key.trim()
+    ? "未关联项目"
+    : key;
 }
 
 export function tagDisplayName(key: string): string {

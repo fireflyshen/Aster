@@ -1,6 +1,6 @@
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { type ReactNode } from "react";
-import { useDesktop } from "@/lib/use-desktop";
+import { useWideWorkspace } from "@/lib/use-desktop";
 
 export function WorkspaceNavigation({
   open,
@@ -13,7 +13,7 @@ export function WorkspaceNavigation({
   children: ReactNode;
   showCounts?: boolean;
 }) {
-  const desktop = useDesktop();
+  const desktop = useWideWorkspace();
   const contentClass =
     "flex flex-col overflow-y-auto bg-sidebar px-3 pb-3 [&>*]:shrink-0";
   if (desktop) {

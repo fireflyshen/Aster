@@ -1,49 +1,32 @@
-import { LedgerPeriodPicker, LedgerSummary } from "./ledger-ui";
-import { TimeStatisticChart } from "./time-statistic-chart";
-import {
-  costStatisticRows,
-  costTagGroups,
-  type StatisticDimension,
-} from "./time-statistics";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import type {
   CostReportGranularity,
-  CostReportProjectRow,
   CostReportSegmentRef,
-  CostReportSortBy,
   CostReportSummary,
   TimePolicy,
 } from "@core/time/model";
 import { addLocalDays, localDateOf } from "@core/time/zone";
-import { ChevronDown, ChevronLeft, ChevronRight, Receipt } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Spinner } from "@/components/ui/spinner";
+import { LedgerPeriodPicker, LedgerSummary } from "./ledger-ui";
 import { LinkedBillsList } from "./bill-link-dialog";
 import { fetchCostReport, unlinkBillLink } from "./time-api";
 import {
   formatClockInZone,
   formatCurrencyCny,
-  formatDurationChinese,
-  formatDurationCompact,
+  formatLedgerDuration,
 } from "./time-format";
+import { costStatisticRows, costTagGroups, nonProjectGroups } from "./time-statistics";
 
 function shiftPeriodDate(
-  dateStr: string,
-  granularity: CostReportGranularity,
+  date: string,
+  period: CostReportGranularity,
   delta: number,
-): string {
-  if (granularity === "week") {
-    return addLocalDays(dateStr, delta * 7);
-  }
-  const [yStr, mStr] = dateStr.split("-");
-  const y = Number(yStr);
-  const m = Number(mStr);
-  if (!Number.isFinite(y) || !Number.isFinite(m)) return dateStr;
-  const target = new Date(Date.UTC(y, m - 1 + delta, 1));
-  const ty = target.getUTCFullYear();
-  const tm = String(target.getUTCMonth() + 1).padStart(2, "0");
-  return `${ty}-${tm}-01`;
+) {
+  if (period === "week") return addLocalDays(date, delta * 7);
+  const [year, month] = date.split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1 + delta, 1));
+  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-01`;
 }
 
 function SegmentTraceList({
@@ -55,49 +38,38 @@ function SegmentTraceList({
   timeZone: string;
   onOpenDay: (date: string) => void;
 }) {
-  if (segments.length === 0) {
-    return (
-      <p className="py-2 text-xs text-muted-foreground/70">
-        本期间暂无时间明细记录。
-      </p>
-    );
-  }
   return (
-    <div className="divide-y divide-border/30 rounded-md border border-border/40 bg-background/50">
-      {segments.map((seg) => (
-        <button
-          key={`${seg.activityId}-${seg.startMs}`}
-          type="button"
-          onClick={() => onOpenDay(seg.date)}
-          className="flex w-full items-center justify-between gap-3 px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-(--row-hover)"
-        >
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-              {seg.date} {formatClockInZone(seg.startMs, timeZone)}–
-              {formatClockInZone(seg.endMs, timeZone)}
+    <div className="ledger-stat-traces">
+      {[...segments]
+        .sort((a, b) => b.startMs - a.startMs)
+        .map((segment) => (
+          <button
+            key={`${segment.activityId}:${segment.startMs}`}
+            onClick={() => onOpenDay(segment.date)}
+            type="button"
+          >
+            <span>
+              <time>
+                {segment.date.slice(5)} ·{" "}
+                {formatClockInZone(segment.startMs, timeZone)}–
+                {formatClockInZone(segment.endMs, timeZone)}
+              </time>
+              <strong>{segment.title}</strong>
+              {!!segment.tags?.length && (
+                <small>{segment.tags.map((tag) => `#${tag}`).join(" · ")}</small>
+              )}
+              {segment.provisionalSeconds > 0 && (
+                <small className="ledger-pending-label">
+                  另有 {formatLedgerDuration(segment.provisionalSeconds)} 待核对
+                </small>
+              )}
             </span>
-            <span className="truncate text-foreground">{seg.title}</span>
-            {seg.reviewState === "review_required" && (
-              <span className="text-[11px] text-amber-600 dark:text-amber-400">
-                待核对
-              </span>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-2 tabular-nums">
-            <span className="text-muted-foreground">
-              {formatDurationCompact(seg.confirmedSeconds)}
+            <span>
+              {formatLedgerDuration(segment.confirmedSeconds)}
+              <small>{formatCurrencyCny(segment.confirmedCostCents)}</small>
             </span>
-            <span className="font-medium text-foreground">
-              {formatCurrencyCny(seg.confirmedCostCents)}
-            </span>
-            {seg.provisionalCostCents > 0 && (
-              <span className="text-amber-600 dark:text-amber-400">
-                +{formatCurrencyCny(seg.provisionalCostCents)} 暂计
-              </span>
-            )}
-          </div>
-        </button>
-      ))}
+          </button>
+        ))}
     </div>
   );
 }
@@ -108,301 +80,354 @@ export function TimeCostReportPage({
   onSelectDate,
   onOpenDay,
   onMutated,
+  initialMetric = "seconds",
+  refreshKey,
 }: {
   policy: TimePolicy;
   selectedDate: string;
   onSelectDate: (date: string) => void;
   onOpenDay: (date: string) => void;
   onMutated?: () => void;
+  initialMetric?: "seconds" | "cost";
+  refreshKey?: string;
 }) {
   const timeZone = policy.timezone || "UTC";
-  const todayStr = localDateOf(Date.now(), timeZone);
-
-  const [granularity, setGranularity] = useState<CostReportGranularity>("week");
-  const [sortBy, setSortBy] = useState<CostReportSortBy>("highest_cost");
+  const [period, setPeriod] = useState<CostReportGranularity>("week");
+  const [metric, setMetric] = useState(initialMetric);
   const [groupBy, setGroupBy] = useState<"project" | "tag">("project");
   const [report, setReport] = useState<CostReportSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string>();
   const [busy, setBusy] = useState(false);
-
+  const generation = useRef(0);
+  const queryRef = useRef({ selectedDate, period });
+  queryRef.current = { selectedDate, period };
   const loadReport = useCallback(async () => {
+    const { selectedDate, period } = queryRef.current;
+    const request = ++generation.current;
     setLoading(true);
     setError("");
+    setExpanded(undefined);
     try {
       const next = await fetchCostReport({
-        granularity,
         date: selectedDate,
-        sortBy,
+        granularity: period,
+        sortBy: "highest_cost",
       });
-      setReport(next);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "加载成本报告失败");
+      if (request === generation.current) setReport(next);
+    } catch (error) {
+      if (request === generation.current)
+        setError(error instanceof Error ? error.message : "加载统计失败");
     } finally {
-      setLoading(false);
+      if (request === generation.current) setLoading(false);
     }
-  }, [granularity, selectedDate, sortBy]);
-
+  }, []);
   useEffect(() => {
     void loadReport();
-  }, [loadReport]);
-
-  async function handleUnlinkBill(linkId: string) {
+    return () => {
+      generation.current++;
+    };
+  }, [loadReport, selectedDate, period, refreshKey, policy.policyVersion]);
+  async function unlink(id: string) {
     setBusy(true);
     setError("");
     try {
-      await unlinkBillLink(linkId);
+      await unlinkBillLink(id);
       await loadReport();
       onMutated?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "解除账单关联失败");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "解除关联失败");
     } finally {
       setBusy(false);
     }
   }
-
+  const rows = report
+    ? [...(groupBy === "project" ? report.byProject : costTagGroups(report))]
+        .filter((row) => row.periodSeconds > 0)
+        .sort(
+          (a, b) =>
+            (metric === "seconds"
+              ? b.periodSeconds - a.periodSeconds
+              : b.periodCostCents - a.periodCostCents) ||
+            a.projectName.localeCompare(b.projectName, "zh-CN"),
+        )
+    : [];
+  const days = report ? costStatisticRows(report, "day") : [];
+  const maxDay = Math.max(
+    1,
+    ...days.map((day) => (metric === "seconds" ? day.seconds : day.cost)),
+  );
+  const total = report
+    ? metric === "seconds"
+      ? report.totalPeriodConfirmedSeconds
+      : report.totalPeriodConfirmedCostCents
+    : 0;
+  const nonProjects = report ? nonProjectGroups(report) : undefined;
+  const bills = report
+    ? [
+        ...new Map(
+          [
+            ...report.byTask.flatMap((task) => task.billLinks),
+            ...report.unassignedBillLinks,
+          ].map((link) => [link.id, link]),
+        ).values(),
+      ]
+    : [];
   return (
-    <div className="ledger-page ledger-report">
+    <div className="ledger-page ledger-statistics-page">
       <LedgerPeriodPicker
         date={selectedDate}
-        label="选择统计周期日期"
+        label="选择统计日期"
         onDate={onSelectDate}
         onPrevious={() =>
-          onSelectDate(shiftPeriodDate(selectedDate, granularity, -1))
+          onSelectDate(shiftPeriodDate(selectedDate, period, -1))
         }
-        onNext={() =>
-          onSelectDate(shiftPeriodDate(selectedDate, granularity, 1))
-        }
-        onToday={() => onSelectDate(todayStr)}
-        todayLabel={granularity === "week" ? "本周" : "本月"}
+        onNext={() => onSelectDate(shiftPeriodDate(selectedDate, period, 1))}
+        onToday={() => onSelectDate(localDateOf(Date.now(), timeZone))}
+        todayLabel={period === "week" ? "本周" : "本月"}
       >
-        <div className="ledger-segments" role="group" aria-label="报告周期">
+        <div className="ledger-segments" role="group" aria-label="统计周期">
           {(
             [
-              ["week", "按周"],
-              ["month", "按月"],
+              ["week", "周"],
+              ["month", "月"],
             ] as const
           ).map(([value, label]) => (
             <button
               key={value}
               type="button"
-              aria-pressed={granularity === value}
-              onClick={() => setGranularity(value)}
+              aria-pressed={period === value}
+              onClick={() => setPeriod(value)}
             >
               {label}
             </button>
           ))}
         </div>
       </LedgerPeriodPicker>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-
-      {loading && !report ? (
-        <div className="flex items-center gap-2 py-12 text-xs text-muted-foreground">
-          <Spinner className="size-4" />
-          正在生成成本报告…
+      {error && (
+        <div role="alert" className="ledger-error-row">
+          <span>{error}</span>
+          <Button size="sm" variant="outline" onClick={() => void loadReport()}>
+            重试
+          </Button>
         </div>
-      ) : report ? (
+      )}
+      {loading ? (
+        <p role="status" className="ledger-empty">
+          正在加载统计…
+        </p>
+      ) : !error && report ? (
         <>
+          <div className="ledger-stat-period">
+            <strong>
+              {report.periodStartDate} — {report.periodEndDate}
+            </strong>
+          </div>
           <LedgerSummary
             items={[
               {
-                label: "综合投入",
-                value: formatCurrencyCny(report.totalCombinedCostCents),
-                hint: "已确认时间成本 + 关联现金支出",
+                label: "已确认时长",
+                value: formatLedgerDuration(report.totalPeriodConfirmedSeconds),
               },
               {
-                label: "时间成本",
+                label: "时间折算",
                 value: formatCurrencyCny(report.totalPeriodConfirmedCostCents),
-                hint: `${formatDurationChinese(report.totalPeriodConfirmedSeconds)} · 已确认`,
               },
-              {
-                label: "关联现金支出",
-                value: formatCurrencyCny(report.totalCashExpenseCents),
-                hint: "Bills 账单",
-              },
+              ...(report.totalPeriodProvisionalSeconds > 0 ? [{
+                label: "待核对时长",
+                value: formatLedgerDuration(
+                  report.totalPeriodProvisionalSeconds,
+                ),
+                attention: true,
+              }] : []),
             ]}
           />
-          {report.totalPeriodProvisionalCostCents > 0 && (
-            <p className="ledger-review-note">
-              另有 {formatCurrencyCny(report.totalPeriodProvisionalCostCents)}{" "}
-              待核对，未计入合计。
-            </p>
-          )}
-          <div className="ledger-report-controls">
-            <div className="ledger-segments" role="group" aria-label="成本分组">
-              {(
-                [
-                  ["project", "项目"],
-                  ["tag", "标签"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={groupBy === value}
-                  onClick={() => {
-                    setGroupBy(value);
-                    setExpandedKey(null);
-                    if (value === "tag") setSortBy("highest_cost");
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+          <details className="ledger-section-disclosure ledger-daily-trend">
+            <summary><span>每日趋势</span></summary>
+            <div className="ledger-trend-bars" data-period={period}>
+              {days.map((day, index) => {
+                const value = metric === "seconds" ? day.seconds : day.cost;
+                return (
+                  <button
+                    key={day.key}
+                    type="button"
+                    aria-label={`${day.date} ${metric === "seconds" ? formatLedgerDuration(value) : formatCurrencyCny(value)}，查看记录`}
+                    title={`${day.date} · ${metric === "seconds" ? formatLedgerDuration(value) : formatCurrencyCny(value)}`}
+                    onClick={() => day.date && onOpenDay(day.date!)}
+                  >
+                    <span className="ledger-trend-value">
+                      {metric === "seconds"
+                        ? formatLedgerDuration(value)
+                        : formatCurrencyCny(value)}
+                    </span>
+                    <span className="ledger-trend-track">
+                      <i
+                        style={{
+                          height: `${value ? Math.max(3, (value / maxDay) * 100) : 0}%`,
+                        }}
+                      />
+                    </span>
+                    <time>
+                      {period === "week"
+                        ? day.label
+                        : index % 5 === 0 || index === days.length - 1
+                          ? Number(day.date?.slice(-2))
+                          : ""}
+                    </time>
+                  </button>
+                );
+              })}
             </div>
-            <label className="ledger-sort">
-              排序
-              <select
-                aria-label="成本排序"
-                value={sortBy}
-                onChange={(event) =>
-                  setSortBy(event.target.value as CostReportSortBy)
-                }
-              >
-                <option value="highest_cost">时间成本最高</option>
-                <option
-                  value="highest_over_budget"
-                  disabled={groupBy === "tag"}
-                >
-                  超出预估最多
-                </option>
-              </select>
-            </label>
-          </div>
-          <details className="ledger-disclosure ledger-report-chart">
-            <summary>查看成本分布图</summary>
-            <TimeStatisticChart
-              initialMetric="cost"
-              rows={costStatisticRows(report, groupBy)}
-              dimension={groupBy}
-              onDimension={(value: StatisticDimension) => {
-                if (value === "project" || value === "tag") {
-                  setGroupBy(value);
-                  setExpandedKey(null);
-                  if (value === "tag") setSortBy("highest_cost");
-                }
-              }}
-              dimensions={["project", "tag"]}
-              onOpenDay={onOpenDay}
-            />
           </details>
-          {
-            <section className="space-y-2">
-              <div className="flex items-center justify-between border-b border-border/60 pb-2 text-xs text-muted-foreground">
-                <span>
-                  {groupBy === "project" ? "项目成本汇总" : "标签成本汇总"}
-                </span>
-                <span>点击项目查看明细</span>
+          <section className="ledger-distribution" aria-label="时间分布">
+            <div className="ledger-block-heading">
+              <h2>时间花在哪里</h2>
+              <div className="ledger-stat-controls">
+              <div
+                className="ledger-segments"
+                role="group"
+                aria-label="统计分组"
+              >
+                {(
+                  [
+                    ["project", "按项目"],
+                    ["tag", "按标签"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={groupBy === value}
+                    onClick={() => {
+                      setGroupBy(value);
+                      setExpanded(undefined);
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-
-              {(groupBy === "project"
-                ? report.byProject
-                : costTagGroups(report)
-              ).length === 0 ? (
-                <p className="py-10 text-xs text-muted-foreground/70">
-                  所选期间暂无已确认的时间成本记录。
-                </p>
-              ) : (
-                <div className="divide-y divide-border/35">
-                  {(groupBy === "project"
-                    ? report.byProject
-                    : costTagGroups(report)
-                  ).map((row: CostReportProjectRow) => {
-                    const key = `${groupBy}:${row.projectKey}`;
-                    const open = expandedKey === key;
-                    return (
-                      <div key={key} className="py-3">
-                        <button
-                          type="button"
-                          onClick={() => setExpandedKey(open ? null : key)}
-                          className="ledger-cost-row flex w-full items-start justify-between gap-4 text-left"
-                          aria-expanded={open}
-                        >
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex items-center gap-2">
-                              <ChevronDown
-                                className={`size-3.5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
-                              />
-                              <span className="text-sm font-medium text-foreground">
-                                {row.projectName}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground">
-                                {row.segments.length} 条记录
-                              </span>
-                            </div>
-                            <div className="pl-5 text-xs text-muted-foreground tabular-nums">
-                              {formatDurationChinese(row.periodSeconds)}
-                              {row.periodProvisionalCostCents > 0 && (
-                                <span className="ml-2 text-amber-600 dark:text-amber-400">
-                                  · 待核对{" "}
-                                  {formatCurrencyCny(
-                                    row.periodProvisionalCostCents,
-                                  )}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="shrink-0 text-right tabular-nums">
-                            <div className="text-sm font-semibold text-foreground">
-                              {formatCurrencyCny(row.periodCostCents)}
-                            </div>
-                            {row.overInitialBudgetCents > 0 && (
-                              <div className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
-                                项目超预估{" "}
-                                {formatCurrencyCny(row.overInitialBudgetCents)}
-                              </div>
-                            )}
-                            {row.cashExpenseCents > 0 && (
-                              <div className="text-[11px] text-muted-foreground">
-                                现金 {formatCurrencyCny(row.cashExpenseCents)} ·
-                                综合{" "}
-                                {formatCurrencyCny(row.combinedPeriodCostCents)}
-                              </div>
-                            )}
-                          </div>
-                        </button>
-
-                        {open && (
-                          <div className="mt-3 pl-5">
-                            <SegmentTraceList
-                              segments={row.segments}
-                              timeZone={timeZone}
-                              onOpenDay={onOpenDay}
-                            />
-                          </div>
-                        )}
+              <div className="ledger-segments" role="group" aria-label="排序指标">
+                <button type="button" aria-pressed={metric === "seconds"} onClick={() => setMetric("seconds")}>时长</button>
+                <button type="button" aria-pressed={metric === "cost"} onClick={() => setMetric("cost")}>金额</button>
+              </div>
+              </div>
+            </div>
+            {groupBy === "tag" && (
+              <p className="ledger-muted-note">
+                一段时间可属于多个标签，各标签不可相加作为总量。
+              </p>
+            )}
+            <div className="ledger-distribution-columns" aria-hidden="true">
+              <span>{groupBy === "project" ? "项目" : "标签"}</span>
+              <span>{metric === "seconds" ? "已确认时长" : "折算金额"}</span>
+              <span>{metric === "seconds" ? "折算金额" : "已确认时长"}</span>
+            </div>
+            {rows.length === 0 ? (
+              <p className="ledger-empty">
+                {groupBy === "project"
+                  ? "该期间没有项目记录。"
+                  : "该期间还没有已定位的记录。"}
+              </p>
+            ) : (
+              rows.map((row) => {
+                const key = `${groupBy}:${row.projectKey}`;
+                const value =
+                  metric === "seconds"
+                    ? row.periodSeconds
+                    : row.periodCostCents;
+                return (
+                  <div className="ledger-distribution-item" key={key}>
+                    <button
+                      type="button"
+                      className="ledger-distribution-row"
+                      aria-expanded={expanded === key}
+                      onClick={() =>
+                        setExpanded(expanded === key ? undefined : key)
+                      }
+                    >
+                      <span className="ledger-distribution-label">
+                        <span>
+                          <ChevronDown
+                            className="size-3.5"
+                            data-open={expanded === key}
+                          />
+                          <strong>{row.projectName}</strong>
+                        </span>
+                        <span className="ledger-share-track">
+                          <i
+                            style={{
+                              width: `${total ? Math.min(100, (value / total) * 100) : 0}%`,
+                            }}
+                          />
+                        </span>
+                      </span>
+                      <span>
+                        {metric === "seconds"
+                          ? formatLedgerDuration(row.periodSeconds)
+                          : formatCurrencyCny(row.periodCostCents)}
+                      </span>
+                      <span>
+                        {metric === "seconds"
+                          ? formatCurrencyCny(row.periodCostCents)
+                          : formatLedgerDuration(row.periodSeconds)}
+                      </span>
+                    </button>
+                    {expanded === key && (
+                      <div className="ledger-distribution-details">
+                        <p className="ledger-muted-note">
+                          {row.segments.length} 条记录 · 点击明细返回当天
+                          {groupBy === "project" &&
+                          row.overInitialBudgetCents > 0
+                            ? ` · 超预估 ${formatCurrencyCny(row.overInitialBudgetCents)}`
+                            : ""}
+                          {groupBy === "project" && row.cashExpenseCents > 0
+                            ? ` · 另有关联现金 ${formatCurrencyCny(row.cashExpenseCents)}`
+                            : ""}
+                        </p>
+                        <SegmentTraceList
+                          segments={row.segments}
+                          timeZone={timeZone}
+                          onOpenDay={onOpenDay}
+                        />
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </section>
-          }
-
-          {groupBy === "tag" && (
-            <p className="text-xs text-muted-foreground">
-              多标签记录分别计入各标签，标签金额不可相加作为总额。现金支出仅在顶部汇总和项目维度列示。
-            </p>
-          )}
-          {/* Standalone bill links */}
-          {report.unassignedBillLinks.length > 0 && (
-            <section className="space-y-3 pt-2">
-              <div className="flex items-center justify-between border-b border-border/60 pb-2 text-xs text-muted-foreground">
-                <span>独立账单</span>
-                <span className="inline-flex items-center gap-1">
-                  <Receipt className="size-3" />
-                  仅作溯源展示
-                </span>
-              </div>
-              {report.unassignedBillLinks.length > 0 && (
-                <LinkedBillsList
-                  links={report.unassignedBillLinks}
-                  busy={busy}
-                  onUnlink={handleUnlinkBill}
-                />
-              )}
-            </section>
+                    )}
+                  </div>
+                );
+              })
+            )}
+            {groupBy === "project" && nonProjects && (
+              [
+                ["仅标签记录", nonProjects.tagged],
+                ["历史记录待补归属", nonProjects.legacy],
+              ] as const
+            ).map(([label, segments]) => segments.length > 0 && (
+              <details className="ledger-section-disclosure ledger-non-project" key={label}>
+                <summary>
+                  <span>{label}</span>
+                  <small>
+                    {formatLedgerDuration(segments.reduce((sum, segment) => sum + segment.confirmedSeconds, 0))}
+                    {" · "}
+                    {formatCurrencyCny(segments.reduce((sum, segment) => sum + segment.confirmedCostCents, 0))}
+                  </small>
+                </summary>
+                <SegmentTraceList segments={segments} timeZone={timeZone} onOpenDay={onOpenDay} />
+              </details>
+            ))}
+          </section>
+          {(bills.length > 0 || report.totalCashExpenseCents > 0) && (
+            <details className="ledger-section-disclosure">
+              <summary>
+                <span>关联现金支出</span>
+                <small>{formatCurrencyCny(report.totalCashExpenseCents)}</small>
+              </summary>
+              <p className="ledger-muted-note">
+                来自已关联的 Bills 账单，与时间折算分别核算。综合投入{" "}
+                {formatCurrencyCny(report.totalCombinedCostCents)}。
+              </p>
+              <LinkedBillsList links={bills} busy={busy} onUnlink={unlink} />
+            </details>
           )}
         </>
       ) : null}

@@ -223,6 +223,15 @@ export function validatePolicy(policy: TimePolicy): TimePolicy {
   }
   parseLocalTime(policy.sleepTemplate.startTime);
   parseLocalTime(policy.sleepTemplate.endTime);
+  if (
+    (policy.sleepTemplate.tag !== undefined &&
+      typeof policy.sleepTemplate.tag !== "string") ||
+    (policy.zeroRateTags !== undefined &&
+      (!Array.isArray(policy.zeroRateTags) ||
+        policy.zeroRateTags.some((tag) => typeof tag !== "string")))
+  ) {
+    throw new TimeStoreError(400, "INVALID_POLICY", "标签设置无效。");
+  }
   if (!Array.isArray(policy.categories) || policy.categories.length === 0) {
     throw new TimeStoreError(
       400,
@@ -250,6 +259,11 @@ export function validatePolicy(policy: TimePolicy): TimePolicy {
   }
   return {
     ...policy,
+    sleepTemplate: {
+      ...policy.sleepTemplate,
+      tag: policy.sleepTemplate.tag?.trim() || undefined,
+    },
+    zeroRateTags: normalizeActivityTags(policy.zeroRateTags),
     hourlyRateCents: normalizeHourlyRateCents(
       policy.hourlyRateCents,
       DEFAULT_HOURLY_RATE_CENTS,

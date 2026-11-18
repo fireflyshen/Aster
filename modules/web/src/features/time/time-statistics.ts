@@ -1,4 +1,4 @@
-import type { CostReportSummary, CostReportProjectRow } from "@core/time/model";
+import type { CostReportSummary, CostReportProjectRow, CostReportSegmentRef } from "@core/time/model";
 import { addLocalDays } from "@core/time/zone";
 
 export type StatisticRow = {
@@ -9,6 +9,28 @@ export type StatisticRow = {
   date?: string;
 };
 export type StatisticDimension = "day" | "project" | "tag";
+
+function reportSegments(report: CostReportSummary): CostReportSegmentRef[] {
+  const segments = [
+    ...report.byProject.flatMap((row) => row.segments),
+    ...report.byTask.flatMap((row) => row.segments),
+    ...report.unassignedSegments,
+  ];
+  return [...new Map(segments.map((segment) => [
+    `${segment.activityId}:${segment.startMs}:${segment.endMs}`,
+    segment,
+  ])).values()];
+}
+
+export function nonProjectGroups(report: CostReportSummary) {
+  const tagged: CostReportSegmentRef[] = [];
+  const legacy: CostReportSegmentRef[] = [];
+  for (const segment of reportSegments(report)) {
+    if (segment.projectSnapshot?.trim() || segment.confirmedSeconds <= 0) continue;
+    (segment.tags?.some((tag) => tag.trim()) ? tagged : legacy).push(segment);
+  }
+  return { tagged, legacy };
+}
 
 // Aggregate segment facts once; project rows also include time without linked tasks.
 export function costStatisticRows(
@@ -38,15 +60,7 @@ export function costStatisticRows(
       });
     }
   }
-  const seen = new Set<string>();
-  for (const segment of [
-    ...report.byProject.flatMap((row) => row.segments),
-    ...report.byTask.flatMap((row) => row.segments),
-    ...report.unassignedSegments,
-  ]) {
-    const identity = `${segment.activityId}:${segment.startMs}:${segment.endMs}`;
-    if (seen.has(identity)) continue;
-    seen.add(identity);
+  for (const segment of reportSegments(report)) {
     const keys =
       dimension === "day"
         ? [segment.date]
@@ -70,15 +84,7 @@ export function costTagGroups(
   report: CostReportSummary,
 ): CostReportProjectRow[] {
   const groups = new Map<string, CostReportProjectRow>();
-  const seen = new Set<string>();
-  for (const segment of [
-    ...report.byProject.flatMap((row) => row.segments),
-    ...report.byTask.flatMap((row) => row.segments),
-    ...report.unassignedSegments,
-  ]) {
-    const identity = `${segment.activityId}:${segment.startMs}:${segment.endMs}`;
-    if (seen.has(identity)) continue;
-    seen.add(identity);
+  for (const segment of reportSegments(report)) {
     for (const tag of new Set(
       segment.tags?.length ? segment.tags : ["__untagged__"],
     )) {

@@ -3,6 +3,66 @@
   display: none;
 }
 
+/* Tablet touch input needs the same reachable controls as a phone. */
+@media (hover: none), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select,
+  #task-description-input {
+    font-size: 16px !important;
+  }
+  [data-variant="list"] [data-row-actions] {
+    position: static;
+    height: 44px;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+    opacity: 1;
+    pointer-events: auto;
+    box-shadow: none;
+    background: transparent;
+  }
+  [data-variant="list"] [data-row-actions] > :not(:last-child) {
+    display: none;
+  }
+  [data-variant="list"] [data-row-actions] > :last-child {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  [data-variant="list"] .task-row-gutter {
+    position: static;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 24px;
+    height: auto;
+    margin-top: 0;
+  }
+  [data-variant="list"] .task-row-gutter [data-drag-handle],
+  [data-variant="list"] .task-row-gutter button {
+    position: static;
+    width: 24px;
+    height: 44px;
+    touch-action: auto;
+    opacity: 0.45;
+  }
+  [data-variant="list"] .task-row-check {
+    margin-top: 0;
+    width: 36px;
+    height: 44px;
+  }
+  .task-check-target {
+    width: 36px;
+    height: 44px;
+  }
+  #workspace-navigation [data-variant="navigation"],
+  #workspace-navigation [data-project-nav] > [data-variant="navigation"] {
+    min-height: 44px;
+  }
+  #workspace-navigation kbd {
+    display: none;
+  }
+}
+
 @media (max-width: 767px) {
   html {
     scrollbar-gutter: auto;

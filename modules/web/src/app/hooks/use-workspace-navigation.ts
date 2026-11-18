@@ -10,7 +10,7 @@ import {
 import type { View } from "@shared/tasks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SettingsSection } from "../workspace-settings";
-import { isDesktop, useDesktop } from "@/lib/use-desktop";
+import { isWideWorkspace, useWideWorkspace } from "@/lib/use-desktop";
 
 export type ActiveEntry = {
   kind: "filter" | "tag";
@@ -28,12 +28,12 @@ function validCompleteBehavior(
 }
 
 function resetMobileScroll() {
-  if (!isDesktop()) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  if (!isWideWorkspace()) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
 }
 
 /** Manages server-persisted view/layout/sidebar navigation, search state, and view switches. */
 export function useWorkspaceNavigation() {
-  const desktop = useDesktop();
+  const desktop = useWideWorkspace();
   const [desktopNavOpen, setNavOpen] = useState<boolean>(true);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const navOpen = desktop ? desktopNavOpen : mobileNavOpen;

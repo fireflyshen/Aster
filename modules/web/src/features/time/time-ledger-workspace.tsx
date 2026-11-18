@@ -3,22 +3,17 @@ import { snapshotLiveStatus } from "@core/time/snapshot";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
 import { RotateCcw, X } from "lucide-react";
-import {
-  LedgerNavIcon,
-  WeeklyNavIcon,
-  CostReportNavIcon,
-} from "@/components/icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { TimePage } from "@/app/hooks/use-workspace-navigation";
 import { TimeCostReportPage } from "./time-cost-report-page";
+import { collectTagOptions } from "./project-tag-fields";
 import { TimeSettingsPage } from "./time-settings-page";
 import { TimeTodayPage } from "./time-today-page";
-import { TimeWeeklyPage } from "./time-weekly-page";
 import { useTimeLedger } from "./use-time-ledger";
 
-/** Entry container for the Web "时间账本" module ("今日时间线", "本周分布", "成本报告", "时间设置"). */
+/** Records and statistics share the same project/tag ledger. */
 export function TimeLedgerWorkspace({
   page,
   tasks,
@@ -58,50 +53,28 @@ export function TimeLedgerWorkspace({
   }
 
   return (
-    <div className="ledger-workspace space-y-6">
+    <div className="ledger-workspace">
       <nav aria-label="时间账本视图" className="ledger-view-nav">
         {(
           [
-            {
-              value: "today",
-              label: "时间线",
-              Icon: LedgerNavIcon,
-              color: "var(--due-upcoming)",
-            },
-            {
-              value: "weekly",
-              label: "本周分布",
-              Icon: WeeklyNavIcon,
-              color: "var(--priority-3)",
-            },
-            {
-              value: "reports",
-              label: "成本报告",
-              Icon: CostReportNavIcon,
-              color: "var(--due-tomorrow)",
-            },
+            ["today", "记录"],
+            ["weekly", "统计"],
           ] as const
-        ).map(({ value, label, Icon, color }) => (
+        ).map(([value, label]) => (
           <button
             key={value}
             type="button"
-            aria-current={page === value ? "page" : undefined}
+            aria-current={
+              page === value || (value === "weekly" && page === "reports")
+                ? "page"
+                : undefined
+            }
             onClick={() => onOpenPage(value)}
           >
-            <Icon className="size-5" style={{ color }} />
             {label}
           </button>
         ))}
       </nav>
-      <p className="ledger-page-intro">
-        {page === "today"
-          ? "记录每一段投入，把注意力放回正在做的事。"
-          : page === "weekly"
-            ? "看看这一周，时间花在了哪里。"
-            : page === "reports"
-              ? "查看已确认的投入，按项目追溯明细。"
-              : "管理时间单价与计时习惯。"}
-      </p>
       {ledger.lastUndoable && (
         <div className="flex items-center justify-between gap-3 border-b border-border/40 pb-2 text-xs text-muted-foreground">
           <span className="truncate">
@@ -173,22 +146,14 @@ export function TimeLedgerWorkspace({
             timerLiveStatus={timerLiveStatus}
             activeActivitySeconds={activeActivitySeconds}
             busy={ledger.busy}
+            loading={ledger.loading}
             onAckEvents={ledger.handleAckEvents}
             runMutation={ledger.runMutation}
           />
-        ) : page === "weekly" && ledger.weekly ? (
-          <TimeWeeklyPage
-            policy={ledger.policy}
-            selectedDate={ledger.selectedDate}
-            onSelectDate={ledger.setSelectedDate}
-            weekly={ledger.weekly}
-            onOpenDay={(date) => {
-              ledger.setSelectedDate(date);
-              onOpenPage("today");
-            }}
-          />
-        ) : page === "reports" ? (
+        ) : page === "weekly" || page === "reports" ? (
           <TimeCostReportPage
+            initialMetric={page === "reports" ? "cost" : "seconds"}
+            refreshKey={`${timerSnapshot?.timeEpoch}:${timerSnapshot?.taskDataEpoch}:${timerSnapshot?.sessionVersion}`}
             policy={ledger.policy}
             selectedDate={ledger.selectedDate}
             onSelectDate={ledger.setSelectedDate}
@@ -201,6 +166,7 @@ export function TimeLedgerWorkspace({
         ) : page === "settings" ? (
           <TimeSettingsPage
             policy={ledger.policy}
+            availableTags={collectTagOptions(availableLabels ?? [], tasks)}
             busy={ledger.busy}
             runMutation={ledger.runMutation}
           />

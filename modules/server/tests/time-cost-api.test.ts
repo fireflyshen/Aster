@@ -30,8 +30,10 @@ function makeFakeTaskService(
 ): TaskService {
   return {
     connection: { kind: "local" },
-    rawTask: async () => {
-      throw new Error("not used");
+    rawTask: async (uuid: string) => {
+      const task = tasks.find((task) => task.uuid === uuid);
+      if (!task) throw new Error("Task not found");
+      return { ...task, status: "pending", entry: "20261115T000000Z" };
     },
     exportTasks: async () =>
       tasks.map((t, idx) => ({
@@ -398,7 +400,7 @@ test("server cost model captures rate snapshots, isolates provisional auto-stops
   }
 });
 
-test("time records require a project, allow empty tags, and place sleep in its own project", async () => {
+test("time records reuse projects and tags across start, log, estimate, plans, and edits", async () => {
   const dir = await mkdtemp(join(tmpdir(), "aster-required-project-"));
   const store = await createTimeStore(join(dir, "time.sqlite"), {
     enabled: true,
@@ -411,7 +413,9 @@ test("time records require a project, allow empty tags, and place sleep in its o
         exclusive: (fn: () => unknown) => fn(),
         shared: (fn: () => unknown) => fn(),
       } as never,
-      service: makeFakeTaskService([]),
+      service: makeFakeTaskService([
+        { uuid: "task-project", description: "Project task", project: "Work" },
+      ]),
       store,
       isEnabled: () => true,
       paths: {
@@ -424,35 +428,121 @@ test("time records require a project, allow empty tags, and place sleep in its o
     const routes = new Map(
       handlers.map((route) => [`${route.method}:${route.route}`, route]),
     );
-    const rejectsProject = (path: string, body: unknown) =>
-      assert.rejects(
-        () => callRoute(routes, "POST", `/api/time/${path}`, body),
-        (error: unknown) =>
-          (error as { code?: string }).code === "PROJECT_REQUIRED",
+    for (const [route, fields] of [
+      ["start", {}],
+      ["log", { startMs: at("06:00"), endMs: at("07:00") }],
+      ["estimate", { estimatedSeconds: 600 }],
+      ["plans/create", { allowanceMinutes: 30 }],
+    ] as const) {
+      await assert.rejects(
+        () =>
+          callRoute(routes, "POST", `/api/time/${route}`, {
+            idempotencyKey: `empty-${route}`,
+            title: "Empty",
+            tags: ["  "],
+            ...fields,
+          }),
+        (error) =>
+          (error as { code?: string }).code === "TIME_ASSIGNMENT_REQUIRED",
       );
-    await rejectsProject("start", {
-      idempotencyKey: "missing-start",
-      title: "Read",
-    });
-    await rejectsProject("log", {
-      idempotencyKey: "missing-log",
-      title: "Read",
-      projectSnapshot: "   ",
-      startMs: at("09:00"),
-      endMs: at("10:00"),
-      tags: ["reading"],
-    });
-    await rejectsProject("estimate", {
-      idempotencyKey: "missing-estimate",
-      title: "Walk",
+    }
+    const inherited = await callRoute(routes, "POST", "/api/time/estimate", {
+      idempotencyKey: "inherit-project",
+      title: "Project task",
+      taskUuid: "task-project",
       estimatedSeconds: 600,
     });
-    await rejectsProject("plans/create", {
-      title: "Focus",
+    assert.equal(
+      (inherited.body.activity as { projectSnapshot?: string }).projectSnapshot,
+      "Work",
+    );
+    const explicitDaily = await callRoute(
+      routes,
+      "POST",
+      "/api/time/estimate",
+      {
+        idempotencyKey: "override-project",
+        title: "Project task",
+        taskUuid: "task-project",
+        projectSnapshot: "",
+        tags: ["运动"],
+        estimatedSeconds: 600,
+      },
+    );
+    assert.equal(
+      (explicitDaily.body.activity as { projectSnapshot?: string })
+        .projectSnapshot,
+      undefined,
+    );
+    assert.equal(
+      (explicitDaily.body.activity as { categoryId: string }).categoryId,
+      "uncategorized",
+    );
+    const dailyLog = await callRoute(routes, "POST", "/api/time/log", {
+      idempotencyKey: "daily-log",
+      title: "吃饭",
+      projectSnapshot: "   ",
+      tags: ["生活"],
+      startMs: at("08:00"),
+      endMs: at("09:00"),
+    });
+    const daily = dailyLog.body.activity as {
+      projectSnapshot?: string;
+      categoryId: string;
+    };
+    assert.equal(daily.projectSnapshot, undefined);
+    assert.equal(daily.categoryId, "uncategorized");
+    const estimate = await callRoute(routes, "POST", "/api/time/estimate", {
+      idempotencyKey: "daily-estimate",
+      title: "Walk",
+      tags: ["运动"],
+      estimatedSeconds: 600,
+    });
+    assert.equal(
+      (estimate.body.activity as { categoryId: string }).categoryId,
+      "uncategorized",
+    );
+    const planned = await callRoute(routes, "POST", "/api/time/plans/create", {
+      title: "Rest",
+      tags: ["休息"],
       allowanceMinutes: 30,
     });
-    assert.equal(store.getStatus().activeActivity, null);
-    assert.equal(store.queryActivities({}).length, 0);
+    const plan = planned.body.plan as {
+      id: string;
+      version: number;
+      projectSnapshot?: string;
+    };
+    assert.equal(plan.projectSnapshot, undefined);
+    await callRoute(routes, "POST", "/api/time/plans/update", {
+      planId: plan.id,
+      expectedVersion: plan.version,
+      projectSnapshot: null,
+      tags: ["休息"],
+    });
+    const started = await callRoute(routes, "POST", "/api/time/plans/start", {
+      idempotencyKey: "daily-plan-start",
+      planId: plan.id,
+    });
+    assert.equal(
+      (started.body.activity as { categoryId: string }).categoryId,
+      "uncategorized",
+    );
+    assert.equal(store.getStatus().activeActivity?.projectSnapshot, undefined);
+    await callRoute(routes, "POST", "/api/time/stop", {
+      idempotencyKey: "daily-plan-stop",
+    });
+    const ordinary = await callRoute(routes, "POST", "/api/time/start", {
+      idempotencyKey: "daily-start",
+      title: "整理房间",
+      tags: ["生活"],
+    });
+    assert.equal(
+      (ordinary.body.activity as { categoryId: string }).categoryId,
+      "uncategorized",
+    );
+    await callRoute(routes, "POST", "/api/time/stop", {
+      idempotencyKey: "daily-stop",
+    });
     const logged = await callRoute(routes, "POST", "/api/time/log", {
       idempotencyKey: "project-no-tags",
       title: "Read",
@@ -468,13 +558,34 @@ test("time records require a project, allow empty tags, and place sleep in its o
     };
     assert.equal(activity.projectSnapshot, "Study");
     assert.equal(activity.tags?.length || 0, 0);
-    await rejectsProject("update", {
+    await assert.rejects(
+      () =>
+        callRoute(routes, "POST", "/api/time/update", {
+          idempotencyKey: "clear-all",
+          activityId: activity.id,
+          expectedVersion: activity.version,
+          patch: { projectSnapshot: null, tags: [] },
+        }),
+      (error) =>
+        (error as { code?: string }).code === "TIME_ASSIGNMENT_REQUIRED",
+    );
+    assert.equal(store.getActivity(activity.id)?.projectSnapshot, "Study");
+    await callRoute(routes, "POST", "/api/time/update", {
       idempotencyKey: "remove-project",
       activityId: activity.id,
       expectedVersion: activity.version,
-      patch: { projectSnapshot: null },
+      patch: { projectSnapshot: null, tags: ["阅读"] },
     });
-    assert.equal(store.getActivity(activity.id)?.projectSnapshot, "Study");
+    assert.equal(store.getActivity(activity.id)?.projectSnapshot, undefined);
+    assert.deepEqual(store.getActivity(activity.id)?.tags, ["阅读"]);
+    await assert.rejects(() =>
+      callRoute(routes, "POST", "/api/time/update", {
+        idempotencyKey: "invalid-project",
+        activityId: activity.id,
+        expectedVersion: store.getActivity(activity.id)!.version,
+        patch: { projectSnapshot: 42 },
+      }),
+    );
     const sleep = await callRoute(routes, "POST", "/api/time/log", {
       idempotencyKey: "sleep-project",
       title: "Nap",
@@ -484,7 +595,7 @@ test("time records require a project, allow empty tags, and place sleep in its o
     });
     assert.equal(
       (sleep.body.activity as { projectSnapshot?: string }).projectSnapshot,
-      "睡眠",
+      undefined,
     );
     assert.equal(
       (sleep.body.activity as { hourlyRateCents?: number }).hourlyRateCents,
@@ -494,7 +605,12 @@ test("time records require a project, allow empty tags, and place sleep in its o
       idempotencyKey: "sleep-candidate-project",
       date: "2026-11-14",
     });
-    assert.equal(candidate.activity?.projectSnapshot, "睡眠");
+    assert.equal(candidate.activity?.projectSnapshot, undefined);
+    assert.equal(candidate.activity?.categoryId, "sleep");
+    assert.deepEqual(candidate.activity?.tags, ["睡眠"]);
+    assert.deepEqual((sleep.body.activity as { tags?: string[] }).tags, [
+      "睡眠",
+    ]);
   } finally {
     store.close();
     await rm(dir, { recursive: true, force: true });
