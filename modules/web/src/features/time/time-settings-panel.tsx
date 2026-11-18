@@ -10,9 +10,11 @@ import { TimeSettingsPage } from "./time-settings-page";
 /** Embeds Time & Budget settings inside the unified Settings dialog with self-managed policy loading and mutation feedback. */
 export function TimeSettingsPanel({
   isTimeMode,
+  availableTags,
   onTimeMutated,
 }: {
   isTimeMode: boolean;
+  availableTags: readonly string[];
   onTimeMutated: () => void;
 }) {
   const [policy, setPolicy] = useState<TimePolicy | null>(null);
@@ -120,6 +122,7 @@ export function TimeSettingsPanel({
       ) : policy ? (
         <TimeSettingsPage
           policy={policy}
+          availableTags={availableTags}
           busy={busy}
           runMutation={runMutation}
         />

@@ -20,7 +20,7 @@ import type { View } from "@shared/tasks";
 import { cn } from "cn";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { PanelLeft, RotateCw, Search, Target } from "lucide-react";
+import { PanelLeft, RotateCw, Search } from "lucide-react";
 import type {
   CompleteBehavior,
   TimePage,
@@ -223,18 +223,27 @@ export function WorkspaceHeading({
           : "过滤器 & 标签"
         : activeItem?.name ||
           (currentProject ? projectLeaf(currentProject) : views[view]);
-  const filterSubtitle =
+  const isSavedFilter =
     !timePage &&
     !habitsPage &&
     !organizationPage &&
     activeEntry?.kind === "filter" &&
     activeItem &&
     "expression" in activeItem
-      ? activeItem.description &&
-        !activeItem.description.includes(activeItem.expression)
-        ? `${activeItem.description} · ${activeItem.expression}`
-        : activeItem.description || activeItem.expression
+      ? activeItem
       : undefined;
+  const filterSubtitle = isSavedFilter
+    ? isSavedFilter.description === isSavedFilter.expression
+      ? undefined
+      : isSavedFilter.description
+    : undefined;
+  const taskCount = showTodayMeta
+    ? (viewCounts.today ?? 0)
+    : showInboxCount
+      ? (viewCounts.pending ?? 0)
+      : !timePage && !habitsPage && !organizationPage && activeItem
+        ? activeCount
+        : undefined;
   const disabled = busy || organizationSaving;
 
   return (
@@ -266,7 +275,7 @@ export function WorkspaceHeading({
 
       <div
         data-workspace-heading
-        className="mb-5 flex min-h-10 items-center justify-between gap-4"
+        className="mb-5 flex min-h-10 items-start justify-between gap-3"
       >
         <div className="flex min-w-0 flex-col">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -284,73 +293,30 @@ export function WorkspaceHeading({
               title={currentProject ? projectPath(currentProject) : undefined}
               id="view-title"
               tabIndex={-1}
-              className="min-w-0 truncate text-2xl leading-8 font-bold tracking-[-0.5px] outline-none"
+              className="min-w-0 wrap-anywhere font-semibold outline-none"
             >
               {titleText}
             </h1>
+          </div>
+          <div className="workspace-heading-meta">
             {showTodayMeta && (
-              <span className="text-xs font-medium text-muted-foreground/80 tabular-nums">
-                {viewCounts.today ?? 0} 个任务
-              </span>
+              <span>{format(now, "M月d日 · EEEE", { locale: zhCN })}</span>
             )}
-            {showInboxCount && (
-              <span className="text-xs font-medium text-muted-foreground/80 tabular-nums">
-                {viewCounts.pending ?? 0}
-              </span>
-            )}
-            {!timePage &&
-              !habitsPage &&
-              !organizationPage &&
-              activeItem &&
-              activeCount !== undefined && (
-                <span className="text-xs font-medium text-muted-foreground/80 tabular-nums">
-                  {activeCount}
-                </span>
-              )}
+            {taskCount !== undefined && <span>{taskCount} 个任务</span>}
             {currentProject &&
               !timePage &&
               !habitsPage &&
               !organizationPage &&
-              !activeItem &&
-              (currentProjectIsHabit ? (
-                <span className="h-6 shrink-0 inline-flex items-center rounded-full border border-border/80 bg-muted/60 px-2.5 text-[11px] font-medium text-muted-foreground">
-                  习惯项目
+              !activeItem && (
+                <span>
+                  {currentProjectIsHabit
+                    ? "习惯项目"
+                    : currentProjectFocus
+                      ? "焦点项目"
+                      : "稍后"}
                 </span>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  disabled={disabled}
-                  onClick={() =>
-                    onTransitionProject(
-                      currentProjectFocus?.name || currentProject,
-                      currentProjectFocus ? "later" : "active",
-                    )
-                  }
-                  className={cn(
-                    "h-6 shrink-0 gap-1 rounded-full border px-2.5 text-[11px] font-medium",
-                    currentProjectFocus
-                      ? "border-primary/25 bg-primary/8 text-foreground hover:bg-primary/14"
-                      : "border-border text-muted-foreground hover:bg-(--row-hover) hover:text-foreground",
-                  )}
-                >
-                  {currentProjectFocus ? (
-                    <>
-                      <Target className="size-3" strokeWidth={1.8} />
-                      焦点
-                    </>
-                  ) : (
-                    "稍后"
-                  )}
-                </Button>
-              ))}
+              )}
           </div>
-          {showTodayMeta && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {format(now, "M月d日 · EEEE", { locale: zhCN })}
-            </p>
-          )}
           {filterSubtitle && (
             <p
               className="mt-0.5 truncate text-xs text-muted-foreground"

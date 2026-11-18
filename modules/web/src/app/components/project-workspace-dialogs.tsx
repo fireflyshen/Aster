@@ -364,6 +364,7 @@ export function ProjectWorkspaceDialogs(props: ProjectWorkspaceDialogsProps) {
         blocked={needsCheck}
         notice={notice}
         isTimeMode={isTimeMode}
+        timeTags={organization.tags.map((tag) => tag.name)}
         onTimeMutated={onTimeMutated}
         onUnconfirmed={() => setNeedsCheck(true)}
         onRestoreTask={(uuid) =>

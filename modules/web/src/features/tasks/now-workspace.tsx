@@ -76,7 +76,6 @@ export function scheduledGroupLabel(
   );
 }
 
-/** Dedicated "现在能做" (`now`) workspace view: up to 5 doing tasks expanded, alerts at top, planned/waiting/parked collapsible. */
 export function NowWorkspace({
   tasks,
   organization,
@@ -211,159 +210,142 @@ export function NowWorkspace({
     void onChangeState(task, nextState);
   };
 
-  return (
-    <div className="now-workspace min-w-0 space-y-6">
-      {alertCount > 0 && summary && (
-        <section
-          data-state-alerts
-          className="rounded-xl border border-amber-500/35 bg-amber-500/8 px-3.5 py-2.5 text-sm"
+  const alerts =
+    alertCount > 0 && summary ? (
+      <section data-state-alerts className="now-alerts" aria-label="待处理提醒">
+        <button
+          type="button"
+          aria-expanded={alertsExpanded}
+          aria-controls={alertsExpanded ? "now-alert-items" : undefined}
+          onClick={() => setAlertsExpanded((v) => !v)}
+          className="now-alert-toggle"
         >
-          <button
-            type="button"
-            onClick={() => setAlertsExpanded((v) => !v)}
-            className="flex w-full items-center justify-between gap-2 text-left font-medium text-foreground"
-          >
-            <span className="flex items-center gap-2">
-              <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-              <span>
-                需要关注 {alertCount} 项
-                {summary.promotionBlocked.length > 0
-                  ? ` · 阻塞转入 ${summary.promotionBlocked.length}`
-                  : ""}
-                {summary.waitingDue.length > 0
-                  ? ` · 等待到期 ${summary.waitingDue.length}`
-                  : ""}
-                {summary.parkedReviewDue.length > 0
-                  ? ` · 待复查 ${summary.parkedReviewDue.length}`
-                  : ""}
-                {summary.anomalies.length > 0
-                  ? ` · 异常 ${summary.anomalies.length}`
-                  : ""}
-              </span>
+          <span className="flex items-center gap-2">
+            <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            待处理提醒
+            <span className="tabular-nums text-muted-foreground">
+              {alertCount}
             </span>
-            <ChevronDown
-              className={`size-4 text-muted-foreground transition-transform ${
-                alertsExpanded ? "rotate-180" : ""
-              }`}
-            />
-          </button>
+          </span>
+          <ChevronDown
+            className={`size-4 text-muted-foreground transition-transform ${
+              alertsExpanded ? "rotate-180" : ""
+            }`}
+          />
+        </button>
 
-          {alertsExpanded && (
-            <div className="mt-3 space-y-2 border-t border-amber-500/20 pt-2.5 text-xs">
-              {summary.promotionBlocked.map((item) => {
-                const full = taskByUuid.get(item.uuid);
-                return (
-                  <div
-                    key={`blocked-${item.uuid}`}
-                    className="flex items-center justify-between gap-2 rounded-md bg-background/70 px-2.5 py-1.5"
-                  >
-                    <span className="min-w-0 truncate">
-                      <span className="mr-1.5 font-medium text-amber-700 dark:text-amber-300">
-                        已到日期但处理中已满
-                      </span>
-                      {item.description}
+        {alertsExpanded && (
+          <div
+            id="now-alert-items"
+            className="divide-y divide-border border-t border-border text-xs"
+          >
+            {summary.promotionBlocked.map((item) => {
+              const full = taskByUuid.get(item.uuid);
+              return (
+                <div key={`blocked-${item.uuid}`} className="now-alert-item">
+                  <span className="min-w-0 wrap-anywhere">
+                    <span className="mr-1.5 font-medium text-amber-700 dark:text-amber-300">
+                      已到日期但处理中已满
                     </span>
-                    {full && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={disabled}
-                        onClick={() => void onChangeState(full, "doing")}
-                      >
-                        替换进处理中
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-              {summary.waitingDue.map((item) => {
-                const full = taskByUuid.get(item.uuid);
-                return (
-                  <div
-                    key={`waitdue-${item.uuid}`}
-                    className="flex items-center justify-between gap-2 rounded-md bg-background/70 px-2.5 py-1.5"
-                  >
-                    <span className="min-w-0 truncate">
-                      <span className="mr-1.5 font-medium text-teal-700 dark:text-teal-300">
-                        等待核对日已到
-                      </span>
-                      {item.description}
-                      {item.waitReason ? ` (${item.waitReason})` : ""}
+                    {item.description}
+                  </span>
+                  {full && (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() => void onChangeState(full, "doing")}
+                    >
+                      替换进处理中
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {summary.waitingDue.map((item) => {
+              const full = taskByUuid.get(item.uuid);
+              return (
+                <div key={`waitdue-${item.uuid}`} className="now-alert-item">
+                  <span className="min-w-0 wrap-anywhere">
+                    <span className="mr-1.5 font-medium text-teal-700 dark:text-teal-300">
+                      等待核对日已到
                     </span>
-                    {full && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={disabled}
-                        onClick={() => void onChangeState(full, "doing")}
-                      >
-                        回到处理中
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-              {summary.parkedReviewDue.map((item) => {
-                const full = taskByUuid.get(item.uuid);
-                return (
-                  <div
-                    key={`parked-${item.uuid}`}
-                    className="flex items-center justify-between gap-2 rounded-md bg-background/70 px-2.5 py-1.5"
-                  >
-                    <span className="min-w-0 truncate">
-                      <span className="mr-1.5 font-medium text-muted-foreground">
-                        搁置复查日已到
-                      </span>
-                      {item.description}
+                    {item.description}
+                    {item.waitReason ? ` (${item.waitReason})` : ""}
+                  </span>
+                  {full && (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() => void onChangeState(full, "doing")}
+                    >
+                      回到处理中
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {summary.parkedReviewDue.map((item) => {
+              const full = taskByUuid.get(item.uuid);
+              return (
+                <div key={`parked-${item.uuid}`} className="now-alert-item">
+                  <span className="min-w-0 wrap-anywhere">
+                    <span className="mr-1.5 font-medium text-muted-foreground">
+                      搁置复查日已到
                     </span>
-                    {full && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={disabled}
-                        onClick={() => void onChangeState(full, "planned")}
-                      >
-                        恢复到计划中
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-              {summary.anomalies.map((item) => {
-                const full = taskByUuid.get(item.uuid);
-                return (
-                  <div
-                    key={`anomaly-${item.type}-${item.uuid}`}
-                    className="flex items-center justify-between gap-2 rounded-md bg-background/70 px-2.5 py-1.5"
-                  >
-                    <span className="min-w-0 truncate">
-                      <span className="mr-1.5 font-medium text-destructive">
-                        数据异常
-                      </span>
-                      {item.description} · {item.detail}
+                    {item.description}
+                  </span>
+                  {full && (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() => void onChangeState(full, "planned")}
+                    >
+                      恢复到计划中
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+            {summary.anomalies.map((item) => {
+              const full = taskByUuid.get(item.uuid);
+              return (
+                <div
+                  key={`anomaly-${item.type}-${item.uuid}`}
+                  className="now-alert-item"
+                >
+                  <span className="min-w-0 wrap-anywhere">
+                    <span className="mr-1.5 font-medium text-destructive">
+                      数据异常
                     </span>
-                    {full && item.type === "missing_state" && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="outline"
-                        disabled={disabled}
-                        onClick={() => void onChangeState(full, "planned")}
-                      >
-                        设为计划中
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      )}
+                    {item.description} · {item.detail}
+                  </span>
+                  {full && item.type === "missing_state" && (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      disabled={disabled}
+                      onClick={() => void onChangeState(full, "planned")}
+                    >
+                      设为计划中
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    ) : null;
 
+  return (
+    <div className="now-workspace min-w-0">
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -389,6 +371,16 @@ export function NowWorkspace({
                   {doing.length}/{doingLimit}
                 </span>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="now-add-task"
+                disabled={disabled}
+                onClick={onAddTask}
+              >
+                <Plus className="size-4" />
+                添加任务
+              </Button>
             </div>
 
             <div data-drop-content className="min-h-7">
@@ -420,16 +412,9 @@ export function NowWorkspace({
                 })
               )}
             </div>
-            <button
-              type="button"
-              className="now-add-task"
-              disabled={disabled}
-              onClick={onAddTask}
-            >
-              <Plus className="size-4" />
-              添加任务
-            </button>
           </NowDropSection>
+
+          {alerts}
 
           <NowDropSection state="planned" label="计划中" disabled={disabled}>
             <div

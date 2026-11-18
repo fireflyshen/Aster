@@ -206,7 +206,11 @@ export function TimeCapturePanel({
 
   if (!active && !composing) return null;
   return (
-    <section className="ledger-capture-panel" id="ledger-capture" aria-label="当前计时">
+    <section
+      className="ledger-capture-panel"
+      id="ledger-capture"
+      aria-label="当前计时"
+    >
       {active && (
         <div className="ledger-active">
           <div className="ledger-active-heading">
@@ -346,7 +350,10 @@ export function TimeCapturePanel({
               availableTags={tagOptions}
             />
             <details className="ledger-composer-options">
-              <summary>任务与计划{limited ? " · 已设置" : taskUuid !== "none" ? " · 已关联" : ""}</summary>
+              <summary>
+                任务与计划
+                {limited ? " · 已设置" : taskUuid !== "none" ? " · 已关联" : ""}
+              </summary>
               <div className="ledger-composer-options-body">
                 <label className="ledger-field">
                   <span>关联任务</span>
@@ -424,7 +431,14 @@ export function TimeCapturePanel({
             </details>
             <div className="ledger-composer-actions">
               {!active && (
-                <Button type="button" size="sm" variant="ghost" onClick={onCloseComposer}>收起</Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={onCloseComposer}
+                >
+                  收起
+                </Button>
               )}
               <Button type="submit" size="sm" disabled={busy || !ready}>
                 <Play className="size-3.5" />

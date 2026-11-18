@@ -80,6 +80,7 @@ import {
   loadAllTaskBudgets,
   loadSleepDecisions,
   parsePolicy,
+  parseTagsJson,
   readMeta,
   rowToActivity,
   rowToBillLink,
@@ -826,7 +827,9 @@ export async function createTimeStore(
           current.sleepTemplate.startTime ||
           input.patch.sleepTemplate.endTime !== current.sleepTemplate.endTime ||
           input.patch.sleepTemplate.enabled !== current.sleepTemplate.enabled ||
-          (input.patch.sleepTemplate.tag?.trim() || undefined) !== current.sleepTemplate.tag);
+          (typeof input.patch.sleepTemplate.tag === "string"
+            ? input.patch.sleepTemplate.tag.trim() || undefined
+            : input.patch.sleepTemplate.tag) !== current.sleepTemplate.tag);
 
       const nextPolicy = validatePolicy({
         ...current,
@@ -2271,7 +2274,7 @@ export async function createTimeStore(
             ? 0
             : isSleepCategory(policy, row.category_id) &&
                 nextCategoryId !== row.category_id
-              ? normalizeHourlyRateCents(policy.hourlyRateCents)
+              ? hourlyRateForTags(policy, parseTagsJson(nextTagsJson))
               : row.hourly_rate_cents,
           nextTaskUuid,
           nextProjectSnapshot,
@@ -2667,18 +2670,18 @@ export async function createTimeStore(
         );
       }
 
-      const sleepCategory =
-        policy.categories.find((c) => c.isSleep)?.id ?? "sleep";
+      const tags = [policy.sleepTemplate.tag];
+      const classified = resolveActivityCategory(policy, { tags });
       const activity: Activity = {
         id: randomUUID(),
         version: 1,
         kind: "located",
-        title: "睡眠",
-        tags: [policy.sleepTemplate.tag],
-        categoryId: sleepCategory,
-        ruleVersion: policy.policyVersion,
-        ruleSource: "explicit",
-        hourlyRateCents: 0,
+        title: policy.sleepTemplate.tag,
+        tags,
+        ...classified,
+        hourlyRateCents: isSleepCategory(policy, classified.categoryId)
+          ? 0
+          : hourlyRateForTags(policy, tags),
         startMs,
         endMs,
         confirmedThroughMs: endMs,
@@ -3091,7 +3094,10 @@ export async function createTimeStore(
       }
 
       const id = randomUUID();
-      const rateCents = normalizeHourlyRateCents(policy.hourlyRateCents);
+      const rateCents =
+        input.categoryId && isSleepCategory(policy, input.categoryId)
+          ? 0
+          : hourlyRateForTags(policy, normalizeActivityTags(input.tags));
       const initialAllowance = allowanceSeconds ?? null;
       const initialBudgetCents =
         initialAllowance !== null
@@ -3551,7 +3557,10 @@ export async function createTimeStore(
         );
       }
 
-      const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
+      const policyRate =
+        nextCategoryId && isSleepCategory(policy, nextCategoryId)
+          ? 0
+          : hourlyRateForTags(policy, parseTagsJson(nextTagsJson));
       const prevPlanRate = normalizeHourlyRateCents(
         planRow.hourly_rate_cents,
         policyRate,

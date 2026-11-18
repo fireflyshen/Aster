@@ -1,5 +1,9 @@
 import { hasTimeAssignment } from "@core/time/assignment";
-import { hourlyRateForTags } from "@core/time/cost";
+import { resolveActivityCategory } from "@core/time/classification";
+import {
+  hourlyRateForTags,
+  resolveActivityHourlyRateCents,
+} from "@core/time/cost";
 import { DateField } from "@/components/ui/date-field";
 import type { Activity, LocatedSegment, TimePolicy } from "@core/time/model";
 import { zonedDateTimeToUtcMs } from "@core/time/zone";
@@ -124,7 +128,20 @@ export function TimeLogOrEstimateDialog({
   }, [open, seed]);
 
   const pendingTasks = tasks.filter((t) => t.status === "pending");
-  const activeRateCents = hourlyRateForTags(policy ?? {}, tags);
+  const rateByTags = hourlyRateForTags(policy ?? {}, tags);
+  const activeRateCents = policy
+    ? resolveActivityHourlyRateCents(
+        {
+          categoryId: resolveActivityCategory(policy, {
+            taskUuid: taskUuid === "none" ? undefined : taskUuid,
+            project,
+            tags,
+          }).categoryId,
+          hourlyRateCents: rateByTags,
+        },
+        policy,
+      )
+    : rateByTags;
 
   function handleSelectTask(nextUuid: string) {
     setTaskUuid(nextUuid);

@@ -42,6 +42,15 @@ export function ProjectInlineMeta({
 }: ProjectInlineMetaProps) {
   const projectOutcome = currentProjectRecord?.outcome;
   const projectDescription = currentProjectRecord?.description;
+  if (
+    !projectOutcome &&
+    !isFocus &&
+    !projectDescription &&
+    !editingOutcome &&
+    !editingDesc
+  ) {
+    return null;
+  }
 
   const saveOutcome = (nextValue: string) => {
     const next = nextValue.trim();
@@ -85,7 +94,7 @@ export function ProjectInlineMeta({
   };
 
   return (
-    <div className="-mt-3 mb-6 space-y-1.5">
+    <div className="project-inline-meta">
       {(projectOutcome || isFocus || editingOutcome) &&
         (editingOutcome ? (
           <form
@@ -100,6 +109,7 @@ export function ProjectInlineMeta({
               strokeWidth={1.8}
             />
             <input
+              aria-label="项目目标"
               type="text"
               autoFocus
               value={outcomeDraft}
@@ -178,6 +188,7 @@ export function ProjectInlineMeta({
           className="space-y-1.5 rounded-lg border border-border/80 bg-background p-2.5 shadow-2xs focus-within:border-primary/60"
         >
           <textarea
+            aria-label="项目说明"
             autoFocus
             rows={3}
             ref={(el) => {
@@ -230,40 +241,31 @@ export function ProjectInlineMeta({
             </div>
           </div>
         </form>
-      ) : (
-        <div className="group/desc -ml-2.5 flex items-start gap-2 rounded-lg px-2.5 py-0.5 transition-colors hover:bg-(--row-hover)">
-          <div
-            onClick={() => {
-              setDescDraft(projectDescription || "");
-              setEditingDesc(true);
-            }}
-            className="min-w-0 flex-1 cursor-pointer select-text text-sm leading-relaxed text-muted-foreground transition-colors hover:text-foreground/90"
-          >
-            {projectDescription ? (
+      ) : projectDescription ? (
+        <details className="project-description-disclosure">
+          <summary>项目说明</summary>
+          <div className="flex items-start gap-2 py-1">
+            <div className="min-w-0 flex-1 wrap-anywhere text-sm leading-relaxed text-muted-foreground">
               <FormattedDescription text={projectDescription} />
-            ) : (
-              <span className="italic text-muted-foreground/60">
-                + 添加项目备注或说明…
-              </span>
-            )}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              disabled={disabled}
+              onClick={() => {
+                setDescDraft(projectDescription || "");
+                setEditingDesc(true);
+              }}
+              className="size-6 shrink-0 hover:bg-muted"
+              aria-label="编辑描述"
+              title="编辑描述"
+            >
+              <Pencil className="size-3 text-muted-foreground" />
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={disabled}
-            onClick={() => {
-              setDescDraft(projectDescription || "");
-              setEditingDesc(true);
-            }}
-            className="size-6 shrink-0 opacity-0 transition-opacity group-hover/desc:opacity-100 hover:bg-muted"
-            aria-label="编辑描述"
-            title="编辑描述"
-          >
-            <Pencil className="size-3 text-muted-foreground" />
-          </Button>
-        </div>
-      )}
+        </details>
+      ) : null}
     </div>
   );
 }

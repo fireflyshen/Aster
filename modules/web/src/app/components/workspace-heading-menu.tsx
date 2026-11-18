@@ -194,17 +194,24 @@ export function WorkspaceHeadingMenu({
         )}
 
         {activeItem && (
-          <Button
-            variant="navigation"
-            className="h-8 text-xs"
-            onClick={() => {
-              onOpenChange(false);
-              onManageOrganization();
-            }}
-          >
-            <Pencil className="size-3.5" />
-            管理{activeEntry?.kind === "filter" ? "过滤器" : "标签"}
-          </Button>
+          <>
+            {"expression" in activeItem && (
+              <p className="mx-1 border-b border-border px-2 py-2 text-xs wrap-anywhere text-muted-foreground">
+                {activeItem.expression}
+              </p>
+            )}
+            <Button
+              variant="navigation"
+              className="h-8 text-xs"
+              onClick={() => {
+                onOpenChange(false);
+                onManageOrganization();
+              }}
+            >
+              <Pencil className="size-3.5" />
+              管理{activeEntry?.kind === "filter" ? "过滤器" : "标签"}
+            </Button>
+          </>
         )}
 
         {!currentProject &&

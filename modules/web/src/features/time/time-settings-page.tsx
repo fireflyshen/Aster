@@ -12,7 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { saveBackup } from "@/features/recovery/backup-panel";
 import { TimeTagPicker } from "./project-tag-fields";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   applyTimeBackupRestore,
   applyTimewarriorImport,
@@ -81,7 +87,9 @@ export function TimeSettingsPage({
     setThresholdMins(
       String(Math.max(1, Math.round(policy.longActivityThresholdSeconds / 60))),
     );
-    setSleepEnabled(policy.sleepTemplate.enabled && Boolean(policy.sleepTemplate.tag));
+    setSleepEnabled(
+      policy.sleepTemplate.enabled && Boolean(policy.sleepTemplate.tag),
+    );
     setSleepTag(policy.sleepTemplate.tag ?? "");
     setZeroRateTags(policy.zeroRateTags ?? []);
     setSleepStart(policy.sleepTemplate.startTime);
@@ -250,10 +258,17 @@ export function TimeSettingsPage({
                   新记录带有任一所选标签时按 ¥0/小时入账。历史单价保留。
                 </p>
                 {zeroRateTags.length > 0 && (
-                  <p className="mt-1 break-words text-xs">{zeroRateTags.map((tag) => `#${tag}`).join(" · ")}</p>
+                  <p className="mt-1 break-words text-xs">
+                    {zeroRateTags.map((tag) => `#${tag}`).join(" · ")}
+                  </p>
                 )}
               </div>
-              <TimeTagPicker label="选择只计时长的标签" tags={zeroRateTags} onChange={setZeroRateTags} availableTags={availableTags} />
+              <TimeTagPicker
+                label="选择只计时长的标签"
+                tags={zeroRateTags}
+                onChange={setZeroRateTags}
+                availableTags={availableTags}
+              />
             </div>
 
             <div className="flex items-center justify-between gap-4 py-3.5">
@@ -327,7 +342,7 @@ export function TimeSettingsPage({
             <div className="space-y-3 py-3.5">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="text-sm text-foreground">睡眠模板候选</div>
+                  <div className="text-sm text-foreground">作息模板</div>
                   <div className="text-xs text-muted-foreground">
                     使用你选择的标签，手动确认后才入账
                   </div>
@@ -335,7 +350,7 @@ export function TimeSettingsPage({
                 <Switch
                   checked={sleepEnabled}
                   onCheckedChange={setSleepEnabled}
-                  aria-label="启用睡眠候选模板"
+                  aria-label="启用作息模板"
                 />
               </div>
               {sleepEnabled && (
@@ -345,8 +360,15 @@ export function TimeSettingsPage({
                       <SelectValue placeholder="选择已有标签" />
                     </SelectTrigger>
                     <SelectContent>
-                      {[...new Set([...availableTags, ...(sleepTag ? [sleepTag] : [])])].map((tag) => (
-                        <SelectItem key={tag} value={tag}>#{tag}</SelectItem>
+                      {[
+                        ...new Set([
+                          ...availableTags,
+                          ...(sleepTag ? [sleepTag] : []),
+                        ]),
+                      ].map((tag) => (
+                        <SelectItem key={tag} value={tag}>
+                          #{tag}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -376,7 +398,11 @@ export function TimeSettingsPage({
           </div>
         </details>
         <div className="ledger-settings-save">
-          <Button type="submit" size="sm" disabled={busy || (sleepEnabled && !sleepTag)}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={busy || (sleepEnabled && !sleepTag)}
+          >
             保存设置
           </Button>
         </div>

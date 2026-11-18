@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Pencil, Plus } from "lucide-react";
+import { hasTimeAssignment } from "@core/time/assignment";
 import type {
   DailyLedgerSummary,
   LocatedSegment,
@@ -150,6 +151,10 @@ export function TimeEntryList({
                     {segment.tags?.map((tag) => (
                       <span key={tag}>#{tag}</span>
                     ))}
+                    {!hasTimeAssignment(
+                      segment.projectSnapshot,
+                      segment.tags,
+                    ) && <span>待补归属</span>}
                     {segment.precision === "estimated_bounds" && (
                       <span>大约</span>
                     )}
@@ -163,9 +168,9 @@ export function TimeEntryList({
                 </span>
                 <span
                   className="ledger-entry-cost"
-                  data-unpriced={segment.categoryId === "sleep" || undefined}
+                  data-unpriced={segment.hourlyRateCents === 0 || undefined}
                 >
-                  {segment.categoryId === "sleep"
+                  {segment.hourlyRateCents === 0
                     ? "不折算"
                     : needsReview && segment.confirmedSeconds === 0
                       ? "待确认"

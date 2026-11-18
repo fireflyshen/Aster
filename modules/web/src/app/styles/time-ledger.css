@@ -624,6 +624,8 @@
   border-radius: 3px 3px 0 0;
 }
 .ledger-trend-bars[data-period="month"] {
+  grid-auto-columns: minmax(28px, 1fr);
+  overflow-x: auto;
   gap: 4px;
 }
 .ledger-trend-bars[data-period="month"] .ledger-trend-value {
@@ -631,11 +633,6 @@
 }
 .ledger-trend-bars[data-period="month"] .ledger-trend-track {
   width: 100%;
-}
-.ledger-stat-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 .ledger-non-project {
   margin-top: 6px;
@@ -656,6 +653,17 @@
 .ledger-distribution-columns span:nth-child(n + 2),
 .ledger-distribution-row > span:nth-child(n + 2) {
   text-align: right;
+}
+.ledger-distribution-columns button {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+  min-height: 28px;
+  white-space: nowrap;
+}
+.ledger-distribution-columns button[aria-pressed="true"] {
+  color: var(--foreground);
 }
 .ledger-distribution-row {
   width: 100%;

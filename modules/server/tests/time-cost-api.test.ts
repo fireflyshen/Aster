@@ -192,6 +192,7 @@ test("server cost model captures rate snapshots, isolates provisional auto-stops
       idempotencyKey: "k-sleep-1",
       title: "睡眠",
       explicitCategoryId: "sleep",
+      tags: ["睡眠"],
       startMs: sleepStart,
       endMs: sleepEnd,
     });
@@ -414,7 +415,11 @@ test("time records reuse projects and tags across start, log, estimate, plans, a
         shared: (fn: () => unknown) => fn(),
       } as never,
       service: makeFakeTaskService([
-        { uuid: "task-project", description: "Project task", project: "Work" },
+        {
+          uuid: "task-project",
+          description: "Project task",
+          project: "Work",
+        },
       ]),
       store,
       isEnabled: () => true,
@@ -586,10 +591,48 @@ test("time records reuse projects and tags across start, log, estimate, plans, a
         patch: { projectSnapshot: 42 },
       }),
     );
+    const ordinarySleepTag = await callRoute(routes, "POST", "/api/time/log", {
+      idempotencyKey: "ordinary-tag",
+      title: "睡眠",
+      tags: ["睡眠"],
+      startMs: at("06:00"),
+      endMs: at("07:00"),
+    });
+    const ordinaryActivity = ordinarySleepTag.body.activity as {
+      id: string;
+      categoryId: string;
+      hourlyRateCents: number;
+    };
+    assert.equal(ordinaryActivity.categoryId, "uncategorized");
+    assert.equal(ordinaryActivity.hourlyRateCents, 10_000);
+    await assert.rejects(
+      () =>
+        callRoute(routes, "POST", "/api/time/log", {
+          idempotencyKey: "no-implicit-tag",
+          title: "睡眠",
+          explicitCategoryId: "sleep",
+          startMs: at("13:00"),
+          endMs: at("14:00"),
+        }),
+      (error) =>
+        (error as { code?: string }).code === "TIME_ASSIGNMENT_REQUIRED",
+    );
+    const policy = store.getPolicy();
+    store.updatePolicy({
+      expectedPolicyVersion: policy.policyVersion,
+      patch: {
+        zeroRateTags: ["休息"],
+        sleepTemplate: {
+          ...policy.sleepTemplate,
+          enabled: true,
+          tag: "休息",
+        },
+      },
+    });
     const sleep = await callRoute(routes, "POST", "/api/time/log", {
       idempotencyKey: "sleep-project",
       title: "Nap",
-      explicitCategoryId: "sleep",
+      tags: ["休息"],
       startMs: at("13:00"),
       endMs: at("14:00"),
     });
@@ -606,11 +649,26 @@ test("time records reuse projects and tags across start, log, estimate, plans, a
       date: "2026-11-14",
     });
     assert.equal(candidate.activity?.projectSnapshot, undefined);
-    assert.equal(candidate.activity?.categoryId, "sleep");
-    assert.deepEqual(candidate.activity?.tags, ["睡眠"]);
-    assert.deepEqual((sleep.body.activity as { tags?: string[] }).tags, [
-      "睡眠",
-    ]);
+    assert.equal(candidate.activity?.hourlyRateCents, 0);
+    assert.deepEqual(candidate.activity?.tags, ["休息"]);
+    const sleepActivity = sleep.body.activity as {
+      id: string;
+      tags: string[];
+      categoryId: string;
+    };
+    assert.deepEqual(sleepActivity.tags, ["休息"]);
+    assert.equal(sleepActivity.categoryId, "uncategorized");
+    store.updatePolicy({
+      expectedPolicyVersion: store.getPolicy().policyVersion,
+      patch: {
+        zeroRateTags: ["睡眠"],
+      },
+    });
+    assert.equal(
+      store.getActivity(ordinaryActivity.id)?.hourlyRateCents,
+      10_000,
+    );
+    assert.equal(store.getActivity(sleepActivity.id)?.hourlyRateCents, 0);
   } finally {
     store.close();
     await rm(dir, { recursive: true, force: true });

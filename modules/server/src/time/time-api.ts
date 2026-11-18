@@ -613,7 +613,10 @@ export function createTimeHandlers(deps: {
         projectSnapshot = assignment.projectSnapshot;
         tags = assignment.tags;
         if (taskUuid && beforeStart) {
-          await beforeStart(taskUuid, { source: clientSource, actor });
+          await beforeStart(taskUuid, {
+            source: clientSource,
+            actor,
+          });
         }
         const receipt = s.startActivity({
           idempotencyKey,
@@ -951,10 +954,7 @@ export function createTimeHandlers(deps: {
         const planId = requiredString(body.planId, "planId", 64);
         const existingPlan = s.getTimingPlan(planId);
         const assignment = existingPlan
-          ? timeAssignment(
-              existingPlan.projectSnapshot,
-              existingPlan.tags,
-            )
+          ? timeAssignment(existingPlan.projectSnapshot, existingPlan.tags)
           : undefined;
         if (existingPlan?.taskUuid && beforeStart) {
           await beforeStart(existingPlan.taskUuid, {

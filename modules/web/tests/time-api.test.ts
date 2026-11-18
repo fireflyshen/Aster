@@ -211,14 +211,22 @@ test("web time-api routes cleanly through real server handlers without double /a
     const undone = await timeApi.undoTimeOperation(updated.operationId);
     assert.equal(undone.undoneOperationId, updated.operationId);
 
-    const sleepConfirmed = await timeApi.confirmSleepCandidate("2026-11-14");
-    assert.ok(sleepConfirmed.activity?.id);
-
     const nextPolicy = await timeApi.updateTimePolicy({
       expectedPolicyVersion: policy.policyVersion,
-      patch: { longActivityThresholdSeconds: 5400 },
+      patch: {
+        longActivityThresholdSeconds: 5400,
+        sleepTemplate: {
+          ...policy.sleepTemplate,
+          enabled: true,
+          tag: "作息",
+        },
+        zeroRateTags: ["作息"],
+      },
     });
     assert.equal(nextPolicy.longActivityThresholdSeconds, 5400);
+    const sleepConfirmed = await timeApi.confirmSleepCandidate("2026-11-14");
+    assert.deepEqual(sleepConfirmed.activity?.tags, ["作息"]);
+    assert.equal(sleepConfirmed.activity?.hourlyRateCents, 0);
 
     // 2.5 TimingPlan lifecycle + pause + confirm + events contract
     const createdPlan = await timeApi.createTimingPlan({

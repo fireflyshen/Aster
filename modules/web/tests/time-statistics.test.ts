@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildSync } from "esbuild";
 import type { CostReportSummary } from "../../core/time/model.ts";
+import { zonedDateTimeToUtcMs } from "../../core/time/zone.ts";
 
 const compiled = buildSync({
   entryPoints: [
@@ -14,14 +15,16 @@ const compiled = buildSync({
   write: false,
   alias: { "@core": new URL("../../core", import.meta.url).pathname },
 });
-const { costStatisticRows, costTagGroups } = await import(
+const { costStatisticRows, costTagGroups, nonProjectGroups } = await import(
   `data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString("base64")}`
 );
+const at = (time: string, date = "2026-11-15") =>
+  zonedDateTimeToUtcMs(date, time, "Asia/Shanghai");
 
 const sleep = {
   activityId: "sleep",
-  startMs: 0,
-  endMs: 1000,
+  startMs: at("00:00"),
+  endMs: at("08:00"),
   date: "2026-11-15",
   confirmedSeconds: 28800,
   confirmedCostCents: 0,
@@ -29,11 +32,12 @@ const sleep = {
 };
 const work = {
   activityId: "work",
-  startMs: 1000,
-  endMs: 2000,
+  startMs: at("09:00"),
+  endMs: at("10:00"),
   date: "2026-11-15",
   confirmedSeconds: 3600,
   confirmedCostCents: 10000,
+  projectSnapshot: "Work",
   tags: ["study", "study", "code"],
 };
 const report = {
@@ -69,6 +73,36 @@ test("daily statistics deduplicate segment references, retain zero days and zero
   assert.equal(rows[1].date, "2026-11-15");
 });
 
+test("daily trend splits confirmed time at local midnight and preserves the period's rounded cost", () => {
+  const overnight = {
+    ...report.unassignedSegments[0],
+    date: "2026-11-14",
+    startMs: at("23:30", "2026-11-14"),
+    endMs: at("07:30"),
+    confirmedSeconds: 5400,
+    confirmedCostCents: 1,
+  };
+  const rows = costStatisticRows(
+    {
+      ...report,
+      byProject: [],
+      byTask: [],
+      unassignedSegments: [overnight],
+    },
+    "day",
+  );
+  assert.deepEqual(
+    rows.map((row: { seconds: number; cost: number }) => [
+      row.seconds,
+      row.cost,
+    ]),
+    [
+      [1800, 0],
+      [3600, 1],
+    ],
+  );
+});
+
 test("tags count each unique tag once per segment and retain untagged time", () => {
   const rows = costStatisticRows(report, "tag");
   assert.equal(rows.find((row) => row.key === "study").seconds, 3600);
@@ -78,6 +112,34 @@ test("tags count each unique tag once per segment and retain untagged time", () 
 
 test("project views use period facts rather than lifetime costs", () => {
   assert.equal(costStatisticRows(report, "project")[0].cost, 10000);
+});
+
+test("non-project breakdown separates tag-only time from legacy gaps and reconciles without duplication", () => {
+  const tagged = {
+    ...report.unassignedSegments[0],
+    activityId: "tagged",
+    tags: ["休息", "日常"],
+  };
+  const provisional = {
+    ...tagged,
+    activityId: "pending",
+    confirmedSeconds: 0,
+  };
+  const { tagged: taggedRows, legacy } = nonProjectGroups({
+    ...report,
+    byTask: [
+      { ...report.byTask[0], segments: [tagged, work as typeof tagged] },
+    ],
+    unassignedSegments: [...report.unassignedSegments, tagged, provisional],
+  });
+  assert.deepEqual(
+    taggedRows.map((segment: typeof tagged) => segment.activityId),
+    ["tagged"],
+  );
+  assert.deepEqual(
+    legacy.map((segment: typeof tagged) => segment.activityId),
+    ["sleep"],
+  );
 });
 
 test("tag groups include independent and untagged activity, without duplicate task/project references", () => {

@@ -116,6 +116,7 @@ export function buildSleepCandidateForDate(
   return {
     key,
     date,
+    tag: policy.sleepTemplate.tag,
     templateVersion: policy.sleepTemplate.version,
     startMs,
     endMs,

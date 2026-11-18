@@ -110,6 +110,11 @@ test("half-open interval adjacency and classification precedence follow path bou
 
 test("daily and weekly ledger keep C + U = T invariant with unlocated estimates and sleep candidates", () => {
   const policy = createDefaultTimePolicy();
+  policy.sleepTemplate = {
+    ...policy.sleepTemplate,
+    enabled: true,
+    tag: "作息",
+  };
   const tz = policy.timezone;
   const day = "2026-11-15";
   const nowMs = zonedDateTimeToUtcMs("2026-11-16", "09:00", tz); // Full day 2026-11-15 is in the past

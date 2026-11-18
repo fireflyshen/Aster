@@ -104,9 +104,7 @@ export function ProjectTagFields({
             <SelectValue placeholder="不关联项目" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={UNASSIGNED_PROJECT_SELECT}>
-              无项目
-            </SelectItem>
+            <SelectItem value={UNASSIGNED_PROJECT_SELECT}>无项目</SelectItem>
             {projectOptions.map((item) => (
               <SelectItem key={item} value={item}>
                 {item}
@@ -155,66 +153,81 @@ export function TimeTagPicker({
 }) {
   const [search, setSearch] = useState("");
   const query = search.trim().replace(/^#/, "").toLocaleLowerCase();
-  const options = [...new Set([...availableTags, ...tags])]
-    .filter((tag) => tag.toLocaleLowerCase().includes(query));
+  const options = [...new Set([...availableTags, ...tags])].filter((tag) =>
+    tag.toLocaleLowerCase().includes(query),
+  );
+  function toggleTag(tag: string) {
+    onChange(
+      tags.includes(tag) ? tags.filter((item) => item !== tag) : [...tags, tag],
+    );
+  }
   return (
-      <Popover onOpenChange={(open) => { if (!open) setSearch(""); }}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            aria-label={label}
-            className="time-meta-tag-trigger"
-          >
-            <Tag className="size-3.5" />
-            标签
-            {tags.length > 0 && (
-              <span className="tabular-nums">{tags.length}</span>
-            )}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          className="w-64 max-w-[calc(100vw-24px)] p-2.5"
+    <Popover
+      onOpenChange={(open) => {
+        if (!open) setSearch("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
           aria-label={label}
+          className="time-meta-tag-trigger"
         >
-          <div className="flex items-center gap-2 border-b border-border/60 pb-2">
-            <input
-              type="text"
-              aria-label="搜索已有标签"
-              placeholder="搜索已有标签"
-              className="h-8 min-w-0 flex-1 bg-transparent text-base outline-none sm:text-xs"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              }}
-            />
-          </div>
-          <div className="max-h-52 space-y-0.5 overflow-y-auto pt-2">
-            {options.length === 0 && (
-              <p className="p-2 text-xs text-muted-foreground">
-                {query ? "没有匹配的标签" : "请先在工作区创建标签"}
-              </p>
-            )}
-            {options.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  aria-pressed={tags.includes(tag)}
-                  onClick={() => onChange(tags.includes(tag) ? tags.filter((item) => item !== tag) : [...tags, tag])}
-                  className="flex min-h-10 w-full items-center justify-between gap-2 rounded px-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
-                >
-                  <span className="truncate">{tag}</span>
-                  {tags.includes(tag) && (
-                    <Check className="size-3.5 shrink-0 text-foreground" />
-                  )}
-                </button>
-              ))}
-          </div>
-        </PopoverContent>
-      </Popover>
+          <Tag className="size-3.5" />
+          标签
+          {tags.length > 0 && (
+            <span className="tabular-nums">{tags.length}</span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-64 max-w-[calc(100vw-24px)] p-2.5"
+        aria-label={label}
+      >
+        <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+          <input
+            type="text"
+            aria-label="搜索已有标签"
+            placeholder="搜索已有标签"
+            className="h-8 min-w-0 flex-1 bg-transparent text-base outline-none sm:text-xs"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                e.stopPropagation();
+                const exact = options.find(
+                  (tag) => tag.toLocaleLowerCase() === query,
+                );
+                if (exact) toggleTag(exact);
+                else if (query && options.length === 1) toggleTag(options[0]);
+              }
+            }}
+          />
+        </div>
+        <div className="max-h-52 space-y-0.5 overflow-y-auto pt-2">
+          {options.length === 0 && (
+            <p className="p-2 text-xs text-muted-foreground">
+              {query ? "没有匹配的标签" : "请先在工作区创建标签"}
+            </p>
+          )}
+          {options.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              aria-pressed={tags.includes(tag)}
+              onClick={() => toggleTag(tag)}
+              className="flex min-h-10 w-full items-center justify-between gap-2 rounded px-2 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <span className="truncate">{tag}</span>
+              {tags.includes(tag) && (
+                <Check className="size-3.5 shrink-0 text-foreground" />
+              )}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

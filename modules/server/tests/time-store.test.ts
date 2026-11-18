@@ -230,6 +230,17 @@ test("sleep candidate confirmation is idempotent, detects unstopped timer confli
     });
 
     // Unstopped timer running from 22:00 across the night
+    const policy = store.getPolicy();
+    store.updatePolicy({
+      expectedPolicyVersion: policy.policyVersion,
+      patch: {
+        sleepTemplate: {
+          ...policy.sleepTemplate,
+          enabled: true,
+          tag: "作息",
+        },
+      },
+    });
     const timer = store.startActivity({
       idempotencyKey: "sleep-block-start",
       title: "Late work",

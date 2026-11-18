@@ -149,8 +149,8 @@ export function TimePlansPanel({
                     )}
                     {(expired || exhausted) && <span>需要调整</span>}
                     {!hasTimeAssignment(plan.projectSnapshot, plan.tags) && (
-                        <span>请在调整中补充项目或标签</span>
-                      )}
+                      <span>请在调整中补充项目或标签</span>
+                    )}
                   </div>
                 </div>
                 <div className="ledger-button-row">

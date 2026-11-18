@@ -147,7 +147,14 @@ export function TimeTodayPage({
         onToday={() => onSelectDate(today)}
       >
         {!status?.activeActivity && (
-          <Button size="sm" variant="ghost" disabled={busy} aria-expanded={composing} aria-controls={composing ? "ledger-capture" : undefined} onClick={() => setComposing((value) => !value)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={busy}
+            aria-expanded={composing}
+            aria-controls={composing ? "ledger-capture" : undefined}
+            onClick={() => setComposing((value) => !value)}
+          >
             <Play className="size-3.5" />
             计时
           </Button>
@@ -191,11 +198,15 @@ export function TimeTodayPage({
               ? formatCurrencyCny(daily.confirmedCostCents)
               : "—",
           },
-          ...(currentDateLoaded && daily.provisionalSeconds > 0 ? [{
-            label: "待核对时长",
-            value: formatLedgerDuration(daily.provisionalSeconds),
-            attention: true,
-          }] : []),
+          ...(currentDateLoaded && daily.provisionalSeconds > 0
+            ? [
+                {
+                  label: "待核对时长",
+                  value: formatLedgerDuration(daily.provisionalSeconds),
+                  attention: true,
+                },
+              ]
+            : []),
         ]}
       />
       {currentDateLoaded && (

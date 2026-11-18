@@ -244,9 +244,13 @@ test("task timing accepts a shared tag without a project and rejects unassigned 
     );
     assert.equal(store.getStatus().activeActivity, null);
     assert.ok(!harness.calls.some((call) => call.startsWith("startTask:")));
+    store.updatePolicy({
+      expectedPolicyVersion: store.getPolicy().policyVersion,
+      patch: { zeroRateTags: ["睡眠"] },
+    });
     harness.tasks.get(uuid)!.tags = ["睡眠"];
     await coordinator.startTask(uuid);
-    assert.equal(store.getStatus().activeActivity?.categoryId, "sleep");
+    assert.equal(store.getStatus().activeActivity?.categoryId, "uncategorized");
     assert.equal(store.getStatus().activeActivity?.hourlyRateCents, 0);
     assert.deepEqual(store.getStatus().activeActivity?.tags, ["睡眠"]);
     assert.equal(store.getStatus().activeActivity?.projectSnapshot, undefined);

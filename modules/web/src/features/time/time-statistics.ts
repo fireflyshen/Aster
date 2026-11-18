@@ -1,5 +1,10 @@
-import type { CostReportSummary, CostReportProjectRow, CostReportSegmentRef } from "@core/time/model";
-import { addLocalDays } from "@core/time/zone";
+import type {
+  CostReportSummary,
+  CostReportProjectRow,
+  CostReportSegmentRef,
+} from "@core/time/model";
+import { DEFAULT_TIMEZONE } from "@core/time/model";
+import { addLocalDays, dayBoundsMs } from "@core/time/zone";
 
 export type StatisticRow = {
   key: string;
@@ -16,17 +21,22 @@ function reportSegments(report: CostReportSummary): CostReportSegmentRef[] {
     ...report.byTask.flatMap((row) => row.segments),
     ...report.unassignedSegments,
   ];
-  return [...new Map(segments.map((segment) => [
-    `${segment.activityId}:${segment.startMs}:${segment.endMs}`,
-    segment,
-  ])).values()];
+  return [
+    ...new Map(
+      segments.map((segment) => [
+        `${segment.activityId}:${segment.startMs}:${segment.endMs}`,
+        segment,
+      ]),
+    ).values(),
+  ];
 }
 
 export function nonProjectGroups(report: CostReportSummary) {
   const tagged: CostReportSegmentRef[] = [];
   const legacy: CostReportSegmentRef[] = [];
   for (const segment of reportSegments(report)) {
-    if (segment.projectSnapshot?.trim() || segment.confirmedSeconds <= 0) continue;
+    if (segment.projectSnapshot?.trim() || segment.confirmedSeconds <= 0)
+      continue;
     (segment.tags?.some((tag) => tag.trim()) ? tagged : legacy).push(segment);
   }
   return { tagged, legacy };
@@ -36,6 +46,7 @@ export function nonProjectGroups(report: CostReportSummary) {
 export function costStatisticRows(
   report: CostReportSummary,
   dimension: StatisticDimension,
+  timeZone = DEFAULT_TIMEZONE,
 ): StatisticRow[] {
   if (dimension === "project")
     return report.byProject.map((row) => ({
@@ -61,10 +72,35 @@ export function costStatisticRows(
     }
   }
   for (const segment of reportSegments(report)) {
-    const keys =
-      dimension === "day"
-        ? [segment.date]
-        : [...new Set(segment.tags?.length ? segment.tags : ["__untagged__"])];
+    if (dimension === "day") {
+      const startSecond = Math.floor(segment.startMs / 1000);
+      let counted = 0;
+      let cost = 0;
+      for (
+        let date = segment.date;
+        counted < segment.confirmedSeconds;
+        date = addLocalDays(date, 1)
+      ) {
+        const row = rows.get(date);
+        if (!row) break;
+        const { dayEndMs } = dayBoundsMs(date, timeZone);
+        const cumulative = Math.min(
+          segment.confirmedSeconds,
+          Math.floor(dayEndMs / 1000) - startSecond,
+        );
+        const cumulativeCost = Math.round(
+          (segment.confirmedCostCents * cumulative) / segment.confirmedSeconds,
+        );
+        row.seconds += cumulative - counted;
+        row.cost += cumulativeCost - cost;
+        counted = cumulative;
+        cost = cumulativeCost;
+      }
+      continue;
+    }
+    const keys = new Set(
+      segment.tags?.length ? segment.tags : ["__untagged__"],
+    );
     for (const key of keys) {
       const row = rows.get(key) ?? {
         key,

@@ -42,14 +42,6 @@ function TodoistCalendarGlyph() {
   );
 }
 
-const STATE_CHIP_STYLE: Record<string, string> = {
-  doing:
-    "bg-amber-500/15 text-amber-700 border-amber-500/30 dark:text-amber-300",
-  planned: "bg-blue-500/10 text-blue-700 border-blue-500/25 dark:text-blue-300",
-  waiting: "bg-teal-500/12 text-teal-700 border-teal-500/30 dark:text-teal-300",
-  parked: "bg-muted text-muted-foreground border-border/70",
-};
-
 /** A section already communicates its state; retain exceptional blocked badges. */
 export const TaskStateGroupContext = createContext<
   EffectiveTaskState | undefined
@@ -83,10 +75,7 @@ export function StateChip({
         <span
           data-task-state-chip={state}
           title={titleParts.join(" · ")}
-          className={cn(
-            "inline-flex shrink-0 items-center rounded border px-1.5 py-0.5 text-[11px] leading-none font-medium whitespace-nowrap",
-            STATE_CHIP_STYLE[state] || STATE_CHIP_STYLE.planned,
-          )}
+          className="inline-flex shrink-0 items-center text-[11px] leading-none whitespace-nowrap"
         >
           {label}
         </span>
@@ -167,7 +156,9 @@ export function TaskMetaChips({
   onOpenHabitDetail?: (habitId: string) => void;
 }) {
   const groupLabel = useContext(TaskGroupLabelContext);
+  const groupedState = useContext(TaskStateGroupContext);
   const visibleTags = task.tags.filter((tag) => tag !== groupLabel);
+  const hiddenTags = visibleTags.slice(1);
   const dueDay = toDueDay(task.due);
   const tone = taskDateTone(dueDay);
   const tagColorMap = new Map(
@@ -310,7 +301,11 @@ export function TaskMetaChips({
         ))}
 
       {!!task.annotations.length && (
-        <span
+        <button
+          type="button"
+          data-no-drag
+          disabled={disabled}
+          aria-label={`查看 ${task.annotations.length} 条评论：${task.description}`}
           className="inline-flex shrink-0 items-center gap-1 text-[12px] leading-none text-muted-foreground hover:text-foreground transition-colors cursor-pointer whitespace-nowrap"
           title={`${task.annotations.length} 条评论`}
           onClick={(e) => {
@@ -320,7 +315,7 @@ export function TaskMetaChips({
         >
           <MessageSquare className="size-3 shrink-0" strokeWidth={1.6} />
           <span className="tabular-nums">{task.annotations.length}</span>
-        </span>
+        </button>
       )}
 
       {(started || timingActive || (trackedSeconds ?? 0) > 0) && (
@@ -374,20 +369,24 @@ export function TaskMetaChips({
           </button>
         )}
 
-      {!!task.wait && new Date(task.wait) > new Date() && !checked && (
-        <span
-          data-task-meta="wait"
-          title={`等待至 ${dueLabel(task.wait)}`}
-          aria-label={`等待至 ${dueLabel(task.wait)}`}
-          className="inline-flex shrink-0 items-center text-muted-foreground/70"
-        >
-          <Clock3
-            aria-hidden="true"
-            className="size-3 shrink-0"
-            strokeWidth={1.5}
-          />
-        </span>
-      )}
+      {groupedState !== "waiting" &&
+        groupedState !== "parked" &&
+        !!task.wait &&
+        new Date(task.wait) > new Date() &&
+        !checked && (
+          <span
+            data-task-meta="wait"
+            title={`等待至 ${dueLabel(task.wait)}`}
+            aria-label={`等待至 ${dueLabel(task.wait)}`}
+            className="inline-flex shrink-0 items-center text-muted-foreground/70"
+          >
+            <Clock3
+              aria-hidden="true"
+              className="size-3 shrink-0"
+              strokeWidth={1.5}
+            />
+          </span>
+        )}
 
       {!!task.recur && (
         <span
@@ -410,13 +409,12 @@ export function TaskMetaChips({
 
       {visibleTags.length > 0 && (
         <span className="task-meta-tags" aria-label="标签">
-          {visibleTags.map((tag) => {
+          {visibleTags.slice(0, 1).map((tag) => {
             const color = tagColorMap.get(tag);
             return (
               <span
                 key={tag}
                 title={tag}
-                style={color ? { color } : undefined}
                 className="inline-flex shrink-0 max-w-[120px] items-center gap-1 text-[12px] leading-none text-muted-foreground/85 transition-opacity hover:opacity-85 whitespace-nowrap"
               >
                 <svg
@@ -426,6 +424,7 @@ export function TaskMetaChips({
                   fill="none"
                   viewBox="0 0 12 12"
                   className="size-3 shrink-0 opacity-85"
+                  style={color ? { color } : undefined}
                   aria-hidden="true"
                 >
                   <path
@@ -439,6 +438,22 @@ export function TaskMetaChips({
               </span>
             );
           })}
+          {hiddenTags.length > 0 && (
+            <button
+              type="button"
+              data-no-drag
+              disabled={disabled}
+              className="task-more-tags"
+              aria-label={`查看其余 ${hiddenTags.length} 个标签：${hiddenTags.join("、")}`}
+              title={hiddenTags.join("、")}
+              onClick={(event) => {
+                event.stopPropagation();
+                onEdit();
+              }}
+            >
+              +{hiddenTags.length}
+            </button>
+          )}
         </span>
       )}
       {showProject && (task.project || showInbox) && (

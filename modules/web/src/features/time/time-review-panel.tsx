@@ -75,7 +75,7 @@ export function TimeReviewPanel({
         <small>{count} 项</small>
       </summary>
       <p className="ledger-muted-note">
-        待确认部分、睡眠候选和待定位估记未计入已确认时长，处理后再入账。
+        待确认部分、作息候选和待定位估记处理后才入账。
       </p>
       <div className="ledger-review-items">
         {reviews.map((segment) => (
@@ -177,8 +177,10 @@ export function TimeReviewPanel({
         {daily.sleepCandidates.map((candidate) => (
           <div key={candidate.key} className="ledger-review-item">
             <div>
-              <span className="ledger-item-kind">睡眠候选</span>
-              <strong>睡眠是否照常？</strong>
+              <span className="ledger-item-kind">作息候选</span>
+              <strong>
+                {candidate.tag ? `#${candidate.tag}` : "作息是否照常？"}
+              </strong>
               <p>
                 {formatTimeRangeInZone(
                   candidate.startMs,
@@ -202,7 +204,7 @@ export function TimeReviewPanel({
                 variant="ghost"
                 disabled={busy}
                 onClick={() =>
-                  void runMutation("跳过睡眠候选", () =>
+                  void runMutation("跳过作息候选", () =>
                     dismissSleepCandidate(candidate.date),
                   )
                 }
@@ -215,7 +217,7 @@ export function TimeReviewPanel({
                 disabled={busy || candidate.hasConflict}
                 onClick={() =>
                   void runMutation(
-                    "确认睡眠",
+                    "确认作息",
                     () => confirmSleepCandidate(candidate.date),
                     { undoable: true },
                   )

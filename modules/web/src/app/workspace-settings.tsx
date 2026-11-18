@@ -20,11 +20,7 @@ import { sidebarItems, type SidebarPreferences } from "./sidebar-preferences";
 import { ThemePanel, type useThemePreference } from "./theme-switcher";
 
 export type SettingsSection =
-  | "general"
-  | "theme"
-  | "sidebar"
-  | "time"
-  | "recovery";
+  "general" | "theme" | "sidebar" | "time" | "recovery";
 
 const SECTION_TITLES: Record<SettingsSection, string> = {
   general: "常规",
@@ -48,6 +44,7 @@ export function WorkspaceSettings({
   blocked = false,
   notice = "",
   isTimeMode = true,
+  timeTags,
   onTimeMutated,
   onRestoreTask,
   onRefreshAll,
@@ -71,6 +68,7 @@ export function WorkspaceSettings({
   blocked?: boolean;
   notice?: string;
   isTimeMode?: boolean;
+  timeTags: readonly string[];
   onTimeMutated?: () => void;
   onRestoreTask?: (uuid: string) => Promise<boolean>;
   onRefreshAll?: () => Promise<unknown>;
@@ -189,6 +187,7 @@ export function WorkspaceSettings({
             ) : section === "time" ? (
               <TimeSettingsPanel
                 isTimeMode={isTimeMode}
+                availableTags={timeTags}
                 onTimeMutated={() => onTimeMutated?.()}
               />
             ) : section === "recovery" ? (
@@ -240,8 +239,8 @@ export function WorkspaceSettings({
                     「现在能做」处理中数量上限
                   </legend>
                   <p className="text-xs text-muted-foreground">
-                    控制同时留在「处理中」区域的任务上限（{MIN_DOING_LIMIT}–
-                    {MAX_DOING_LIMIT} 条，默认 {DOING_LIMIT}{" "}
+                    控制同时留在「处理中」区域的任务上限（
+                    {MIN_DOING_LIMIT}–{MAX_DOING_LIMIT} 条，默认 {DOING_LIMIT}{" "}
                     条）；修改后自动保存在服务端并多端同步。
                   </p>
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">

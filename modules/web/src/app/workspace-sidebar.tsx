@@ -35,6 +35,7 @@ import type {
 } from "@core/workspace/organization";
 import type { View } from "@shared/tasks";
 import { cn } from "cn";
+import { isWideWorkspace } from "@/lib/use-desktop";
 import { PlayCircle, Search } from "lucide-react";
 import type {
   CompleteBehavior,
@@ -57,30 +58,12 @@ export const views: Record<View, string> = {
 
 const viewOrder: View[] = ["now", "focus", "pending", "today", "upcoming"];
 
-const viewMeta: Record<
-  View,
-  {
-    icon: React.ComponentType<{ className?: string }>;
-    colorClass: string;
-  }
-> = {
-  now: {
-    icon: PlayCircle,
-    colorClass: "text-primary",
-  },
-  focus: {
-    icon: FocusNavIcon,
-    colorClass: "text-(--due-tomorrow)",
-  },
-  pending: {
-    icon: InboxNavIcon,
-    colorClass: "text-(--priority-3)",
-  },
-  upcoming: { icon: UpcomingNavIcon, colorClass: "text-(--due-upcoming)" },
-  today: {
-    icon: TodayNavIcon,
-    colorClass: "text-(--due-today)",
-  },
+const viewMeta: Record<View, React.ComponentType<{ className?: string }>> = {
+  now: PlayCircle,
+  focus: FocusNavIcon,
+  pending: InboxNavIcon,
+  upcoming: UpcomingNavIcon,
+  today: TodayNavIcon,
 };
 
 type WorkspaceSidebarProps = {
@@ -182,8 +165,12 @@ export function WorkspaceSidebar({
   const isSidebarVisible = (id: SidebarItemId) =>
     !sidebarPreferences.hidden.includes(id);
   const closeOnMobile = () => {
-    if (innerWidth < 768) onOpenChange(false);
+    if (!isWideWorkspace()) onOpenChange(false);
   };
+  const workViews = viewOrder.filter(isSidebarVisible);
+  const showHabits = Boolean(onOpenHabitsPage && isSidebarVisible("habits"));
+  const showTime = Boolean(onOpenTimePage && isSidebarVisible("time"));
+  const showOrganization = isSidebarVisible("organization");
 
   const activeRoots = (organization.projects || [])
     .filter((p) => projectStatus(p) === "active")
@@ -264,62 +251,66 @@ export function WorkspaceSidebar({
           搜索
           <kbd className="ml-auto text-[11px] text-muted-foreground">⌘K</kbd>
         </Button>
-        <section className="mt-2" aria-label="核心视图">
-          <nav aria-label="核心视图" className="space-y-0.5">
-            {viewOrder
-              .filter((value) => isSidebarVisible(value))
-              .map((value) => {
-                const label = views[value];
-                const { icon: Icon, colorClass } = viewMeta[value];
-                const count = viewCounts?.[value];
-                return (
-                  <Button
-                    key={value}
-                    variant="navigation"
-                    disabled={disabled}
-                    aria-current={
-                      view === value &&
-                      !currentProject &&
-                      !organizationPage &&
-                      !hasActiveItem &&
-                      !timePage &&
-                      !habitsPage
-                        ? "page"
-                        : undefined
-                    }
-                    onClick={() => {
-                      onView(value);
-                      closeOnMobile();
-                    }}
-                  >
-                    <Icon className={cn("size-5 shrink-0", colorClass)} />
-                    <span className="truncate">{label}</span>
-                    {value === "now" ? (
-                      <span
-                        data-sidebar-count
-                        className="ml-auto text-xs text-muted-foreground tabular-nums"
-                      >
-                        {count ?? 0}/{doingLimit}
-                      </span>
-                    ) : value === "focus" ? (
-                      <span
-                        data-sidebar-count
-                        className="ml-auto text-xs text-muted-foreground tabular-nums"
-                      >
-                        {activeRoots.length}/{FOCUS_LIMIT}
-                      </span>
-                    ) : count ? (
-                      <span
-                        data-sidebar-count
-                        className="ml-auto text-xs text-muted-foreground tabular-nums"
-                      >
-                        {count}
-                      </span>
-                    ) : null}
-                  </Button>
-                );
-              })}
-            {onOpenHabitsPage && isSidebarVisible("habits") && (
+        {workViews.length > 0 && (
+          <nav aria-label="任务" className="sidebar-nav-section">
+            <p className="sidebar-nav-label">任务</p>
+            {workViews.map((value) => {
+              const label = views[value];
+              const Icon = viewMeta[value];
+              const count = viewCounts?.[value];
+              return (
+                <Button
+                  key={value}
+                  variant="navigation"
+                  disabled={disabled}
+                  aria-current={
+                    view === value &&
+                    !currentProject &&
+                    !organizationPage &&
+                    !hasActiveItem &&
+                    !timePage &&
+                    !habitsPage
+                      ? "page"
+                      : undefined
+                  }
+                  onClick={() => {
+                    onView(value);
+                    closeOnMobile();
+                  }}
+                >
+                  <Icon className="size-[18px] shrink-0" />
+                  <span className="truncate">{label}</span>
+                  {value === "now" ? (
+                    <span
+                      data-sidebar-count
+                      className="ml-auto text-xs text-muted-foreground tabular-nums"
+                    >
+                      {count ?? 0}/{doingLimit}
+                    </span>
+                  ) : value === "focus" ? (
+                    <span
+                      data-sidebar-count
+                      className="ml-auto text-xs text-muted-foreground tabular-nums"
+                    >
+                      {activeRoots.length}/{FOCUS_LIMIT}
+                    </span>
+                  ) : count ? (
+                    <span
+                      data-sidebar-count
+                      className="ml-auto text-xs text-muted-foreground tabular-nums"
+                    >
+                      {count}
+                    </span>
+                  ) : null}
+                </Button>
+              );
+            })}
+          </nav>
+        )}
+        {(showHabits || showTime || showOrganization) && (
+          <nav aria-label="工具" className="sidebar-nav-section">
+            <p className="sidebar-nav-label">工具</p>
+            {showHabits && onOpenHabitsPage && (
               <Button
                 variant="navigation"
                 disabled={disabled}
@@ -329,7 +320,7 @@ export function WorkspaceSidebar({
                   closeOnMobile();
                 }}
               >
-                <HabitsNavIcon className="size-5 shrink-0 text-(--habit-accent)" />
+                <HabitsNavIcon className="size-[18px] shrink-0" />
                 <span className="truncate">习惯</span>
                 {habitsCount ? (
                   <span
@@ -341,45 +332,45 @@ export function WorkspaceSidebar({
                 ) : null}
               </Button>
             )}
-          </nav>
-        </section>
-        {onOpenTimePage && isSidebarVisible("time") && (
-          <Button
-            variant="navigation"
-            aria-current={
-              timePage && timePage !== "settings" ? "page" : undefined
-            }
-            disabled={disabled}
-            onClick={() => {
-              onOpenTimePage("today");
-              closeOnMobile();
-            }}
-          >
-            <LedgerNavIcon className="size-5 text-(--due-upcoming)" />
-            <span className="flex-1 text-left">时间账本</span>
-            {timerSnapshot?.state === "pending_reconcile" && (
-              <span
-                aria-label="有待核对的计时"
-                className="size-2 shrink-0 rounded-full bg-amber-500"
-              />
+            {showTime && onOpenTimePage && (
+              <Button
+                variant="navigation"
+                aria-current={
+                  timePage && timePage !== "settings" ? "page" : undefined
+                }
+                disabled={disabled}
+                onClick={() => {
+                  onOpenTimePage("today");
+                  closeOnMobile();
+                }}
+              >
+                <LedgerNavIcon className="size-[18px]" />
+                <span className="flex-1 text-left">时间账本</span>
+                {timerSnapshot?.state === "pending_reconcile" && (
+                  <span
+                    aria-label="有待核对的计时"
+                    className="size-2 shrink-0 rounded-full bg-amber-500"
+                  />
+                )}
+              </Button>
             )}
-          </Button>
-        )}
-        {isSidebarVisible("organization") && (
-          <Button
-            variant="navigation"
-            aria-current={
-              organizationPage && !projectsPage ? "page" : undefined
-            }
-            disabled={disabled}
-            onClick={() => {
-              onOrganization();
-              closeOnMobile();
-            }}
-          >
-            <OrganizationIcon className="size-5 text-(--priority-2)" />
-            过滤器 &amp; 标签
-          </Button>
+            {showOrganization && (
+              <Button
+                variant="navigation"
+                aria-current={
+                  organizationPage && !projectsPage ? "page" : undefined
+                }
+                disabled={disabled}
+                onClick={() => {
+                  onOrganization();
+                  closeOnMobile();
+                }}
+              >
+                <OrganizationIcon className="size-[18px]" />
+                过滤器 &amp; 标签
+              </Button>
+            )}
+          </nav>
         )}
         <SidebarFavorites
           onEditEntry={(entry) => {
