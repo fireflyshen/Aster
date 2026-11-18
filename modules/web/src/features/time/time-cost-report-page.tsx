@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDown, ChevronDown } from "lucide-react";
 import type {
@@ -6,9 +7,13 @@ import type {
   CostReportSummary,
   TimePolicy,
 } from "@core/time/model";
-import { addLocalDays, localDateOf } from "@core/time/zone";
+import { addLocalDays, localDateOf, mondayOfWeek } from "@core/time/zone";
 import { Button } from "@/components/ui/button";
-import { LedgerPeriodPicker, LedgerSummary } from "./ledger-ui";
+import {
+  LedgerAttribution,
+  LedgerPeriodPicker,
+  LedgerSummary,
+} from "./ledger-ui";
 import { LinkedBillsList } from "./bill-link-dialog";
 import { fetchCostReport, unlinkBillLink } from "./time-api";
 import {
@@ -33,6 +38,13 @@ function shiftPeriodDate(
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-01`;
 }
 
+function reportDateLabel(date: string, period: CostReportGranularity) {
+  if (period === "month") return date.slice(0, 7).replace("-", "/");
+  const start = mondayOfWeek(date);
+  const end = addLocalDays(start, 6);
+  return [start, end].map((day) => day.slice(5).replace("-", "/")).join("–");
+}
+
 function SegmentTraceList({
   segments,
   timeZone,
@@ -42,6 +54,7 @@ function SegmentTraceList({
   timeZone: string;
   onOpenDay: (date: string) => void;
 }) {
+  const { t, locale } = useI18n();
   return (
     <div className="ledger-stat-traces">
       {[...segments]
@@ -61,17 +74,18 @@ function SegmentTraceList({
               <strong>{segment.title}</strong>
               {!!segment.tags?.length && (
                 <small>
-                  {segment.tags.map((tag) => `#${tag}`).join(" · ")}
+                  <LedgerAttribution tags={segment.tags} />
                 </small>
               )}
               {segment.provisionalSeconds > 0 && (
                 <small className="ledger-pending-label">
-                  另有 {formatLedgerDuration(segment.provisionalSeconds)} 待核对
+                  {t("待核对")}{" "}
+                  {formatLedgerDuration(segment.provisionalSeconds, locale)}
                 </small>
               )}
             </span>
             <span>
-              {formatLedgerDuration(segment.confirmedSeconds)}
+              {formatLedgerDuration(segment.confirmedSeconds, locale)}
               <small>{formatCurrencyCny(segment.confirmedCostCents)}</small>
             </span>
           </button>
@@ -97,6 +111,7 @@ export function TimeCostReportPage({
   initialMetric?: "seconds" | "cost";
   refreshKey?: string;
 }) {
+  const { t, locale } = useI18n();
   const timeZone = policy.timezone || "UTC";
   const [period, setPeriod] = useState<CostReportGranularity>("week");
   const [metric, setMetric] = useState(initialMetric);
@@ -124,7 +139,7 @@ export function TimeCostReportPage({
       if (request === generation.current) setReport(next);
     } catch (error) {
       if (request === generation.current)
-        setError(error instanceof Error ? error.message : "加载统计失败");
+        setError(error instanceof Error ? error.message : t("加载统计失败"));
     } finally {
       if (request === generation.current) setLoading(false);
     }
@@ -143,7 +158,7 @@ export function TimeCostReportPage({
       await loadReport();
       onMutated?.();
     } catch (error) {
-      setError(error instanceof Error ? error.message : "解除关联失败");
+      setError(error instanceof Error ? error.message : t("解除关联失败"));
     } finally {
       setBusy(false);
     }
@@ -170,6 +185,12 @@ export function TimeCostReportPage({
       : report.totalPeriodConfirmedCostCents
     : 0;
   const nonProjects = report ? nonProjectGroups(report) : undefined;
+  const tagOverlap =
+    groupBy === "tag" &&
+    report &&
+    rows.reduce((sum, row) => sum + row.periodSeconds, 0) >
+      report.totalPeriodConfirmedSeconds;
+  const dateLabel = reportDateLabel(selectedDate, period);
   const bills = report
     ? [
         ...new Map(
@@ -184,20 +205,25 @@ export function TimeCostReportPage({
     <div className="ledger-page ledger-statistics-page">
       <LedgerPeriodPicker
         date={selectedDate}
-        label="选择统计日期"
+        dateLabel={dateLabel}
+        label={t("选择统计日期：{0}（{1}）", dateLabel, selectedDate)}
         onDate={onSelectDate}
         onPrevious={() =>
           onSelectDate(shiftPeriodDate(selectedDate, period, -1))
         }
         onNext={() => onSelectDate(shiftPeriodDate(selectedDate, period, 1))}
         onToday={() => onSelectDate(localDateOf(Date.now(), timeZone))}
-        todayLabel={period === "week" ? "本周" : "本月"}
+        todayLabel={period === "week" ? t("本周") : t("本月")}
       >
-        <div className="ledger-segments" role="group" aria-label="统计周期">
+        <div
+          className="ledger-segments"
+          role="group"
+          aria-label={t("统计周期")}
+        >
           {(
             [
-              ["week", "周"],
-              ["month", "月"],
+              ["week", t("周")],
+              ["month", t("月")],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -215,37 +241,36 @@ export function TimeCostReportPage({
         <div role="alert" className="ledger-error-row">
           <span>{error}</span>
           <Button size="sm" variant="outline" onClick={() => void loadReport()}>
-            重试
+            {t("重试")}
           </Button>
         </div>
       )}
       {loading ? (
         <p role="status" className="ledger-empty">
-          正在加载统计…
+          {t("加载中…")}
         </p>
       ) : !error && report ? (
         <>
-          <div className="ledger-stat-period">
-            <strong>
-              {report.periodStartDate} — {report.periodEndDate}
-            </strong>
-          </div>
           <LedgerSummary
             items={[
               {
-                label: "已确认时长",
-                value: formatLedgerDuration(report.totalPeriodConfirmedSeconds),
+                label: t("已确认时长"),
+                value: formatLedgerDuration(
+                  report.totalPeriodConfirmedSeconds,
+                  locale,
+                ),
               },
               {
-                label: "时间折算",
+                label: t("时间折算"),
                 value: formatCurrencyCny(report.totalPeriodConfirmedCostCents),
               },
               ...(report.totalPeriodProvisionalSeconds > 0
                 ? [
                     {
-                      label: "待核对时长",
+                      label: t("待核对"),
                       value: formatLedgerDuration(
                         report.totalPeriodProvisionalSeconds,
+                        locale,
                       ),
                       attention: true,
                     },
@@ -253,24 +278,25 @@ export function TimeCostReportPage({
                 : []),
             ]}
           />
-          <section className="ledger-distribution" aria-label="时间分布">
-            <div className="ledger-block-heading">
-              <h2>时间花在哪里</h2>
+          <section className="ledger-distribution" aria-label={t("时间分布")}>
+            <h2 className="sr-only">{t("时间花在哪里")}</h2>
+            <div className="ledger-distribution-columns">
               <div
                 className="ledger-segments"
                 role="group"
-                aria-label="统计分组"
+                aria-label={t("统计分组")}
               >
                 {(
                   [
-                    ["project", "按项目"],
-                    ["tag", "按标签"],
+                    ["project", t("项目")],
+                    ["tag", t("标签")],
                   ] as const
                 ).map(([value, label]) => (
                   <button
                     key={value}
                     type="button"
                     aria-pressed={groupBy === value}
+                    aria-label={t("按{0}", label)}
                     onClick={() => {
                       setGroupBy(value);
                       setExpanded(undefined);
@@ -280,43 +306,30 @@ export function TimeCostReportPage({
                   </button>
                 ))}
               </div>
-            </div>
-            {groupBy === "tag" && (
-              <p className="ledger-muted-note">
-                一段时间可属于多个标签，各标签不可相加作为总量。
-              </p>
-            )}
-            <div
-              className="ledger-distribution-columns"
-              role="group"
-              aria-label="统计排序"
-            >
-              <span>{groupBy === "project" ? "项目" : "标签"}</span>
               {(
                 [
-                  ["seconds", "时长"],
-                  ["cost", "折算金额"],
+                  ["seconds", t("时长")],
+                  ["cost", t("折算金额")],
                 ] as const
               ).map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
-                  aria-label={`按${label}降序`}
+                  aria-label={t("按{0}降序", label)}
                   aria-pressed={metric === value}
                   onClick={() => setMetric(value)}
                 >
                   {metric === value && <ArrowDown className="size-3" />}
-                  {label}
+                  {value === "cost" ? t("折算") : label}
                 </button>
               ))}
             </div>
-            {rows.length === 0 ? (
-              <p className="ledger-empty">
-                {groupBy === "project"
-                  ? "该期间没有项目记录。"
-                  : "该期间还没有已定位的记录。"}
-              </p>
-            ) : (
+            {rows.length === 0 &&
+              !(
+                groupBy === "project" &&
+                (nonProjects?.tagged.length || nonProjects?.legacy.length)
+              ) && <p className="ledger-empty">{t("无记录")}</p>}
+            {rows.length > 0 &&
               rows.map((row) => {
                 const key = `${groupBy}:${row.projectKey}`;
                 const value =
@@ -339,7 +352,12 @@ export function TimeCostReportPage({
                             className="size-3.5"
                             data-open={expanded === key}
                           />
-                          <strong>{row.projectName}</strong>
+                          <strong>
+                            {groupBy === "tag" &&
+                            row.projectKey === "__untagged__"
+                              ? t("未设标签")
+                              : row.projectName}
+                          </strong>
                         </span>
                         <span className="ledger-share-track">
                           <i
@@ -349,21 +367,33 @@ export function TimeCostReportPage({
                           />
                         </span>
                       </span>
-                      <span>{formatLedgerDuration(row.periodSeconds)}</span>
+                      <span>
+                        {formatLedgerDuration(row.periodSeconds, locale)}
+                      </span>
                       <span>{formatCurrencyCny(row.periodCostCents)}</span>
                     </button>
                     {expanded === key && (
                       <div className="ledger-distribution-details">
-                        <p className="ledger-muted-note">
-                          {row.segments.length} 条记录 · 点击明细返回当天
-                          {groupBy === "project" &&
-                          row.overInitialBudgetCents > 0
-                            ? ` · 超预估 ${formatCurrencyCny(row.overInitialBudgetCents)}`
-                            : ""}
-                          {groupBy === "project" && row.cashExpenseCents > 0
-                            ? ` · 另有关联现金 ${formatCurrencyCny(row.cashExpenseCents)}`
-                            : ""}
-                        </p>
+                        {groupBy === "project" &&
+                          (row.overInitialBudgetCents > 0 ||
+                            row.cashExpenseCents > 0) && (
+                            <p className="ledger-muted-note flex flex-wrap gap-x-3">
+                              {row.overInitialBudgetCents > 0 && (
+                                <span>
+                                  {t("超预算")}{" "}
+                                  {formatCurrencyCny(
+                                    row.overInitialBudgetCents,
+                                  )}
+                                </span>
+                              )}
+                              {row.cashExpenseCents > 0 && (
+                                <span>
+                                  {t("现金")}{" "}
+                                  {formatCurrencyCny(row.cashExpenseCents)}
+                                </span>
+                              )}
+                            </p>
+                          )}
                         <SegmentTraceList
                           segments={row.segments}
                           timeZone={timeZone}
@@ -373,14 +403,13 @@ export function TimeCostReportPage({
                     )}
                   </div>
                 );
-              })
-            )}
+              })}
             {groupBy === "project" &&
               nonProjects &&
               (
                 [
-                  ["仅标签记录", nonProjects.tagged],
-                  ["历史记录待补归属", nonProjects.legacy],
+                  [t("仅标签"), nonProjects.tagged],
+                  [t("待补归属"), nonProjects.legacy],
                 ] as const
               ).map(
                 ([label, segments]) =>
@@ -397,6 +426,7 @@ export function TimeCostReportPage({
                               (sum, segment) => sum + segment.confirmedSeconds,
                               0,
                             ),
+                            locale,
                           )}
                           {" · "}
                           {formatCurrencyCny(
@@ -416,11 +446,14 @@ export function TimeCostReportPage({
                     </details>
                   ),
               )}
+            {tagOverlap && (
+              <p className="ledger-muted-note">{t("标签可重叠")}</p>
+            )}
           </section>
           <details className="ledger-section-disclosure ledger-daily-trend">
             <summary>
-              <span>每日趋势</span>
-              <small>{metric === "seconds" ? "时长" : "折算金额"}</small>
+              <span>{t("每日趋势")}</span>
+              <small>{metric === "seconds" ? t("时长") : t("折算")}</small>
             </summary>
             <div className="ledger-trend-bars" data-period={period}>
               {days.map((day, index) => {
@@ -429,13 +462,19 @@ export function TimeCostReportPage({
                   <button
                     key={day.key}
                     type="button"
-                    aria-label={`${day.date} ${metric === "seconds" ? formatLedgerDuration(value) : formatCurrencyCny(value)}，查看记录`}
-                    title={`${day.date} · ${metric === "seconds" ? formatLedgerDuration(value) : formatCurrencyCny(value)}`}
+                    aria-label={t(
+                      "{0} {1}，查看记录",
+                      day.date,
+                      metric === "seconds"
+                        ? formatLedgerDuration(value, locale)
+                        : formatCurrencyCny(value),
+                    )}
+                    title={`${day.date} · ${metric === "seconds" ? formatLedgerDuration(value, locale) : formatCurrencyCny(value)}`}
                     onClick={() => day.date && onOpenDay(day.date!)}
                   >
                     <span className="ledger-trend-value">
                       {metric === "seconds"
-                        ? formatLedgerDuration(value)
+                        ? formatLedgerDuration(value, locale)
                         : formatCurrencyCny(value)}
                     </span>
                     <span className="ledger-trend-track">
@@ -460,11 +499,11 @@ export function TimeCostReportPage({
           {(bills.length > 0 || report.totalCashExpenseCents > 0) && (
             <details className="ledger-section-disclosure">
               <summary>
-                <span>关联现金支出</span>
+                <span>{t("现金支出")}</span>
                 <small>{formatCurrencyCny(report.totalCashExpenseCents)}</small>
               </summary>
               <p className="ledger-muted-note">
-                来自已关联的 Bills 账单，与时间折算分别核算。综合投入{" "}
+                {t("综合投入")}{" "}
                 {formatCurrencyCny(report.totalCombinedCostCents)}。
               </p>
               <LinkedBillsList links={bills} busy={busy} onUnlink={unlink} />

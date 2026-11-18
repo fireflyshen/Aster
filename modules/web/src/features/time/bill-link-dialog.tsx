@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import type { BillExpenseItem, BillLink } from "@core/time/model";
 import { Plus, Receipt, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -31,6 +32,7 @@ export function BillLinkDialog({
   existingLinks: readonly BillLink[];
   onLinked: (link: BillLink) => Promise<void> | void;
 }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [linkingKey, setLinkingKey] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export function BillLinkDialog({
           })
           .catch((err) => {
             if (cancelled) return;
-            setError(err instanceof Error ? err.message : "读取账单失败");
+            setError(err instanceof Error ? err.message : t("读取账单失败"));
           })
           .finally(() => {
             if (!cancelled) setLoading(false);
@@ -93,7 +95,7 @@ export function BillLinkDialog({
       await onLinked(res.link);
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "关联账单失败");
+      setError(err instanceof Error ? err.message : t("关联账单失败"));
     } finally {
       setLinkingKey(null);
     }
@@ -103,10 +105,13 @@ export function BillLinkDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>关联 Bills 现金支出</DialogTitle>
+          <DialogTitle>{t("关联 Bills 现金支出")}</DialogTitle>
           <DialogDescription>
-            为「{targetLabel}
-            」关联实际支出；只读读取 Bills 流水，时间折算金额绝不会写入 Bills。
+            {t("为「")}
+            {targetLabel}
+            {t(
+              "」关联实际支出；只读读取 Bills 流水，时间折算金额绝不会写入 Bills。",
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -116,7 +121,7 @@ export function BillLinkDialog({
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="搜索商户、摘要、账户或金额…"
+              placeholder={t("搜索商户、摘要、账户或金额…")}
               className="pl-8 text-xs"
             />
           </div>
@@ -125,17 +130,18 @@ export function BillLinkDialog({
 
           {!available ? (
             <p className="py-6 text-center text-xs text-muted-foreground">
-              未检测到可用的 Bills 账本目录（可用环境变量 `ASTER_BILLS_DIR`
-              或同级 `../Bills/journal` 目录）。
+              {t(
+                "未检测到可用的 Bills 账本目录（可用环境变量 `ASTER_BILLS_DIR` 或同级 `../Bills/journal` 目录）。",
+              )}
             </p>
           ) : loading ? (
             <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
               <Spinner className="size-3.5" />
-              正在检索 Bills 账单…
+              {t("正在检索 Bills 账单…")}
             </div>
           ) : items.length === 0 ? (
             <p className="py-8 text-center text-xs text-muted-foreground">
-              没有找到匹配的支出流水。
+              {t("没有找到匹配的支出流水。")}
             </p>
           ) : (
             <div className="max-h-72 divide-y divide-border/40 overflow-y-auto rounded-md border border-border/50">
@@ -179,10 +185,10 @@ export function BillLinkDialog({
                         onClick={() => void handleAttach(item)}
                       >
                         {already
-                          ? "已关联"
+                          ? t("已关联")
                           : linkingKey === item.txKey
-                            ? "关联中…"
-                            : "关联"}
+                            ? t("关联中…")
+                            : t("关联")}
                       </Button>
                     </div>
                   </div>
@@ -207,12 +213,13 @@ export function LinkedBillsList({
   onUnlink: (linkId: string) => Promise<void> | void;
   onOpenPicker?: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Receipt className="size-3.5" />
-          <span>关联现金支出（Bills 只读）</span>
+          <span>{t("关联现金支出（Bills 只读）")}</span>
         </div>
         {onOpenPicker && (
           <Button
@@ -224,13 +231,15 @@ export function LinkedBillsList({
             onClick={onOpenPicker}
           >
             <Plus className="size-3" />
-            关联 Bills 账单
+            {t("关联 Bills 账单")}
           </Button>
         )}
       </div>
       {links.length === 0 ? (
         <p className="text-[11px] text-muted-foreground/70">
-          暂无关联现金支出；如为某件事产生了购买支出，可关联进来对比时间成本。
+          {t(
+            "暂无关联现金支出；如为某件事产生了购买支出，可关联进来对比时间成本。",
+          )}
         </p>
       ) : (
         <div className="divide-y divide-border/35 rounded-md border border-border/45">
@@ -258,7 +267,7 @@ export function LinkedBillsList({
                   type="button"
                   size="icon-xs"
                   variant="ghost"
-                  aria-label="解除账单关联"
+                  aria-label={t("解除账单关联")}
                   className="size-6 text-muted-foreground md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
                   disabled={busy}
                   onClick={() => void onUnlink(link.id)}

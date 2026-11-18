@@ -1,6 +1,7 @@
 import type { Task } from "@shared/tasks";
 import { addDays, format } from "date-fns";
 import { taskDate } from "@core/tasks/quick-task";
+import { translate, type Language } from "@/app/language";
 
 /** Changes only the calendar day, preserving an existing local deadline time. */
 export function rescheduledTaskDue(
@@ -59,7 +60,7 @@ export function toDueDay(raw?: string): string {
 }
 
 /** Formats a due date concisely in Todoist style ("今天", "明天", "昨天", "M月d日"). */
-export function dueLabel(value: string): string {
+export function dueLabel(value: string, locale: Language = "zh-CN"): string {
   const date = new Date(isoDue(value));
   if (Number.isNaN(date.getTime())) return value;
   const today = new Date();
@@ -70,12 +71,17 @@ export function dueLabel(value: string): string {
   local.setHours(0, 0, 0, 0);
   const day =
     +local === +today
-      ? "今天"
+      ? translate(locale, "今天")
       : +local === +tomorrow
-        ? "明天"
+        ? translate(locale, "明天")
         : +local === +yesterday
-          ? "昨天"
-          : format(date, "M月d日");
+          ? translate(locale, "昨天")
+          : locale === "zh-CN"
+            ? format(date, "M月d日")
+            : new Intl.DateTimeFormat(locale, {
+                month: "short",
+                day: "numeric",
+              }).format(date);
   return (
     day +
     (date.getHours() || date.getMinutes()

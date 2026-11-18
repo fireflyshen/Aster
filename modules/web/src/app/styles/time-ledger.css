@@ -1,10 +1,16 @@
-.workspace-content:has(.ledger-workspace) {
+.workspace-content[data-workspace-view="time"] {
+  --ledger-page-inset: clamp(18px, 3.2vw, 36px);
   max-width: 840px;
+  padding-inline: max(var(--ledger-page-inset), env(safe-area-inset-left))
+    max(var(--ledger-page-inset), env(safe-area-inset-right));
+}
+.workspace-content[data-workspace-view="time"] [data-workspace-heading] {
+  margin-bottom: 14px;
 }
 .ledger-workspace {
   min-width: 0;
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 .ledger-workspace .ledger-view-nav {
   display: flex;
@@ -18,8 +24,8 @@
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: none;
-  padding: 0 2px 12px;
-  min-height: 36px;
+  padding: 0 2px 9px;
+  min-height: 32px;
   color: var(--muted-foreground);
   font-size: 14px;
   font-weight: 500;
@@ -31,7 +37,7 @@
 }
 .ledger-page {
   display: grid;
-  gap: 16px;
+  gap: 14px;
   min-width: 0;
 }
 .ledger-page > *,
@@ -52,6 +58,9 @@
 }
 .ledger-period-date {
   flex-wrap: wrap;
+}
+.ledger-period-actions {
+  margin-inline-start: auto;
 }
 .ledger-period-date > .date-field {
   width: 148px;
@@ -349,21 +358,14 @@
   font-size: 11px;
   color: var(--muted-foreground);
 }
-.ledger-entry-columns,
 .ledger-entry {
   display: grid;
   grid-template-columns: 74px minmax(0, 1fr) 82px 82px 44px;
   align-items: center;
   gap: 14px;
 }
-.ledger-entry-columns {
-  padding: 10px 0;
-  color: var(--muted-foreground);
-  font-size: 11px;
-  border-bottom: 1px solid var(--border);
-}
-.ledger-entry-columns span:nth-child(n + 3) {
-  text-align: right;
+.ledger-entry-body {
+  border-top: 1px solid var(--border);
 }
 .ledger-entry {
   min-height: 60px;
@@ -406,12 +408,19 @@
   font-size: 11px;
   color: var(--muted-foreground);
   line-height: 1.6;
-  margin-top: 5px;
+  margin-top: 3px;
   overflow-wrap: anywhere;
 }
 .ledger-entry-meta > span {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.ledger-entry-meta:empty,
+.ledger-active-footer > span:empty {
+  display: none;
+}
+.ledger-active-footer .ledger-button-row {
+  margin-left: auto;
 }
 .ledger-entry-duration,
 .ledger-entry-cost {
@@ -437,14 +446,9 @@
   color: var(--muted-foreground);
   background: color-mix(in srgb, var(--muted) 30%, transparent);
 }
-.ledger-entry-gap .ledger-entry-description small {
-  display: block;
-  margin-top: 4px;
-  font-size: 11px;
-}
 .ledger-empty {
   text-align: center;
-  padding: 40px 8px;
+  padding: 24px 8px;
   color: var(--muted-foreground);
   font-size: 13px;
   line-height: 1.7;
@@ -572,18 +576,6 @@
   background: var(--muted);
   font-weight: 500;
 }
-.ledger-stat-period {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: -7px;
-}
-.ledger-stat-period strong {
-  font-size: 12px;
-  font-weight: 500;
-}
 .ledger-trend-bars {
   display: grid;
   grid-auto-columns: minmax(0, 1fr);
@@ -665,15 +657,15 @@
 .ledger-distribution-columns button[aria-pressed="true"] {
   color: var(--foreground);
 }
+.ledger-distribution-columns .ledger-segments {
+  width: fit-content;
+}
 .ledger-distribution-row {
   width: 100%;
   padding: 16px 0;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   text-align: left;
-}
-.ledger-distribution-row:hover {
-  background: var(--row-hover);
 }
 .ledger-distribution-label {
   min-width: 0;
@@ -727,9 +719,6 @@
   padding: 12px;
   text-align: left;
   font-size: 12px;
-}
-.ledger-stat-traces button:hover {
-  background: var(--row-hover);
 }
 .ledger-stat-traces button > span:first-child {
   min-width: 0;
@@ -786,9 +775,18 @@
   .ledger-period-date {
     gap: 4px;
   }
+  .ledger-period-actions {
+    gap: 4px;
+  }
   .ledger-period-date > .date-field {
-    width: 128px;
+    width: 116px;
     font-size: 13px;
+  }
+  .ledger-statistics-page .ledger-period-date > .date-field {
+    width: 120px;
+  }
+  .ledger-period-actions .ledger-segments button {
+    padding-inline: 8px;
   }
   .ledger-date-stepper button {
     padding-inline: 6px;
@@ -822,9 +820,6 @@
   .ledger-active-main {
     flex-wrap: wrap;
     gap: 10px;
-  }
-  .ledger-entry-columns {
-    display: none;
   }
   .ledger-entry {
     grid-template-columns: 48px minmax(0, 1fr) 44px;
@@ -899,9 +894,6 @@
   }
   .ledger-distribution-label strong {
     font-size: 12px;
-  }
-  .ledger-stat-traces button {
-    padding-inline: 0;
   }
   .ledger-stat-traces time {
     font-size: 10px;
@@ -987,21 +979,28 @@
   }
 }
 .ledger-activity-dialog {
+  --ledger-dialog-inset: clamp(16px, 4vw, 24px);
+  padding: var(--ledger-dialog-inset);
+  gap: 14px;
   max-height: calc(100dvh - 32px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 .ledger-activity-dialog [data-slot="dialog-header"] {
   text-align: left;
-  padding-right: 14px;
+  padding-inline-end: 30px;
 }
 .ledger-activity-dialog [data-slot="dialog-description"] {
   font-size: 12px;
   line-height: 1.7;
 }
+.ledger-activity-dialog [data-slot="dialog-footer"] {
+  flex-flow: row wrap;
+  justify-content: flex-end;
+}
 .ledger-activity-dialog form {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 .ledger-activity-dialog form > * {
   margin-block: 0;
@@ -1009,14 +1008,8 @@
 }
 .ledger-activity-dialog .time-meta-fields {
   border-block: 1px solid var(--border);
-  padding: 12px 0;
+  padding-block: 8px;
   gap: 4px 12px;
-}
-.time-assignment-heading {
-  width: 100%;
-  font-size: 12px;
-  color: var(--foreground);
-  margin-bottom: 4px;
 }
 .ledger-dialog-options > summary {
   cursor: pointer;
@@ -1027,9 +1020,6 @@
   min-width: 0;
 }
 @media (max-width: 639px) {
-  .ledger-activity-dialog {
-    padding: 20px;
-  }
   .ledger-dialog-time-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

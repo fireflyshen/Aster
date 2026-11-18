@@ -44,11 +44,6 @@
   color: var(--navigation-selected-ink);
   font-weight: 500;
 }
-.workspace-sidebar
-  [data-variant="navigation"][aria-current="page"]
-  svg:not([style]) {
-  color: var(--navigation-selected-ink);
-}
 [data-project-nav] > button,
 [data-project-nav] > button:hover {
   background-color: transparent;
@@ -56,33 +51,22 @@
 .project-manager-row,
 [data-organization-row] {
   position: relative;
-  border-radius: var(--radius-lg);
   transition: background-color 140ms ease;
 }
 .project-manager-row::after,
 [data-organization-row]::after {
   content: "";
   position: absolute;
-  inset-inline: 0.625rem;
+  inset-inline: var(--row-hover-gutter);
   bottom: 0;
   height: 1px;
   background-color: var(--border);
   pointer-events: none;
   transition: opacity 140ms ease;
 }
-@media (min-width: 768px) {
-  .project-manager-row::after,
-  [data-organization-row]::after {
-    inset-inline: 0.75rem;
-  }
-}
 @media (hover: hover) {
   [data-project-nav]:not([data-selected="true"]):hover {
     background-color: var(--navigation-hover);
-  }
-  .project-manager-row:hover,
-  [data-organization-row]:hover {
-    background-color: var(--row-hover);
   }
   .project-manager-row:hover::after,
   .project-manager-row:has(+ .project-manager-row:hover)::after,

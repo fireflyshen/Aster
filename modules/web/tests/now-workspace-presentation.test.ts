@@ -22,7 +22,7 @@ const compiled = await build({
         tasks={tasks} organization={{revision:1,filters:[],tags:[]}}
         now={new Date(2026,10,17,12)} query="" loading={false} disabled={false}
         summary={null} habitTaskUuids={new Set()} nowSections={{planned:true}}
-        onUpdateSections={()=>{}} onChangeState={()=>{}} onAddTask={()=>{}}
+        onUpdateSections={()=>{}} onChangeState={()=>{}}
         renderTask={task=><span>{task.description}<StateChip state={task.state}/></span>}/>);`,
     resolveDir: webRoot,
     loader: "tsx",

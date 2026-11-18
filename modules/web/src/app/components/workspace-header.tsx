@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { WorkspaceDisplayOptions } from "./workspace-display-options";
 import { Button } from "@/components/ui/button";
 import { ProjectIcon } from "@/features/projects/project-icon";
@@ -18,9 +19,7 @@ import {
 } from "@core/workspace/projects";
 import type { View } from "@shared/tasks";
 import { cn } from "cn";
-import { format } from "date-fns";
-import { zhCN } from "date-fns/locale";
-import { PanelLeft, RotateCw, Search } from "lucide-react";
+import { PanelLeft, Plus, RotateCw, Search } from "lucide-react";
 import type {
   CompleteBehavior,
   TimePage,
@@ -34,39 +33,57 @@ type WorkspaceToolbarProps = {
   query: string;
   loading: boolean;
   busy: boolean;
+  addDisabled: boolean;
+  onAdd: () => void;
   onOpenNav: () => void;
   onOpenCommand: () => void;
   onToggleSearch: () => void;
   onRefresh: () => void;
 };
 
-/** Sticky top bar with sidebar reopen button, quick find, theme switch, search, and sync trigger. */
 export function WorkspaceToolbar({
   navOpen,
   searchOpen,
   query,
   loading,
   busy,
+  addDisabled,
+  onAdd,
   onOpenNav,
   onOpenCommand,
   onToggleSearch,
   onRefresh,
 }: WorkspaceToolbarProps) {
+  const { t } = useI18n();
   return (
     <header className="workspace-toolbar sticky top-0 z-20 flex h-12 items-center bg-background/90 backdrop-blur">
       <div className="workspace-frame flex items-center justify-between gap-2">
-        <div className="flex items-center">
+        <div className="flex items-center gap-1">
           {!navOpen && (
             <Button
               variant="ghost"
               size="icon-sm"
               id="sidebar-toggle"
-              aria-label="打开侧边栏"
+              aria-label={t("打开侧边栏")}
               aria-expanded={false}
               onClick={onOpenNav}
               className="size-8 text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <PanelLeft className="size-[18px]" strokeWidth={1.6} />
+            </Button>
+          )}
+          {!navOpen && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("添加任务")}
+              aria-keyshortcuts="Q"
+              title={t("添加任务")}
+              disabled={addDisabled}
+              onClick={onAdd}
+              className="hidden text-(--navigation-selected-ink) md:inline-flex"
+            >
+              <Plus className="size-[18px]" strokeWidth={1.6} />
             </Button>
           )}
         </div>
@@ -75,7 +92,7 @@ export function WorkspaceToolbar({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="快速查找 (⌘K)"
+              aria-label={t("快速查找 (⌘K)")}
               className="hidden sm:inline-flex"
               onClick={onOpenCommand}
             >
@@ -86,7 +103,7 @@ export function WorkspaceToolbar({
             variant="ghost"
             size="icon-sm"
             id="search-toggle"
-            aria-label={searchOpen || query ? "关闭搜索" : "搜索任务"}
+            aria-label={searchOpen || query ? t("关闭搜索") : t("搜索任务")}
             aria-expanded={Boolean(searchOpen || query)}
             aria-controls="task-search"
             aria-keyshortcuts="/"
@@ -98,7 +115,7 @@ export function WorkspaceToolbar({
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label="刷新任务"
+            aria-label={t("刷新任务")}
             disabled={loading || busy}
             onClick={onRefresh}
             className="text-muted-foreground hover:text-foreground"
@@ -143,7 +160,6 @@ type WorkspaceHeadingProps = {
   completeBehavior?: CompleteBehavior;
   onCompleteBehaviorChange?: (next: CompleteBehavior) => void;
   onSelectProject: (project: string) => void;
-  onSelectView: (view: View) => void;
   onTransitionProject: (name: string, status: ProjectStatus) => void;
   onAddSubproject: (parent: string) => void;
   onStartEditDesc: () => void;
@@ -190,7 +206,6 @@ export function WorkspaceHeading({
   completeBehavior = "hide",
   onCompleteBehaviorChange,
   onSelectProject,
-  onSelectView,
   onTransitionProject,
   onAddSubproject,
   onStartEditDesc,
@@ -199,6 +214,7 @@ export function WorkspaceHeading({
   onDeleteProject,
   onManageOrganization,
 }: WorkspaceHeadingProps) {
+  const { t, locale } = useI18n();
   const showTodayMeta =
     view === "today" &&
     !currentProject &&
@@ -214,15 +230,15 @@ export function WorkspaceHeading({
     !timePage &&
     !habitsPage;
   const titleText = habitsPage
-    ? "习惯"
+    ? t("习惯")
     : timePage
-      ? TIME_PAGE_TITLES[timePage]
+      ? t(TIME_PAGE_TITLES[timePage])
       : organizationPage
         ? projectsPage
-          ? "项目管理"
-          : "过滤器 & 标签"
+          ? t("项目管理")
+          : t("过滤器 & 标签")
         : activeItem?.name ||
-          (currentProject ? projectLeaf(currentProject) : views[view]);
+          (currentProject ? projectLeaf(currentProject) : t(views[view]));
   const isSavedFilter =
     !timePage &&
     !habitsPage &&
@@ -250,7 +266,7 @@ export function WorkspaceHeading({
     <>
       {currentProject && projectParent(currentProject) && (
         <nav
-          aria-label="父级项目"
+          aria-label={t("父级项目")}
           className="mb-2 flex min-w-0 items-center gap-1 overflow-x-auto text-xs text-muted-foreground"
         >
           {projectParent(currentProject)
@@ -300,9 +316,19 @@ export function WorkspaceHeading({
           </div>
           <div className="workspace-heading-meta">
             {showTodayMeta && (
-              <span>{format(now, "M月d日 · EEEE", { locale: zhCN })}</span>
+              <span>
+                {new Intl.DateTimeFormat(locale, {
+                  month: "short",
+                  day: "numeric",
+                  weekday: "short",
+                }).format(now)}
+              </span>
             )}
-            {taskCount !== undefined && <span>{taskCount} 个任务</span>}
+            {taskCount !== undefined && (
+              <span>
+                {t(taskCount === 1 ? "1 个任务" : "{0} 个任务", taskCount)}
+              </span>
+            )}
             {currentProject &&
               !timePage &&
               !habitsPage &&
@@ -310,10 +336,10 @@ export function WorkspaceHeading({
               !activeItem && (
                 <span>
                   {currentProjectIsHabit
-                    ? "习惯项目"
+                    ? t("习惯项目")
                     : currentProjectFocus
-                      ? "焦点项目"
-                      : "稍后"}
+                      ? t("焦点项目")
+                      : t("稍后")}
                 </span>
               )}
           </div>
@@ -331,7 +357,7 @@ export function WorkspaceHeading({
           )}
         </div>
 
-        {!organizationPage && !specialPage && (
+        {!organizationPage && (!specialPage || activeItem) && (
           <div className="workspace-view-controls flex shrink-0 items-center gap-1.5">
             <WorkspaceDisplayOptions
               disabled={disabled}
@@ -343,28 +369,28 @@ export function WorkspaceHeading({
               onReset={onResetDisplay}
             />
 
-            <WorkspaceHeadingMenu
-              open={viewMenuOpen}
-              onOpenChange={setViewMenuOpen}
-              view={view}
-              currentProject={currentProject}
-              organizationReady={organizationReady}
-              disabled={disabled}
-              activeEntry={activeEntry}
-              activeItem={activeItem}
-              currentProjectFocus={currentProjectFocus}
-              currentProjectIsHabit={currentProjectIsHabit}
-              projectOutcome={projectOutcome}
-              projectDescription={projectDescription}
-              onSelectView={onSelectView}
-              onTransitionProject={onTransitionProject}
-              onAddSubproject={onAddSubproject}
-              onStartEditDesc={onStartEditDesc}
-              onStartEditOutcome={onStartEditOutcome}
-              onEditProject={onEditProject}
-              onDeleteProject={onDeleteProject}
-              onManageOrganization={onManageOrganization}
-            />
+            {(currentProject || activeItem) && (
+              <WorkspaceHeadingMenu
+                open={viewMenuOpen}
+                onOpenChange={setViewMenuOpen}
+                currentProject={currentProject}
+                organizationReady={organizationReady}
+                disabled={disabled}
+                activeEntry={activeEntry}
+                activeItem={activeItem}
+                currentProjectFocus={currentProjectFocus}
+                currentProjectIsHabit={currentProjectIsHabit}
+                projectOutcome={projectOutcome}
+                projectDescription={projectDescription}
+                onTransitionProject={onTransitionProject}
+                onAddSubproject={onAddSubproject}
+                onStartEditDesc={onStartEditDesc}
+                onStartEditOutcome={onStartEditOutcome}
+                onEditProject={onEditProject}
+                onDeleteProject={onDeleteProject}
+                onManageOrganization={onManageOrganization}
+              />
+            )}
           </div>
         )}
       </div>

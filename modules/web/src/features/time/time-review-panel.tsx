@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import type {
   Activity,
   DailyLedgerSummary,
@@ -7,6 +8,7 @@ import type {
 } from "@core/time/model";
 import { localDateOf } from "@core/time/zone";
 import { Button } from "@/components/ui/button";
+import { LedgerAttribution } from "./ledger-ui";
 import {
   confirmSleepCandidate,
   confirmTimeActivity,
@@ -48,6 +50,7 @@ export function TimeReviewPanel({
   onAdjustPlan: (id: string) => void;
   onOpenDay: (date: string) => void;
 }) {
+  const { t, locale } = useI18n();
   const reviews = daily.locatedSegments.filter(
     (segment) =>
       !segment.running &&
@@ -71,12 +74,9 @@ export function TimeReviewPanel({
       data-needs-attention={reviews.length + pending.length > 0 || undefined}
     >
       <summary>
-        <span>核对与待定位</span>
-        <small>{count} 项</small>
+        <span>{t("待处理")}</span>
+        <small>{count}</small>
       </summary>
-      <p className="ledger-muted-note">
-        待确认部分、作息候选和待定位估记处理后才入账。
-      </p>
       <div className="ledger-review-items">
         {reviews.map((segment) => (
           <div
@@ -84,7 +84,6 @@ export function TimeReviewPanel({
             className="ledger-review-item"
           >
             <div>
-              <span className="ledger-item-kind">待核对</span>
               <strong>{segment.title}</strong>
               <p>
                 {formatTimeRangeInZone(
@@ -92,7 +91,7 @@ export function TimeReviewPanel({
                   segment.endMs,
                   timeZone,
                 )}{" "}
-                · {formatLedgerDuration(segment.durationSeconds)}
+                · {formatLedgerDuration(segment.durationSeconds, locale)}
               </p>
             </div>
             <div className="ledger-button-row">
@@ -102,7 +101,7 @@ export function TimeReviewPanel({
                 disabled={busy}
                 onClick={() => onEdit(segment)}
               >
-                修正时间
+                {t("编辑")}
               </Button>
               {segment.timingPlanId &&
                 plans.some((plan) => plan.id === segment.timingPlanId) && (
@@ -112,7 +111,7 @@ export function TimeReviewPanel({
                     disabled={busy}
                     onClick={() => onAdjustPlan(segment.timingPlanId!)}
                   >
-                    调整计划
+                    {t("调整计划")}
                   </Button>
                 )}
               <Button
@@ -121,7 +120,7 @@ export function TimeReviewPanel({
                 disabled={busy}
                 onClick={() =>
                   void runMutation(
-                    `确认：${segment.title}`,
+                    t("确认：{0}", segment.title),
                     async () => {
                       const result = await confirmTimeActivity({
                         activityId: segment.activityId,
@@ -139,7 +138,7 @@ export function TimeReviewPanel({
                   )
                 }
               >
-                确认这段
+                {t("入账")}
               </Button>
             </div>
           </div>
@@ -147,21 +146,19 @@ export function TimeReviewPanel({
         {daily.unlocatedEstimates.map((activity) => (
           <div key={activity.id} className="ledger-review-item">
             <div>
-              <span className="ledger-item-kind">待定位估记</span>
               <strong>{activity.title}</strong>
               <p>
-                约 {formatLedgerDuration(activity.estimatedSeconds || 0)}
+                {t("约")}{" "}
+                {formatLedgerDuration(activity.estimatedSeconds || 0, locale)}
                 {formatEstimateWindow(activity, timeZone)
                   ? ` · ${formatEstimateWindow(activity, timeZone)}`
                   : ""}
               </p>
               <div className="ledger-entry-meta">
-                {activity.projectSnapshot && (
-                  <span>{activity.projectSnapshot}</span>
-                )}
-                {activity.tags?.map((tag) => (
-                  <span key={tag}>#{tag}</span>
-                ))}
+                <LedgerAttribution
+                  project={activity.projectSnapshot}
+                  tags={activity.tags}
+                />
               </div>
             </div>
             <Button
@@ -170,16 +167,16 @@ export function TimeReviewPanel({
               disabled={busy}
               onClick={() => onLocate(activity)}
             >
-              定位时间
+              {t("定位")}
             </Button>
           </div>
         ))}
         {daily.sleepCandidates.map((candidate) => (
           <div key={candidate.key} className="ledger-review-item">
             <div>
-              <span className="ledger-item-kind">作息候选</span>
+              <span className="ledger-item-kind">{t("作息候选")}</span>
               <strong>
-                {candidate.tag ? `#${candidate.tag}` : "作息是否照常？"}
+                {candidate.tag ? `#${candidate.tag}` : t("作息是否照常？")}
               </strong>
               <p>
                 {formatTimeRangeInZone(
@@ -190,12 +187,11 @@ export function TimeReviewPanel({
                 ·{" "}
                 {formatLedgerDuration(
                   (candidate.endMs - candidate.startMs) / 1000,
+                  locale,
                 )}
               </p>
               {candidate.hasConflict && (
-                <p className="ledger-pending-label">
-                  与已有记录重叠，请先修正时间线。
-                </p>
+                <p className="ledger-pending-label">{t("与记录重叠")}</p>
               )}
             </div>
             <div className="ledger-button-row">
@@ -204,12 +200,12 @@ export function TimeReviewPanel({
                 variant="ghost"
                 disabled={busy}
                 onClick={() =>
-                  void runMutation("跳过作息候选", () =>
+                  void runMutation(t("跳过作息候选"), () =>
                     dismissSleepCandidate(candidate.date),
                   )
                 }
               >
-                跳过
+                {t("跳过")}
               </Button>
               <Button
                 size="sm"
@@ -217,13 +213,13 @@ export function TimeReviewPanel({
                 disabled={busy || candidate.hasConflict}
                 onClick={() =>
                   void runMutation(
-                    "确认作息",
+                    t("确认作息"),
                     () => confirmSleepCandidate(candidate.date),
                     { undoable: true },
                   )
                 }
               >
-                确认照常
+                {t("确认照常")}
               </Button>
             </div>
           </div>
@@ -231,13 +227,11 @@ export function TimeReviewPanel({
         {pending.map((operation) => (
           <div key={operation.operationId} className="ledger-review-item">
             <div>
-              <span className="ledger-item-kind">操作结果待确认</span>
               <strong>
                 {operation.kind === "task_start"
-                  ? "任务是否已开始？"
-                  : "关联计时是否已结束？"}
+                  ? t("任务是否已开始？")
+                  : t("关联计时是否已结束？")}
               </strong>
-              <p>请核实实际状态，再确认这次操作。</p>
             </div>
             <div className="ledger-button-row">
               <Button
@@ -245,7 +239,7 @@ export function TimeReviewPanel({
                 variant="ghost"
                 disabled={busy}
                 onClick={() =>
-                  void runMutation("忽略待核对操作", () =>
+                  void runMutation(t("忽略待核对操作"), () =>
                     resolveTimeOperation({
                       operationId: operation.operationId,
                       action: "dismiss",
@@ -253,14 +247,14 @@ export function TimeReviewPanel({
                   )
                 }
               >
-                忽略
+                {t("忽略")}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 disabled={busy}
                 onClick={() =>
-                  void runMutation("确认操作结果", () =>
+                  void runMutation(t("确认操作结果"), () =>
                     resolveTimeOperation({
                       operationId: operation.operationId,
                       action:
@@ -271,7 +265,9 @@ export function TimeReviewPanel({
                   )
                 }
               >
-                {operation.kind === "task_start" ? "已开始" : "结束关联计时"}
+                {operation.kind === "task_start"
+                  ? t("已开始")
+                  : t("结束关联计时")}
               </Button>
             </div>
           </div>
@@ -279,17 +275,7 @@ export function TimeReviewPanel({
         {otherEvents.map((event) => (
           <div key={event.id} className="ledger-review-item">
             <div>
-              <span className="ledger-item-kind">
-                {event.kind === "plan_reminder" ? "计划提醒" : "计时提醒"}
-              </span>
               <strong>{event.title}</strong>
-              <p>
-                {event.kind === "plan_reminder"
-                  ? "计划时间已到，需要手动开始。"
-                  : event.kind === "auto_stopped"
-                    ? "计时已自动结束，请核对对应日期的记录。"
-                    : "请检查计时是否仍在进行。"}
-              </p>
             </div>
             <div className="ledger-button-row">
               {event.kind === "auto_stopped" && (
@@ -300,7 +286,7 @@ export function TimeReviewPanel({
                     onOpenDay(localDateOf(event.occurredAtMs, timeZone))
                   }
                 >
-                  查看当天
+                  {t("查看当天")}
                 </Button>
               )}
               <Button
@@ -309,7 +295,7 @@ export function TimeReviewPanel({
                 disabled={busy}
                 onClick={() => void onAckEvents([event.id])}
               >
-                知道了
+                {t("知道了")}
               </Button>
             </div>
           </div>

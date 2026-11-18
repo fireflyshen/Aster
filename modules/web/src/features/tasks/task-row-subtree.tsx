@@ -53,7 +53,7 @@ export function TaskRowSubtree({
               compact
               disabled={disabled}
               ariaLabel={`为“${parentTask.description}”添加子任务`}
-              placeholder="子任务名称（支持 @标签, 明天, p1）"
+              placeholder="子任务名称"
               defaultProject={parentTask.project}
               projects={projects}
               availableLabels={availableLabels}

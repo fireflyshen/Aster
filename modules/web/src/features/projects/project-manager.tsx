@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,7 @@ export function ProjectManager({
   onDelete: (name: string) => void;
   onReload: () => void;
 }) {
+  const { t } = useI18n();
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const matches = projects
@@ -75,24 +77,24 @@ export function ProjectManager({
         .includes(search.trim().toLocaleLowerCase()),
     );
   return (
-    <section aria-label="管理项目">
+    <section aria-label={t("管理项目")}>
       <div className="mb-5 flex items-center gap-3">
         <Input
-          aria-label="搜索项目"
-          placeholder="搜索项目"
+          aria-label={t("搜索项目")}
+          placeholder={t("搜索项目")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="min-w-0 flex-1 shadow-none"
         />
         <Button onClick={onAdd} disabled={disabled}>
           <Plus className="size-4" />
-          添加项目
+          {t("添加项目")}
         </Button>
       </div>
       {mode === "all" && (
         <div
           role="tablist"
-          aria-label="项目状态"
+          aria-label={t("项目状态")}
           className="mb-4 inline-flex items-center gap-1 rounded-lg bg-muted/70 p-1"
         >
           {statusTabs.map((tab) => (
@@ -111,7 +113,7 @@ export function ProjectManager({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {tab.label}
+              {t(tab.label)}
             </Button>
           ))}
         </div>
@@ -125,7 +127,7 @@ export function ProjectManager({
               onClick={onReload}
               className="h-auto p-0 text-current"
             >
-              重新加载
+              {t("重新加载")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -136,7 +138,7 @@ export function ProjectManager({
           className="flex items-center gap-2 py-8 text-sm text-muted-foreground"
         >
           <Spinner className="size-4" />
-          加载项目中…
+          {t("加载项目中…")}
         </div>
       ) : (
         <ProjectTree
@@ -158,11 +160,7 @@ export function ProjectManager({
       {!loading && !matches.length && (
         <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
           <p className="text-sm text-muted-foreground">
-            {search.trim()
-              ? "未找到匹配的项目。"
-              : mode === "later"
-                ? "稍后队列中暂无项目。"
-                : "暂无项目。"}
+            {search.trim() ? t("无匹配") : t("无项目")}
           </p>
           {!search.trim() && (
             <Button
@@ -174,7 +172,7 @@ export function ProjectManager({
               className="mt-1 gap-1.5"
             >
               <Plus className="size-3.5" />
-              新建项目
+              {t("新建项目")}
             </Button>
           )}
         </div>

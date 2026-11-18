@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { hasTimeAssignment } from "@core/time/assignment";
 import { resolveActivityCategory } from "@core/time/classification";
 import {
@@ -96,6 +97,7 @@ export function TimeLogOrEstimateDialog({
     note?: string;
   }) => Promise<string | null>;
 }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<"log" | "estimate">("log");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
@@ -194,12 +196,12 @@ export function TimeLogOrEstimateDialog({
       taskUuid !== "none" ? tasks.find((t) => t.uuid === taskUuid) : undefined;
     const finalTitle = (title.trim() || selectedTask?.description || "").trim();
     if (!finalTitle) {
-      setLocalError("请输入活动名称或关联一个任务。");
+      setLocalError(t("填写活动名或选择任务"));
       return;
     }
     const resolvedProject = project.trim();
     if (!hasTimeAssignment(resolvedProject, tags)) {
-      setLocalError("请选择项目或至少一个标签。");
+      setLocalError(t("选项目或标签"));
       return;
     }
     const resolvedTags = tags;
@@ -225,7 +227,7 @@ export function TimeLogOrEstimateDialog({
           ? seed!.exactEndMs!
           : zonedDateTimeToUtcMs(date, endTime, timeZone);
         if (endMs <= rawStartMs) {
-          setLocalError("结束时间必须晚于开始时间。");
+          setLocalError(t("结束时间必须晚于开始时间。"));
           return;
         }
         const startMs = useSeededStart
@@ -247,14 +249,14 @@ export function TimeLogOrEstimateDialog({
           setLocalError(err);
         }
       } catch (err) {
-        setLocalError(err instanceof Error ? err.message : "时间格式无效");
+        setLocalError(err instanceof Error ? err.message : t("时间格式无效"));
       }
       return;
     }
 
     const mins = Number(estimatedMinutes);
     if (!Number.isFinite(mins) || mins <= 0) {
-      setLocalError("估计时长必须大于 0 分钟。");
+      setLocalError(t("估计时长必须大于 0 分钟。"));
       return;
     }
     let windowStartMs: number | undefined;
@@ -264,11 +266,13 @@ export function TimeLogOrEstimateDialog({
         windowStartMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
         windowEndMs = zonedDateTimeToUtcMs(date, endTime, timeZone);
         if (windowEndMs <= windowStartMs) {
-          setLocalError("窗口结束时间必须晚于开始时间。");
+          setLocalError(t("窗口结束时间必须晚于开始时间。"));
           return;
         }
       } catch (err) {
-        setLocalError(err instanceof Error ? err.message : "窗口时间格式无效");
+        setLocalError(
+          err instanceof Error ? err.message : t("窗口时间格式无效"),
+        );
         return;
       }
     }
@@ -292,16 +296,12 @@ export function TimeLogOrEstimateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="ledger-activity-dialog sm:max-w-md">
+      <DialogContent
+        className="ledger-activity-dialog sm:max-w-md"
+        aria-describedby={undefined}
+      >
         <DialogHeader>
-          <DialogTitle>
-            {mode === "log" ? "补记已发生时段" : "记录待定位估记"}
-          </DialogTitle>
-          <DialogDescription>
-            {mode === "log"
-              ? "明确知道起止时段时可直接记入当天时间线（不确定边界可勾选“大约”）。"
-              : "只记得大概花了一段时间时先保留为估记，不直接计入已定位总量，稍后再定位。"}
-          </DialogDescription>
+          <DialogTitle>{t("补记")}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
@@ -313,7 +313,7 @@ export function TimeLogOrEstimateDialog({
               className="flex-1"
               onClick={() => setMode("log")}
             >
-              知道起止时间
+              {t("起止")}
             </Button>
             <Button
               type="button"
@@ -322,30 +322,32 @@ export function TimeLogOrEstimateDialog({
               className="flex-1"
               onClick={() => setMode("estimate")}
             >
-              只记得时长
+              {t("时长")}
             </Button>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="time-log-title">活动内容</Label>
+            <Label htmlFor="time-log-title" className="sr-only">
+              {t("活动名称")}
+            </Label>
             <Input
               id="time-log-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="例如：看书、散步、沟通需求…"
+              placeholder={t("活动名称")}
               autoFocus
             />
           </div>
 
           <div className="ledger-dialog-time-grid grid grid-cols-3 gap-2">
             <div className="space-y-1.5">
-              <Label htmlFor="time-log-date">日期</Label>
+              <Label htmlFor="time-log-date">{t("日期")}</Label>
               <DateField id="time-log-date" value={date} onChange={setDate} />
             </div>
             {mode === "log" ? (
               <>
                 <div className="space-y-1.5">
-                  <Label htmlFor="time-log-start">开始</Label>
+                  <Label htmlFor="time-log-start">{t("开始")}</Label>
                   <Input
                     id="time-log-start"
                     type="time"
@@ -354,7 +356,7 @@ export function TimeLogOrEstimateDialog({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="time-log-end">结束</Label>
+                  <Label htmlFor="time-log-end">{t("结束")}</Label>
                   <Input
                     id="time-log-end"
                     type="time"
@@ -365,7 +367,7 @@ export function TimeLogOrEstimateDialog({
               </>
             ) : (
               <div className="col-span-2 space-y-1.5">
-                <Label htmlFor="time-est-mins">估计分钟数</Label>
+                <Label htmlFor="time-est-mins">{t("时长（分钟）")}</Label>
                 <Input
                   id="time-est-mins"
                   type="number"
@@ -384,7 +386,7 @@ export function TimeLogOrEstimateDialog({
                 checked={approximate}
                 onCheckedChange={(v) => setApproximate(Boolean(v))}
               />
-              起止时刻是回忆估算（标记为“大约”，避免制造精确假象）
+              {t("约略时间")}
             </label>
           ) : (
             <div className="space-y-2">
@@ -393,40 +395,23 @@ export function TimeLogOrEstimateDialog({
                   checked={useWindow}
                   onCheckedChange={(v) => setUseWindow(Boolean(v))}
                 />
-                大概发生在一个时间窗口内（可选）
+                {t("加时间范围")}
               </label>
               {useWindow && (
                 <div className="grid grid-cols-2 gap-2">
                   <Input
                     type="time"
-                    aria-label="窗口开始"
+                    aria-label={t("窗口开始")}
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
                   />
                   <Input
                     type="time"
-                    aria-label="窗口结束"
+                    aria-label={t("窗口结束")}
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
                   />
                 </div>
-              )}
-            </div>
-          )}
-
-          {previewDurationSeconds > 0 && (
-            <div className="rounded-md bg-muted/45 px-2.5 py-1.5 text-xs text-muted-foreground tabular-nums">
-              {activeRateCents === 0 ? (
-                <span>计入时长 · 不折算金额</span>
-              ) : (
-                <span>
-                  {mode === "estimate" ? "定位后预计按单价（" : "按当前单价（"}
-                  {formatCurrencyCny(activeRateCents)}
-                  /小时）折算：
-                  <strong className="font-medium text-foreground">
-                    {formatCurrencyCny(previewCostCents)}
-                  </strong>
-                </span>
               )}
             </div>
           )}
@@ -442,17 +427,16 @@ export function TimeLogOrEstimateDialog({
           />
 
           <details className="ledger-dialog-options">
-            <summary>关联任务与备注（可选）</summary>
+            <summary>{t("任务与备注")}</summary>
             <div className="space-y-3 pt-3">
-              {" "}
               <div className="space-y-1.5">
-                <Label htmlFor="time-log-task">关联任务（可选）</Label>
+                <Label htmlFor="time-log-task">{t("任务")}</Label>
                 <Select value={taskUuid} onValueChange={handleSelectTask}>
                   <SelectTrigger id="time-log-task">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">不关联任务</SelectItem>
+                    <SelectItem value="none">{t("无")}</SelectItem>
                     {pendingTasks.slice(0, 60).map((task) => (
                       <SelectItem key={task.uuid} value={task.uuid}>
                         {task.description}
@@ -462,22 +446,35 @@ export function TimeLogOrEstimateDialog({
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="time-log-note">备注（可选）</Label>
+                <Label htmlFor="time-log-note">{t("备注")}</Label>
                 <Textarea
                   id="time-log-note"
                   rows={2}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="补充说明…"
                 />
               </div>
             </div>
           </details>
 
           {localError && (
-            <p className="text-xs text-destructive">{localError}</p>
+            <p role="alert" className="text-xs text-destructive">
+              {localError}
+            </p>
           )}
 
+          {mode === "estimate" ? (
+            <p className="ledger-muted-note">{t("定位后入账")}</p>
+          ) : (
+            previewDurationSeconds > 0 && (
+              <output
+                className="ledger-muted-note tabular-nums"
+                title={t("{0}/小时", formatCurrencyCny(activeRateCents))}
+              >
+                {t("折算")} {formatCurrencyCny(previewCostCents)}
+              </output>
+            )
+          )}
           <DialogFooter>
             <Button
               type="button"
@@ -485,10 +482,10 @@ export function TimeLogOrEstimateDialog({
               disabled={busy}
               onClick={() => onOpenChange(false)}
             >
-              取消
+              {t("取消")}
             </Button>
             <Button type="submit" disabled={busy}>
-              {mode === "log" ? "保存记录" : "保存估记"}
+              {mode === "log" ? t("保存") : t("存为估记")}
             </Button>
           </DialogFooter>
         </form>
@@ -519,6 +516,7 @@ export function LocateEstimateDialog({
     endMs: number;
   }) => Promise<string | null>;
 }) {
+  const { t } = useI18n();
   const [date, setDate] = useState(defaultDate);
   const [startTime, setStartTime] = useState("20:00");
   const [endTime, setEndTime] = useState("21:00");
@@ -546,7 +544,7 @@ export function LocateEstimateDialog({
       const rawStartMs = zonedDateTimeToUtcMs(date, startTime, timeZone);
       const endMs = zonedDateTimeToUtcMs(date, endTime, timeZone);
       if (endMs <= rawStartMs) {
-        setLocalError("结束时间必须晚于开始时间。");
+        setLocalError(t("结束时间必须晚于开始时间。"));
         return;
       }
       const startMs = snapMinuteStartToSegments(rawStartMs, endMs, segments);
@@ -562,7 +560,7 @@ export function LocateEstimateDialog({
         setLocalError(err);
       }
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : "时间无效");
+      setLocalError(err instanceof Error ? err.message : t("时间无效"));
     }
   }
 
@@ -570,20 +568,19 @@ export function LocateEstimateDialog({
     <Dialog open={Boolean(activity)} onOpenChange={onOpenChange}>
       <DialogContent className="ledger-activity-dialog sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>将估记定位到具体时段</DialogTitle>
-          <DialogDescription>
-            定位后将把「{activity?.title}
-            」计入所选日期；不会与原估记重复累计。
+          <DialogTitle>{t("定位")}</DialogTitle>
+          <DialogDescription className="wrap-anywhere">
+            {activity?.title}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="loc-date">日期</Label>
+            <Label htmlFor="loc-date">{t("日期")}</Label>
             <DateField id="loc-date" value={date} onChange={setDate} />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1.5">
-              <Label htmlFor="loc-start">开始</Label>
+              <Label htmlFor="loc-start">{t("开始")}</Label>
               <Input
                 id="loc-start"
                 type="time"
@@ -592,7 +589,7 @@ export function LocateEstimateDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="loc-end">结束</Label>
+              <Label htmlFor="loc-end">{t("结束")}</Label>
               <Input
                 id="loc-end"
                 type="time"
@@ -611,10 +608,10 @@ export function LocateEstimateDialog({
               disabled={busy}
               onClick={() => onOpenChange(false)}
             >
-              取消
+              {t("取消")}
             </Button>
             <Button type="submit" disabled={busy}>
-              确认定位
+              {t("入账")}
             </Button>
           </DialogFooter>
         </form>
@@ -660,6 +657,7 @@ export function EditSegmentDialog({
     };
   }) => Promise<string | null>;
 }) {
+  const { t } = useI18n();
   const [title, setTitle] = useState("");
   const [project, setProject] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -694,11 +692,11 @@ export function EditSegmentDialog({
     if (!segment) return;
     setLocalError("");
     if (!title.trim()) {
-      setLocalError("活动标题不能为空。");
+      setLocalError(t("活动标题不能为空。"));
       return;
     }
     if (!hasTimeAssignment(project, tags)) {
-      setLocalError("请选择项目或至少一个标签。");
+      setLocalError(t("请选择项目或至少一个标签。"));
       return;
     }
     const patch: {
@@ -730,7 +728,7 @@ export function EditSegmentDialog({
           ? zonedDateTimeToUtcMs(date, startTime, timeZone)
           : segment.startMs;
         if (endMs <= rawStartMs) {
-          setLocalError("结束时间必须晚于开始时间。");
+          setLocalError(t("结束时间必须晚于开始时间。"));
           return;
         }
         const startMs = startChanged
@@ -744,7 +742,7 @@ export function EditSegmentDialog({
         if (startChanged) patch.startMs = startMs;
         if (endChanged) patch.endMs = endMs;
       } catch (err) {
-        setLocalError(err instanceof Error ? err.message : "时间无效");
+        setLocalError(err instanceof Error ? err.message : t("时间无效"));
         return;
       }
     }
@@ -762,39 +760,42 @@ export function EditSegmentDialog({
 
   return (
     <Dialog open={Boolean(segment)} onOpenChange={onOpenChange}>
-      <DialogContent className="ledger-activity-dialog sm:max-w-md">
+      <DialogContent
+        className="ledger-activity-dialog sm:max-w-md"
+        aria-describedby={undefined}
+      >
         <DialogHeader>
-          <DialogTitle>修改时间记录</DialogTitle>
-          <DialogDescription>
-            修改活动内容、项目、标签或起止时间，保留记录时的单价。
-          </DialogDescription>
+          <DialogTitle>{t("编辑记录")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
           {segment && (
-            <div className="rounded-md bg-muted/45 px-2.5 py-1.5 text-xs text-muted-foreground tabular-nums">
+            <div className="ledger-muted-note tabular-nums">
               <span>
-                时段单价：
                 {formatCurrencyCny(
                   segment.hourlyRateCents ??
                     normalizeHourlyRateCents(policy?.hourlyRateCents),
                 )}
-                /小时 · 已确认成本{" "}
+                {t("/时 · 折算")}{" "}
                 <strong className="font-medium text-foreground">
                   {formatCurrencyCny(segment.confirmedCostCents)}
                 </strong>
               </span>
               {segment.provisionalCostCents > 0 && (
                 <span className="ml-2 text-amber-600 dark:text-amber-400">
-                  待核对 {formatCurrencyCny(segment.provisionalCostCents)}
+                  {t("待核对")}{" "}
+                  {formatCurrencyCny(segment.provisionalCostCents)}
                 </span>
               )}
             </div>
           )}
           <div className="space-y-1.5">
-            <Label htmlFor="edit-seg-title">活动内容</Label>
+            <Label htmlFor="edit-seg-title" className="sr-only">
+              {t("活动名称")}
+            </Label>
             <Input
               id="edit-seg-title"
               value={title}
+              placeholder={t("活动名称")}
               onChange={(e) => setTitle(e.target.value)}
             />
           </div>
@@ -810,7 +811,7 @@ export function EditSegmentDialog({
           {!segment?.running && (
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <Label htmlFor="edit-seg-start">开始</Label>
+                <Label htmlFor="edit-seg-start">{t("开始")}</Label>
                 <Input
                   id="edit-seg-start"
                   type="time"
@@ -819,7 +820,7 @@ export function EditSegmentDialog({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="edit-seg-end">结束</Label>
+                <Label htmlFor="edit-seg-end">{t("结束")}</Label>
                 <Input
                   id="edit-seg-end"
                   type="time"
@@ -834,7 +835,7 @@ export function EditSegmentDialog({
               checked={approximate}
               onCheckedChange={(v) => setApproximate(Boolean(v))}
             />
-            起止时间为估计（显示“大约”）
+            {t("约略时间")}
           </label>
           {segment?.taskUuid && (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -842,7 +843,7 @@ export function EditSegmentDialog({
                 checked={clearTaskLink}
                 onCheckedChange={(v) => setClearTaskLink(Boolean(v))}
               />
-              解除与任务 UUID 的关联
+              {t("解除任务关联")}
             </label>
           )}
           {segment?.reviewState === "review_required" && (
@@ -851,7 +852,7 @@ export function EditSegmentDialog({
                 checked={confirmReview}
                 onCheckedChange={(v) => setConfirmReview(Boolean(v))}
               />
-              核对无误，清除“待核对”标记
+              {t("确认入账")}
             </label>
           )}
           {localError && (
@@ -864,10 +865,10 @@ export function EditSegmentDialog({
               disabled={busy}
               onClick={() => onOpenChange(false)}
             >
-              取消
+              {t("取消")}
             </Button>
             <Button type="submit" disabled={busy}>
-              保存修改
+              {t("保存")}
             </Button>
           </DialogFooter>
         </form>

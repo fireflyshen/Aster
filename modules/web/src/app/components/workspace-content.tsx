@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { NowWorkspace } from "@/features/tasks/now-workspace";
 import { UpcomingWorkspace } from "@/features/tasks/upcoming-workspace";
 import type { StateSummaryData } from "../hooks/use-task-state-actions";
@@ -108,7 +109,6 @@ type WorkspaceContentProps = {
   headerDescDraft: string;
   setHeaderDescDraft: (value: string) => void;
   onSelectProject: (name: string) => void;
-  onSelectView: (view: View) => void;
   onOpenEntry: (entry: ActiveEntry) => void;
   onOpenOrganization: () => void;
   onTransitionProject: (name: string, status: ProjectStatus) => void;
@@ -160,6 +160,7 @@ type WorkspaceContentProps = {
 
 /** Renders workspace header, active alert notices, search bar, management pages, and unified task view. */
 export function WorkspaceContent(props: WorkspaceContentProps) {
+  const { t } = useI18n();
   const {
     searchOpen,
     query,
@@ -207,7 +208,6 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     headerDescDraft,
     setHeaderDescDraft,
     onSelectProject,
-    onSelectView,
     onOpenEntry,
     onOpenOrganization,
     onTransitionProject,
@@ -276,7 +276,8 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
   const virtualGroupTitle = activeEntry
     ? activeItem && "expression" in activeItem
       ? activeItem.expression
-      : activeItem?.name || (activeEntry.kind === "filter" ? "过滤器" : "标签")
+      : activeItem?.name ||
+        (activeEntry.kind === "filter" ? t("过滤器") : t("标签"))
     : views[view];
 
   const activeLayout =
@@ -305,6 +306,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
     <main
       className="workspace-frame workspace-content pb-16 pt-2"
       data-layout={activeLayout}
+      data-workspace-view={timePage ? "time" : undefined}
     >
       {searchOpen && (
         <div className="mb-3 max-w-sm">
@@ -317,14 +319,14 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
               autoFocus
               value={query}
               onChange={(e) => onQueryChange(e.target.value)}
-              placeholder="搜索任务..."
-              aria-label="搜索任务"
+              placeholder={t("搜索任务...")}
+              aria-label={t("搜索任务")}
             />
             {query && (
               <InputGroupButton
                 size="icon-xs"
                 variant="ghost"
-                aria-label="清除搜索"
+                aria-label={t("清除搜索")}
                 onClick={() => onQueryChange("")}
               >
                 <X className="size-3.5" />
@@ -385,7 +387,6 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
           completeBehavior={completeBehavior}
           onCompleteBehaviorChange={onCompleteBehaviorChange}
           onSelectProject={onSelectProject}
-          onSelectView={onSelectView}
           onTransitionProject={onTransitionProject}
           onAddSubproject={onAddSubproject}
           onStartEditDesc={() => {
@@ -435,7 +436,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                       disabled={organizationSaving}
                       onClick={() => void onRestoreEnergy()}
                     >
-                      恢复 +30 精力
+                      {t("恢复 +30 精力")}
                     </Button>
                   )}
                 <Button
@@ -445,7 +446,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
                   disabled={loading || busy}
                   onClick={() => void onReloadAll()}
                 >
-                  {needsCheck ? "刷新并检查" : "重试"}
+                  {needsCheck ? t("刷新并检查") : t("重试")}
                 </Button>
               </div>
             </AlertDescription>
@@ -510,7 +511,6 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
             onUpdateSections={(next) => onUpdateNowSections?.(next)}
             onChangeState={(task, state) => onChangeState?.(task, state)}
             renderTask={renderTask}
-            onAddTask={() => onOpenEditor(undefined)}
           />
         ) : view === "upcoming" &&
           !organizationPage &&
@@ -571,7 +571,7 @@ export function WorkspaceContent(props: WorkspaceContentProps) {
               fallback={
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Spinner className="size-4" />
-                  {layout === "board" ? "加载看板…" : "加载列表…"}
+                  {layout === "board" ? t("加载看板…") : t("加载列表…")}
                 </div>
               }
             >

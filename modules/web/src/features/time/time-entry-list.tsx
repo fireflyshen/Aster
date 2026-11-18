@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { useState } from "react";
 import { Pencil, Plus } from "lucide-react";
 import { hasTimeAssignment } from "@core/time/assignment";
@@ -6,7 +7,7 @@ import type {
   LocatedSegment,
   TimelineGap,
 } from "@core/time/model";
-import { Button } from "@/components/ui/button";
+import { LedgerAttribution, LedgerIconButton } from "./ledger-ui";
 import {
   formatClockInZone,
   formatCurrencyCny,
@@ -29,6 +30,7 @@ export function TimeEntryList({
   onEdit: (segment: LocatedSegment) => void;
   onFillGap: (gap: TimelineGap) => void;
 }) {
+  const { t, locale } = useI18n();
   const [showGaps, setShowGaps] = useState(false);
   const entries = [
     ...daily.locatedSegments.map((segment) => ({
@@ -45,10 +47,10 @@ export function TimeEntryList({
       : []),
   ].sort((a, b) => a.start - b.start);
   return (
-    <section className="ledger-entries" aria-label="时间线">
+    <section className="ledger-entries" aria-label={t("时间线")}>
       <div className="ledger-block-heading">
         <div>
-          <h2>时间线</h2>
+          <h2>{t("时间线")}</h2>
         </div>
         <label className="ledger-checkbox-line">
           <input
@@ -56,26 +58,19 @@ export function TimeEntryList({
             checked={showGaps}
             onChange={(event) => setShowGaps(event.target.checked)}
           />
-          显示空白时段
+          {t("空档")}
         </label>
-      </div>
-      <div className="ledger-entry-columns" aria-hidden="true">
-        <span>时间</span>
-        <span>活动</span>
-        <span>时长</span>
-        <span>时间折算</span>
-        <span />
       </div>
       {loading ? (
         <p role="status" className="ledger-empty">
-          正在加载所选日期…
+          {t("加载中…")}
         </p>
       ) : entries.length === 0 ? (
         <div className="ledger-empty">
-          <p>这一天还没有记录</p>
+          <p>{t("无记录")}</p>
         </div>
       ) : (
-        <div>
+        <div className="ledger-entry-body">
           {entries.map((item) => {
             if (item.kind === "gap")
               return (
@@ -93,29 +88,29 @@ export function TimeEntryList({
                     {formatClockInZone(item.gap.startMs, timeZone)}
                     <small>{formatClockInZone(item.gap.endMs, timeZone)}</small>
                   </time>
-                  <div className="ledger-entry-description">
-                    <span>未记录时段</span>
-                    <small>尚未计入已确认时长</small>
-                  </div>
+                  <div className="ledger-entry-description">{t("空档")}</div>
                   <span className="ledger-entry-duration">
-                    {formatLedgerDuration(item.gap.durationSeconds)}
+                    {formatLedgerDuration(item.gap.durationSeconds, locale)}
                   </span>
                   <span className="ledger-entry-cost">—</span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`补记 ${formatClockInZone(item.gap.startMs, timeZone)} 的空白`}
+                  <LedgerIconButton
+                    label={t(
+                      "补记 {0} 的空白",
+                      formatClockInZone(item.gap.startMs, timeZone),
+                    )}
                     disabled={busy}
                     onClick={() => onFillGap(item.gap)}
                   >
                     <Plus className="size-3.5" />
-                  </Button>
+                  </LedgerIconButton>
                 </div>
               );
             const segment = item.segment;
             const needsReview =
               segment.reviewState === "review_required" ||
               (segment.provisionalSeconds ?? 0) > 0;
+            const approximate = segment.precision === "estimated_bounds";
+            const unconfirmed = needsReview && segment.confirmedSeconds === 0;
             return (
               <article
                 key={`${segment.activityId}:${segment.startMs}`}
@@ -129,11 +124,14 @@ export function TimeEntryList({
                     timeZone,
                   )}
                 >
+                  {approximate && <span aria-label={t("约")}>≈</span>}
                   {formatClockInZone(segment.startMs, timeZone)}
                   <small>
-                    {segment.running
-                      ? "进行中"
-                      : formatClockInZone(segment.endMs, timeZone)}
+                    {segment.running ? (
+                      <span aria-label={t("计时中")}>…</span>
+                    ) : (
+                      formatClockInZone(segment.endMs, timeZone)
+                    )}
                   </small>
                 </time>
                 <div className="ledger-entry-description">
@@ -145,47 +143,46 @@ export function TimeEntryList({
                     {segment.title}
                   </button>
                   <div className="ledger-entry-meta">
-                    {segment.projectSnapshot && (
-                      <span>{segment.projectSnapshot}</span>
-                    )}
-                    {segment.tags?.map((tag) => (
-                      <span key={tag}>#{tag}</span>
-                    ))}
+                    <LedgerAttribution
+                      project={segment.projectSnapshot}
+                      tags={segment.tags}
+                    />
                     {!hasTimeAssignment(
                       segment.projectSnapshot,
                       segment.tags,
-                    ) && <span>待补归属</span>}
-                    {segment.precision === "estimated_bounds" && (
-                      <span>大约</span>
-                    )}
+                    ) && <span>{t("待补归属")}</span>}
                     {needsReview && (
-                      <span className="ledger-pending-label">待核对</span>
+                      <span className="ledger-pending-label">
+                        {t("待核对")}
+                      </span>
                     )}
                   </div>
                 </div>
                 <span className="ledger-entry-duration">
-                  {formatLedgerDuration(segment.durationSeconds)}
+                  {formatLedgerDuration(segment.durationSeconds, locale)}
                 </span>
                 <span
                   className="ledger-entry-cost"
                   data-unpriced={segment.hourlyRateCents === 0 || undefined}
+                  title={
+                    unconfirmed
+                      ? t("金额未入账")
+                      : segment.hourlyRateCents === 0
+                        ? t("不折算")
+                        : t("时间折算")
+                  }
                 >
-                  {segment.hourlyRateCents === 0
-                    ? "不折算"
-                    : needsReview && segment.confirmedSeconds === 0
-                      ? "待确认"
-                      : formatCurrencyCny(segment.confirmedCostCents)}
+                  {unconfirmed
+                    ? "—"
+                    : formatCurrencyCny(segment.confirmedCostCents)}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`编辑 ${segment.title}`}
+                <LedgerIconButton
+                  label={t("编辑 {0}", segment.title)}
                   disabled={busy}
                   onClick={() => onEdit(segment)}
                 >
                   <Pencil className="size-3.5" />
-                </Button>
+                </LedgerIconButton>
               </article>
             );
           })}

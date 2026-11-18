@@ -164,12 +164,6 @@
   font-size: 13px;
 }
 @media (min-width: 768px) {
-  .workspace-view-controls {
-    position: fixed;
-    top: 8px;
-    right: 102px;
-    z-index: 21;
-  }
   [data-variant="list"] [data-row-actions] {
     position: absolute;
     right: 0;
@@ -177,9 +171,9 @@
     z-index: 10;
     margin: 0;
     padding-left: 10px;
-    background: var(--background);
+    background: var(--row-action-background, var(--background));
     border-radius: 6px;
-    box-shadow: -8px 0 8px var(--background);
+    box-shadow: -8px 0 8px var(--row-action-background, var(--background));
   }
 }
 @media (max-width: 767px) {
@@ -640,7 +634,6 @@
   }
 }
 
-.habit-review-row:hover,
 .habit-review-row:focus-within {
   background: var(--row-hover);
 }

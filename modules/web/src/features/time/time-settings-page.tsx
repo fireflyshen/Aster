@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import type { TimePolicy } from "@core/time/model";
 import { ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -30,11 +31,7 @@ import {
   type TimeReceipt,
   type TimewarriorImportPreview,
 } from "./time-api";
-import {
-  formatRateConversionHint,
-  normalizeHourlyRateCents,
-  yuanToHourlyRateCents,
-} from "./time-format";
+import { normalizeHourlyRateCents, yuanToHourlyRateCents } from "./time-format";
 
 export function TimeSettingsPage({
   policy,
@@ -51,6 +48,7 @@ export function TimeSettingsPage({
     options?: { undoable?: boolean },
   ) => Promise<T | undefined>;
 }) {
+  const { t } = useI18n();
   const [timezone, setTimezone] = useState(policy.timezone);
   const [thresholdMins, setThresholdMins] = useState(
     String(Math.max(1, Math.round(policy.longActivityThresholdSeconds / 60))),
@@ -110,7 +108,7 @@ export function TimeSettingsPage({
     e.preventDefault();
     if (sleepEnabled && !sleepTag) return;
     const parsedThreshold = Number(thresholdMins);
-    await runMutation("已保存时间与单价设置", () =>
+    await runMutation(t("已保存时间与单价设置"), () =>
       updateTimePolicy({
         expectedPolicyVersion: policy.policyVersion,
         patch: {
@@ -143,7 +141,7 @@ export function TimeSettingsPage({
       });
       setImportPreview(preview);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "预览导入失败");
+      setImportError(err instanceof Error ? err.message : t("预览导入失败"));
     } finally {
       setImportBusy(false);
     }
@@ -153,12 +151,12 @@ export function TimeSettingsPage({
     setImportBusy(true);
     setImportError("");
     try {
-      const res = await runMutation("已完成 Timewarrior 历史快照导入", () =>
+      const res = await runMutation(t("已完成 Timewarrior 历史快照导入"), () =>
         applyTimewarriorImport({ clipOpenToCutover }),
       );
       if (res) setImportPreview(null);
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "导入失败");
+      setImportError(err instanceof Error ? err.message : t("导入失败"));
     } finally {
       setImportBusy(false);
     }
@@ -174,7 +172,7 @@ export function TimeSettingsPage({
         `aster-time-backup-${new Date().toISOString().slice(0, 10)}.json`,
       );
     } catch (err) {
-      setBackupError(err instanceof Error ? err.message : "导出失败");
+      setBackupError(err instanceof Error ? err.message : t("导出失败"));
     } finally {
       setBackupBusy(false);
     }
@@ -190,12 +188,12 @@ export function TimeSettingsPage({
         sqliteBase64?: string;
       };
       if (!parsed.sqliteBase64) {
-        throw new Error("所选文件不是有效的 Aster Time 备份文件。");
+        throw new Error(t("所选文件不是有效的 Aster Time 备份文件。"));
       }
       const preview = await previewTimeBackupRestore(parsed.sqliteBase64);
       setBackupPreview(preview);
     } catch (err) {
-      setBackupError(err instanceof Error ? err.message : "解析备份失败");
+      setBackupError(err instanceof Error ? err.message : t("解析备份失败"));
     } finally {
       setBackupBusy(false);
       if (backupInputRef.current) backupInputRef.current.value = "";
@@ -204,7 +202,6 @@ export function TimeSettingsPage({
 
   return (
     <div className="ledger-page ledger-settings">
-      <p className="ledger-intro">设置时间单价与计时偏好。</p>
       {/* Main Policy Form: Clean Linear-style setting rows */}
       <form
         onSubmit={(e) => void handleSavePolicy(e)}
@@ -213,10 +210,10 @@ export function TimeSettingsPage({
         <section className="ledger-settings-group">
           <div className="flex items-center justify-between border-b border-border/60 pb-2">
             <h2 className="text-xs font-medium text-muted-foreground">
-              时间与成本
+              {t("时间与成本")}
             </h2>
             <span className="text-xs text-muted-foreground/70">
-              按后续新增记录生效
+              {t("按后续新增记录生效")}
             </span>
           </div>
 
@@ -224,16 +221,18 @@ export function TimeSettingsPage({
             <div className="space-y-2 py-3.5">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <div className="text-sm text-foreground">我的时间单价</div>
+                  <div className="text-sm text-foreground">
+                    {t("我的时间单价")}
+                  </div>
                   <div className="text-xs text-muted-foreground">
-                    用于将投入时长自动折算为成本与任务预算；修改后从下一段计时或补记生效，历史记录保留当时的单价。
+                    {t("仅影响新记录。")}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">¥</span>
                   <Input
                     id="time-policy-rate"
-                    aria-label="我的时间单价"
+                    aria-label={t("我的时间单价")}
                     type="number"
                     min={0}
                     max={100000}
@@ -242,20 +241,20 @@ export function TimeSettingsPage({
                     value={hourlyRateYuan}
                     onChange={(e) => setHourlyRateYuan(e.target.value)}
                   />
-                  <span className="text-xs text-muted-foreground">/ 小时</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("/ 小时")}
+                  </span>
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground/85 tabular-nums">
-                即时换算：
-                {formatRateConversionHint(previewRateCents)}
-              </p>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 py-3.5">
               <div>
-                <div className="text-sm text-foreground">只计时长的标签</div>
+                <div className="text-sm text-foreground">
+                  {t("只计时长的标签")}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  新记录带有任一所选标签时按 ¥0/小时入账。历史单价保留。
+                  {t("新记录按 ¥0/小时。")}
                 </p>
                 {zeroRateTags.length > 0 && (
                   <p className="mt-1 break-words text-xs">
@@ -264,7 +263,7 @@ export function TimeSettingsPage({
                 )}
               </div>
               <TimeTagPicker
-                label="选择只计时长的标签"
+                label={t("选择只计时长的标签")}
                 tags={zeroRateTags}
                 onChange={setZeroRateTags}
                 availableTags={availableTags}
@@ -274,43 +273,29 @@ export function TimeSettingsPage({
             <div className="flex items-center justify-between gap-4 py-3.5">
               <div>
                 <div className="text-sm text-foreground">
-                  默认任务列表突出金额
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  在任务行右侧优先展示已投入金额与超出预估提示，耗时作为辅助信息
+                  {t("任务列表优先显示金额")}
                 </div>
               </div>
               <Switch
                 checked={taskListHighlightCost}
                 onCheckedChange={setTaskListHighlightCost}
-                aria-label="任务列表默认突出显示金额"
+                aria-label={t("任务列表默认突出显示金额")}
               />
             </div>
           </div>
         </section>
 
         <details className="ledger-disclosure ledger-settings-advanced">
-          <summary>时区、计时提醒与作息</summary>
-          <div className="flex items-center justify-between border-b border-border/60 pb-2">
-            <h2 className="text-xs font-medium text-muted-foreground">
-              计时偏好
-            </h2>
-            <span className="text-xs text-muted-foreground/70">
-              v{policy.policyVersion}
-            </span>
-          </div>
+          <summary>{t("计时偏好")}</summary>
 
           <div className="divide-y divide-border/35">
             <div className="flex flex-wrap items-center justify-between gap-4 py-3.5">
               <div>
-                <div className="text-sm text-foreground">时区</div>
-                <div className="text-xs text-muted-foreground">
-                  按该时区切分日/周时间线与精力重置点
-                </div>
+                <div className="text-sm text-foreground">{t("时区")}</div>
               </div>
               <Input
                 id="time-policy-tz"
-                aria-label="IANA 时区"
+                aria-label={t("IANA 时区")}
                 className="h-8 w-44 text-xs"
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
@@ -321,15 +306,12 @@ export function TimeSettingsPage({
             <div className="flex flex-wrap items-center justify-between gap-4 py-3.5">
               <div>
                 <div className="text-sm text-foreground">
-                  长计时提醒（分钟）
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  单条计时超出该时长后温和提示是否忘记结束
+                  {t("长计时提醒（分钟）")}
                 </div>
               </div>
               <Input
                 id="time-policy-long"
-                aria-label="长计时提醒阈值"
+                aria-label={t("长计时提醒阈值")}
                 type="number"
                 min={15}
                 max={1440}
@@ -342,22 +324,25 @@ export function TimeSettingsPage({
             <div className="space-y-3 py-3.5">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="text-sm text-foreground">作息模板</div>
+                  <div className="text-sm text-foreground">{t("作息模板")}</div>
                   <div className="text-xs text-muted-foreground">
-                    使用你选择的标签，手动确认后才入账
+                    {t("确认后入账")}
                   </div>
                 </div>
                 <Switch
                   checked={sleepEnabled}
                   onCheckedChange={setSleepEnabled}
-                  aria-label="启用作息模板"
+                  aria-label={t("启用作息模板")}
                 />
               </div>
               {sleepEnabled && (
                 <div className="flex flex-wrap items-center gap-4 pt-1 text-xs text-muted-foreground">
                   <Select value={sleepTag} onValueChange={setSleepTag}>
-                    <SelectTrigger aria-label="作息模板标签" className="w-36">
-                      <SelectValue placeholder="选择已有标签" />
+                    <SelectTrigger
+                      aria-label={t("作息模板标签")}
+                      className="w-36"
+                    >
+                      <SelectValue placeholder={t("选择已有标签")} />
                     </SelectTrigger>
                     <SelectContent>
                       {[
@@ -373,7 +358,7 @@ export function TimeSettingsPage({
                     </SelectContent>
                   </Select>
                   <label className="flex items-center gap-2">
-                    <span>入睡</span>
+                    <span>{t("入睡")}</span>
                     <Input
                       id="sleep-start"
                       type="time"
@@ -383,7 +368,7 @@ export function TimeSettingsPage({
                     />
                   </label>
                   <label className="flex items-center gap-2">
-                    <span>起床</span>
+                    <span>{t("起床")}</span>
                     <Input
                       id="sleep-end"
                       type="time"
@@ -403,7 +388,7 @@ export function TimeSettingsPage({
             size="sm"
             disabled={busy || (sleepEnabled && !sleepTag)}
           >
-            保存设置
+            {t("保存设置")}
           </Button>
         </div>
       </form>
@@ -412,7 +397,7 @@ export function TimeSettingsPage({
       <section className="ledger-settings-tools space-y-1">
         <div className="border-b border-border/60 pb-2">
           <h2 className="text-xs font-medium text-muted-foreground">
-            数据工具
+            {t("数据工具")}
           </h2>
         </div>
 
@@ -422,20 +407,22 @@ export function TimeSettingsPage({
               type="button"
               className="group flex w-full items-center justify-between border-b border-border/35 py-3 text-left text-sm text-foreground transition-colors hover:text-foreground/80"
             >
-              <span>历史 Timewarrior 快照导入</span>
+              <span>{t("历史 Timewarrior 快照导入")}</span>
               <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-3 py-4 text-xs">
             <p className="text-muted-foreground">
-              仅导入切换时刻之前的历史区间，保留幂等记录，不干扰当前运行中的计时。
+              {t(
+                "仅导入切换时刻之前的历史区间，保留幂等记录，不干扰当前运行中的计时。",
+              )}
             </p>
             <label className="flex items-center gap-2 text-muted-foreground">
               <Checkbox
                 checked={clipOpenToCutover}
                 onCheckedChange={(v) => setClipOpenToCutover(Boolean(v))}
               />
-              裁剪并导入跨越切换点的未闭合记录
+              {t("裁剪并导入跨越切换点的未闭合记录")}
             </label>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -445,7 +432,7 @@ export function TimeSettingsPage({
                 disabled={busy || importBusy}
                 onClick={() => void handlePreviewImport()}
               >
-                预览范围
+                {t("预览范围")}
               </Button>
               {importPreview && (
                 <Button
@@ -456,18 +443,22 @@ export function TimeSettingsPage({
                   }
                   onClick={() => void handleApplyImport()}
                 >
-                  确认导入（{importPreview.importableCount} 条）
+                  {t("确认导入（")}
+                  {importPreview.importableCount} {t("条）")}
                 </Button>
               )}
             </div>
             {importError && <p className="text-destructive">{importError}</p>}
             {importPreview && (
               <p className="text-muted-foreground">
-                可导入 {importPreview.importableCount} 条 · 切换后跳过{" "}
-                {importPreview.skippedAfterCutoverCount} 条 · 冲突{" "}
-                {importPreview.conflictCount} 条
+                {t("可导入")} {importPreview.importableCount}{" "}
+                {t("条 · 切换后跳过")} {importPreview.skippedAfterCutoverCount}{" "}
+                {t("条 · 冲突")} {importPreview.conflictCount} {t("条")}
                 {importPreview.alreadyImportedBatchId
-                  ? `（该快照已导入，批次 ${importPreview.alreadyImportedBatchId.slice(0, 8)}）`
+                  ? t(
+                      "（该快照已导入，批次 {0}）",
+                      importPreview.alreadyImportedBatchId.slice(0, 8),
+                    )
                   : ""}
               </p>
             )}
@@ -480,13 +471,15 @@ export function TimeSettingsPage({
               type="button"
               className="group flex w-full items-center justify-between border-b border-border/35 py-3 text-left text-sm text-foreground transition-colors hover:text-foreground/80"
             >
-              <span>Time 账本独立备份与恢复</span>
+              <span>{t("Time 账本独立备份与恢复")}</span>
               <ChevronRight className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
             </button>
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-3 py-4 text-xs">
             <p className="text-muted-foreground">
-              单独导出或恢复 `time.sqlite`，不会改写 Taskwarrior 任务状态。
+              {t(
+                "单独导出或恢复 `time.sqlite`，不会改写 Taskwarrior 任务状态。",
+              )}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -496,7 +489,7 @@ export function TimeSettingsPage({
                 disabled={busy || backupBusy}
                 onClick={() => void handleExportTimeBackup()}
               >
-                导出备份
+                {t("导出备份")}
               </Button>
               <Button
                 type="button"
@@ -505,7 +498,7 @@ export function TimeSettingsPage({
                 disabled={busy || backupBusy}
                 onClick={() => backupInputRef.current?.click()}
               >
-                选择文件预览恢复
+                {t("选择文件预览恢复")}
               </Button>
               <input
                 ref={backupInputRef}
@@ -521,8 +514,8 @@ export function TimeSettingsPage({
             {backupPreview && (
               <div className="space-y-2 border-l-2 border-border pl-3">
                 <p className="text-foreground">
-                  校验通过：含 {backupPreview.candidateCounts.activities}{" "}
-                  条活动（代际 {backupPreview.currentCounts.timeEpoch} →{" "}
+                  {t("校验通过：含")} {backupPreview.candidateCounts.activities}{" "}
+                  {t("条活动（代际")} {backupPreview.currentCounts.timeEpoch} →{" "}
                   {backupPreview.currentCounts.timeEpoch + 1}）
                 </p>
                 {backupPreview.warnings.map((w) => (
@@ -536,14 +529,14 @@ export function TimeSettingsPage({
                   variant="destructive"
                   disabled={busy || backupBusy}
                   onClick={() =>
-                    void runMutation("已恢复 Time 账本备份", () =>
+                    void runMutation(t("已恢复 Time 账本备份"), () =>
                       applyTimeBackupRestore(backupPreview.token),
                     ).then((res) => {
                       if (res) setBackupPreview(null);
                     })
                   }
                 >
-                  确认恢复
+                  {t("确认恢复")}
                 </Button>
               </div>
             )}

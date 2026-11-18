@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -36,71 +37,72 @@ export function WorkspaceDisplayOptions({
   onCompleteBehaviorChange?: (value: CompleteBehavior) => void;
   onReset?: () => void;
 }) {
+  const { t } = useI18n();
   const completedId = useId();
   return (
     <Popover>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
-          size="sm"
+          size="icon-sm"
           disabled={disabled}
-          aria-label="显示选项"
-          className="h-8 gap-1.5 px-2 text-xs font-normal text-muted-foreground data-[state=open]:bg-accent"
+          aria-label={t("显示选项")}
+          title={t("显示选项")}
+          className="text-muted-foreground data-[state=open]:bg-accent"
         >
           <SlidersHorizontal className="size-3.5" />
-          显示
         </Button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
         className="w-72 max-w-[calc(100vw-24px)] space-y-4 p-3"
-        aria-label="任务显示选项"
+        aria-label={t("任务显示选项")}
       >
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium">显示</span>
+          <span className="text-xs font-medium">{t("显示")}</span>
           {onReset && (
             <button
               type="button"
               onClick={onReset}
               className="text-[11px] text-muted-foreground hover:text-foreground"
             >
-              恢复默认
+              {t("恢复默认")}
             </button>
           )}
         </div>
         <div className="space-y-2">
-          <span className="text-[11px] text-muted-foreground">布局</span>
-          <TabsList aria-label="布局模式" className="flex h-8 w-full">
+          <span className="text-[11px] text-muted-foreground">{t("布局")}</span>
+          <TabsList aria-label={t("布局模式")} className="flex h-8 w-full">
             <TabsTrigger
               value="list"
-              aria-label="列表视图"
+              aria-label={t("列表视图")}
               disabled={disabled}
               className="flex-1 gap-1.5 text-xs"
             >
               <List className="size-3.5" />
-              列表
+              {t("列表")}
             </TabsTrigger>
             <TabsTrigger
               value="board"
-              aria-label="看板视图"
+              aria-label={t("看板视图")}
               disabled={disabled}
               className="flex-1 gap-1.5 text-xs"
             >
               <Columns3 className="size-3.5" />
-              看板
+              {t("看板")}
             </TabsTrigger>
           </TabsList>
         </div>
         {onGroupByChange && (
           <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-muted-foreground">分组</span>
+            <span className="text-xs text-muted-foreground">{t("分组")}</span>
             <Select
               value={groupBy}
               onValueChange={(value) => onGroupByChange(value as TaskGroupBy)}
               disabled={disabled}
             >
               <SelectTrigger
-                aria-label="分组方式"
+                aria-label={t("分组方式")}
                 className="h-8 w-40 text-xs shadow-none"
               >
                 <SelectValue />
@@ -121,7 +123,7 @@ export function WorkspaceDisplayOptions({
               htmlFor={completedId}
               className="cursor-pointer text-xs text-muted-foreground"
             >
-              显示已完成
+              {t("显示已完成")}
             </label>
             <Switch
               id={completedId}

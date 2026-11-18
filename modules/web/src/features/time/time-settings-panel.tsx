@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import type { TimePolicy } from "@core/time/model";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,6 +18,7 @@ export function TimeSettingsPanel({
   availableTags: readonly string[];
   onTimeMutated: () => void;
 }) {
+  const { t } = useI18n();
   const [policy, setPolicy] = useState<TimePolicy | null>(null);
   const [loading, setLoading] = useState(isTimeMode);
   const [busy, setBusy] = useState(false);
@@ -81,10 +83,7 @@ export function TimeSettingsPanel({
 
   if (!isTimeMode) {
     return (
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        当前服务端以兼容模式运行（`TIME_ENABLED=0`），Time
-        账本暂未启用。移除该环境变量并重启服务端即可使用时间与预算设置。
-      </p>
+      <p className="text-xs text-muted-foreground">{t("时间账本未启用")}</p>
     );
   }
 
@@ -101,7 +100,7 @@ export function TimeSettingsPanel({
               disabled={busy}
               onClick={() => void loadPolicy()}
             >
-              重新加载
+              {t("重新加载")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -117,7 +116,7 @@ export function TimeSettingsPanel({
           className="flex items-center gap-2 py-8 text-xs text-muted-foreground"
         >
           <Spinner className="size-4" />
-          加载时间与预算设置…
+          {t("加载时间与预算设置…")}
         </div>
       ) : policy ? (
         <TimeSettingsPage

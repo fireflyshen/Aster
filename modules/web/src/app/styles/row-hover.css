@@ -1,0 +1,104 @@
+:is(
+  .habit-review-row,
+  .project-manager-row,
+  [data-organization-row],
+  .ledger-stat-traces > button,
+  .task-board-card
+) {
+  border-radius: var(--row-hover-radius);
+}
+
+:is(.habit-review-row, .project-manager-row, [data-organization-row]) {
+  margin-inline: calc(-1 * var(--row-hover-gutter));
+  padding-inline: var(--row-hover-gutter);
+}
+
+.ledger-stat-traces > button {
+  padding-inline: var(--row-hover-gutter);
+}
+
+:is(
+  [data-task-surface][data-variant="list"],
+  .ledger-entry,
+  .ledger-distribution-row,
+  .ledger-section-disclosure > summary,
+  .now-alert-toggle
+) {
+  position: relative;
+  isolation: isolate;
+}
+
+:is(
+  [data-task-surface][data-variant="list"],
+  .ledger-entry,
+  .ledger-distribution-row,
+  .ledger-section-disclosure > summary,
+  .now-alert-toggle
+)::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0 calc(-1 * var(--row-hover-gutter));
+  border-radius: var(--row-hover-radius);
+  background-color: var(--row-hover);
+  box-shadow: inset 0 -1px color-mix(in srgb, var(--border) 65%, transparent);
+  opacity: 0;
+  transition: opacity 140ms ease;
+  pointer-events: none;
+}
+
+:is(
+    [data-task-surface][data-variant="list"],
+    .ledger-entry,
+    .ledger-distribution-row,
+    .ledger-section-disclosure > summary,
+    .now-alert-toggle
+  ):is(:focus-visible, :has(:focus-visible))::before {
+  opacity: 1;
+}
+
+[data-task-surface][data-variant="list"]:has(:focus-visible) {
+  --row-action-background: var(--row-hover);
+}
+
+@media (hover: hover) {
+  :is(
+    .habit-review-row,
+    .project-manager-row,
+    [data-organization-row],
+    .ledger-stat-traces > button,
+    .task-board-card:not([data-dragging="true"])
+  ):hover {
+    background-color: var(--row-hover);
+  }
+  :is(
+      [data-task-surface][data-variant="list"],
+      .ledger-entry,
+      .ledger-distribution-row,
+      .ledger-section-disclosure > summary,
+      .now-alert-toggle
+    ):hover::before {
+    opacity: 1;
+  }
+  [data-task-surface][data-variant="list"]:hover {
+    --row-action-background: var(--row-hover);
+  }
+}
+
+:is(.project-manager-row, [data-organization-row]):has(:focus-visible),
+.ledger-stat-traces > button:focus-visible {
+  background-color: var(--row-hover);
+}
+
+#workspace-navigation
+  :is(
+    [data-variant="navigation"],
+    [data-project-nav],
+    .sidebar-add,
+    .sidebar-favorite-row
+  ) {
+  border-radius: var(--row-hover-radius);
+}
+#workspace-navigation :is([data-variant="navigation"], .sidebar-add) {
+  padding-inline: var(--row-hover-gutter);
+}

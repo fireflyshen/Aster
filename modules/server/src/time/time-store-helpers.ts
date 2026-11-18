@@ -274,7 +274,8 @@ export function validatePolicy(policy: TimePolicy): TimePolicy {
 
 export function readMeta(conn: DatabaseSync): MetaRow {
   const row = conn.prepare("SELECT * FROM time_meta WHERE id = 1").get() as
-    MetaRow | undefined;
+    | MetaRow
+    | undefined;
   if (!row) {
     throw new TimeStoreError(
       500,

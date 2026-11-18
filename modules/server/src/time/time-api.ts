@@ -329,7 +329,10 @@ export function createTimeHandlers(deps: {
         const today = defaultDate(s);
         const taskUuid = requiredString(body.taskUuid, "taskUuid", 64);
         const mode = optionalString(body.mode, 16) as
-          "set" | "add" | "clear" | undefined;
+          | "set"
+          | "add"
+          | "clear"
+          | undefined;
         const plannedStartAtMs = parseTimestampInput(body, {
           msKey: "plannedStartAtMs",
           isoKey: "plannedStartAtIso",
@@ -1048,7 +1051,8 @@ export function createTimeHandlers(deps: {
                 ? "estimated_bounds"
                 : "exact",
             source: optionalString(body.source, 40) as
-              ActivitySource | undefined,
+              | ActivitySource
+              | undefined,
             note: optionalString(body.note, 2000),
             rawInput: optionalString(body.rawInput, 2000),
           }),
@@ -1082,7 +1086,8 @@ export function createTimeHandlers(deps: {
             taskUuid: optionalString(body.taskUuid, 64),
             ...(await assignmentForNewActivity(body)),
             source: optionalString(body.source, 40) as
-              ActivitySource | undefined,
+              | ActivitySource
+              | undefined,
             note: optionalString(body.note, 2000),
             rawInput: optionalString(body.rawInput, 2000),
           }),

@@ -1,3 +1,4 @@
+import { translate, useI18n, type Language } from "@/app/language";
 import { Button } from "@/components/ui/button";
 import type { TaskRenderFn } from "@/app/hooks/use-task-renderer";
 import type { StateSummaryData } from "@/app/hooks/use-task-state-actions";
@@ -19,7 +20,7 @@ import type { NowSectionState } from "@core/workspace/preferences";
 import { closestCenter, DndContext, useDroppable } from "@dnd-kit/core";
 import type { Task } from "@shared/tasks";
 import { addDays, format } from "date-fns";
-import { AlertTriangle, ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight } from "lucide-react";
 import { useMemo, useRef, useState, type ReactNode } from "react";
 
 const NOW_COLUMNS: Record<TaskState, Column> = {
@@ -61,15 +62,22 @@ function NowDropSection({
 export function scheduledGroupLabel(
   scheduled: string | undefined,
   now: Date,
+  locale: Language = "zh-CN",
 ): string {
-  if (!scheduled) return "未排期";
-  const day = toDueDay(scheduled);
-  if (!day) return "未排期";
+  const day = scheduled ? toDueDay(scheduled) : "";
+  if (!day) return translate(locale, "未排期");
   const todayStr = format(now, "yyyy-MM-dd");
   const tomorrowStr = format(addDays(now, 1), "yyyy-MM-dd");
-  if (day < todayStr) return `已到期 · ${day}`;
-  if (day === todayStr) return "今天";
-  if (day === tomorrowStr) return "明天";
+  if (day < todayStr) return translate(locale, "已到期 · {0}", day);
+  if (day === todayStr) return translate(locale, "今天");
+  if (day === tomorrowStr) return translate(locale, "明天");
+  if (locale === "en") {
+    return new Intl.DateTimeFormat(locale, {
+      month: "short",
+      day: "numeric",
+      ...(day.slice(0, 4) !== format(now, "yyyy") ? { year: "numeric" } : {}),
+    }).format(new Date(`${day}T12:00:00`));
+  }
   return format(
     new Date(`${day}T00:00:00`),
     day.slice(0, 4) === format(now, "yyyy") ? "M月d日" : "yyyy年M月d日",
@@ -90,7 +98,6 @@ export function NowWorkspace({
   onUpdateSections,
   onChangeState,
   renderTask,
-  onAddTask,
 }: {
   tasks: Task[];
   organization: Organization;
@@ -105,8 +112,8 @@ export function NowWorkspace({
   onUpdateSections: (next: NowSectionState) => void;
   onChangeState: (task: Task, state: TaskState) => Promise<boolean> | void;
   renderTask: TaskRenderFn;
-  onAddTask: () => void;
 }) {
+  const { t, locale } = useI18n();
   const [alertsExpanded, setAlertsExpanded] = useState(false);
   const scrollArea = useRef<HTMLDivElement>(null);
   const { sensors, accessibility } = useBoardDnd("list", NOW_COLUMN_LIST);
@@ -147,7 +154,7 @@ export function NowWorkspace({
 
     const groupMap = new Map<string, Task[]>();
     for (const task of plannedList) {
-      const label = scheduledGroupLabel(task.scheduled, now);
+      const label = scheduledGroupLabel(task.scheduled, now, locale);
       const bucket = groupMap.get(label) ?? [];
       bucket.push(task);
       groupMap.set(label, bucket);
@@ -175,7 +182,7 @@ export function NowWorkspace({
       waiting: waitingList,
       parked: parkedList,
     };
-  }, [tasks, organization, habitTaskUuids, needle, isTimingTask, now]);
+  }, [tasks, organization, habitTaskUuids, needle, isTimingTask, now, locale]);
 
   const taskByUuid = useMemo(
     () => new Map(tasks.map((t) => [t.uuid, t])),
@@ -212,7 +219,11 @@ export function NowWorkspace({
 
   const alerts =
     alertCount > 0 && summary ? (
-      <section data-state-alerts className="now-alerts" aria-label="待处理提醒">
+      <section
+        data-state-alerts
+        className="now-alerts"
+        aria-label={t("待处理提醒")}
+      >
         <button
           type="button"
           aria-expanded={alertsExpanded}
@@ -222,7 +233,7 @@ export function NowWorkspace({
         >
           <span className="flex items-center gap-2">
             <AlertTriangle className="size-4 shrink-0 text-amber-600 dark:text-amber-400" />
-            待处理提醒
+            {t("提醒")}
             <span className="tabular-nums text-muted-foreground">
               {alertCount}
             </span>
@@ -245,7 +256,7 @@ export function NowWorkspace({
                 <div key={`blocked-${item.uuid}`} className="now-alert-item">
                   <span className="min-w-0 wrap-anywhere">
                     <span className="mr-1.5 font-medium text-amber-700 dark:text-amber-300">
-                      已到日期但处理中已满
+                      {t("处理中已满")}
                     </span>
                     {item.description}
                   </span>
@@ -257,7 +268,7 @@ export function NowWorkspace({
                       disabled={disabled}
                       onClick={() => void onChangeState(full, "doing")}
                     >
-                      替换进处理中
+                      {t("替换进处理中")}
                     </Button>
                   )}
                 </div>
@@ -269,7 +280,7 @@ export function NowWorkspace({
                 <div key={`waitdue-${item.uuid}`} className="now-alert-item">
                   <span className="min-w-0 wrap-anywhere">
                     <span className="mr-1.5 font-medium text-teal-700 dark:text-teal-300">
-                      等待核对日已到
+                      {t("待核对")}
                     </span>
                     {item.description}
                     {item.waitReason ? ` (${item.waitReason})` : ""}
@@ -282,7 +293,7 @@ export function NowWorkspace({
                       disabled={disabled}
                       onClick={() => void onChangeState(full, "doing")}
                     >
-                      回到处理中
+                      {t("回到处理中")}
                     </Button>
                   )}
                 </div>
@@ -294,7 +305,7 @@ export function NowWorkspace({
                 <div key={`parked-${item.uuid}`} className="now-alert-item">
                   <span className="min-w-0 wrap-anywhere">
                     <span className="mr-1.5 font-medium text-muted-foreground">
-                      搁置复查日已到
+                      {t("待复查")}
                     </span>
                     {item.description}
                   </span>
@@ -306,7 +317,7 @@ export function NowWorkspace({
                       disabled={disabled}
                       onClick={() => void onChangeState(full, "planned")}
                     >
-                      恢复到计划中
+                      {t("恢复到计划中")}
                     </Button>
                   )}
                 </div>
@@ -321,7 +332,7 @@ export function NowWorkspace({
                 >
                   <span className="min-w-0 wrap-anywhere">
                     <span className="mr-1.5 font-medium text-destructive">
-                      数据异常
+                      {t("数据异常")}
                     </span>
                     {item.description} · {item.detail}
                   </span>
@@ -333,7 +344,7 @@ export function NowWorkspace({
                       disabled={disabled}
                       onClick={() => void onChangeState(full, "planned")}
                     >
-                      设为计划中
+                      {t("设为计划中")}
                     </Button>
                   )}
                 </div>
@@ -355,38 +366,28 @@ export function NowWorkspace({
           ref={scrollArea}
           data-board-scroll
           role="region"
-          aria-label="现在能做状态分组"
+          aria-label={t("现在能做状态分组")}
           className="now-sections"
         >
-          <NowDropSection state="doing" label="处理中" disabled={disabled}>
+          <NowDropSection state="doing" label={t("处理中")} disabled={disabled}>
             <div
               data-list-section="true"
               className="now-section-heading flex items-center justify-between border-b border-border/80"
             >
               <div className="flex items-center gap-1.5">
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                  处理中
+                  {t("处理中")}
                 </h2>
                 <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
                   {doing.length}/{doingLimit}
                 </span>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="now-add-task"
-                disabled={disabled}
-                onClick={onAddTask}
-              >
-                <Plus className="size-4" />
-                添加任务
-              </Button>
             </div>
 
             <div data-drop-content className="min-h-7">
               {doing.length === 0 && !loading ? (
                 <p className="py-3 text-xs text-muted-foreground">
-                  暂无处理中任务，可从计划中移入。
+                  {t("无任务")}
                 </p>
               ) : (
                 doing.map((task) => {
@@ -416,7 +417,11 @@ export function NowWorkspace({
 
           {alerts}
 
-          <NowDropSection state="planned" label="计划中" disabled={disabled}>
+          <NowDropSection
+            state="planned"
+            label={t("计划中")}
+            disabled={disabled}
+          >
             <div
               data-list-section="true"
               className="now-section-heading flex items-center border-b border-border/80"
@@ -435,7 +440,7 @@ export function NowWorkspace({
                   />
                 </span>
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                  计划中
+                  {t("计划中")}
                 </h2>
                 <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
                   {plannedGroups.reduce(
@@ -452,7 +457,7 @@ export function NowWorkspace({
             >
               {plannedGroups.length === 0 ? (
                 <p className="py-3 text-xs text-muted-foreground">
-                  暂无计划中任务
+                  {t("无任务")}
                 </p>
               ) : (
                 plannedGroups.map(([label, list]) => (
@@ -478,7 +483,11 @@ export function NowWorkspace({
             </div>
           </NowDropSection>
 
-          <NowDropSection state="waiting" label="等待中" disabled={disabled}>
+          <NowDropSection
+            state="waiting"
+            label={t("等待中")}
+            disabled={disabled}
+          >
             <div
               data-list-section="true"
               className="now-section-heading flex items-center border-b border-border/80"
@@ -497,7 +506,7 @@ export function NowWorkspace({
                   />
                 </span>
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                  等待中
+                  {t("等待中")}
                 </h2>
                 <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
                   {waiting.length}
@@ -507,7 +516,7 @@ export function NowWorkspace({
             <div data-drop-content hidden={!waitingOpen} className="min-h-7">
               {waiting.length === 0 ? (
                 <p className="py-3 text-xs text-muted-foreground">
-                  暂无等待中任务
+                  {t("无任务")}
                 </p>
               ) : (
                 waiting.map((task) => (
@@ -524,11 +533,14 @@ export function NowWorkspace({
                     {(task.waitReason || task.wait) && (
                       <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
                         {task.waitReason && (
-                          <span className="mr-2">原因：{task.waitReason}</span>
+                          <span className="mr-2">
+                            {t("原因：")}
+                            {task.waitReason}
+                          </span>
                         )}
                         {task.wait && (
                           <span>
-                            核对日：
+                            {t("核对日：")}
                             {toDueDay(task.wait) || dueLabel(task.wait)}
                           </span>
                         )}
@@ -540,7 +552,11 @@ export function NowWorkspace({
             </div>
           </NowDropSection>
 
-          <NowDropSection state="parked" label="长期搁置" disabled={disabled}>
+          <NowDropSection
+            state="parked"
+            label={t("长期搁置")}
+            disabled={disabled}
+          >
             <div
               data-list-section="true"
               className="now-section-heading flex items-center border-b border-border/80"
@@ -559,7 +575,7 @@ export function NowWorkspace({
                   />
                 </span>
                 <h2 className="text-sm font-semibold tracking-tight text-foreground">
-                  长期搁置
+                  {t("长期搁置")}
                 </h2>
                 <span className="ml-0.5 text-xs font-normal tabular-nums text-muted-foreground/75">
                   {parked.length}
@@ -569,7 +585,7 @@ export function NowWorkspace({
             <div data-drop-content hidden={!parkedOpen} className="min-h-7">
               {parked.length === 0 ? (
                 <p className="py-3 text-xs text-muted-foreground">
-                  暂无长期搁置任务
+                  {t("无任务")}
                 </p>
               ) : (
                 parked.map((task) => (
@@ -585,7 +601,8 @@ export function NowWorkspace({
                     </BoardCard>
                     {task.wait && (
                       <div className="-mt-1 pb-2 pl-[30px] text-xs text-muted-foreground">
-                        复查日：{toDueDay(task.wait) || dueLabel(task.wait)}
+                        {t("复查日：")}
+                        {toDueDay(task.wait) || dueLabel(task.wait)}
                       </div>
                     )}
                   </div>

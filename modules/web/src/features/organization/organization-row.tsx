@@ -46,7 +46,7 @@ export function OrganizationRow({
   return (
     <div
       data-organization-row
-      className="organization-list-row group -mx-2.5 flex min-h-10 items-center px-2.5 md:-mx-3 md:px-3"
+      className="organization-list-row group flex min-h-10 items-center"
     >
       <Button
         variant="ghost"

@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { hasTimeAssignment } from "@core/time/assignment";
 import {
   Popover,
@@ -75,6 +76,7 @@ export function ProjectTagFields({
   compact?: boolean;
   idPrefix?: string;
 }) {
+  const { t } = useI18n();
   const projectOptions = useMemo(() => {
     if (!project || availableProjects.includes(project)) {
       return [...new Set(availableProjects)];
@@ -84,9 +86,8 @@ export function ProjectTagFields({
 
   return (
     <div className="time-meta-fields" data-time-meta>
-      {!compact && <p className="time-assignment-heading">归属</p>}
       {!hasTimeAssignment(project, tags) && (
-        <p className="time-assignment-hint">项目或标签至少选一项</p>
+        <p className="time-assignment-hint">{t("选项目或标签")}</p>
       )}
       <div className="time-meta-project">
         <Folder className="size-3.5 shrink-0 text-muted-foreground" />
@@ -98,13 +99,15 @@ export function ProjectTagFields({
         >
           <SelectTrigger
             id={`${idPrefix}-project`}
-            aria-label="项目（可选）"
+            aria-label={t("项目（可选）")}
             className="h-8 min-w-0 max-w-40 gap-1 border-0 bg-transparent dark:bg-transparent px-1.5 text-xs text-muted-foreground shadow-none"
           >
-            <SelectValue placeholder="不关联项目" />
+            <SelectValue placeholder={t("项目")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={UNASSIGNED_PROJECT_SELECT}>无项目</SelectItem>
+            <SelectItem value={UNASSIGNED_PROJECT_SELECT}>
+              {t("无项目")}
+            </SelectItem>
             {projectOptions.map((item) => (
               <SelectItem key={item} value={item}>
                 {item}
@@ -114,19 +117,19 @@ export function ProjectTagFields({
         </Select>
       </div>
       <TimeTagPicker
-        label="选择活动标签"
+        label={t("选择活动标签")}
         tags={tags}
         onChange={onTagsChange}
         availableTags={availableTags}
       />
       {tags.length > 0 && (
         <div className="time-meta-selected">
-          {tags.slice(0, 3).map((tag) => (
+          {tags.slice(0, compact ? 1 : 2).map((tag) => (
             <button
               key={tag}
               type="button"
-              title={`移除标签 ${tag}`}
-              aria-label={`移除标签 ${tag}`}
+              title={t("移除标签 {0}", tag)}
+              aria-label={t("移除标签 {0}", tag)}
               onClick={() => onTagsChange(tags.filter((item) => item !== tag))}
               className="inline-flex min-h-7 max-w-40 items-center gap-1 rounded px-1.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
             >
@@ -151,6 +154,7 @@ export function TimeTagPicker({
   onChange: (tags: string[]) => void;
   availableTags: readonly string[];
 }) {
+  const { t } = useI18n();
   const [search, setSearch] = useState("");
   const query = search.trim().replace(/^#/, "").toLocaleLowerCase();
   const options = [...new Set([...availableTags, ...tags])].filter((tag) =>
@@ -174,7 +178,7 @@ export function TimeTagPicker({
           className="time-meta-tag-trigger"
         >
           <Tag className="size-3.5" />
-          标签
+          {t("标签")}
           {tags.length > 0 && (
             <span className="tabular-nums">{tags.length}</span>
           )}
@@ -188,8 +192,8 @@ export function TimeTagPicker({
         <div className="flex items-center gap-2 border-b border-border/60 pb-2">
           <input
             type="text"
-            aria-label="搜索已有标签"
-            placeholder="搜索已有标签"
+            aria-label={t("搜索已有标签")}
+            placeholder={t("搜索")}
             className="h-8 min-w-0 flex-1 bg-transparent text-base outline-none sm:text-xs"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -209,7 +213,7 @@ export function TimeTagPicker({
         <div className="max-h-52 space-y-0.5 overflow-y-auto pt-2">
           {options.length === 0 && (
             <p className="p-2 text-xs text-muted-foreground">
-              {query ? "没有匹配的标签" : "请先在工作区创建标签"}
+              {query ? t("无匹配") : t("先在工作区创建标签")}
             </p>
           )}
           {options.map((tag) => (

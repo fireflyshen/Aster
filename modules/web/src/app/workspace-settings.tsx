@@ -1,3 +1,4 @@
+import { languages, setLanguage, useI18n, type Language } from "@/app/language";
 import { useState } from "react";
 import {
   DatabaseBackup,
@@ -20,7 +21,11 @@ import { sidebarItems, type SidebarPreferences } from "./sidebar-preferences";
 import { ThemePanel, type useThemePreference } from "./theme-switcher";
 
 export type SettingsSection =
-  "general" | "theme" | "sidebar" | "time" | "recovery";
+  | "general"
+  | "theme"
+  | "sidebar"
+  | "time"
+  | "recovery";
 
 const SECTION_TITLES: Record<SettingsSection, string> = {
   general: "常规",
@@ -74,6 +79,7 @@ export function WorkspaceSettings({
   onRefreshAll?: () => Promise<unknown>;
   onUnconfirmed?: () => void;
 }) {
+  const { t, locale } = useI18n();
   const [internalSection, setInternalSection] =
     useState<SettingsSection>("theme");
   const [recoveryWorking, setRecoveryWorking] = useState(false);
@@ -87,11 +93,11 @@ export function WorkspaceSettings({
     label: string;
     Icon: typeof Settings2;
   }> = [
-    { id: "general", label: "常规", Icon: Settings2 },
-    { id: "theme", label: "主题", Icon: Palette },
-    { id: "sidebar", label: "侧栏", Icon: PanelLeft },
-    { id: "time", label: "时间与预算", Icon: SlidersHorizontal },
-    { id: "recovery", label: "数据与恢复", Icon: DatabaseBackup },
+    { id: "general", label: t("常规"), Icon: Settings2 },
+    { id: "theme", label: t("主题"), Icon: Palette },
+    { id: "sidebar", label: t("侧栏"), Icon: PanelLeft },
+    { id: "time", label: t("时间与预算"), Icon: SlidersHorizontal },
+    { id: "recovery", label: t("数据与恢复"), Icon: DatabaseBackup },
   ];
 
   return (
@@ -114,8 +120,8 @@ export function WorkspaceSettings({
         }}
       >
         <aside className="settings-sidebar">
-          <h2>设置</h2>
-          <nav aria-label="设置分类">
+          <h2>{t("设置")}</h2>
+          <nav aria-label={t("设置分类")}>
             {navItems.map(({ id, label, Icon }) => (
               <button
                 key={id}
@@ -133,8 +139,8 @@ export function WorkspaceSettings({
         <div className="settings-main">
           <header className="settings-header">
             <DialogTitle>
-              <span className="sr-only">设置：</span>
-              {SECTION_TITLES[section]}
+              <span className="sr-only">{t("设置：")}</span>
+              {t(SECTION_TITLES[section])}
             </DialogTitle>
           </header>
           <div className="settings-body">
@@ -143,7 +149,7 @@ export function WorkspaceSettings({
             ) : section === "sidebar" ? (
               <div className="sidebar-preferences-panel">
                 <fieldset>
-                  <legend>在侧栏显示</legend>
+                  <legend>{t("在侧栏显示")}</legend>
                   {sidebarItems.map((item) => (
                     <label key={item.id}>
                       <input
@@ -160,17 +166,17 @@ export function WorkspaceSettings({
                           })
                         }
                       />
-                      <span>{item.label}</span>
+                      <span>{t(item.label)}</span>
                     </label>
                   ))}
                 </fieldset>
                 <div className="sidebar-count-setting">
                   <div>
-                    <h3>显示任务数量</h3>
-                    <p>在视图、项目和收藏右侧显示数量</p>
+                    <h3>{t("显示任务数量")}</h3>
+                    <p>{t("在视图、项目和收藏右侧显示数量")}</p>
                   </div>
                   <Switch
-                    aria-label="显示任务数量"
+                    aria-label={t("显示任务数量")}
                     checked={sidebarPreferences.showCounts}
                     onCheckedChange={(showCounts) =>
                       onSidebarPreferencesChange({
@@ -181,7 +187,7 @@ export function WorkspaceSettings({
                   />
                 </div>
                 <p className="settings-theme-hint">
-                  隐藏的视图仍可通过搜索打开。设置自动保存在服务端。
+                  {t("隐藏的视图仍可通过搜索打开。设置自动保存在服务端。")}
                 </p>
               </div>
             ) : section === "time" ? (
@@ -206,14 +212,30 @@ export function WorkspaceSettings({
               />
             ) : (
               <div className="space-y-6">
+                <label className="flex flex-wrap items-center justify-between gap-3 text-sm font-medium">
+                  <span>{t("语言")}</span>
+                  <select
+                    className="min-h-10 rounded-md border border-input bg-background px-3 text-sm font-normal text-foreground"
+                    value={locale}
+                    onChange={(event) =>
+                      setLanguage(event.currentTarget.value as Language)
+                    }
+                  >
+                    {languages.map(({ id, name }) => (
+                      <option key={id} value={id} lang={id}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <fieldset className="space-y-2.5">
                   <legend className="mb-2.5 text-sm font-medium">
-                    完成任务后
+                    {t("完成任务后")}
                   </legend>
                   {(
                     [
-                      ["hide", "收起已完成任务"],
-                      ["strikethrough", "保留任务并显示删除线"],
+                      ["hide", t("收起已完成任务")],
+                      ["strikethrough", t("保留任务并显示删除线")],
                     ] as const
                   ).map(([value, label]) => (
                     <label
@@ -236,18 +258,21 @@ export function WorkspaceSettings({
 
                 <fieldset className="space-y-3 border-t border-border/70 pt-5">
                   <legend className="text-sm font-medium">
-                    「现在能做」处理中数量上限
+                    {t("「现在能做」处理中数量上限")}
                   </legend>
                   <p className="text-xs text-muted-foreground">
-                    控制同时留在「处理中」区域的任务上限（
-                    {MIN_DOING_LIMIT}–{MAX_DOING_LIMIT} 条，默认 {DOING_LIMIT}{" "}
-                    条）；修改后自动保存在服务端并多端同步。
+                    {t(
+                      "范围 {0}–{1} · 默认 {2}",
+                      MIN_DOING_LIMIT,
+                      MAX_DOING_LIMIT,
+                      DOING_LIMIT,
+                    )}
                   </p>
                   <div className="flex flex-wrap items-center gap-2 pt-0.5">
                     <div className="inline-flex items-center rounded-md border border-border bg-background">
                       <button
                         type="button"
-                        aria-label="减少处理中数量上限"
+                        aria-label={t("减少处理中数量上限")}
                         disabled={disabled || doingLimit <= MIN_DOING_LIMIT}
                         onClick={() =>
                           onDoingLimitChange?.(
@@ -260,7 +285,7 @@ export function WorkspaceSettings({
                       </button>
                       <input
                         type="number"
-                        aria-label="处理中数量上限"
+                        aria-label={t("处理中数量上限")}
                         min={MIN_DOING_LIMIT}
                         max={MAX_DOING_LIMIT}
                         value={doingLimit}
@@ -282,7 +307,7 @@ export function WorkspaceSettings({
                       />
                       <button
                         type="button"
-                        aria-label="增加处理中数量上限"
+                        aria-label={t("增加处理中数量上限")}
                         disabled={disabled || doingLimit >= MAX_DOING_LIMIT}
                         onClick={() =>
                           onDoingLimitChange?.(
@@ -308,7 +333,7 @@ export function WorkspaceSettings({
                               : "border-border text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                           }`}
                         >
-                          {preset} 条
+                          {preset} {t("条")}
                         </button>
                       ))}
                     </div>

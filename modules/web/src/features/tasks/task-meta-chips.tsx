@@ -1,4 +1,5 @@
 import { createContext, useContext } from "react";
+import { useI18n } from "@/app/language";
 import { DescriptionPopover } from "./description-popover";
 import type { TaskCostSummary } from "@core/time/model";
 import {
@@ -60,13 +61,15 @@ export function StateChip({
   blocked?: boolean;
 }) {
   const groupedState = useContext(TaskStateGroupContext);
+  const { t, locale } = useI18n();
   if (!state || state === "completed") return null;
-  const label = STATE_LABELS[state] ?? state;
+  const label = t(STATE_LABELS[state] ?? state);
   const titleParts: string[] = [label];
-  if (state === "waiting" && waitReason) titleParts.push(`原因: ${waitReason}`);
+  if (state === "waiting" && waitReason)
+    titleParts.push(`${t("原因：")}${waitReason}`);
   if ((state === "waiting" || state === "parked") && waitDate) {
     titleParts.push(
-      `${state === "waiting" ? "核对日" : "复查日"}: ${toDueDay(waitDate) || dueLabel(waitDate)}`,
+      `${t(state === "waiting" ? "核对日：" : "复查日：")}${dueLabel(waitDate, locale)}`,
     );
   }
   return (
@@ -83,10 +86,10 @@ export function StateChip({
       {blocked && (
         <span
           data-task-blocked-chip
-          title="存在未完成的前置依赖任务"
+          title={t("存在未完成的前置依赖任务")}
           className="inline-flex shrink-0 items-center rounded border border-rose-500/30 bg-rose-500/12 px-1.5 py-0.5 text-[11px] leading-none font-medium text-rose-700 dark:text-rose-300 whitespace-nowrap"
         >
-          被阻塞
+          {t("被阻塞")}
         </span>
       )}
     </>
@@ -157,6 +160,7 @@ export function TaskMetaChips({
 }) {
   const groupLabel = useContext(TaskGroupLabelContext);
   const groupedState = useContext(TaskStateGroupContext);
+  const { t, locale } = useI18n();
   const visibleTags = task.tags.filter((tag) => tag !== groupLabel);
   const hiddenTags = visibleTags.slice(1);
   const dueDay = toDueDay(task.due);
@@ -229,8 +233,8 @@ export function TaskMetaChips({
                   )}
                 >
                   <TodoistCalendarGlyph />
-                  {overdue && "逾期 · "}
-                  {dueLabel(task.due)}
+                  {overdue && `${t("逾期")} · `}
+                  {dueLabel(task.due, locale)}
                 </button>
               }
             />
@@ -244,8 +248,8 @@ export function TaskMetaChips({
             )}
           >
             <TodoistCalendarGlyph />
-            {overdue && !checked && "逾期 · "}
-            {dueLabel(task.due)}
+            {overdue && !checked && `${t("逾期")} · `}
+            {dueLabel(task.due, locale)}
           </span>
         ))}
 
@@ -468,7 +472,7 @@ export function TaskMetaChips({
             <Inbox className="size-3 shrink-0 opacity-80" strokeWidth={1.6} />
           )}
           <span className="min-w-0 truncate">
-            {task.project ? projectLeaf(task.project) : "收件箱"}
+            {task.project ? projectLeaf(task.project) : t("收件箱")}
           </span>
         </span>
       )}

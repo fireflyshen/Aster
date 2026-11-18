@@ -1,7 +1,8 @@
 "use client";
 
 import { cn } from "cn";
-import { zhCN } from "date-fns/locale";
+import { enUS, ja, zhCN } from "date-fns/locale";
+import { useI18n } from "@/app/language";
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -24,20 +25,22 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  locale: localeOverride,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
   const defaultClassNames = getDefaultClassNames();
+  const { locale, t } = useI18n();
 
   return (
     <DayPicker
-      locale={zhCN}
+      locale={localeOverride ?? { "zh-CN": zhCN, ja, en: enUS }[locale]}
       weekStartsOn={1}
       labels={{
-        labelPrevious: () => "上个月",
-        labelNext: () => "下个月",
-        labelNav: () => "月份导航",
+        labelPrevious: () => t("上个月"),
+        labelNext: () => t("下个月"),
+        labelNav: () => t("月份导航"),
       }}
       showOutsideDays={showOutsideDays}
       className={cn(
@@ -49,7 +52,7 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+          date.toLocaleString(locale, { month: "short" }),
         ...formatters,
       }}
       classNames={{

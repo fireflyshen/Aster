@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,6 +54,7 @@ export function HabitsWorkspace({
   onEditHabit?: (habit: HabitListItem) => void;
   onOpenEditTask?: (task: Task) => void;
 }) {
+  const { t } = useI18n();
   const taskByUuid = useMemo(
     () => new Map(tasks.map((item) => [item.uuid, item])),
     [tasks],
@@ -107,7 +109,7 @@ export function HabitsWorkspace({
               variant="outline"
               onClick={() => void controller.refreshWorkspace()}
             >
-              重试
+              {t("重试")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -120,8 +122,8 @@ export function HabitsWorkspace({
             [
               { id: "active", label: "进行中" },
               { id: "paused", label: "已暂停" },
-              { id: "archived", label: "已归档" },
-              { id: "all", label: "全部" },
+              { id: "archived", label: t("已归档") },
+              { id: "all", label: t("全部") },
             ] as const
           ).map((tab) => (
             <button
@@ -150,13 +152,13 @@ export function HabitsWorkspace({
             }
           >
             <SelectTrigger
-              aria-label="按项目筛选习惯"
+              aria-label={t("按项目筛选习惯")}
               className="h-8 w-auto min-w-[110px] border-border/70 bg-transparent px-2.5 text-xs shadow-none"
             >
-              <SelectValue placeholder="全部项目" />
+              <SelectValue placeholder={t("全部项目")} />
             </SelectTrigger>
             <SelectContent align="end">
-              <SelectItem value={ALL_VALUE}>全部项目</SelectItem>
+              <SelectItem value={ALL_VALUE}>{t("全部项目")}</SelectItem>
               {projectChoices.map((proj) => (
                 <SelectItem key={proj} value={proj}>
                   <span className="inline-flex items-center gap-1.5">
@@ -175,13 +177,13 @@ export function HabitsWorkspace({
             }
           >
             <SelectTrigger
-              aria-label="按标签筛选习惯"
+              aria-label={t("按标签筛选习惯")}
               className="h-8 w-auto min-w-[104px] border-border/70 bg-transparent px-2.5 text-xs shadow-none"
             >
-              <SelectValue placeholder="全部标签" />
+              <SelectValue placeholder={t("全部标签")} />
             </SelectTrigger>
             <SelectContent align="end">
-              <SelectItem value={ALL_VALUE}>全部标签</SelectItem>
+              <SelectItem value={ALL_VALUE}>{t("全部标签")}</SelectItem>
               {tagChoices.map((tag) => (
                 <SelectItem key={tag} value={tag}>
                   @{tag}
@@ -197,30 +199,27 @@ export function HabitsWorkspace({
             className="h-8 gap-1 px-3 text-xs"
           >
             <Plus className="size-3.5" />
-            新建习惯
+            {t("新建习惯")}
           </Button>
         </div>
       </div>
 
       {/* Aggregate Heatmap Card */}
       <section
-        aria-label="习惯综合热力图"
+        aria-label={t("习惯综合热力图")}
         className="min-w-0 border-y border-border/60 py-4"
       >
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-semibold text-foreground">
-              {controller.projectFilter || controller.tagFilter
-                ? "筛选范围热力图"
-                : "综合热力图"}
+              {t("热力图")}
             </h2>
             {controller.heatmap && (
               <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                近 {controller.rangeDays} 天已安排{" "}
-                {controller.heatmap.summary.totalScheduledDays} 天 · 全达成{" "}
-                {controller.heatmap.summary.perfectDays} 天 · 累计完成{" "}
+                {t("全达成")} {controller.heatmap.summary.perfectDays}/
+                {controller.heatmap.summary.totalScheduledDays} {t("天 · 完成")}{" "}
                 {controller.heatmap.summary.achievedTotal}/
-                {controller.heatmap.summary.scheduledTotal} 项
+                {controller.heatmap.summary.scheduledTotal} {t("项")}
               </p>
             )}
           </div>
@@ -238,7 +237,8 @@ export function HabitsWorkspace({
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {days}天
+                {days}
+                {t("天")}
               </button>
             ))}
           </div>
@@ -253,7 +253,7 @@ export function HabitsWorkspace({
         ) : (
           <div className="flex items-center gap-2 py-8 text-xs text-muted-foreground">
             <Spinner className="size-4" />
-            加载热力图…
+            {t("加载中…")}
           </div>
         )}
       </section>
@@ -292,10 +292,10 @@ export function HabitsWorkspace({
       )}
 
       {/* Habits List */}
-      <section aria-label="习惯列表" className="space-y-2.5">
+      <section aria-label={t("习惯列表")} className="space-y-2.5">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-foreground">
-            习惯清单
+            {t("清单")}
             <span className="ml-1.5 text-xs font-normal tabular-nums text-muted-foreground">
               {controller.habits.length}
             </span>
@@ -311,7 +311,7 @@ export function HabitsWorkspace({
               }}
               className="h-6 px-2 text-xs text-muted-foreground"
             >
-              清除筛选
+              {t("清除筛选")}
             </Button>
           )}
         </div>
@@ -319,19 +319,14 @@ export function HabitsWorkspace({
         {controller.loading && controller.habits.length === 0 ? (
           <div className="flex items-center gap-2 py-8 text-xs text-muted-foreground">
             <Spinner className="size-4" />
-            加载习惯列表…
+            {t("加载中…")}
           </div>
         ) : controller.habits.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/80 py-12 text-center">
             <p className="text-sm font-medium text-foreground">
               {controller.projectFilter || controller.tagFilter
-                ? "当前筛选条件下没有习惯"
-                : controller.statusFilter === "active"
-                  ? "还没有进行中的习惯"
-                  : "该状态下暂无习惯"}
-            </p>
-            <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-              可以记录想坚持的好习惯（含可展开动作清单的训练），或想减少的坏习惯（只记录破例）。
+                ? t("无匹配")
+                : t("无习惯")}
             </p>
             {controller.statusFilter === "active" &&
               !controller.projectFilter &&
@@ -343,7 +338,7 @@ export function HabitsWorkspace({
                   className="mt-4 gap-1.5 text-xs"
                 >
                   <Plus className="size-3.5" />
-                  新建第一个习惯
+                  {t("新建习惯")}
                 </Button>
               )}
           </div>
@@ -352,7 +347,7 @@ export function HabitsWorkspace({
             {controller.habits.map((habit) => (
               <div
                 key={habit.id}
-                className="habit-review-row group relative -mx-3 min-w-0 rounded-lg px-3 py-2.5 transition-colors"
+                className="habit-review-row group relative min-w-0 py-2.5 transition-colors"
               >
                 <div className="habit-review-main min-w-0">
                   <button
@@ -367,17 +362,17 @@ export function HabitsWorkspace({
                       {habit.kind === "negative" ? (
                         <>
                           <ShieldCheck className="size-3 text-(--habit-accent)" />
-                          反向
+                          {t("反向")}
                         </>
                       ) : habit.completionMode === "checklist" ? (
                         <>
                           <Dumbbell className="size-3 text-(--habit-accent)" />
-                          {habit.abEnabled ? "A/B 训练" : "动作清单"}
+                          {habit.abEnabled ? t("A/B 训练") : t("动作清单")}
                         </>
                       ) : habit.trackTime ? (
-                        "计时打卡"
+                        t("计时打卡")
                       ) : (
-                        "普通打卡"
+                        t("普通打卡")
                       )}
                     </span>
                     <span className="text-xs text-muted-foreground">
@@ -390,7 +385,7 @@ export function HabitsWorkspace({
                     )}
                     {habit.status === "archived" && (
                       <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        已归档
+                        {t("已归档")}
                       </span>
                     )}
                   </button>
@@ -424,13 +419,14 @@ export function HabitsWorkspace({
                     />
                     <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums">
                       <Sparkles className="size-3 text-(--habit-accent)" />
-                      连续 {habit.streak.currentStreak} {habit.streak.unit}
+                      {t("连续")} {habit.streak.currentStreak}{" "}
+                      {habit.streak.unit}
                     </span>
                     <span className="whitespace-nowrap tabular-nums">
-                      近30天 {habit.streak.recent30Achieved}/
+                      {t("近30天")} {habit.streak.recent30Achieved}/
                       {habit.streak.recent30Scheduled}
                       {habit.kind === "negative" &&
-                        ` · 发生 ${habit.streak.recent30Events}次`}
+                        t(" · 发生 {0}次", habit.streak.recent30Events)}
                     </span>
                   </div>
                 </div>
@@ -440,7 +436,7 @@ export function HabitsWorkspace({
                     type="button"
                     variant="ghost"
                     size="icon-xs"
-                    aria-label={`编辑 ${habit.title}`}
+                    aria-label={t("编辑 {0}", habit.title)}
                     onClick={() => openEdit(habit)}
                     className="size-7 text-muted-foreground hover:text-foreground"
                   >
@@ -451,7 +447,7 @@ export function HabitsWorkspace({
                       type="button"
                       variant="ghost"
                       size="icon-xs"
-                      aria-label={`暂停 ${habit.title}`}
+                      aria-label={t("暂停 {0}", habit.title)}
                       disabled={controller.busy}
                       onClick={() =>
                         void controller.setHabitStatus(habit.id, "paused")
@@ -465,7 +461,7 @@ export function HabitsWorkspace({
                       type="button"
                       variant="ghost"
                       size="icon-xs"
-                      aria-label={`恢复 ${habit.title}`}
+                      aria-label={t("恢复 {0}", habit.title)}
                       disabled={controller.busy}
                       onClick={() =>
                         void controller.setHabitStatus(habit.id, "active")
@@ -484,7 +480,7 @@ export function HabitsWorkspace({
                       type="button"
                       variant="ghost"
                       size="icon-xs"
-                      aria-label={`归档 ${habit.title}`}
+                      aria-label={t("归档 {0}", habit.title)}
                       disabled={controller.busy}
                       onClick={() =>
                         void controller.setHabitStatus(habit.id, "archived")

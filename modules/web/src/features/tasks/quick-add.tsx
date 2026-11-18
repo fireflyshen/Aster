@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +65,7 @@ export function QuickAdd({
   availableLabels?: SavedTag[];
   defaultProject?: string;
 }) {
+  const { t } = useI18n();
   const [noProject, setNoProject] = useState(false);
   const [text, setText] = useState("");
   const [note, setNote] = useState("");
@@ -88,7 +90,7 @@ export function QuickAdd({
   const locked = busy || blocked;
   const validation =
     parsed.errors[0] ||
-    (attempted && !parsed.task.description ? "请输入任务名称。" : "");
+    (attempted && !parsed.task.description ? t("请输入任务名称。") : "");
   const dueToken = parsed.tokens.find((t) => t.kind === "due" && !t.ignored);
   const dueDay = toDueDay(parsed.task.due);
 
@@ -195,15 +197,15 @@ export function QuickAdd({
           if (busy) e.preventDefault();
         }}
       >
-        <DialogTitle className="sr-only">快速添加任务</DialogTitle>
+        <DialogTitle className="sr-only">{t("快速添加任务")}</DialogTitle>
         <DialogDescription className="sr-only">
-          输入任务名称、日期、项目、标签和优先级，按回车添加。
+          {t("输入任务名称、日期、项目、标签和优先级，按回车添加。")}
         </DialogDescription>
         <form noValidate onSubmit={submit} className="flex min-h-0 flex-col">
           <div className="min-h-0 overflow-y-auto overscroll-contain p-3.5 pb-2.5">
             <div data-quick-input-row className="relative min-w-0">
               <Label htmlFor="quick-expression" className="sr-only">
-                任务表达式
+                {t("任务表达式")}
               </Label>
               <div
                 ref={mirror}
@@ -218,7 +220,7 @@ export function QuickAdd({
                 value={text}
                 rows={1}
                 maxLength={4000}
-                placeholder="任务名称（支持 #项目, @标签, 今天/明天, p1）"
+                placeholder={t("任务名称")}
                 disabled={locked}
                 aria-describedby={
                   validation || error ? "quick-error" : undefined
@@ -277,8 +279,8 @@ export function QuickAdd({
               rows={1}
               maxLength={2000}
               disabled={locked}
-              aria-label="任务描述"
-              placeholder="描述"
+              aria-label={t("任务描述")}
+              placeholder={t("描述")}
               onChange={(e) => setNote(e.target.value)}
               onKeyDown={(e) => {
                 if (
@@ -354,7 +356,7 @@ export function QuickAdd({
                     className="h-auto p-0 text-xs text-current"
                     onClick={onCheck}
                   >
-                    关闭并检查任务
+                    {t("关闭并检查任务")}
                   </Button>
                 )}
               </AlertDescription>

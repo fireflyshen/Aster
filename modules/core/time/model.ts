@@ -98,7 +98,9 @@ export function createDefaultTimePolicy(): TimePolicy {
 
 export type ActivityKind = "located" | "unlocated_estimate";
 export type ActivityPrecision =
-  "exact" | "estimated_bounds" | "estimated_duration";
+  | "exact"
+  | "estimated_bounds"
+  | "estimated_duration";
 export type ActivitySource =
   | "timer"
   | "manual"
@@ -107,7 +109,10 @@ export type ActivitySource =
   | "timewarrior_import"
   | "task_bridge";
 export type ActivityReviewState =
-  "ok" | "review_required" | "conflict" | "voided";
+  | "ok"
+  | "review_required"
+  | "conflict"
+  | "voided";
 export type ActivityReviewReason =
   | "long_activity"
   | "checkpoint_overdue"
@@ -126,11 +131,22 @@ export type ActivityStopReason =
   | "task_delete"
   | "restore_freeze";
 export type TimingPlanStopBasis =
-  "duration_limit" | "hard_deadline" | "both_limits";
+  | "duration_limit"
+  | "hard_deadline"
+  | "both_limits";
 export type TimingPlanStatus =
-  "scheduled" | "active" | "paused" | "stopped" | "expired" | "archived";
+  | "scheduled"
+  | "active"
+  | "paused"
+  | "stopped"
+  | "expired"
+  | "archived";
 export type RuleSource =
-  "explicit" | "task_override" | "project_rule" | "tag_rule" | "uncategorized";
+  | "explicit"
+  | "task_override"
+  | "project_rule"
+  | "tag_rule"
+  | "uncategorized";
 
 export type Activity = {
   id: string;
@@ -247,7 +263,10 @@ export type ActiveActivitySnapshot = {
 };
 
 export type TimerSnapshotState =
-  "ready" | "pending_reconcile" | "restoring" | "unavailable";
+  | "ready"
+  | "pending_reconcile"
+  | "restoring"
+  | "unavailable";
 
 export type TaskBudget = {
   taskUuid: string;

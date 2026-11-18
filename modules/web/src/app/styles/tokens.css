@@ -57,6 +57,8 @@
   --navigation-selected: #e5e2dc;
   --navigation-selected-ink: #1e1e20;
   --row-hover: #f2f0ec;
+  --row-hover-gutter: 12px;
+  --row-hover-radius: 8px;
   --drag-cavity: #e6e4de;
   --drag-cavity-compact: #edece7;
   /* Softened eye-comfort Todoist task semantic tokens */

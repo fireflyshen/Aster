@@ -1,5 +1,6 @@
+import { useI18n } from "@/app/language";
 import { useMemo, useState } from "react";
-import { Play, Plus } from "lucide-react";
+import { FilePlus2, Play } from "lucide-react";
 import type {
   Activity,
   DailyLedgerSummary,
@@ -18,8 +19,11 @@ import {
 } from "@core/time/zone";
 import type { SavedTag } from "@core/workspace/organization";
 import type { Task } from "@shared/tasks";
-import { Button } from "@/components/ui/button";
-import { LedgerPeriodPicker, LedgerSummary } from "./ledger-ui";
+import {
+  LedgerIconButton,
+  LedgerPeriodPicker,
+  LedgerSummary,
+} from "./ledger-ui";
 import { collectProjectOptions, collectTagOptions } from "./project-tag-fields";
 import {
   estimateTimeActivity,
@@ -86,6 +90,7 @@ export function TimeTodayPage({
   onAckEvents: (eventIds: string[]) => Promise<void> | void;
   runMutation: LedgerMutation;
 }) {
+  const { t, locale } = useI18n();
   const timeZone = policy.timezone || "UTC";
   const today = localDateOf(Date.now(), timeZone);
   const currentDateLoaded = daily.date === selectedDate;
@@ -134,40 +139,36 @@ export function TimeTodayPage({
         message = error;
       },
     });
-    return result ? null : message || "保存失败，请重试。";
+    return result ? null : message || t("保存失败，请重试。");
   }
   return (
     <div className="ledger-page ledger-record-page">
       <LedgerPeriodPicker
         date={selectedDate}
-        label="选择记录日期"
+        label={t("选择记录日期")}
         onDate={onSelectDate}
         onPrevious={() => onSelectDate(addLocalDays(selectedDate, -1))}
         onNext={() => onSelectDate(addLocalDays(selectedDate, 1))}
         onToday={() => onSelectDate(today)}
       >
         {!status?.activeActivity && (
-          <Button
-            size="sm"
-            variant="ghost"
+          <LedgerIconButton
+            label={t("计时")}
             disabled={busy}
             aria-expanded={composing}
             aria-controls={composing ? "ledger-capture" : undefined}
             onClick={() => setComposing((value) => !value)}
           >
             <Play className="size-3.5" />
-            计时
-          </Button>
+          </LedgerIconButton>
         )}
-        <Button
-          size="sm"
-          variant="ghost"
+        <LedgerIconButton
+          label={t("补记")}
           disabled={busy || !currentDateLoaded}
           onClick={() => openLog()}
         >
-          <Plus className="size-3.5" />
-          补记
-        </Button>
+          <FilePlus2 className="size-4" />
+        </LedgerIconButton>
       </LedgerPeriodPicker>
       <TimeCapturePanel
         status={status}
@@ -187,13 +188,13 @@ export function TimeTodayPage({
       <LedgerSummary
         items={[
           {
-            label: "已确认时长",
+            label: t("已确认时长"),
             value: currentDateLoaded
-              ? formatLedgerDuration(daily.coveredSeconds)
+              ? formatLedgerDuration(daily.coveredSeconds, locale)
               : "—",
           },
           {
-            label: "时间折算",
+            label: t("时间折算"),
             value: currentDateLoaded
               ? formatCurrencyCny(daily.confirmedCostCents)
               : "—",
@@ -201,8 +202,8 @@ export function TimeTodayPage({
           ...(currentDateLoaded && daily.provisionalSeconds > 0
             ? [
                 {
-                  label: "待核对时长",
-                  value: formatLedgerDuration(daily.provisionalSeconds),
+                  label: t("待核对"),
+                  value: formatLedgerDuration(daily.provisionalSeconds, locale),
                   attention: true,
                 },
               ]
@@ -260,10 +261,12 @@ export function TimeTodayPage({
         segments={currentDateLoaded ? daily.locatedSegments : []}
         busy={busy}
         onSubmitLog={(input) =>
-          submitDialog(`补记：${input.title}`, () => logTimeActivity(input))
+          submitDialog(t("补记：{0}", input.title), () =>
+            logTimeActivity(input),
+          )
         }
         onSubmitEstimate={(input) =>
-          submitDialog(`估记：${input.title}`, () =>
+          submitDialog(t("估记：{0}", input.title), () =>
             estimateTimeActivity(input),
           )
         }
@@ -278,7 +281,7 @@ export function TimeTodayPage({
           if (!open) setLocating(null);
         }}
         onLocate={(input) =>
-          submitDialog("定位估记", () => locateTimeEstimate(input))
+          submitDialog(t("定位估记"), () => locateTimeEstimate(input))
         }
       />
       <EditSegmentDialog
@@ -294,7 +297,7 @@ export function TimeTodayPage({
           if (!open) setEditing(null);
         }}
         onSave={(input) =>
-          submitDialog("修正活动", () => updateTimeActivity(input))
+          submitDialog(t("修正活动"), () => updateTimeActivity(input))
         }
       />
     </div>

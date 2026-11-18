@@ -100,6 +100,9 @@ test("empty Today section does not claim everything is complete while overdue wo
     },
   ]);
   assert.ok(html.includes("今天暂无安排"));
-  assert.ok(html.includes("1 项逾期任务"));
+  const overdue = html
+    .split('aria-label="逾期任务"')[1]
+    .split('aria-label="今日任务"')[0];
+  assert.ok(overdue.includes("未完成"));
   assert.ok(!html.includes("今天的所有任务已完成"));
 });

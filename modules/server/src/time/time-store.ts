@@ -3998,10 +3998,9 @@ export async function createTimeStore(
           a.startMs !== undefined &&
           a.reviewState !== "voided",
       )
-      .reduce<number | undefined>(
-        (min, a) => (min === undefined || a.startMs! < min ? a.startMs! : min),
-        undefined,
-      );
+      .reduce<
+        number | undefined
+      >((min, a) => (min === undefined || a.startMs! < min ? a.startMs! : min), undefined);
 
     const policy = parsePolicy(meta);
     const policyRate = normalizeHourlyRateCents(policy.hourlyRateCents);
@@ -4825,7 +4824,10 @@ export async function createTimeStore(
             state: op.state,
             timeEffect:
               (parsed.timeEffect as
-                "started" | "switched" | "stopped" | "none") ?? "none",
+                | "started"
+                | "switched"
+                | "stopped"
+                | "none") ?? "none",
             receipt: parsed,
           };
         }
@@ -5371,7 +5373,8 @@ export async function createTimeStore(
         applied: true,
         state: "applied" as OperationState,
         timeEffect: (closedActivity ? "switched" : "started") as
-          "switched" | "started",
+          | "switched"
+          | "started",
         receipt,
         activity: newActivity,
         closedActivity,

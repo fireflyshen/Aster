@@ -1,6 +1,7 @@
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { type ReactNode } from "react";
 import { useWideWorkspace } from "@/lib/use-desktop";
+import { useI18n } from "@/app/language";
 
 export function WorkspaceNavigation({
   open,
@@ -13,6 +14,7 @@ export function WorkspaceNavigation({
   children: ReactNode;
   showCounts?: boolean;
 }) {
+  const { t } = useI18n();
   const desktop = useWideWorkspace();
   const contentClass =
     "flex flex-col overflow-y-auto bg-sidebar px-3 pb-3 [&>*]:shrink-0";
@@ -21,7 +23,7 @@ export function WorkspaceNavigation({
       <aside
         data-show-counts={showCounts}
         id="workspace-navigation"
-        aria-label="Workspace navigation"
+        aria-label={t("侧栏导航")}
         data-state={open ? "open" : "closed"}
         aria-hidden={!open}
         inert={!open}
@@ -45,7 +47,7 @@ export function WorkspaceNavigation({
         }}
         className={`${contentClass} w-[280px] gap-0 border-0 pt-[env(safe-area-inset-top)] pb-[max(0.75rem,env(safe-area-inset-bottom))] data-[state=open]:duration-200 data-[state=closed]:duration-200`}
       >
-        <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
+        <SheetTitle className="sr-only">{t("侧栏导航")}</SheetTitle>
         {children}
       </SheetContent>
     </Sheet>

@@ -337,7 +337,7 @@ export function App() {
           projects={filterProjects}
           viewCounts={viewCounts}
           busy={data.busy}
-          needsCheck={data.needsCheck}
+          addDisabled={workspaceLocked}
           organizationSaving={
             data.organizationSaving ||
             !data.organizationReady ||
@@ -389,6 +389,8 @@ export function App() {
             query={nav.query}
             loading={data.loading}
             busy={data.busy}
+            addDisabled={workspaceLocked}
+            onAdd={taskActions.openQuickAdd}
             onOpenNav={() => nav.setNavigation(true)}
             onOpenCommand={() => nav.setCommandOpen(true)}
             onToggleSearch={() => {
@@ -451,7 +453,6 @@ export function App() {
             headerDescDraft={projectActions.headerDescDraft}
             setHeaderDescDraft={projectActions.setHeaderDescDraft}
             onSelectProject={nav.selectProject}
-            onSelectView={nav.selectView}
             onOpenEntry={nav.openEntry}
             onOpenOrganization={() =>
               nav.openManagementPage("organization", false)

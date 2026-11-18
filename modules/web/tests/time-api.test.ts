@@ -48,6 +48,13 @@ const compiledFormat = esbuild.buildSync({
 const formatUrl = `data:text/javascript;base64,${Buffer.from(compiledFormat.outputFiles[0].text).toString("base64")}`;
 const timeFormat = await import(formatUrl);
 
+test("time log durations stay compact in all supported languages", () => {
+  assert.equal(timeFormat.formatLedgerDuration(5_400, "zh-CN"), "1时30分");
+  assert.equal(timeFormat.formatLedgerDuration(5_400, "ja"), "1時間30分");
+  assert.equal(timeFormat.formatLedgerDuration(5_400, "en"), "1h 30m");
+  assert.equal(timeFormat.formatLedgerDuration(42, "en"), "42s");
+});
+
 test("web time-api routes cleanly through real server handlers without double /api prefix or wrapped POST bodies", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "aster-web-time-"));
   const dbPath = path.join(dir, "time.sqlite");

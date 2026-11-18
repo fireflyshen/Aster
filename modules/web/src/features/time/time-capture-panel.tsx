@@ -1,5 +1,6 @@
+import { useI18n } from "@/app/language";
 import { useRef, useState, type FormEvent } from "react";
-import { Clock3, Pause, Play, Square } from "lucide-react";
+import { ArrowLeftRight, Clock3, Pause, Play, Square, X } from "lucide-react";
 import { hasTimeAssignment } from "@core/time/assignment";
 import type { TimerSnapshot } from "@core/time/model";
 import { snapshotLiveStatus } from "@core/time/snapshot";
@@ -15,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ProjectTagFields } from "./project-tag-fields";
+import { LedgerAttribution, LedgerIconButton } from "./ledger-ui";
 import {
   confirmTimeActivity,
   createTimingPlan,
@@ -55,6 +57,7 @@ export function TimeCapturePanel({
   busy: boolean;
   runMutation: LedgerMutation;
 }) {
+  const { t, locale } = useI18n();
   const active = status?.activeActivity;
   const today = localDateOf(Date.now(), timeZone);
   const [switching, setSwitching] = useState(false);
@@ -121,7 +124,7 @@ export function TimeCapturePanel({
         value !== undefined &&
         (!Number.isFinite(value) || value <= 0 || value > 1440)
       )
-        return setError("预计用时须为 1–1440 分钟。");
+        return setError(t("预计用时须为 1–1440 分钟。"));
       allowanceSeconds =
         value === undefined ? undefined : Math.round(value * 60);
       try {
@@ -132,25 +135,25 @@ export function TimeCapturePanel({
           ? zonedDateTimeToUtcMs(planDate, stopTime, timeZone)
           : undefined;
       } catch {
-        return setError("请选择有效的日期和时间。");
+        return setError(t("请选择有效的日期和时间。"));
       }
       if (hardStopAtMs !== undefined && hardStopAtMs <= Date.now())
-        return setError("最晚结束时间已经过去，请调整。");
+        return setError(t("最晚结束时间已经过去，请调整。"));
       if (
         plannedStartAtMs !== undefined &&
         hardStopAtMs !== undefined &&
         plannedStartAtMs >= hardStopAtMs
       )
-        return setError("最晚结束时间须晚于计划开始时间。");
+        return setError(t("最晚结束时间须晚于计划开始时间。"));
       if (
         allowanceSeconds === undefined &&
         plannedStartAtMs === undefined &&
         hardStopAtMs === undefined
       )
-        return setError("请填写预计用时或计划时间。");
+        return setError(t("请填写预计用时或计划时间。"));
     }
     const result = await runMutation(
-      savePlan ? `保存计划：${finalTitle}` : `开始：${finalTitle}`,
+      savePlan ? t("保存计划：{0}", finalTitle) : t("开始：{0}", finalTitle),
       async () => {
         const assignment = {
           title: finalTitle,
@@ -187,7 +190,7 @@ export function TimeCapturePanel({
         onError: (message) =>
           setError(
             preparedPlan.current
-              ? `计划已保存，尚未确认开始。可在下方「已保存计划」检查或开始。${message}`
+              ? t("计划已保存，开始未确认。{0}", message)
               : message,
           ),
       },
@@ -209,18 +212,18 @@ export function TimeCapturePanel({
     <section
       className="ledger-capture-panel"
       id="ledger-capture"
-      aria-label="当前计时"
+      aria-label={t("当前计时")}
     >
       {active && (
         <div className="ledger-active">
           <div className="ledger-active-heading">
             <span className="ledger-live-label" data-stale={Boolean(stale)}>
               <i />
-              {stale ? "等待刷新" : "正在计时"}
+              {stale ? t("待刷新") : t("计时中")}
             </span>
             <span>
               {active.startMs !== undefined
-                ? `${formatClockInZone(active.startMs, timeZone)} 开始`
+                ? formatClockInZone(active.startMs, timeZone)
                 : ""}
             </span>
           </div>
@@ -228,42 +231,48 @@ export function TimeCapturePanel({
             <div className="ledger-active-description">
               <h2>{active.title}</h2>
               <div className="ledger-entry-meta">
-                {active.projectSnapshot && (
-                  <span>{active.projectSnapshot}</span>
-                )}
-                {active.tags?.map((tag) => (
-                  <span key={tag}>#{tag}</span>
-                ))}
+                <LedgerAttribution
+                  project={active.projectSnapshot}
+                  tags={active.tags}
+                />
               </div>
             </div>
             <strong className="ledger-live-duration">
-              {seconds === undefined ? "—" : formatLedgerDuration(seconds)}
+              {seconds === undefined
+                ? "—"
+                : formatLedgerDuration(seconds, locale)}
             </strong>
           </div>
           <div className="ledger-active-footer">
             <span>
               {active.autoStopAtMs
-                ? `最晚 ${formatClockInZone(active.autoStopAtMs, timeZone)} 自动结束`
-                : "手动结束计时"}
-              {active.hourlyRateCents === 0 ? " · 不折算金额" : ""}
+                ? t(
+                    "{0} 截止",
+                    formatClockInZone(active.autoStopAtMs, timeZone),
+                  )
+                : ""}
             </span>
             <div className="ledger-button-row">
-              <Button
-                variant="ghost"
-                size="sm"
+              <LedgerIconButton
+                label={switching ? t("收起") : t("切换活动")}
+                aria-expanded={switching}
                 disabled={busy}
                 onClick={() => setSwitching((value) => !value)}
               >
-                {switching ? "收起" : "切换活动"}
-              </Button>
+                {switching ? (
+                  <X className="size-4" />
+                ) : (
+                  <ArrowLeftRight className="size-4" />
+                )}
+              </LedgerIconButton>
               {active.timingPlanId && (
-                <Button
+                <LedgerIconButton
+                  label={t("暂停")}
                   variant="outline"
-                  size="sm"
                   disabled={busy}
                   onClick={() =>
                     void runMutation(
-                      `暂停：${active.title}`,
+                      t("暂停：{0}", active.title),
                       () =>
                         stopTimeActivity({
                           expectedActivityId: active.id,
@@ -276,15 +285,15 @@ export function TimeCapturePanel({
                   }
                 >
                   <Pause className="size-3.5" />
-                  暂停
-                </Button>
+                </LedgerIconButton>
               )}
-              <Button
-                size="sm"
+              <LedgerIconButton
+                label={t("结束")}
+                variant="default"
                 disabled={busy}
                 onClick={() =>
                   void runMutation(
-                    `结束：${active.title}`,
+                    t("结束：{0}", active.title),
                     () =>
                       stopTimeActivity({
                         expectedActivityId: active.id,
@@ -296,19 +305,18 @@ export function TimeCapturePanel({
                 }
               >
                 <Square className="size-3 fill-current" />
-                结束
-              </Button>
+              </LedgerIconButton>
             </div>
           </div>
           {active.reviewDueAtMs && Date.now() >= active.reviewDueAtMs && (
             <div className="ledger-inline-review">
-              <span>计时已持续较长时间，请确认是否仍在进行。</span>
+              <span>{t("还在计时？")}</span>
               <Button
                 size="sm"
                 variant="outline"
                 disabled={busy}
                 onClick={() =>
-                  void runMutation("确认仍在进行", () =>
+                  void runMutation(t("确认仍在进行"), () =>
                     confirmTimeActivity({
                       activityId: active.id,
                       expectedVersion: active.version,
@@ -317,7 +325,7 @@ export function TimeCapturePanel({
                   )
                 }
               >
-                确认至此
+                {t("确认至此")}
               </Button>
             </div>
           )}
@@ -333,8 +341,8 @@ export function TimeCapturePanel({
               <input
                 id="ledger-activity-title"
                 className="time-quick-title"
-                aria-label="活动名称"
-                placeholder={active ? "切换到…" : "现在做什么？"}
+                aria-label={t("活动名称")}
+                placeholder={active ? t("切换到…") : t("现在做什么？")}
                 autoFocus
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -351,18 +359,18 @@ export function TimeCapturePanel({
             />
             <details className="ledger-composer-options">
               <summary>
-                任务与计划
-                {limited ? " · 已设置" : taskUuid !== "none" ? " · 已关联" : ""}
+                {t("任务与计划")}
+                {limited || taskUuid !== "none" ? " · ✓" : ""}
               </summary>
               <div className="ledger-composer-options-body">
                 <label className="ledger-field">
-                  <span>关联任务</span>
+                  <span>{t("关联任务")}</span>
                   <Select value={taskUuid} onValueChange={selectTask}>
-                    <SelectTrigger aria-label="关联任务">
+                    <SelectTrigger aria-label={t("关联任务")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">不关联任务</SelectItem>
+                      <SelectItem value="none">{t("不关联任务")}</SelectItem>
                       {tasks
                         .filter((task) => task.status === "pending")
                         .map((task) => (
@@ -380,12 +388,12 @@ export function TimeCapturePanel({
                     onChange={(event) => setLimited(event.target.checked)}
                   />
                   <Clock3 className="size-3.5" />
-                  设置用时或最晚结束时间
+                  {t("设置限时")}
                 </label>
                 {limited && (
                   <div className="ledger-plan-fields">
                     <label className="ledger-field">
-                      <span>预计用时 · 分钟</span>
+                      <span>{t("限时（分钟）")}</span>
                       <input
                         type="number"
                         min={1}
@@ -395,11 +403,11 @@ export function TimeCapturePanel({
                       />
                     </label>
                     <label className="ledger-field">
-                      <span>计划日期</span>
+                      <span>{t("计划日期")}</span>
                       <DateField value={planDate} onChange={setPlanDate} />
                     </label>
                     <label className="ledger-field">
-                      <span>计划开始 · 可选</span>
+                      <span>{t("计划开始")}</span>
                       <input
                         type="time"
                         value={plannedTime}
@@ -407,23 +415,21 @@ export function TimeCapturePanel({
                       />
                     </label>
                     <label className="ledger-field">
-                      <span>最晚结束 · 可选</span>
+                      <span>{t("最晚结束")}</span>
                       <input
                         type="time"
                         value={stopTime}
                         onChange={(event) => setStopTime(event.target.value)}
                       />
                     </label>
-                    <p>
-                      计划不会自动开始。手动开始后，到达用时额度或最晚结束时间时自动停止。
-                    </p>
+                    <p>{t("手动开始，到限自动结束。")}</p>
                     <Button
                       variant="outline"
                       type="button"
                       disabled={busy || !ready}
                       onClick={(event) => void submit(event, true)}
                     >
-                      只保存计划
+                      {t("只保存计划")}
                     </Button>
                   </div>
                 )}
@@ -437,19 +443,17 @@ export function TimeCapturePanel({
                   variant="ghost"
                   onClick={onCloseComposer}
                 >
-                  收起
+                  {t("收起")}
                 </Button>
               )}
               <Button type="submit" size="sm" disabled={busy || !ready}>
                 <Play className="size-3.5" />
-                {active ? "切换并开始" : "开始计时"}
+                {active ? t("切换并开始") : t("开始计时")}
               </Button>
             </div>
           </fieldset>
           {selectedDate !== today && (
-            <p className="ledger-muted-note">
-              计时从当前时刻开始。记录所选日期的活动，请使用「补记」。
-            </p>
+            <p className="ledger-muted-note">{t("历史活动用「补记」。")}</p>
           )}
           {error && (
             <p role="alert" className="ledger-form-error">

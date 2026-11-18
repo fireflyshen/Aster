@@ -11,6 +11,7 @@ import {
 import type { Activity, LocatedSegment, TimePolicy } from "@core/time/model";
 import { localDateOf } from "@core/time/zone";
 import { RequestError } from "@/lib/api";
+import { getLanguage, translateUI, type Language } from "@/app/language";
 
 export {
   computeContinuationCostPreview,
@@ -24,9 +25,7 @@ export {
 };
 
 export function projectDisplayName(key: string): string {
-  return key === UNASSIGNED_PROJECT_KEY || !key.trim()
-    ? "未关联项目"
-    : key;
+  return key === UNASSIGNED_PROJECT_KEY || !key.trim() ? "未关联项目" : key;
 }
 
 export function tagDisplayName(key: string): string {
@@ -158,6 +157,7 @@ export function snapMinuteStartToSegments(
 const TIME_ERROR_MESSAGES: Record<string, string> = {
   INVALID_TITLE: "活动标题不能为空（最多 500 个字符）。",
   INVALID_INTERVAL: "结束时间必须晚于开始时间。",
+  TIME_ASSIGNMENT_REQUIRED: "选项目或标签",
   ACTIVITY_NOT_FOUND: "未找到对应的时间记录，请刷新后重试。",
   ACTIVITY_VERSION_CONFLICT: "该记录已在其他窗口更新，请刷新后再试。",
   SESSION_VERSION_CONFLICT: "当前计时状态已发生变化，请刷新后再试。",
@@ -182,7 +182,6 @@ type TimeErrorLike = Error & {
   details?: unknown;
 };
 
-/** Translates Time API errors into actionable Chinese messages with overlap details when present. */
 export function formatTimeErrorMessage(
   error: unknown,
   timeZone: string,
@@ -209,7 +208,7 @@ export function formatTimeErrorMessage(
         const title =
           typeof first.title === "string" && first.title.trim()
             ? first.title.trim()
-            : "已有记录";
+            : translateUI("已有记录");
         const start =
           typeof first.startMs === "number"
             ? formatClockSmart(first.startMs, timeZone)
@@ -218,29 +217,38 @@ export function formatTimeErrorMessage(
           typeof first.endMs === "number"
             ? formatClockSmart(first.endMs, timeZone)
             : typeof first.suspendMs === "number"
-              ? `${formatClockSmart(first.suspendMs, timeZone)}（已暂停）`
-              : "进行中";
+              ? `${formatClockSmart(first.suspendMs, timeZone)} (${translateUI("已暂停")})`
+              : translateUI("进行中");
         const range = start ? `（${start} – ${end}）` : "";
-        const extra =
-          rawConflicts.length > 1 ? `等 ${rawConflicts.length} 条记录` : "";
-        return `所选时段与已有记录「${title}」${range}${extra}重叠，请调整起止时间。`;
+        return translateUI("与「{0}」重叠{1}。", title, range);
       }
-      return "所选时段与已有时间记录重叠，请调整起止时间。";
+      return translateUI("与记录重叠");
     }
     if (code && TIME_ERROR_MESSAGES[code]) {
-      return TIME_ERROR_MESSAGES[code];
+      return translateUI(TIME_ERROR_MESSAGES[code]);
     }
-    return error.message;
+    return translateUI(error.message);
   }
   return String(error);
 }
 
 /** Compact ledger labels use one language and avoid fractional hours. */
-export function formatLedgerDuration(seconds: number): string {
+export function formatLedgerDuration(
+  seconds: number,
+  locale: Language = getLanguage(),
+): string {
   const value = Math.max(0, Math.floor(seconds));
-  if (value < 60) return `${value}秒`;
+  if (value < 60) return `${value}${locale === "en" ? "s" : "秒"}`;
   const minutes = Math.floor(value / 60);
   const hours = Math.floor(minutes / 60);
+  if (locale === "en")
+    return hours
+      ? `${hours}h${minutes % 60 ? ` ${minutes % 60}m` : ""}`
+      : `${minutes}m`;
+  if (locale === "ja")
+    return hours
+      ? `${hours}時間${minutes % 60 ? `${minutes % 60}分` : ""}`
+      : `${minutes}分`;
   return hours
     ? `${hours}时${minutes % 60 ? `${minutes % 60}分` : ""}`
     : `${minutes}分`;

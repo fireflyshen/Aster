@@ -4,6 +4,7 @@ import { Dialog as DialogPrimitive } from "radix-ui";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/app/language";
 
 function Dialog({
   ...props
@@ -55,6 +56,7 @@ function DialogContent({
   showCloseButton?: boolean;
   overlayClassName?: string;
 }) {
+  const { t } = useI18n();
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay className={overlayClassName} />
@@ -70,11 +72,10 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            aria-label="Close"
+            aria-label={t("关闭")}
             className="absolute top-3 right-3 inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none md:size-8 [&_svg]:pointer-events-none [&_svg]:size-4"
           >
             <XIcon />
-            <span className="sr-only">Close</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>
@@ -100,6 +101,7 @@ function DialogFooter({
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <div
       data-slot="dialog-footer"
@@ -112,7 +114,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
+          <Button variant="outline">{t("关闭")}</Button>
         </DialogPrimitive.Close>
       )}
     </div>

@@ -245,8 +245,7 @@ export function OrganizationManager({
                     {items}
                     {!!search.trim() && !items.length && (
                       <p className="py-5 text-sm text-muted-foreground">
-                        未找到匹配的
-                        {kind === "filter" ? "过滤器" : "标签"}
+                        无匹配
                       </p>
                     )}
                     {!list.length &&

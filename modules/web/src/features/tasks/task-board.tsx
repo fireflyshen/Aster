@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { TaskGroupLabelContext } from "./task-meta-chips";
 import { RescheduleOverdue } from "./reschedule-overdue";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -121,6 +122,7 @@ export function TaskBoard({
   onClearError,
   excludedHabitTaskUuids,
 }: TaskBoardProps) {
+  const { t } = useI18n();
   const [announcement, setAnnouncement] = useState("");
   const allTasksList = allTasks.length ? allTasks : tasks;
   const allTasksMap = useMemo(
@@ -185,7 +187,7 @@ export function TaskBoard({
 
   async function move(task: Task, target: DropPosition) {
     if (disabled) return;
-    setAnnouncement(`正在移动 ${task.description}`);
+    setAnnouncement(t("正在移动 {0}", task.description));
     const saved = await onMove(
       task,
       target.columnId,
@@ -193,7 +195,9 @@ export function TaskBoard({
       target.parentUuid,
     );
     setAnnouncement(
-      saved ? `${task.description} 已移动。` : "无法确认移动，请重新加载看板。",
+      saved
+        ? t("{0} 已移动。", task.description)
+        : t("无法确认移动，请重新加载看板。"),
     );
   }
 
@@ -210,7 +214,7 @@ export function TaskBoard({
 
   return (
     <div
-      aria-label={layout === "list" ? "按分区排列的任务列表" : "任务看板"}
+      aria-label={layout === "list" ? t("按分区排列的任务列表") : t("任务看板")}
       aria-busy={loading}
     >
       <p className="sr-only" role="status" aria-live="polite">
@@ -227,7 +231,7 @@ export function TaskBoard({
               className="h-auto justify-start p-0 text-current"
               onClick={() => void onReload()}
             >
-              重新加载
+              {t("重新加载")}
             </Button>
           </AlertDescription>
         </Alert>
@@ -236,20 +240,20 @@ export function TaskBoard({
       {loading && !loaded && (
         <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
           <Spinner className="size-4" />
-          加载中…
+          {t("加载中…")}
         </div>
       )}
 
       {loaded && !loading && !tasks.length && hasSearch && onClearSearch && (
         <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground">
-          <span>当前视图下没有匹配的任务。</span>
+          <span>{t("无匹配")}</span>
           <Button
             variant="ghost"
             size="sm"
             onClick={onClearSearch}
             className="h-8 px-2.5 text-xs text-foreground"
           >
-            清除搜索
+            {t("清除搜索")}
           </Button>
         </div>
       )}
@@ -260,7 +264,9 @@ export function TaskBoard({
         !hasSearch &&
         !canAddTask &&
         !isVirtualGrouped && (
-          <p className="py-8 text-sm text-muted-foreground">暂无已完成任务。</p>
+          <p className="py-8 text-sm text-muted-foreground">
+            {t("暂无已完成任务。")}
+          </p>
         )}
 
       <DndContext
@@ -272,7 +278,7 @@ export function TaskBoard({
           ref={scrollArea}
           data-board-scroll
           role="region"
-          aria-label={layout === "list" ? "任务分组" : "看板版块"}
+          aria-label={layout === "list" ? t("任务分组") : t("看板版块")}
           tabIndex={0}
           onScroll={(event) =>
             onScrollPositionChange(event.currentTarget.scrollLeft)
@@ -371,15 +377,8 @@ export function TaskBoard({
                             <Inbox className="size-6" strokeWidth={1.5} />
                           </div>
                           <h3 className="text-sm font-medium text-foreground">
-                            暂无任务
+                            {hasSearch ? t("无匹配") : t("无任务")}
                           </h3>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {canAddTask
-                              ? "在下方添加任务以开始"
-                              : hasSearch
-                                ? "当前过滤条件下没有匹配的任务"
-                                : "当前视图下暂无任务"}
-                          </p>
                         </div>
                       )}
                     <TaskGroupLabelContext.Provider
@@ -437,13 +436,16 @@ export function TaskBoard({
                         mode="add"
                         compact={layout === "list"}
                         disabled={disabled}
-                        ariaLabel={`在${columnDisplayName(column)}中添加任务`}
+                        ariaLabel={t(
+                          "在{0}中添加任务",
+                          columnDisplayName(column),
+                        )}
                         placeholder={
                           column.id !== UNSECTIONED &&
                           column.id !== "group:none" &&
                           column.id !== "group:today:today"
-                            ? `在“${columnDisplayName(column)}”中添加任务…`
-                            : "添加任务（支持 #项目, @标签, 明天, p1）"
+                            ? t("在“{0}”中添加任务…", columnDisplayName(column))
+                            : t("添加任务（支持 #项目, @标签, 明天, p1）")
                         }
                         initialValue={taskDefaultsForGroup(column, {
                           project: defaultProject,

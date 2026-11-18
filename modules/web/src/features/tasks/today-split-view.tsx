@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { RescheduleOverdue } from "./reschedule-overdue";
 import { TodoistTaskComposer } from "@/features/tasks/todoist-task-composer";
 import { taskDate } from "@core/tasks/quick-task";
@@ -63,6 +64,7 @@ export function TodaySplitView({
   onAdd,
   excludedTaskUuids,
 }: TodaySplitViewProps) {
+  const { t } = useI18n();
   const [overdueCollapsed, setOverdueCollapsed] = useState(false);
 
   const visibleColumnIds = new Set(columns.map((col) => col.id));
@@ -111,7 +113,7 @@ export function TodaySplitView({
       {overdueEntries.length > 0 && (
         <section
           data-board-column={UNSECTIONED}
-          aria-label="逾期任务"
+          aria-label={t("逾期任务")}
           className="min-w-0"
         >
           <div
@@ -132,7 +134,9 @@ export function TodaySplitView({
                   )}
                 />
               </span>
-              <h2 className="text-sm font-semibold text-foreground">逾期</h2>
+              <h2 className="text-sm font-semibold text-foreground">
+                {t("逾期")}
+              </h2>
               <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
                 {overdueEntries.length}
               </span>
@@ -151,7 +155,7 @@ export function TodaySplitView({
 
       <section
         data-board-column={UNSECTIONED}
-        aria-label="今日任务"
+        aria-label={t("今日任务")}
         className="min-w-0"
       >
         {overdueEntries.length > 0 && (
@@ -159,7 +163,7 @@ export function TodaySplitView({
             data-list-section="true"
             className="flex items-center gap-2 border-b border-border/80"
           >
-            <h2 className="text-sm font-semibold">今日任务</h2>
+            <h2 className="text-sm font-semibold">{t("今日任务")}</h2>
             <span className="text-xs font-normal tabular-nums text-muted-foreground/75">
               {todayEntries.length}
             </span>
@@ -175,14 +179,9 @@ export function TodaySplitView({
                   />
                   <h3 className="text-sm font-medium text-foreground">
                     {overdueEntries.length
-                      ? "今天暂无安排"
-                      : "今天没有待办任务"}
+                      ? t("今天暂无安排")
+                      : t("今天没有待办任务")}
                   </h3>
-                  <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                    {overdueEntries.length
-                      ? `上方还有 ${overdueEntries.length} 项逾期任务，可以重新安排。`
-                      : "留点时间给自己，或添加新的安排。"}
-                  </p>
                 </div>
               )
             : todayEntries.map(renderEntry)}
@@ -191,8 +190,8 @@ export function TodaySplitView({
               mode="add"
               compact
               disabled={disabled}
-              ariaLabel="添加任务至今天"
-              placeholder="添加任务（支持 #项目, @标签, 明天, p1）"
+              ariaLabel={t("添加任务至今天")}
+              placeholder={t("添加任务")}
               defaultProject={defaultProject}
               defaultDue={defaultDue || taskDate(new Date())}
               projects={projects}

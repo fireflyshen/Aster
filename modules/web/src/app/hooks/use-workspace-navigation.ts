@@ -28,7 +28,8 @@ function validCompleteBehavior(
 }
 
 function resetMobileScroll() {
-  if (!isWideWorkspace()) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  if (!isWideWorkspace())
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
 }
 
 /** Manages server-persisted view/layout/sidebar navigation, search state, and view switches. */

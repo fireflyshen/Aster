@@ -10,6 +10,7 @@ import {
 } from "@core/workspace/preferences";
 import { Check, Monitor, Moon, Sun } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
+import { useI18n } from "@/app/language";
 
 export const themePresets = THEME_PALETTES;
 
@@ -84,13 +85,13 @@ export function ThemePanel({
 }: {
   preference: ReturnType<typeof useThemePreference>;
 }) {
+  const { t } = useI18n();
   const { theme, palette, resolvedDark, changeTheme, changePalette } =
     preference;
   return (
     <div className="settings-theme-panel">
-      <p className="settings-intro">用喜欢的颜色，让工作区更像你。</p>
       <fieldset>
-        <legend>外观</legend>
+        <legend>{t("外观")}</legend>
         <div className="appearance-segments">
           {(
             [
@@ -106,19 +107,19 @@ export function ThemePanel({
               onClick={() => changeTheme(value)}
             >
               <Icon className="size-4" />
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
       </fieldset>
       <fieldset>
-        <legend>主题颜色</legend>
+        <legend>{t("主题颜色")}</legend>
         <div className="theme-presets">
           {themePresets.map((preset) => (
             <button
               key={preset.id}
               type="button"
-              aria-label={`${preset.name}主题`}
+              aria-label={t("{0}主题", preset.name)}
               aria-pressed={palette === preset.id}
               onClick={() => changePalette(preset.id)}
               className="theme-preset"

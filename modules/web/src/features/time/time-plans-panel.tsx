@@ -1,4 +1,6 @@
+import { useI18n } from "@/app/language";
 import { useEffect, useState } from "react";
+import { Archive, Play, SlidersHorizontal } from "lucide-react";
 import type { TimingPlan } from "@core/time/model";
 import { localDateOf, zonedDateTimeToUtcMs } from "@core/time/zone";
 import { Button } from "@/components/ui/button";
@@ -8,6 +10,7 @@ import { formatClockInZone, formatLedgerDuration } from "./time-format";
 import type { LedgerMutation } from "./time-ledger-types";
 import { hasTimeAssignment } from "@core/time/assignment";
 import { ProjectTagFields } from "./project-tag-fields";
+import { LedgerAttribution, LedgerIconButton } from "./ledger-ui";
 
 export function TimePlansPanel({
   plans,
@@ -30,6 +33,7 @@ export function TimePlansPanel({
   availableProjects: readonly string[];
   availableTags: readonly string[];
 }) {
+  const { t, locale } = useI18n();
   const visible = plans.filter(
     (plan) =>
       plan.status !== "archived" &&
@@ -66,21 +70,21 @@ export function TimePlansPanel({
     const minutes = Number(extra || 0);
     setError("");
     if (!hasTimeAssignment(project, tags))
-      return setError("请选择项目或至少一个标签。");
+      return setError(t("请选择项目或至少一个标签。"));
     if (!Number.isFinite(minutes) || minutes < 0 || minutes > 1440)
-      return setError("增加用时须为 0–1440 分钟。");
+      return setError(t("增加用时须为 0–1440 分钟。"));
     let hardStopAtMs: number | undefined;
     try {
       hardStopAtMs = stop
         ? zonedDateTimeToUtcMs(date, stop, timeZone)
         : undefined;
     } catch {
-      return setError("请选择有效的结束时间。");
+      return setError(t("请选择有效的结束时间。"));
     }
     if (hardStopAtMs !== undefined && hardStopAtMs <= Date.now())
-      return setError("最晚结束时间已经过去。");
+      return setError(t("最晚结束时间已经过去。"));
     const result = await runMutation(
-      `调整计划：${plan.title}`,
+      t("调整计划：{0}", plan.title),
       () =>
         updateTimingPlan({
           planId: plan.id,
@@ -103,8 +107,8 @@ export function TimePlansPanel({
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary>
-        <span>已保存计划</span>
-        <small>{visible.length} 项 · 需要手动开始</small>
+        <span>{t("计划")}</span>
+        <small>{visible.length}</small>
       </summary>
       <div>
         {visible.map((plan) => {
@@ -123,51 +127,48 @@ export function TimePlansPanel({
                 <div>
                   <strong>{plan.title}</strong>
                   <div className="ledger-entry-meta">
-                    {plan.projectSnapshot && (
-                      <span>{plan.projectSnapshot}</span>
-                    )}
-                    {plan.tags?.map((tag) => (
-                      <span key={tag}>#{tag}</span>
-                    ))}
+                    <LedgerAttribution
+                      project={plan.projectSnapshot}
+                      tags={plan.tags}
+                    />
                     {plan.remainingSeconds !== undefined && (
                       <span>
-                        剩余 {formatLedgerDuration(plan.remainingSeconds)}
+                        {t("剩余")}{" "}
+                        {formatLedgerDuration(plan.remainingSeconds, locale)}
                       </span>
                     )}
                     {plan.plannedStartAtMs && (
                       <span>
-                        {localDateOf(plan.plannedStartAtMs, timeZone)}{" "}
+                        {localDateOf(plan.plannedStartAtMs, timeZone).slice(5)}{" "}
                         {formatClockInZone(plan.plannedStartAtMs, timeZone)}{" "}
-                        计划开始
+                        {t("计划开始")}
                       </span>
                     )}
                     {plan.hardStopAtMs && (
                       <span>
                         {formatClockInZone(plan.hardStopAtMs, timeZone)}{" "}
-                        最晚结束
+                        {t("最晚结束")}
                       </span>
                     )}
-                    {(expired || exhausted) && <span>需要调整</span>}
+                    {(expired || exhausted) && <span>{t("需要调整")}</span>}
                     {!hasTimeAssignment(plan.projectSnapshot, plan.tags) && (
-                      <span>请在调整中补充项目或标签</span>
+                      <span>{t("待补归属")}</span>
                     )}
                   </div>
                 </div>
                 <div className="ledger-button-row">
-                  <Button
-                    size="sm"
-                    variant="ghost"
+                  <LedgerIconButton
+                    label={t("调整")}
                     disabled={busy}
                     onClick={() => edit(plan)}
                   >
-                    调整
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
+                    <SlidersHorizontal className="size-4" />
+                  </LedgerIconButton>
+                  <LedgerIconButton
+                    label={t("归档")}
                     disabled={busy}
                     onClick={() =>
-                      void runMutation(`归档计划：${plan.title}`, () =>
+                      void runMutation(t("归档计划：{0}", plan.title), () =>
                         updateTimingPlan({
                           planId: plan.id,
                           expectedVersion: plan.version,
@@ -176,15 +177,15 @@ export function TimePlansPanel({
                       )
                     }
                   >
-                    归档
-                  </Button>
-                  <Button
-                    size="sm"
+                    <Archive className="size-4" />
+                  </LedgerIconButton>
+                  <LedgerIconButton
+                    label={plan.status === "paused" ? t("继续计时") : t("开始")}
                     variant="outline"
                     disabled={busy || !startable}
                     onClick={() =>
                       void runMutation(
-                        `开始：${plan.title}`,
+                        t("开始：{0}", plan.title),
                         () =>
                           startTimingPlan({
                             planId: plan.id,
@@ -194,15 +195,15 @@ export function TimePlansPanel({
                       )
                     }
                   >
-                    {plan.status === "paused" ? "继续计时" : "开始"}
-                  </Button>
+                    <Play className="size-4" />
+                  </LedgerIconButton>
                 </div>
               </div>
               {editing === plan.id && (
                 <div className="ledger-plan-editor">
                   <div className="ledger-plan-fields">
                     <label className="ledger-field">
-                      <span>增加用时 · 分钟</span>
+                      <span>{t("增加用时 · 分钟")}</span>
                       <input
                         type="number"
                         min={0}
@@ -212,11 +213,11 @@ export function TimePlansPanel({
                       />
                     </label>
                     <label className="ledger-field">
-                      <span>结束日期</span>
+                      <span>{t("结束日期")}</span>
                       <DateField value={date} onChange={setDate} />
                     </label>
                     <label className="ledger-field">
-                      <span>最晚结束 · 可选</span>
+                      <span>{t("最晚结束 · 可选")}</span>
                       <input
                         type="time"
                         value={stop}
@@ -233,9 +234,7 @@ export function TimePlansPanel({
                     availableProjects={availableProjects}
                     availableTags={availableTags}
                   />
-                  <p className="ledger-muted-note">
-                    增加额度不会自动延长最晚结束时间，也不会自动开始计时。
-                  </p>
+                  <p className="ledger-muted-note">{t("加时不延后截止。")}</p>
                   {error && (
                     <p role="alert" className="ledger-form-error">
                       {error}
@@ -247,7 +246,7 @@ export function TimePlansPanel({
                       variant="ghost"
                       onClick={() => setEditing(undefined)}
                     >
-                      取消
+                      {t("取消")}
                     </Button>
                     <Button
                       size="sm"
@@ -255,7 +254,7 @@ export function TimePlansPanel({
                       disabled={busy}
                       onClick={() => void save(plan)}
                     >
-                      保存调整
+                      {t("保存调整")}
                     </Button>
                   </div>
                 </div>

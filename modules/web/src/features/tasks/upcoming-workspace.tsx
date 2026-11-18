@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { upcomingWeek } from "./upcoming-model";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TaskRenderFn } from "@/app/hooks/use-task-renderer";
@@ -11,7 +12,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { zhCN } from "date-fns/locale";
 import { toDueDay } from "./task-date";
 
 const INITIAL_DAYS = 28;
@@ -34,6 +34,7 @@ export function UpcomingWorkspace({
   loading: boolean;
   taskLinks?: Record<string, string>;
 }) {
+  const { t, locale } = useI18n();
   const today = toDueDay(new Date().toISOString());
   const [rangeAnchor, setRangeAnchor] = useState(today);
   const [activeDay, setActiveDay] = useState(today);
@@ -148,13 +149,13 @@ export function UpcomingWorkspace({
 
   const label = (day: string) => {
     const date = new Date(`${day}T12:00:00`);
-    return `${date.getMonth() + 1}月${date.getDate()}日${
+    return `${new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }).format(date)}${
       day === today
-        ? " · 今天"
+        ? t(" · 今天")
         : day === addLocalDays(today, 1)
-          ? " · 明天"
+          ? t(" · 明天")
           : ""
-    } · ${new Intl.DateTimeFormat("zh-CN", { weekday: "long" }).format(date)}`;
+    } · ${new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date)}`;
   };
 
   return (
@@ -166,9 +167,9 @@ export function UpcomingWorkspace({
               <Button
                 variant="ghost"
                 className="upcoming-month"
-                aria-label="选择预览日期"
+                aria-label={t("选择预览日期")}
               >
-                {new Intl.DateTimeFormat("zh-CN", {
+                {new Intl.DateTimeFormat(locale, {
                   year: "numeric",
                   month: "long",
                 }).format(new Date(activeDay + "T12:00:00"))}
@@ -178,7 +179,6 @@ export function UpcomingWorkspace({
             <PopoverContent align="start" className="w-auto p-0">
               <Calendar
                 mode="single"
-                locale={zhCN}
                 selected={new Date(activeDay + "T12:00:00")}
                 defaultMonth={new Date(activeDay + "T12:00:00")}
                 onSelect={(date) => {
@@ -194,25 +194,25 @@ export function UpcomingWorkspace({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="上一周"
+              aria-label={t("上一周")}
               onClick={() => jumpToDate(addLocalDays(activeDay, -7))}
             >
               <ChevronLeft className="size-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={() => jumpToDate(today)}>
-              今天
+              {t("今天")}
             </Button>
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="下一周"
+              aria-label={t("下一周")}
               onClick={() => jumpToDate(addLocalDays(activeDay, 7))}
             >
               <ChevronRight className="size-4" />
             </Button>
           </div>
         </div>
-        <nav className="upcoming-week-nav" aria-label="一周日期">
+        <nav className="upcoming-week-nav" aria-label={t("一周日期")}>
           {stripDays.map((day) => {
             const isToday = day === today;
             const isActive = day === activeDay;
@@ -234,7 +234,7 @@ export function UpcomingWorkspace({
                 }}
               >
                 <span>
-                  {new Intl.DateTimeFormat("zh-CN", {
+                  {new Intl.DateTimeFormat(locale, {
                     weekday: "narrow",
                   }).format(new Date(`${day}T12:00:00`))}
                 </span>
@@ -250,7 +250,7 @@ export function UpcomingWorkspace({
 
       {loading && (
         <p role="status" className="pt-2 text-xs text-muted-foreground">
-          加载任务…
+          {t("加载任务…")}
         </p>
       )}
       <div className="upcoming-days">
@@ -283,13 +283,13 @@ export function UpcomingWorkspace({
               type="button"
               className="upcoming-add"
               disabled={disabled}
-              aria-label={`在 ${group.day} 添加任务`}
+              aria-label={t("在 {0} 添加任务", group.day)}
               onClick={() =>
                 onAdd({ description: "", tags: [], due: group.day })
               }
             >
               <Plus className="size-4" />
-              添加任务
+              {t("添加任务")}
             </button>
           </section>
         ))}

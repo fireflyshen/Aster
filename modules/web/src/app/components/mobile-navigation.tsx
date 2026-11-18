@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { FolderOpen, Inbox, Menu, PlayCircle, Plus } from "lucide-react";
 import type { View } from "@shared/tasks";
 
@@ -21,8 +22,9 @@ export function MobileNavigation({
   onMenu: () => void;
   onAdd: () => void;
 }) {
+  const { t } = useI18n();
   return (
-    <nav className="mobile-navigation" aria-label="常用导航">
+    <nav className="mobile-navigation" aria-label={t("常用导航")}>
       <button
         type="button"
         aria-current={view === "now" ? "page" : undefined}
@@ -30,7 +32,7 @@ export function MobileNavigation({
         onClick={() => onView("now")}
       >
         <PlayCircle aria-hidden="true" />
-        <span>现在</span>
+        <span>{t("现在")}</span>
       </button>
       <button
         type="button"
@@ -39,17 +41,17 @@ export function MobileNavigation({
         onClick={() => onView("pending")}
       >
         <Inbox aria-hidden="true" />
-        <span>收件箱</span>
+        <span>{t("收件箱")}</span>
       </button>
       <button
         type="button"
         className="mobile-capture"
-        aria-label="快速添加任务"
+        aria-label={t("快速添加任务")}
         disabled={disabled}
         onClick={onAdd}
       >
         <Plus aria-hidden="true" />
-        <span>添加</span>
+        <span>{t("添加")}</span>
       </button>
       <button
         type="button"
@@ -58,16 +60,16 @@ export function MobileNavigation({
         onClick={onProjects}
       >
         <FolderOpen aria-hidden="true" />
-        <span>项目</span>
+        <span>{t("项目")}</span>
       </button>
       <button
         type="button"
-        aria-label="打开全部导航"
+        aria-label={t("打开全部导航")}
         aria-haspopup="dialog"
         onClick={onMenu}
       >
         <Menu aria-hidden="true" />
-        <span>浏览</span>
+        <span>{t("浏览")}</span>
       </button>
     </nav>
   );

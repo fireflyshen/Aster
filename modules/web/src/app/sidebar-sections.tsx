@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { FilterIcon, LabelIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { RowMenu } from "@/features/organization/organization-row";
@@ -47,6 +48,7 @@ export function SidebarFavorites({
   onEditEntry: (entry: OrganizationEntry) => void;
   onChange: (change: OrganizationChange) => Promise<boolean>;
 }) {
+  const { t } = useI18n();
   const entries: OrganizationEntry[] = [
     ...organization.filters
       .filter((item) => item.favorite)
@@ -59,9 +61,9 @@ export function SidebarFavorites({
   return (
     <>
       <p className="mt-6 mb-1.5 px-2.5 text-xs font-medium text-muted-foreground">
-        收藏
+        {t("收藏")}
       </p>
-      <nav aria-label="收藏" className="space-y-0.5">
+      <nav aria-label={t("收藏")} className="space-y-0.5">
         {entries.map((entry) => {
           const { item, kind } = entry;
           const Icon = kind === "filter" ? FilterIcon : LabelIcon;
@@ -149,6 +151,7 @@ export function SidebarProjectsSection({
   onProjectStatus: (name: string, status: ProjectStatus) => void;
   onSelectProject: (name: string) => void;
 }) {
+  const { t } = useI18n();
   const current =
     !organizationPage && !hasActiveItem ? currentProject : undefined;
 
@@ -159,16 +162,16 @@ export function SidebarProjectsSection({
           variant="ghost"
           onClick={onProjects}
           disabled={disabled}
-          aria-label="管理项目"
+          aria-label={t("管理项目")}
           aria-current={organizationPage && projectsPage ? "page" : undefined}
           className="h-7 rounded-md px-2 text-xs font-medium text-muted-foreground hover:bg-navigation-hover hover:text-foreground aria-[current=page]:bg-navigation-selected aria-[current=page]:text-foreground"
         >
-          我的项目
+          {t("我的项目")}
         </Button>
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label="添加项目"
+          aria-label={t("添加项目")}
           disabled={disabled}
           onClick={onAddProject}
           className="size-7 text-muted-foreground hover:bg-navigation-hover hover:text-foreground"
@@ -176,7 +179,7 @@ export function SidebarProjectsSection({
           <Plus className="size-4" />
         </Button>
       </div>
-      <nav aria-label="项目" className="flex-1 space-y-0.5">
+      <nav aria-label={t("项目")} className="flex-1 space-y-0.5">
         {projects.length > 0 ? (
           <ProjectTree
             names={projects}
@@ -198,7 +201,7 @@ export function SidebarProjectsSection({
             className="h-8 text-xs text-muted-foreground"
           >
             <Plus className="size-3.5" />
-            新建项目
+            {t("新建项目")}
           </Button>
         )}
       </nav>
@@ -230,6 +233,7 @@ export function SidebarEnergyMeter({
   onRetryTiming?: () => void;
   onElixir?: () => void;
 }) {
+  const { t } = useI18n();
   const isTimeMode =
     timing?.backend === "time" || timerSnapshot?.backend === "time";
   const hardEnergyLimit = !isTimeMode && timing?.hardEnergyLimit !== false;
@@ -237,7 +241,7 @@ export function SidebarEnergyMeter({
   const periodLabel =
     energy?.periodLabel ||
     (energy?.resetHour !== undefined
-      ? `${String(energy.resetHour).padStart(2, "0")}:00 周期`
+      ? t("{0}:00 周期", String(energy.resetHour).padStart(2, "0"))
       : undefined);
   const autoStopMs = activeActivity?.autoStopAt
     ? Date.parse(activeActivity.autoStopAt)
@@ -263,17 +267,17 @@ export function SidebarEnergyMeter({
         >
           <p className="font-medium text-foreground">
             {timerSnapshot.state === "pending_reconcile"
-              ? "计时待核对"
+              ? t("计时待核对")
               : timerSnapshot.state === "restoring"
-                ? "时间账本恢复中"
-                : "计时数据不可用"}
+                ? t("时间账本恢复中")
+                : t("计时数据不可用")}
           </p>
           <p>
             {timerSnapshot.state === "pending_reconcile"
-              ? "存在未确认的计时操作，请刷新核对状态。"
+              ? t("存在未确认的计时操作，请刷新核对状态。")
               : timerSnapshot.state === "restoring"
-                ? "正在恢复时间数据，已停止计时外推。"
-                : "暂时无法读取时间状态。"}
+                ? t("正在恢复时间数据，已停止计时外推。")
+                : t("暂时无法读取时间状态。")}
           </p>
           {onRetryTiming && (
             <Button
@@ -283,7 +287,7 @@ export function SidebarEnergyMeter({
               disabled={busy}
               className="h-7 px-0 text-xs"
             >
-              刷新核对
+              {t("刷新核对")}
             </Button>
           )}
         </div>
@@ -291,7 +295,7 @@ export function SidebarEnergyMeter({
       {isTimeMode && activeActivity && (
         <div
           className="mt-6 space-y-1.5 rounded-md border border-border/70 bg-muted/35 px-2.5 py-2 text-xs"
-          aria-label="当前计时活动"
+          aria-label={t("当前计时活动")}
         >
           <div className="flex items-center justify-between gap-2">
             <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-foreground">
@@ -302,7 +306,7 @@ export function SidebarEnergyMeter({
               <span className="truncate">
                 {activeActivity.title ||
                   activeActivity.categoryId ||
-                  "当前活动"}
+                  t("当前活动")}
               </span>
             </span>
             <span className="shrink-0 font-medium text-foreground tabular-nums">
@@ -315,10 +319,15 @@ export function SidebarEnergyMeter({
             <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground tabular-nums">
               <span>
                 {remainingAutoStopSec <= 0
-                  ? "已到停止时刻"
-                  : `剩余 ${Math.max(1, Math.ceil(remainingAutoStopSec / 60))} 分钟`}
+                  ? t("已到停止时刻")
+                  : t(
+                      "剩余 {0} 分钟",
+                      Math.max(1, Math.ceil(remainingAutoStopSec / 60)),
+                    )}
               </span>
-              <span>{autoStopClockLabel} 停止</span>
+              <span>
+                {autoStopClockLabel} {t("停止")}
+              </span>
             </div>
           )}
           {(timerLiveStatus?.stateLabel === "stale" ||
@@ -327,8 +336,8 @@ export function SidebarEnergyMeter({
             <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
               <span>
                 {timerLiveStatus.stateLabel === "review_required"
-                  ? "超长运行待确认"
-                  : "连接已过期 · 已停止外推"}
+                  ? t("超长运行待确认")
+                  : t("连接已过期 · 已停止外推")}
               </span>
               {onRetryTiming && (
                 <button
@@ -338,7 +347,7 @@ export function SidebarEnergyMeter({
                   className="inline-flex items-center gap-1 text-foreground hover:underline"
                 >
                   <RefreshCw className="size-3" />
-                  刷新
+                  {t("刷新")}
                 </button>
               )}
             </div>
@@ -350,8 +359,8 @@ export function SidebarEnergyMeter({
           role="status"
           className="mt-6 space-y-1 px-2.5 text-xs leading-5 text-muted-foreground"
         >
-          <p>计时数据不可用</p>
-          <p>暂时无法计算精力值。</p>
+          <p>{t("计时数据不可用")}</p>
+          <p>{t("暂时无法计算精力值。")}</p>
           <Button
             variant="link"
             size="sm"
@@ -359,12 +368,12 @@ export function SidebarEnergyMeter({
             disabled={busy}
             className="h-7 px-0 text-xs"
           >
-            重试
+            {t("重试")}
           </Button>
         </div>
       )}
       {energy && (
-        <div className="mt-6 space-y-1.5 px-2.5" aria-label="每日精力">
+        <div className="mt-6 space-y-1.5 px-2.5" aria-label={t("每日精力")}>
           <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 font-medium text-foreground tabular-nums">
               <Zap
@@ -381,13 +390,13 @@ export function SidebarEnergyMeter({
           </div>
           <div
             role="progressbar"
-            aria-label="剩余每日精力"
+            aria-label={t("剩余每日精力")}
             aria-valuemin={0}
             aria-valuemax={energy.max}
             aria-valuenow={energy.remaining ?? undefined}
             aria-valuetext={
               energy.remaining === null
-                ? "暂不估算剩余精力"
+                ? t("暂不估算剩余精力")
                 : `${energy.remaining} / ${energy.max}`
             }
             className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
@@ -415,8 +424,8 @@ export function SidebarEnergyMeter({
             <p className="text-[11px] leading-4 text-muted-foreground">
               {energy.remaining === null
                 ? energy.incompleteReason ||
-                  "切换周期历史不完整，暂不估算剩余精力"
-                : `${periodLabel}${!hardEnergyLimit ? " · 仅展示" : ""}`}
+                  t("切换周期历史不完整，暂不估算剩余精力")
+                : `${periodLabel}${!hardEnergyLimit ? t(" · 仅展示") : ""}`}
             </p>
           )}
           {hardEnergyLimit &&
@@ -431,7 +440,7 @@ export function SidebarEnergyMeter({
                 className="h-6 w-full justify-start px-0 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground has-[>svg]:px-0"
               >
                 <Plus className="size-3" />
-                恢复 +30 精力
+                {t("恢复 +30 精力")}
               </Button>
             )}
         </div>

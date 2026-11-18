@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import {
   type SidebarItemId,
   type SidebarPreferences,
@@ -66,6 +67,14 @@ const viewMeta: Record<View, React.ComponentType<{ className?: string }>> = {
   today: TodayNavIcon,
 };
 
+const viewIconColor: Record<View, string> = {
+  now: "text-primary",
+  focus: "text-(--due-tomorrow)",
+  pending: "text-(--priority-3)",
+  today: "text-(--due-today)",
+  upcoming: "text-(--due-upcoming)",
+};
+
 type WorkspaceSidebarProps = {
   navOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -79,7 +88,7 @@ type WorkspaceSidebarProps = {
   projects: string[];
   viewCounts?: Partial<Record<View, number>>;
   busy: boolean;
-  needsCheck: boolean;
+  addDisabled: boolean;
   organizationSaving: boolean;
   connectionLabel: string;
   energy?: EnergySummary;
@@ -129,7 +138,7 @@ export function WorkspaceSidebar({
   projects,
   viewCounts,
   busy,
-  needsCheck,
+  addDisabled,
   organizationSaving,
   connectionLabel,
   energy,
@@ -161,6 +170,7 @@ export function WorkspaceSidebar({
   habitsCount,
   onOpenHabitsPage,
 }: WorkspaceSidebarProps) {
+  const { t } = useI18n();
   const disabled = busy || organizationSaving;
   const isSidebarVisible = (id: SidebarItemId) =>
     !sidebarPreferences.hidden.includes(id);
@@ -171,7 +181,6 @@ export function WorkspaceSidebar({
   const showHabits = Boolean(onOpenHabitsPage && isSidebarVisible("habits"));
   const showTime = Boolean(onOpenTimePage && isSidebarVisible("time"));
   const showOrganization = isSidebarVisible("organization");
-
   const activeRoots = (organization.projects || [])
     .filter((p) => projectStatus(p) === "active")
     .map((p) => p.name);
@@ -190,7 +199,7 @@ export function WorkspaceSidebar({
         <div className="sidebar-account flex h-14 items-center justify-between px-1">
           <button
             type="button"
-            aria-label="打开设置"
+            aria-label={t("打开设置")}
             onClick={() => {
               closeOnMobile();
               onOpenSettings("theme");
@@ -214,8 +223,8 @@ export function WorkspaceSidebar({
             id="sidebar-close"
             variant="ghost"
             size="icon-xs"
-            aria-label="隐藏侧边栏"
-            title="收起侧边栏"
+            aria-label={t("隐藏侧边栏")}
+            title={t("收起侧边栏")}
             className="size-7 text-muted-foreground hover:bg-navigation-hover hover:text-foreground"
             onClick={() => onOpenChange(false)}
           >
@@ -228,13 +237,16 @@ export function WorkspaceSidebar({
             closeOnMobile();
             onAdd();
           }}
-          disabled={busy || needsCheck}
+          disabled={addDisabled}
           aria-keyshortcuts="Q"
           className="sidebar-add h-9 w-full justify-start gap-2.5 px-2 font-semibold text-(--navigation-selected-ink) hover:bg-navigation-hover hover:text-(--navigation-selected-ink) has-[>svg]:px-2"
         >
           <AddTaskIcon className="size-5 shrink-0" />
-          添加任务
-          <kbd className="ml-auto rounded border border-border/80 bg-background/80 px-1.5 py-0.5 font-sans text-[11px] leading-none text-muted-foreground">
+          {t("添加任务")}
+          <kbd
+            aria-hidden="true"
+            className="ml-auto rounded border border-border/80 bg-background/80 px-1.5 py-0.5 font-sans text-[11px] leading-none text-muted-foreground"
+          >
             Q
           </kbd>
         </Button>
@@ -248,14 +260,14 @@ export function WorkspaceSidebar({
           className="sidebar-search"
         >
           <Search className="size-[18px]" strokeWidth={1.5} />
-          搜索
+          {t("搜索")}
           <kbd className="ml-auto text-[11px] text-muted-foreground">⌘K</kbd>
         </Button>
         {workViews.length > 0 && (
-          <nav aria-label="任务" className="sidebar-nav-section">
-            <p className="sidebar-nav-label">任务</p>
+          <nav aria-label={t("任务")} className="sidebar-nav-section">
+            <p className="sidebar-nav-label">{t("任务")}</p>
             {workViews.map((value) => {
-              const label = views[value];
+              const label = t(views[value]);
               const Icon = viewMeta[value];
               const count = viewCounts?.[value];
               return (
@@ -278,7 +290,9 @@ export function WorkspaceSidebar({
                     closeOnMobile();
                   }}
                 >
-                  <Icon className="size-[18px] shrink-0" />
+                  <Icon
+                    className={cn("size-[18px] shrink-0", viewIconColor[value])}
+                  />
                   <span className="truncate">{label}</span>
                   {value === "now" ? (
                     <span
@@ -308,8 +322,8 @@ export function WorkspaceSidebar({
           </nav>
         )}
         {(showHabits || showTime || showOrganization) && (
-          <nav aria-label="工具" className="sidebar-nav-section">
-            <p className="sidebar-nav-label">工具</p>
+          <nav aria-label={t("工具")} className="sidebar-nav-section">
+            <p className="sidebar-nav-label">{t("工具")}</p>
             {showHabits && onOpenHabitsPage && (
               <Button
                 variant="navigation"
@@ -320,8 +334,8 @@ export function WorkspaceSidebar({
                   closeOnMobile();
                 }}
               >
-                <HabitsNavIcon className="size-[18px] shrink-0" />
-                <span className="truncate">习惯</span>
+                <HabitsNavIcon className="size-[18px] shrink-0 text-(--habit-accent)" />
+                <span className="truncate">{t("习惯")}</span>
                 {habitsCount ? (
                   <span
                     data-sidebar-count
@@ -344,11 +358,11 @@ export function WorkspaceSidebar({
                   closeOnMobile();
                 }}
               >
-                <LedgerNavIcon className="size-[18px]" />
-                <span className="flex-1 text-left">时间账本</span>
+                <LedgerNavIcon className="sidebar-ledger-icon size-[18px]" />
+                <span className="flex-1 text-left">{t("时间账本")}</span>
                 {timerSnapshot?.state === "pending_reconcile" && (
                   <span
-                    aria-label="有待核对的计时"
+                    aria-label={t("有待核对的计时")}
                     className="size-2 shrink-0 rounded-full bg-amber-500"
                   />
                 )}
@@ -366,8 +380,8 @@ export function WorkspaceSidebar({
                   closeOnMobile();
                 }}
               >
-                <OrganizationIcon className="size-[18px]" />
-                过滤器 &amp; 标签
+                <OrganizationIcon className="size-[18px] text-(--priority-2)" />
+                {t("过滤器 &amp; 标签")}
               </Button>
             )}
           </nav>

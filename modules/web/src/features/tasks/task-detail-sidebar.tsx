@@ -350,9 +350,7 @@ export function TaskDetailSidebar({
                 );
               })}
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground/70">暂无标签</p>
-          )}
+          ) : null}
         </div>
       </div>
 

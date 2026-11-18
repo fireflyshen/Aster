@@ -1,3 +1,4 @@
+import { useI18n } from "@/app/language";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -10,8 +11,6 @@ import type {
   SavedProject,
   SavedTag,
 } from "@core/workspace/organization";
-import type { View } from "@shared/tasks";
-import { cn } from "cn";
 import {
   Check,
   Ellipsis,
@@ -23,12 +22,10 @@ import {
   Target,
   Trash2,
 } from "lucide-react";
-import { views } from "../workspace-sidebar";
 
 type WorkspaceHeadingMenuProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  view: View;
   currentProject: string;
   organizationReady: boolean;
   disabled: boolean;
@@ -38,7 +35,6 @@ type WorkspaceHeadingMenuProps = {
   currentProjectIsHabit?: boolean;
   projectOutcome?: string;
   projectDescription?: string;
-  onSelectView: (view: View) => void;
   onTransitionProject: (name: string, status: ProjectStatus) => void;
   onAddSubproject: (parent: string) => void;
   onStartEditDesc: () => void;
@@ -52,7 +48,6 @@ type WorkspaceHeadingMenuProps = {
 export function WorkspaceHeadingMenu({
   open,
   onOpenChange,
-  view,
   currentProject,
   organizationReady,
   disabled,
@@ -62,7 +57,6 @@ export function WorkspaceHeadingMenu({
   currentProjectIsHabit = false,
   projectOutcome,
   projectDescription,
-  onSelectView,
   onTransitionProject,
   onAddSubproject,
   onStartEditDesc,
@@ -71,6 +65,7 @@ export function WorkspaceHeadingMenu({
   onDeleteProject,
   onManageOrganization,
 }: WorkspaceHeadingMenuProps) {
+  const { t } = useI18n();
   const metaDisabled = disabled || !organizationReady;
 
   return (
@@ -80,7 +75,7 @@ export function WorkspaceHeadingMenu({
           variant="ghost"
           size="icon-sm"
           disabled={disabled}
-          aria-label="视图选项"
+          aria-label={currentProject ? t("项目选项") : t("视图选项")}
           className="text-muted-foreground data-[state=open]:bg-accent"
         >
           <Ellipsis className="size-5" />
@@ -105,12 +100,12 @@ export function WorkspaceHeadingMenu({
                 {currentProjectFocus ? (
                   <>
                     <Pause className="size-3.5" />
-                    移至稍后
+                    {t("移至稍后")}
                   </>
                 ) : (
                   <>
                     <Play className="size-3.5" />
-                    加入焦点
+                    {t("加入焦点")}
                   </>
                 )}
               </Button>
@@ -128,7 +123,7 @@ export function WorkspaceHeadingMenu({
               }}
             >
               <Check className="size-3.5" />
-              完成项目
+              {t("完成项目")}
             </Button>
             <Button
               variant="navigation"
@@ -140,7 +135,7 @@ export function WorkspaceHeadingMenu({
               }}
             >
               <Plus className="size-3.5" />
-              添加子项目
+              {t("添加子项目")}
             </Button>
             <Button
               variant="navigation"
@@ -152,7 +147,7 @@ export function WorkspaceHeadingMenu({
               }}
             >
               <FileText className="size-3.5" />
-              {projectDescription ? "编辑描述" : "添加描述"}
+              {projectDescription ? t("编辑描述") : t("添加描述")}
             </Button>
             <Button
               variant="navigation"
@@ -164,7 +159,7 @@ export function WorkspaceHeadingMenu({
               }}
             >
               <Target className="size-3.5" />
-              {projectOutcome ? "编辑目标" : "设定目标"}
+              {projectOutcome ? t("编辑目标") : t("设定目标")}
             </Button>
             <Button
               variant="navigation"
@@ -176,7 +171,7 @@ export function WorkspaceHeadingMenu({
               }}
             >
               <Pencil className="size-3.5" />
-              编辑项目
+              {t("编辑项目")}
             </Button>
             <Button
               variant="navigation"
@@ -188,7 +183,7 @@ export function WorkspaceHeadingMenu({
               }}
             >
               <Trash2 className="size-3.5" />
-              删除项目
+              {t("删除项目")}
             </Button>
           </>
         )}
@@ -209,35 +204,11 @@ export function WorkspaceHeadingMenu({
               }}
             >
               <Pencil className="size-3.5" />
-              管理{activeEntry?.kind === "filter" ? "过滤器" : "标签"}
+              {t("管理")}
+              {activeEntry?.kind === "filter" ? t("过滤器") : t("标签")}
             </Button>
           </>
         )}
-
-        {!currentProject &&
-          !activeItem &&
-          (Object.entries(views) as [View, string][]).map(([key, label]) => (
-            <Button
-              key={key}
-              variant="navigation"
-              aria-current={
-                view === key && !currentProject ? "page" : undefined
-              }
-              className="h-8 text-xs"
-              onClick={() => {
-                onOpenChange(false);
-                onSelectView(key);
-              }}
-            >
-              <Check
-                className={cn(
-                  "size-3.5",
-                  (view !== key || currentProject) && "invisible",
-                )}
-              />
-              {label}
-            </Button>
-          ))}
       </PopoverContent>
     </Popover>
   );

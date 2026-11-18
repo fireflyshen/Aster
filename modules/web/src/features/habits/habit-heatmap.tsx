@@ -113,7 +113,7 @@ export function HabitHeatmap({
           const found = heatmap.cells.find((c) => c.date === selectedDate);
           return found ? cellDescription(found) : selectedDate;
         })()
-      : "点击任意日期格子查看当日习惯明细或补记";
+      : "";
 
   return (
     <div
@@ -213,7 +213,6 @@ export function HabitHeatmap({
         >
           <span>未安排</span>
           <i data-status="unscheduled" />
-          <span className="ml-2">达成率</span>
           <span>低</span>
           {[0, 1, 2, 3, 4].map((level) => (
             <i key={level} data-level={level} />
